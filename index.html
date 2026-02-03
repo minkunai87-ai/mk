@@ -5,49 +5,78 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (폴더 통합)</title>
+<title>나만의 안키 (3단 계층 구조)</title>
 <style>
-    /* v10.4 스타일 (다크모드 + 핏 보정) 그대로 유지 */
+    /* v10.7 스타일 기반 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
+    :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; --sub-group-bg: #252525; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+    
+    /* 헤더 */
     .header { background: var(--surface); padding: 0 20px; padding-top: calc(env(safe-area-inset-top) + 15px); padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0; position: relative; }
     .header-title { font-weight: bold; font-size: 1.15rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 60%; }
     .header-controls { display: flex; gap: 10px; align-items: center; }
     .menu-btn { font-size: 1.6rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); display: flex; align-items: center; }
     .counter { font-size: 0.85rem; font-weight: bold; color: var(--text-sub); background: var(--input-bg); padding: 5px 12px; border-radius: 15px; }
+
+    /* 사이드바 */
     .sidebar { position: fixed; top: 0; left: 0; width: 300px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); box-shadow: 2px 0 15px rgba(0,0,0,0.5); transition: transform 0.3s ease; z-index: 9999; padding: 25px; padding-top: calc(env(safe-area-inset-top) + 25px); display: flex; flex-direction: column; overflow-y: auto; transform: translateX(-105%); }
     .sidebar.open { transform: translateX(0); }
     .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9998; display: none; }
     .sidebar-overlay.open { display: block; }
+    
     .menu-section { margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
     .menu-label { font-weight: bold; color: var(--text-sub); margin-bottom: 10px; display: block; font-size: 0.95rem; }
     .search-box { position: relative; margin-bottom: 15px; }
     .search-input { width: 100%; padding: 12px 10px 12px 35px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-size: 0.95rem; }
     .search-input:focus { border-color: var(--primary); outline: none; }
     .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-sub); }
+
+    /* 🔥 3단 구조 스타일링 */
     .deck-list { list-style: none; padding: 0; margin: 0; }
-    .deck-item { padding: 12px; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; background: var(--input-bg); border: 1px solid transparent; font-size: 0.95rem; color: var(--text); }
+    
+    /* 1. 최상위 폴더 (Root Folder) */
+    .folder-header { padding: 10px 12px; border-radius: 8px; margin-bottom: 6px; background: #2b2b2b; border: 1px solid #444; display: flex; justify-content: space-between; align-items: center; }
+    .folder-title-area { flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; color: #ffd43b; font-weight: bold; font-size: 1rem; }
+    .folder-content { display: none; padding-left: 5px; margin-bottom: 10px; }
+    .folder-content.open { display: block; }
+
+    /* 2. 중위 그룹 (Sub Group: P01 등) */
+    .sub-group-header { 
+        padding: 8px 10px; border-radius: 6px; margin: 4px 0 4px 5px; 
+        background: var(--sub-group-bg); border-left: 3px solid var(--primary); 
+        display: flex; justify-content: space-between; align-items: center; 
+    }
+    .sub-group-title { font-size: 0.9rem; font-weight: bold; color: #fff; flex: 1; cursor: pointer; }
+    .sub-group-content { display: none; padding-left: 10px; margin-bottom: 8px; }
+    .sub-group-content.open { display: block; }
+
+    /* 3. 개별 덱 (Deck Item) */
+    .deck-item { padding: 10px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; background: var(--input-bg); border: 1px solid transparent; font-size: 0.9rem; color: var(--text); }
     .deck-item:hover { background: var(--btn-hover); }
     .deck-item.active { background: #182836; color: #74c0fc; font-weight: bold; border: 1px solid #1c7ed6; }
-    .folder-header { padding: 8px 12px; border-radius: 8px; margin-bottom: 6px; background: #2b2b2b; border: 1px solid #444; display: flex; justify-content: space-between; align-items: center; }
-    .folder-title-area { flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; color: #ffd43b; font-weight: bold; }
-    .folder-play-btn { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
-    .folder-content { display: none; padding-left: 10px; border-left: 2px solid var(--border); margin-left: 5px; margin-bottom: 10px; }
-    .folder-content.open { display: block; }
-    .deck-del-btn { background: none; border: none; color: var(--text-sub); font-weight: bold; padding: 0 8px; cursor: pointer; font-size: 1.1rem; }
+
+    /* 공통 버튼 */
+    .play-btn { background: var(--primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 5px; }
+    .deck-del-btn { background: none; border: none; color: var(--text-sub); font-weight: bold; padding: 0 5px; cursor: pointer; font-size: 1rem; }
+
     .btn-upload, .sort-btn, .backup-btn, .restore-btn, .refresh-btn { width: 100%; padding: 12px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; font-weight: bold; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); text-align: left; }
     .btn-upload { background: var(--primary); color: white; border: none; text-align: center; }
     .backup-btn { background: #343a40; color: white; border: none; text-align: center; }
     .restore-btn { background: #495057; color: white; border: none; text-align: center; }
     .refresh-btn { background: #212529; color: var(--text-sub); border: 1px solid var(--border); text-align: center; margin-top: 10px; }
+
+    /* 메인 영역 */
     .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
     .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; box-shadow: none; border: none; display: flex; flex-direction: column; position: relative; overflow: hidden; }
     .card-scroll-area { flex: 1; padding: 25px 20px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) var(--bg); }
+    
+    /* 카드 내용 스타일 */
     .card-info { display: flex; justify-content: space-between; width: 100%; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed var(--border); align-items: center; }
     .rate-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; background: var(--input-bg); color: var(--text-sub); }
     .rate-badge.high { background: #0b2e13; color: #69db7c; }
     .rate-badge.low { background: #2e0b0b; color: #ff8787; }
+    
     .icon-wrapper { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
     .icon-row { display: flex; gap: 12px; }
     .icon-btn { font-size: 1.4rem; cursor: pointer; background: none; border: none; padding: 0; line-height: 1; color: var(--text-sub); transition: 0.2s; opacity: 0.4; filter: grayscale(100%); }
@@ -56,12 +85,16 @@
     .mem-btn.active { color: #ff8787; } .cmp-btn.active { color: #74c0fc; } .fav-btn.active { color: #ffd43b; }
     .num-btn.active { color: #66d9e8; } .date-btn.active { color: #b197fc; } .pen-btn.active { color: #ff6b6b; }
     .edit-btn { font-size: 1.2rem; margin-right: 5px; opacity: 1; color: var(--text-sub); }
+
     .text-area { font-size: 1.35rem; line-height: 1.6; word-break: keep-all; white-space: pre-wrap; width: 100%; margin-bottom: 20px; color: var(--text); font-weight: 500; }
     .img-area img { width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); margin: 15px 0; display: block; }
+
     .divider { display: none; border: 0; border-top: 2px dashed var(--border); margin: 30px 0; position: relative; }
     .divider::after { content: "정답"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--surface); padding: 0 10px; color: var(--text-sub); font-size: 0.8rem; font-weight: bold; }
     #answer-section { display: none; padding-bottom: 20px; animation: fadeIn 0.3s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* 푸터 */
     .footer { width: 100%; padding: 10px 20px; padding-bottom: calc(35px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); z-index: 10; display: flex; flex-direction: column; gap: 10px; justify-content: center; flex-shrink: 0; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); }
     .nav-btns, .grade-btns { display: flex; justify-content: space-between; width: 100%; margin: 0; gap: 12px; }
     .nav-btn { flex: 1; background: var(--input-bg); border: 1px solid var(--border); padding: 14px 0; border-radius: 12px; cursor: pointer; font-weight: bold; color: var(--text); font-size: 1rem; text-align: center; transition: 0.2s; }
@@ -69,8 +102,11 @@
     .g-btn { flex: 1; padding: 16px 0; border: none; border-radius: 12px; font-weight: bold; color: white; cursor: pointer; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin: 0; text-align: center; }
     .g-btn:active { transform: scale(0.98); opacity: 0.9; }
     .bg-x { background: #fa5252; } .bg-tri { background: #fab005; } .bg-o { background: #40c057; }
+
     .click-guide { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-top: 40px; cursor: pointer; padding: 30px; border: 2px dashed var(--border); border-radius: 12px; background: #181818; }
     .click-guide:active { background: #222; }
+
+    /* 모달 */
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: none; align-items: center; justify-content: center; }
     .modal-content { background: var(--surface); width: 90%; max-width: 500px; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border); }
     .modal-title { font-weight: bold; font-size: 1.2rem; color: var(--text); }
@@ -80,6 +116,9 @@
     .modal-btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
     .btn-save { background: var(--primary); color: white; } .btn-cancel { background: var(--input-bg); color: var(--text); }
     #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
+    
+    .ox-highlight { font-size: 4rem; font-weight: 900; text-align: center; display: block; margin: 10px 0; }
+    .ox-o { color: #40c057; } .ox-x { color: #fa5252; }
 </style>
 </head>
 <body>
@@ -112,9 +151,9 @@
         </div>
 
         <div class="menu-section">
-            <span class="menu-label">덱 관리 (폴더 자동 분류)</span>
+            <span class="menu-label">덱 관리 (3단 계층 지원)</span>
             <div style="font-size:0.8rem; color:var(--text-sub); margin-bottom:5px;">
-                * <b>minkunai87-ai/mk</b> 자동 연동 중<br>(상위 덱 이름 기준으로 자동 폴더링)
+                * <b>minkunai87-ai/mk</b> 자동 연동 중
             </div>
             <button class="btn-upload" onclick="document.getElementById('file-input').click()">+ (로컬) 텍스트 파일 추가</button>
             <input type="file" id="file-input" accept=".txt" multiple style="display:none" onchange="handleFileUpload(this)">
@@ -139,7 +178,7 @@
         </div>
         
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">
-            My Anki v10.5 (Group by Root Folder)
+            My Anki v10.8 (Nested Groups)
         </div>
     </div>
 
@@ -238,7 +277,7 @@
                 const lastDeck = localStorage.getItem(STORAGE_KEY_LAST_DECK);
                 if (lastDeck) {
                     if (library[lastDeck]) selectDeck(lastDeck);
-                    else selectParentDeck(lastDeck);
+                    else selectDeckGroup(lastDeck); // 그룹 선택 로직 추가
                 } else {
                     const keys = Object.keys(library);
                     if(keys.length > 0) selectDeck(keys[0]);
@@ -266,7 +305,6 @@
                 try {
                     const contentResponse = await fetch(file.download_url + '?t=' + new Date().getTime());
                     const text = await contentResponse.text();
-                    
                     processAnkiText(text, file.name, edits);
                     loadedCount++;
                 } catch (e) { console.error("Error reading file:", file.name); }
@@ -282,12 +320,12 @@
             const lastDeck = localStorage.getItem(STORAGE_KEY_LAST_DECK);
             if (lastDeck) {
                 if (library[lastDeck]) selectDeck(lastDeck);
-                else selectParentDeck(lastDeck);
+                else selectDeckGroup(lastDeck); // 그룹인지 확인
             } else {
                 selectDeck(Object.keys(library)[0]);
             }
         } else {
-            document.getElementById('question-section').innerHTML = "<h3>⚠️ 불러올 덱이 없습니다.</h3><p>GitHub에 .txt 파일을 올려주세요.</p>";
+            document.getElementById('question-section').innerHTML = "<h3>⚠️ 불러올 덱이 없습니다.</h3>";
         }
     }
 
@@ -297,39 +335,32 @@
 
         lines.forEach(line => {
             if(!line.trim() || line.startsWith('#')) return;
-
             const fields = line.split('\t');
             let deckNameInRow = null;
             let q = "", a = "";
 
-            if (fields[0] && (fields[0].includes('::') || fields[0].includes('__'))) {
+            if (fields.length >= 3) {
                 deckNameInRow = fields[0].replace(/::/g, '__');
-                const parsed = parseRowWithDeckName(fields); 
-                q = parsed.q; a = parsed.a;
+                q = fields[1];
+                a = fields.slice(2).join('<br>'); 
             } else {
                 deckNameInRow = currentDeck;
-                const parsed = parseRowNormal(fields);
+                const parsed = parseFieldsToQA(fields);
                 q = parsed.q; a = parsed.a;
             }
 
             if(!q) return;
-
             if (!library[deckNameInRow]) library[deckNameInRow] = [];
             
             const id = cyrb53(q);
             if (edits[id]) { q = edits[id].q; a = edits[id].a; }
-            
             library[deckNameInRow].push({ id, q, a });
         });
     }
 
-    function parseRowWithDeckName(fields) { const realFields = fields.slice(1); return parseFieldsToQA(realFields); }
-    function parseRowNormal(fields) { return parseFieldsToQA(fields); }
-    
     function parseFieldsToQA(row) {
         if(row.length < 1) return {q:null, a:null};
         if(row.length === 1) return {q: row[0], a: ""};
-
         let splitIdx = -1;
         for(let k=1; k<row.length; k++) {
             const txt = row[k].trim().replace(/<[^>]*>/g, "");
@@ -341,109 +372,167 @@
                 if(!txt.includes('<img') && txt.replace(/<[^>]*>/g, "").length <= 5 && txt.length > 0) { splitIdx = k; break; }
             }
         }
-        
         if(splitIdx === -1) splitIdx = 1;
-        
         const q = row.slice(0, splitIdx).join('<br>');
         const a = row.slice(splitIdx).join('<br><br>');
         return { q, a };
     }
 
+    // === 🔥 3단 계층 렌더링 로직 (폴더 -> 중분류 -> 덱) ===
     function renderDeckList() {
         const list = document.getElementById('deck-list-ui');
         list.innerHTML = '';
-        
         const names = Object.keys(library).sort();
-        
         if (names.length === 0) { list.innerHTML = '<li class="deck-item" style="justify-content:center;">덱 없음</li>'; return; }
-        const groups = {};
+        
+        // 1단계: 루트 폴더별로 그룹핑
+        const rootFolders = {}; // { '소방': [덱이름1, 덱이름2...] }
         const others = [];
-        
+
         names.forEach(name => {
-            // 🔥 [핵심 수정] 정규식을 Lazy하게 바꿔서 첫 번째 __ 까지만 폴더명으로 잡음
-            // 예: 소방__법규__챕터1 -> Folder: 소방, Deck: 법규__챕터1
-            const match = name.match(/^(.+?)__(.+)$/);
-            if (match) {
-                const folderName = match[1];
-                const realDeckName = match[2];
-                if (!groups[folderName]) groups[folderName] = [];
-                groups[folderName].push({ originalKey: name, displayName: realDeckName });
-            } else { others.push({ originalKey: name, displayName: name }); }
+            const parts = name.split('__');
+            if (parts.length >= 2) {
+                const rootName = parts[0];
+                if (!rootFolders[rootName]) rootFolders[rootName] = [];
+                rootFolders[rootName].push(name);
+            } else {
+                others.push(name);
+            }
         });
-        
-        for (const folderName in groups) {
+
+        // 루트 폴더 렌더링
+        for (const rootName in rootFolders) {
             const folderHeader = document.createElement('li');
             folderHeader.className = 'folder-header';
             
-            const folderTitleArea = document.createElement('div');
-            folderTitleArea.className = 'folder-title-area';
-            folderTitleArea.innerHTML = `<span>📂 ${folderName}</span>`;
+            const titleArea = document.createElement('div');
+            titleArea.className = 'folder-title-area';
+            titleArea.innerHTML = `<span>📂 ${rootName}</span>`;
             
-            const folderPlayBtn = document.createElement('button');
-            folderPlayBtn.className = 'folder-play-btn';
-            folderPlayBtn.innerText = '▶ 전체';
-            folderPlayBtn.onclick = (e) => { e.stopPropagation(); selectParentDeck(folderName); };
+            const playAllBtn = document.createElement('button');
+            playAllBtn.className = 'play-btn';
+            playAllBtn.innerText = '▶ 전체';
+            playAllBtn.onclick = (e) => { e.stopPropagation(); selectDeckGroup(rootName + '__'); };
 
-            folderHeader.appendChild(folderTitleArea);
-            folderHeader.appendChild(folderPlayBtn);
-            
+            folderHeader.appendChild(titleArea);
+            folderHeader.appendChild(playAllBtn);
+            list.appendChild(folderHeader);
+
             const folderContent = document.createElement('ul');
             folderContent.className = 'folder-content deck-list';
-            if (currentDeckName && currentDeckName.startsWith(folderName + '__')) { folderContent.classList.add('open'); }
             
-            folderTitleArea.onclick = () => { folderContent.classList.toggle('open'); };
-            
-            groups[folderName].forEach(deck => {
-                // 덱 이름에 __가 있으면 ' > '로 바꿔서 보여줌 (가독성 UP)
-                const prettyName = deck.displayName.replace(/__/g, ' > ');
-                const li = createDeckItem(deck.originalKey, prettyName);
+            // 2단계: 중분류(Sub-Group) 그룹핑 (예: P01, P02...)
+            const subGroups = {}; 
+            const directChildren = [];
+
+            rootFolders[rootName].forEach(deckKey => {
+                const parts = deckKey.split('__');
+                // parts[0] is rootName
+                if (parts.length >= 3) {
+                    const subName = parts[1]; // P01. 소방기본법...
+                    if (!subGroups[subName]) subGroups[subName] = [];
+                    subGroups[subName].push(deckKey);
+                } else {
+                    directChildren.push(deckKey);
+                }
+            });
+
+            // 2-1. 중분류 렌더링
+            for (const subName in subGroups) {
+                const subHeader = document.createElement('li');
+                subHeader.className = 'sub-group-header';
+                
+                const subTitle = document.createElement('span');
+                subTitle.className = 'sub-group-title';
+                subTitle.innerText = subName;
+                
+                const subPlayBtn = document.createElement('button');
+                subPlayBtn.className = 'play-btn';
+                subPlayBtn.innerText = '▶';
+                // 중분류 전체 재생
+                subPlayBtn.onclick = (e) => { e.stopPropagation(); selectDeckGroup(`${rootName}__${subName}`); };
+
+                subHeader.appendChild(subTitle);
+                subHeader.appendChild(subPlayBtn);
+                folderContent.appendChild(subHeader);
+
+                const subContent = document.createElement('ul');
+                subContent.className = 'sub-group-content';
+                
+                subTitle.onclick = () => { subContent.classList.toggle('open'); };
+                
+                // 3단계: 개별 덱 (챕터) 렌더링
+                subGroups[subName].forEach(deckKey => {
+                    const parts = deckKey.split('__');
+                    const leafName = parts.slice(2).join(' > '); // 챕터01
+                    const li = createDeckItem(deckKey, leafName);
+                    subContent.appendChild(li);
+                });
+                folderContent.appendChild(subContent);
+                
+                // 현재 덱이 이 서브그룹에 속해있으면 펼치기
+                if (currentDeckName && currentDeckName.includes(`${rootName}__${subName}`)) {
+                    subContent.classList.add('open');
+                }
+            }
+
+            // 2-2. 직속 자식 덱 렌더링
+            directChildren.forEach(deckKey => {
+                const parts = deckKey.split('__');
+                const leafName = parts.slice(1).join(' > ');
+                const li = createDeckItem(deckKey, leafName);
                 folderContent.appendChild(li);
             });
-            list.appendChild(folderHeader);
+
+            titleArea.onclick = () => { folderContent.classList.toggle('open'); };
+            if (currentDeckName && currentDeckName.startsWith(rootName + '__')) {
+                folderContent.classList.add('open');
+            }
+            
             list.appendChild(folderContent);
         }
-        others.forEach(deck => {
-            const li = createDeckItem(deck.originalKey, deck.displayName);
-            list.appendChild(li);
+
+        // 기타 덱 렌더링
+        others.forEach(name => {
+            list.appendChild(createDeckItem(name, name));
         });
     }
 
-    // ... (나머지 함수들은 v10.4와 동일) ...
-    function exportData() {
-        const data = {
-            stats: localStorage.getItem(STORAGE_KEY_STATS),
-            edits: localStorage.getItem(STORAGE_KEY_EDITS),
-            progress: localStorage.getItem(STORAGE_KEY_PROGRESS),
-            lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK),
-            timestamp: new Date().toLocaleString()
-        };
-        const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,"");
-        a.download = `anki_backup_${dateStr}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
+    // 🔥 특정 그룹(접두사로 시작하는 모든 덱)을 합쳐서 재생하는 함수
+    function selectDeckGroup(prefix) {
+        let mergedCards = [];
+        Object.keys(library).forEach(key => {
+            if (key.startsWith(prefix)) {
+                mergedCards = mergedCards.concat(library[key]);
+            }
+        });
 
-    function importData(input) {
-        const file = input.files[0];
-        if (!file) return;
-        if(!confirm("⚠️ 현재 기기의 기록을 덮어씌웁니다.\n계속하시겠습니까?")) { input.value = ''; return; }
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = JSON.parse(e.target.result);
-                if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats);
-                if(data.edits) localStorage.setItem(STORAGE_KEY_EDITS, data.edits);
-                if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress);
-                if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck);
-                alert("✅ 복구 완료!\n페이지를 새로고침합니다.");
-                location.reload();
-            } catch (err) { alert("❌ 잘못된 백업 파일입니다."); }
-        };
-        reader.readAsText(file);
+        if (mergedCards.length === 0) {
+            // 정확히 일치하는 덱이 있는지 확인 (폴더명이 아니라 덱명일 경우)
+            if (library[prefix]) { selectDeck(prefix); return; }
+            alert("학습할 카드가 없습니다.");
+            return;
+        }
+
+        // 화면 표시용 이름 다듬기
+        let displayName = prefix.replace(/__$/, '').split('__').pop();
+        if(!displayName) displayName = prefix;
+
+        currentDeckName = prefix; 
+        originalDeck = mergedCards;
+        activeDeck = [...originalDeck];
+        localStorage.setItem(STORAGE_KEY_LAST_DECK, prefix);
+
+        currentIndex = 0;
+        isRevealed = false;
+        document.getElementById('search-input').value = ''; 
+        document.getElementById('deck-title').innerText = `📑 ${displayName} (${activeDeck.length})`;
+        
+        // 메뉴 다시 그려서 펼침 상태 유지
+        renderDeckList();
+        showCard();
+        document.getElementById('sidebar').classList.remove('open');
+        document.querySelector('.sidebar-overlay').classList.remove('open');
     }
 
     function createDeckItem(key, displayName) {
@@ -462,32 +551,22 @@
         return li;
     }
 
-    function toggleMenu() {
-        document.getElementById('sidebar').classList.toggle('open');
-        document.querySelector('.sidebar-overlay').classList.toggle('open');
-    }
-
+    // ... (기타 유틸 함수들: toggleMenu, filterCards, handleFileUpload 등 기존 유지) ...
+    function toggleMenu() { document.getElementById('sidebar').classList.toggle('open'); document.querySelector('.sidebar-overlay').classList.toggle('open'); }
     function filterCards() {
         const query = document.getElementById('search-input').value.toLowerCase();
         if(!currentDeckName) return;
         if(!query) { activeDeck = [...originalDeck]; }
-        else {
-            activeDeck = originalDeck.filter(card => card.q.toLowerCase().includes(query) || card.a.toLowerCase().includes(query));
-        }
+        else { activeDeck = originalDeck.filter(card => card.q.toLowerCase().includes(query) || card.a.toLowerCase().includes(query)); }
         currentIndex = 0; showCard();
     }
-
     function handleFileUpload(input) {
-        const files = input.files;
-        if (files.length === 0) return;
-        let processedCount = 0;
-        const edits = JSON.parse(localStorage.getItem(STORAGE_KEY_EDITS) || '{}');
+        const files = input.files; if(files.length === 0) return;
+        let processedCount = 0; const edits = JSON.parse(localStorage.getItem(STORAGE_KEY_EDITS) || '{}');
         Array.from(files).forEach(file => {
             const reader = new FileReader();
             reader.onload = (e) => {
-                const text = e.target.result;
-                processAnkiText(text, file.name, edits);
-                processedCount++;
+                const text = e.target.result; processAnkiText(text, file.name, edits); processedCount++;
                 if (processedCount === files.length) {
                     saveLibrary(); renderDeckList();
                     if (!currentDeckName) selectDeck(Object.keys(library)[0]);
@@ -498,271 +577,103 @@
         });
         input.value = '';
     }
-
     function saveLibrary() { try { localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(library)); } catch(e){} }
-
-    function deleteDeck(name) {
-        if(confirm("삭제하시겠습니까?")) {
-            delete library[name]; saveLibrary(); renderDeckList();
-            if(currentDeckName === name) { currentDeckName=null; activeDeck=[]; showCard(); }
-        }
-    }
-
-    function selectParentDeck(folderName) {
-        let mergedCards = [];
-        Object.keys(library).forEach(key => {
-            if (key.startsWith(folderName + '__')) {
-                mergedCards = mergedCards.concat(library[key]);
-            }
-        });
-
-        if (mergedCards.length === 0) {
-            alert("하위 덱이 없습니다.");
-            return;
-        }
-
-        currentDeckName = folderName; 
-        originalDeck = mergedCards;
-        activeDeck = [...originalDeck];
-        localStorage.setItem(STORAGE_KEY_LAST_DECK, folderName);
-
-        currentIndex = 0;
-        
-        isRevealed = false;
-        document.getElementById('search-input').value = ''; 
-        document.getElementById('deck-title').innerText = `📂 ${folderName} (통합 ${activeDeck.length}개)`;
-        
-        renderDeckList(); showCard();
-        document.getElementById('sidebar').classList.remove('open');
-        document.querySelector('.sidebar-overlay').classList.remove('open');
-    }
-
+    function deleteDeck(name) { if(confirm("삭제하시겠습니까?")) { delete library[name]; saveLibrary(); renderDeckList(); if(currentDeckName === name) { currentDeckName=null; activeDeck=[]; showCard(); } } }
+    
     function selectDeck(name) {
         if(!library[name]) return;
-        currentDeckName = name; 
-        originalDeck = library[name]; 
-        activeDeck = [...originalDeck];
+        currentDeckName = name; originalDeck = library[name]; activeDeck = [...originalDeck];
         localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
         const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
         currentIndex = progress[name] || 0;
         if(currentIndex >= activeDeck.length) currentIndex = 0;
         isRevealed = false;
         document.getElementById('search-input').value = ''; 
-        const displayName = name.includes('__') ? name.split('__')[1] : name;
+        const displayName = name.split('__').pop();
         document.getElementById('deck-title').innerText = displayName;
         renderDeckList(); showCard();
         document.getElementById('sidebar').classList.remove('open');
         document.querySelector('.sidebar-overlay').classList.remove('open');
     }
-
     function saveCurrentProgress() {
         if (!currentDeckName) return;
+        // 그룹 재생일 경우 저장하지 않음 (복잡도 방지) - 원하시면 추가 가능
         if (!library[currentDeckName]) return; 
-
         if (activeDeck.length === originalDeck.length) {
             const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
             progress[currentDeckName] = currentIndex;
             localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
         }
     }
-
     function handleImgUpload(input) {
         const files = input.files; if(files.length === 0) return;
         imageMap.clear();
         for(let file of files) {
             const url = URL.createObjectURL(file);
-            imageMap.set(file.name, url);
-            imageMap.set(file.name.normalize('NFC'), url);
-            imageMap.set(file.name.normalize('NFD'), url);
+            imageMap.set(file.name, url); imageMap.set(file.name.normalize('NFC'), url); imageMap.set(file.name.normalize('NFD'), url);
         }
         alert(`${files.length}개 이미지 연결됨`); showCard(); toggleMenu();
     }
-
-    function openEditModal(e) {
-        e.stopPropagation(); if(!activeDeck || activeDeck.length === 0) return;
-        const card = activeDeck[currentIndex];
-        document.getElementById('edit-q').value = card.q;
-        document.getElementById('edit-a').value = card.a;
-        document.getElementById('edit-modal').style.display = 'flex';
-    }
+    function openEditModal(e) { e.stopPropagation(); if(!activeDeck || activeDeck.length === 0) return; const card = activeDeck[currentIndex]; document.getElementById('edit-q').value = card.q; document.getElementById('edit-a').value = card.a; document.getElementById('edit-modal').style.display = 'flex'; }
     function closeEditModal() { document.getElementById('edit-modal').style.display = 'none'; }
     function saveEdit() {
-        const newQ = document.getElementById('edit-q').value;
-        const newA = document.getElementById('edit-a').value;
-        const card = activeDeck[currentIndex];
-        card.q = newQ; card.a = newA;
-        if (location.protocol.startsWith('http')) {
-            const edits = JSON.parse(localStorage.getItem(STORAGE_KEY_EDITS) || '{}');
-            edits[card.id] = { q: newQ, a: newA };
-            localStorage.setItem(STORAGE_KEY_EDITS, JSON.stringify(edits));
-        } else { saveLibrary(); }
+        const newQ = document.getElementById('edit-q').value; const newA = document.getElementById('edit-a').value; const card = activeDeck[currentIndex]; card.q = newQ; card.a = newA;
+        if (location.protocol.startsWith('http')) { const edits = JSON.parse(localStorage.getItem(STORAGE_KEY_EDITS) || '{}'); edits[card.id] = { q: newQ, a: newA }; localStorage.setItem(STORAGE_KEY_EDITS, JSON.stringify(edits)); } else { saveLibrary(); }
         closeEditModal(); showCard(); alert("수정 완료");
     }
-
+    
+    // DOM 생성 (v10.7 로직 - 정답 강조 포함)
     function createDOM(rawText, isAnswer) {
-        let images = [];
-        let regex = /([a-zA-Z0-9_\-\.\%\(\)\s\uAC00-\uD7A3]+\.(jpg|jpeg|png|gif|webp|svg))/gi;
-        let match;
-        while ((match = regex.exec(rawText)) !== null) {
-            let fname = match[0].trim().split('/').pop().split('\\').pop();
-            if(fname.length > 4) images.push(fname);
-        }
-        let text = rawText.replace(/<[^>]*>/g, "").replace(/""\/>/g, "").replace(/""/g, '"').replace(/^"|"$/g, '').trim();
-
+        let formattedText = rawText.replace(/""/g, '"');
+        if (formattedText.startsWith('"') && formattedText.endsWith('"')) formattedText = formattedText.slice(1, -1);
+        const tempDiv = document.createElement('div'); tempDiv.innerHTML = formattedText;
+        let images = []; const imgTags = tempDiv.querySelectorAll('img');
+        imgTags.forEach(img => { const src = img.getAttribute('src'); if (src) images.push(src); img.remove(); });
+        let text = tempDiv.innerHTML.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, '').trim();
         const wrapper = document.createElement('div'); wrapper.className = 'answer-layout';
-        const txtDiv = document.createElement('div'); txtDiv.className = 'text-area'; txtDiv.innerText = text;
+        const txtDiv = document.createElement('div'); txtDiv.className = 'text-area'; 
+        if (isAnswer && (text.startsWith('O') || text.startsWith('X'))) {
+            const firstChar = text.charAt(0); const restText = text.substring(1).trim();
+            const oxSpan = document.createElement('span'); oxSpan.className = `ox-highlight ${firstChar === 'O' ? 'ox-o' : 'ox-x'}`; oxSpan.innerText = firstChar;
+            txtDiv.appendChild(oxSpan);
+            if (restText) { const descSpan = document.createElement('span'); descSpan.innerText = restText; txtDiv.appendChild(descSpan); }
+        } else { txtDiv.innerText = text; }
         const imgDiv = document.createElement('div'); imgDiv.className = 'img-area';
-        
         [...new Set(images)].forEach(filename => {
-            const img = document.createElement('img');
-            try { filename = decodeURIComponent(filename); } catch(e){}
-            if (location.protocol.startsWith('http')) {
-                img.src = "./images/" + filename;
-            } else {
-                let url = imageMap.get(filename) || imageMap.get(filename.normalize('NFC')) || imageMap.get(filename.normalize('NFD'));
-                if(url) img.src = url;
-                else { img.alt="이미지 연결 필요"; img.style.border="2px dashed #ff6b6b"; img.style.color="#ff6b6b"; }
-            }
+            const img = document.createElement('img'); try { filename = decodeURIComponent(filename); } catch(e){}
+            if (location.protocol.startsWith('http')) { img.src = "./images/" + filename; } 
+            else { let url = imageMap.get(filename) || imageMap.get(filename.normalize('NFC')) || imageMap.get(filename.normalize('NFD')); if(url) img.src = url; else img.alt = "이미지 로딩 실패"; }
             imgDiv.appendChild(img);
         });
-
-        if (!isAnswer) { 
-            if (images.length > 0) wrapper.appendChild(imgDiv); 
-            if (text) wrapper.appendChild(txtDiv); 
-        }
-        else { 
-            if (text) wrapper.appendChild(txtDiv); 
-            if (images.length > 0) wrapper.appendChild(imgDiv); 
-        }
+        if (!isAnswer) { if (images.length > 0) wrapper.appendChild(imgDiv); if (text) wrapper.appendChild(txtDiv); } 
+        else { if (text) wrapper.appendChild(txtDiv); if (images.length > 0) wrapper.appendChild(imgDiv); }
         return wrapper;
     }
 
+    // 카드 표시, 정답 확인, 이동, 채점 등 기존 로직 동일
     function showCard() {
-        if (!activeDeck || activeDeck.length === 0) {
-            document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub)'>항목이 없습니다.</h3>";
-            document.getElementById('card-info').style.display='none';
-            return;
-        }
+        if (!activeDeck || activeDeck.length === 0) { document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub)'>항목이 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
         if(currentIndex >= activeDeck.length) currentIndex = 0;
-        
-        isRevealed = false;
-        const card = activeDeck[currentIndex];
-        const stats = getStats(card.id);
-        
+        isRevealed = false; const card = activeDeck[currentIndex]; const stats = getStats(card.id);
         document.getElementById('card-counter').innerText = `${currentIndex + 1} / ${activeDeck.length}`;
-        document.getElementById('card-info').style.display='flex';
-        updateStatsUI(stats); updateIconsUI(stats);
-
-        const qSection = document.getElementById('question-section'); qSection.innerHTML = '';
-        qSection.appendChild(createDOM(card.q, false));
-        
-        const aSection = document.getElementById('answer-section'); aSection.innerHTML = '';
-        aSection.appendChild(createDOM(card.a, true));
-        
-        aSection.style.display = 'none';
-        document.getElementById('divider').style.display = 'none';
-        document.getElementById('click-guide').style.display = 'block';
-        
-        document.getElementById('nav-area').style.display = 'flex';
-        document.getElementById('grade-area').style.display = 'none';
-        
-        document.getElementById('scroll-area').scrollTop = 0;
+        document.getElementById('card-info').style.display='flex'; updateStatsUI(stats); updateIconsUI(stats);
+        const qSection = document.getElementById('question-section'); qSection.innerHTML = ''; qSection.appendChild(createDOM(card.q, false));
+        const aSection = document.getElementById('answer-section'); aSection.innerHTML = ''; aSection.appendChild(createDOM(card.a, true));
+        aSection.style.display = 'none'; document.getElementById('divider').style.display = 'none'; document.getElementById('click-guide').style.display = 'block';
+        document.getElementById('nav-area').style.display = 'flex'; document.getElementById('grade-area').style.display = 'none'; document.getElementById('scroll-area').scrollTop = 0;
     }
-
-    function revealAnswer() {
-        isRevealed = true;
-        document.getElementById('click-guide').style.display = 'none';
-        document.getElementById('divider').style.display = 'block';
-        document.getElementById('answer-section').style.display = 'block';
-        document.getElementById('grade-area').style.display = 'flex';
-        setTimeout(() => { document.getElementById('answer-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
-    }
-
-    function moveCard(delta) {
-        let nextIdx = currentIndex + delta;
-        if(nextIdx >= 0 && nextIdx < activeDeck.length) { currentIndex = nextIdx; saveCurrentProgress(); showCard(); }
-    }
-    
-    function grade(score) {
-        saveStats(activeDeck[currentIndex].id, score);
-        if (currentIndex < activeDeck.length - 1) { currentIndex++; saveCurrentProgress(); showCard(); }
-        else { alert("끝!"); currentIndex=0; saveCurrentProgress(); showCard(); }
-    }
-    
-    function getStats(id) { 
-        return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false }; 
-    }
-    function saveStats(id, score) {
-        const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
-        if(!data[id]) data[id] = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false };
-        data[id].total++;
-        if(score === 2) data[id].correct++; else if(score === 1) data[id].correct += 0.5;
-        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
-        updateStatsUI(data[id]);
-    }
-
-    function toggleTag(e, type) {
-        e.stopPropagation();
-        const card = activeDeck[currentIndex];
-        const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
-        if(!data[card.id]) data[card.id] = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false };
-        data[card.id][type] = !data[card.id][type];
-        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
-        updateIconsUI(data[card.id]);
-    }
-
-    function updateStatsUI(stats) {
-        const badge = document.getElementById('rate-badge');
-        if(stats.total === 0) { badge.innerText = "New"; badge.className = "rate-badge"; }
-        else {
-            const rate = Math.round((stats.correct/stats.total)*100);
-            badge.innerText = `${rate}% (${stats.total}회)`;
-            badge.className = `rate-badge ${rate>=80?'high':(rate<50?'low':'')}`;
-        }
-    }
-
-    function updateIconsUI(stats) {
-        document.getElementById('mem-btn').classList.toggle('active', stats.mem);
-        document.getElementById('cmp-btn').classList.toggle('active', stats.cmp);
-        document.getElementById('fav-btn').classList.toggle('active', stats.fav);
-        document.getElementById('num-btn').classList.toggle('active', stats.num);
-        document.getElementById('date-btn').classList.toggle('active', stats.date);
-        document.getElementById('pen-btn').classList.toggle('active', stats.pen);
-    }
-
-    function sortCards(type) {
-        if(!currentDeckName) return;
-        const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
-        let newDeck = [...originalDeck];
-        if(type === 'rate_asc') {
-            newDeck.sort((a,b) => {
-                const sA = allStats[a.id] || {correct:0, total:0};
-                const sB = allStats[b.id] || {correct:0, total:0};
-                const rA = sA.total===0?100:(sA.correct/sA.total);
-                const rB = sB.total===0?100:(sB.correct/sB.total);
-                return rA - rB;
-            });
-            alert("🔥 오답 위주 정렬");
-        } else if (type === 'default') { } 
-        else {
-            newDeck = newDeck.filter(c => (allStats[c.id] || {})[type]);
-            if(newDeck.length === 0) { alert("해당하는 카드가 없습니다."); return; }
-        }
-        activeDeck = newDeck; currentIndex = 0; showCard();
-        document.getElementById('sidebar').classList.remove('open');
-        document.querySelector('.sidebar-overlay').classList.remove('open');
-    }
-
-    const cyrb53 = (str, seed = 0) => {
-        let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
-        for (let i = 0, ch; i < str.length; i++) {
-            ch = str.charCodeAt(i);
-            h1 = Math.imul(h1 ^ ch, 2654435761);
-            h2 = Math.imul(h2 ^ ch, 1597334677);
-        }
-        h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-        return 4294967296 * (2097151 & h2) + (h1 >>> 0);
-    };
+    function revealAnswer() { isRevealed = true; document.getElementById('click-guide').style.display = 'none'; document.getElementById('divider').style.display = 'block'; document.getElementById('answer-section').style.display = 'block'; document.getElementById('grade-area').style.display = 'flex'; setTimeout(() => { document.getElementById('answer-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); }
+    function moveCard(delta) { let nextIdx = currentIndex + delta; if(nextIdx >= 0 && nextIdx < activeDeck.length) { currentIndex = nextIdx; saveCurrentProgress(); showCard(); } }
+    function grade(score) { saveStats(activeDeck[currentIndex].id, score); if (currentIndex < activeDeck.length - 1) { currentIndex++; saveCurrentProgress(); showCard(); } else { alert("끝!"); currentIndex=0; saveCurrentProgress(); showCard(); } }
+    function getStats(id) { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false }; }
+    function saveStats(id, score) { const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[id]) data[id] = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false }; data[id].total++; if(score === 2) data[id].correct++; else if(score === 1) data[id].correct += 0.5; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateStatsUI(data[id]); }
+    function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[card.id]) data[card.id] = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false }; data[card.id][type] = !data[card.id][type]; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateIconsUI(data[card.id]); }
+    function updateStatsUI(stats) { const badge = document.getElementById('rate-badge'); if(stats.total === 0) { badge.innerText = "New"; badge.className = "rate-badge"; } else { const rate = Math.round((stats.correct/stats.total)*100); badge.innerText = `${rate}% (${stats.total}회)`; badge.className = `rate-badge ${rate>=80?'high':(rate<50?'low':'')}`; } }
+    function updateIconsUI(stats) { document.getElementById('mem-btn').classList.toggle('active', stats.mem); document.getElementById('cmp-btn').classList.toggle('active', stats.cmp); document.getElementById('fav-btn').classList.toggle('active', stats.fav); document.getElementById('num-btn').classList.toggle('active', stats.num); document.getElementById('date-btn').classList.toggle('active', stats.date); document.getElementById('pen-btn').classList.toggle('active', stats.pen); }
+    function exportData() { const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), edits: localStorage.getItem(STORAGE_KEY_EDITS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: new Date().toLocaleString() }; const blob = new Blob([JSON.stringify(data)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,""); a.download = `anki_backup_${dateStr}.json`; a.click(); URL.revokeObjectURL(url); }
+    function importData(input) { const file = input.files[0]; if (!file) return; if(!confirm("⚠️ 현재 기기의 기록을 덮어씌웁니다.\n계속하시겠습니까?")) { input.value = ''; return; } const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats); if(data.edits) localStorage.setItem(STORAGE_KEY_EDITS, data.edits); if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress); if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck); alert("✅ 복구 완료!\n페이지를 새로고침합니다."); location.reload(); } catch (err) { alert("❌ 잘못된 백업 파일입니다."); } }; reader.readAsText(file); }
+    function sortCards(type) { if(!currentDeckName) return; const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); let newDeck = [...originalDeck]; if(type === 'rate_asc') { newDeck.sort((a,b) => { const sA = allStats[a.id] || {correct:0, total:0}; const sB = allStats[b.id] || {correct:0, total:0}; const rA = sA.total===0?100:(sA.correct/sA.total); const rB = sB.total===0?100:(sB.correct/sB.total); return rA - rB; }); alert("🔥 오답 위주 정렬"); } else if (type === 'default') { } else { newDeck = newDeck.filter(c => (allStats[c.id] || {})[type]); if(newDeck.length === 0) { alert("해당하는 카드가 없습니다."); return; } } activeDeck = newDeck; currentIndex = 0; showCard(); document.getElementById('sidebar').classList.remove('open'); document.querySelector('.sidebar-overlay').classList.remove('open'); }
+    const cyrb53 = (str, seed = 0) => { let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed; for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); return 4294967296 * (2097151 & h2) + (h1 >>> 0); };
 </script>
 </body>
 </html>
