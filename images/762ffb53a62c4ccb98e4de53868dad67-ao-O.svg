@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="565" height="142">
+ <!-- Created with Image Occlusion Enhanced -->
+ <g>
+  <title>Labels</title>
+ </g>
+ <g>
+  <title>Masks</title>
+  <rect fill="#FFEBA2" stroke="#2D2D2D" x="237.72727" y="36.36932" width="61.81818" height="24.54546" id="762ffb53a62c4ccb98e4de53868dad67-ao-1"/>
+  <rect fill="#FFEBA2" stroke="#2D2D2D" x="322.27273" y="36.36932" width="58.18182" height="23.63636" id="762ffb53a62c4ccb98e4de53868dad67-ao-2"/>
+  <text fill="#000000" stroke-width="0" x="238.63636" y="113.64205" id="762ffb53a62c4ccb98e4de53868dad67-ao-3" font-size="24" font-family="'Arial', 'Helvetica LT Std', Arial, sans-serif" text-anchor="middle" xml:space="preserve">테스트</text>
+  <line fill="#FFEBA2" stroke="#2D2D2D" stroke-width="3" x1="290.45455" y1="80.00569" x2="399.54546" y2="84.55114" id="762ffb53a62c4ccb98e4de53868dad67-ao-4"/>
+  <rect fill="#FFEBA2" stroke="#2D2D2D" x="200.45454" y="90.00569" width="79.09091" height="29.09091" id="762ffb53a62c4ccb98e4de53868dad67-ao-5"/>
+ </g>
+</svg>
