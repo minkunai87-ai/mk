@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (폴더링 수정)</title>
+<title>나만의 안키 (폴더 통합)</title>
 <style>
-    /* v10.2 디자인 유지 (다크모드 + 핏 보정) */
+    /* v10.4 스타일 (다크모드 + 핏 보정) 그대로 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
@@ -112,9 +112,9 @@
         </div>
 
         <div class="menu-section">
-            <span class="menu-label">덱 관리 (다중 파일 지원)</span>
+            <span class="menu-label">덱 관리 (폴더 자동 분류)</span>
             <div style="font-size:0.8rem; color:var(--text-sub); margin-bottom:5px;">
-                * <b>minkunai87-ai/mk</b> 자동 연동 중<br>(:: 포함된 덱 이름 자동 폴더링)
+                * <b>minkunai87-ai/mk</b> 자동 연동 중<br>(상위 덱 이름 기준으로 자동 폴더링)
             </div>
             <button class="btn-upload" onclick="document.getElementById('file-input').click()">+ (로컬) 텍스트 파일 추가</button>
             <input type="file" id="file-input" accept=".txt" multiple style="display:none" onchange="handleFileUpload(this)">
@@ -139,7 +139,7 @@
         </div>
         
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">
-            My Anki v10.4 (Folder Parsing Fix)
+            My Anki v10.5 (Group by Root Folder)
         </div>
     </div>
 
@@ -262,7 +262,6 @@
             const files = await listResponse.json();
             const txtFiles = files.filter(f => f.name.endsWith('.txt'));
 
-            // 🔥 멀티 파일 스마트 파싱 (개별/통합 모두 처리)
             for (const file of txtFiles) {
                 try {
                     const contentResponse = await fetch(file.download_url + '?t=' + new Date().getTime());
@@ -292,7 +291,6 @@
         }
     }
 
-    // === 🔥 핵심 로직 수정: 조건 완화 (필드 개수 무시) ===
     function processAnkiText(text, filename, edits) {
         const lines = text.replace(/\r\n/g, '\n').split('\n');
         let currentDeck = filename.replace('.txt', '');
@@ -304,13 +302,11 @@
             let deckNameInRow = null;
             let q = "", a = "";
 
-            // 🔥 수정됨: 필드 개수 상관없이 첫 번째 칸에 :: 있으면 덱 이름으로 인정!
             if (fields[0] && (fields[0].includes('::') || fields[0].includes('__'))) {
                 deckNameInRow = fields[0].replace(/::/g, '__');
                 const parsed = parseRowWithDeckName(fields); 
                 q = parsed.q; a = parsed.a;
             } else {
-                // '덱 이름 포함' 안 했을 경우, 그냥 파일명을 덱 이름으로 씀
                 deckNameInRow = currentDeck;
                 const parsed = parseRowNormal(fields);
                 q = parsed.q; a = parsed.a;
@@ -331,9 +327,8 @@
     function parseRowNormal(fields) { return parseFieldsToQA(fields); }
     
     function parseFieldsToQA(row) {
-        // 데이터가 부족하면 빈 값 리턴
         if(row.length < 1) return {q:null, a:null};
-        if(row.length === 1) return {q: row[0], a: ""}; // 정답 없는 경우도 허용
+        if(row.length === 1) return {q: row[0], a: ""};
 
         let splitIdx = -1;
         for(let k=1; k<row.length; k++) {
@@ -343,12 +338,10 @@
         if(splitIdx === -1) {
             for(let k=1; k<row.length; k++) {
                 const txt = row[k].trim();
-                // 이미지 태그 제외하고 텍스트 길이가 짧으면 정답일 확률 높음
                 if(!txt.includes('<img') && txt.replace(/<[^>]*>/g, "").length <= 5 && txt.length > 0) { splitIdx = k; break; }
             }
         }
         
-        // 못 찾으면 그냥 2번째부터 정답으로 침
         if(splitIdx === -1) splitIdx = 1;
         
         const q = row.slice(0, splitIdx).join('<br>');
@@ -356,7 +349,66 @@
         return { q, a };
     }
 
-    // 기존 함수들 유지 (exportData, importData, renderDeckList, etc...)
+    function renderDeckList() {
+        const list = document.getElementById('deck-list-ui');
+        list.innerHTML = '';
+        
+        const names = Object.keys(library).sort();
+        
+        if (names.length === 0) { list.innerHTML = '<li class="deck-item" style="justify-content:center;">덱 없음</li>'; return; }
+        const groups = {};
+        const others = [];
+        
+        names.forEach(name => {
+            // 🔥 [핵심 수정] 정규식을 Lazy하게 바꿔서 첫 번째 __ 까지만 폴더명으로 잡음
+            // 예: 소방__법규__챕터1 -> Folder: 소방, Deck: 법규__챕터1
+            const match = name.match(/^(.+?)__(.+)$/);
+            if (match) {
+                const folderName = match[1];
+                const realDeckName = match[2];
+                if (!groups[folderName]) groups[folderName] = [];
+                groups[folderName].push({ originalKey: name, displayName: realDeckName });
+            } else { others.push({ originalKey: name, displayName: name }); }
+        });
+        
+        for (const folderName in groups) {
+            const folderHeader = document.createElement('li');
+            folderHeader.className = 'folder-header';
+            
+            const folderTitleArea = document.createElement('div');
+            folderTitleArea.className = 'folder-title-area';
+            folderTitleArea.innerHTML = `<span>📂 ${folderName}</span>`;
+            
+            const folderPlayBtn = document.createElement('button');
+            folderPlayBtn.className = 'folder-play-btn';
+            folderPlayBtn.innerText = '▶ 전체';
+            folderPlayBtn.onclick = (e) => { e.stopPropagation(); selectParentDeck(folderName); };
+
+            folderHeader.appendChild(folderTitleArea);
+            folderHeader.appendChild(folderPlayBtn);
+            
+            const folderContent = document.createElement('ul');
+            folderContent.className = 'folder-content deck-list';
+            if (currentDeckName && currentDeckName.startsWith(folderName + '__')) { folderContent.classList.add('open'); }
+            
+            folderTitleArea.onclick = () => { folderContent.classList.toggle('open'); };
+            
+            groups[folderName].forEach(deck => {
+                // 덱 이름에 __가 있으면 ' > '로 바꿔서 보여줌 (가독성 UP)
+                const prettyName = deck.displayName.replace(/__/g, ' > ');
+                const li = createDeckItem(deck.originalKey, prettyName);
+                folderContent.appendChild(li);
+            });
+            list.appendChild(folderHeader);
+            list.appendChild(folderContent);
+        }
+        others.forEach(deck => {
+            const li = createDeckItem(deck.originalKey, deck.displayName);
+            list.appendChild(li);
+        });
+    }
+
+    // ... (나머지 함수들은 v10.4와 동일) ...
     function exportData() {
         const data = {
             stats: localStorage.getItem(STORAGE_KEY_STATS),
@@ -392,60 +444,6 @@
             } catch (err) { alert("❌ 잘못된 백업 파일입니다."); }
         };
         reader.readAsText(file);
-    }
-
-    function renderDeckList() {
-        const list = document.getElementById('deck-list-ui');
-        list.innerHTML = '';
-        
-        // 🔥 정렬 기능 추가 (가나다 순)
-        const names = Object.keys(library).sort();
-        
-        if (names.length === 0) { list.innerHTML = '<li class="deck-item" style="justify-content:center;">덱 없음</li>'; return; }
-        const groups = {};
-        const others = [];
-        names.forEach(name => {
-            const match = name.match(/^(.+)__(.+)$/);
-            if (match) {
-                const folderName = match[1];
-                const realDeckName = match[2];
-                if (!groups[folderName]) groups[folderName] = [];
-                groups[folderName].push({ originalKey: name, displayName: realDeckName });
-            } else { others.push({ originalKey: name, displayName: name }); }
-        });
-        for (const folderName in groups) {
-            const folderHeader = document.createElement('li');
-            folderHeader.className = 'folder-header';
-            
-            const folderTitleArea = document.createElement('div');
-            folderTitleArea.className = 'folder-title-area';
-            folderTitleArea.innerHTML = `<span>📂 ${folderName}</span>`;
-            
-            const folderPlayBtn = document.createElement('button');
-            folderPlayBtn.className = 'folder-play-btn';
-            folderPlayBtn.innerText = '▶ 전체';
-            folderPlayBtn.onclick = (e) => { e.stopPropagation(); selectParentDeck(folderName); };
-
-            folderHeader.appendChild(folderTitleArea);
-            folderHeader.appendChild(folderPlayBtn);
-            
-            const folderContent = document.createElement('ul');
-            folderContent.className = 'folder-content deck-list';
-            if (currentDeckName && currentDeckName.startsWith(folderName + '__')) { folderContent.classList.add('open'); }
-            
-            folderTitleArea.onclick = () => { folderContent.classList.toggle('open'); };
-            
-            groups[folderName].forEach(deck => {
-                const li = createDeckItem(deck.originalKey, deck.displayName);
-                folderContent.appendChild(li);
-            });
-            list.appendChild(folderHeader);
-            list.appendChild(folderContent);
-        }
-        others.forEach(deck => {
-            const li = createDeckItem(deck.originalKey, deck.displayName);
-            list.appendChild(li);
-        });
     }
 
     function createDeckItem(key, displayName) {
