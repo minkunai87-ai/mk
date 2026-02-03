@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>나만의 안키 (폴더 기능 v2)</title>
+<title>나만의 안키 (이어보기 기능)</title>
 <style>
     :root { --primary: #4dabf7; --bg: #f8f9fa; --text: #343a40; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -152,7 +152,7 @@
         </div>
         
         <div style="margin-top:auto; font-size:0.8rem; color:#adb5bd; text-align:center;">
-            My Anki v8.1 (Underscore Folder)
+            My Anki v8.3 (Resume Support)
         </div>
     </div>
 
@@ -229,7 +229,7 @@
     // ==========================================
     // 💡 소방__학개론.txt 형식으로 적으면 자동 분류됩니다.
     // 예: const myFiles = ['소방__학개론.txt', '소방__법규.txt'];
-    const myFiles = ['소방관계법규OX__P01. 소방기본법 OX.txt', '소방관계법규OX__P02. 소방시설공사업법 OX.txt', '소방관계법규OX__P03. 위험물안전관리법 OX.txt', '소방관계법규OX__P04. 소방의 화재조사에 관한 법률 OX.txt', '소방관계법규OX__P05. 화재의 예방 및 안전관리에 관한 법률 OX.txt', '소방관계법규OX__P06. 소방시설 설치 및 관리에 관한 법률 OX.txt']; 
+    const myFiles = ['data.txt']; 
     // ==========================================
 
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
@@ -237,6 +237,7 @@
     const STORAGE_KEY_LIBRARY = 'anki_final_library';
     const STORAGE_KEY_STATS = 'anki_final_stats';
     const STORAGE_KEY_EDITS = 'anki_final_edits';
+    const STORAGE_KEY_PROGRESS = 'anki_final_progress'; // 진행상황 저장용 키 (NEW)
 
     window.onload = async function() {
         if (location.protocol.startsWith('http')) { await loadCloudFiles(); }
@@ -288,7 +289,6 @@
         else document.getElementById('question-section').innerHTML = "<h3>⚠️ 불러올 파일이 없습니다.</h3>";
     }
 
-    // === 언더바(__) 폴더링 적용 ===
     function renderDeckList() {
         const list = document.getElementById('deck-list-ui');
         list.innerHTML = '';
@@ -303,7 +303,6 @@
         const others = [];
 
         names.forEach(name => {
-            // "폴더__이름" 형식 확인
             const match = name.match(/^(.+)__(.+)$/);
             if (match) {
                 const folderName = match[1];
@@ -315,7 +314,6 @@
             }
         });
 
-        // 1. 폴더들 렌더링
         for (const folderName in groups) {
             const folderHeader = document.createElement('li');
             folderHeader.className = 'folder-header';
@@ -335,7 +333,6 @@
             list.appendChild(folderContent);
         }
 
-        // 2. 기타 파일 렌더링
         others.forEach(deck => {
             const li = createDeckItem(deck.originalKey, deck.displayName);
             list.appendChild(li);
@@ -411,18 +408,39 @@
         }
     }
 
+    // === 이어보기 로직 추가된 덱 선택 ===
     function selectDeck(name) {
         if(!library[name]) return;
-        currentDeckName = name; originalDeck = library[name]; activeDeck = [...originalDeck];
-        currentIndex = 0; isRevealed = false;
+        currentDeckName = name; 
+        originalDeck = library[name]; 
+        activeDeck = [...originalDeck];
+        
+        // 저장된 위치 불러오기
+        const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
+        currentIndex = progress[name] || 0; // 없으면 0부터
+        
+        // 덱 크기가 줄었을 경우 대비
+        if(currentIndex >= activeDeck.length) currentIndex = 0;
+
+        isRevealed = false;
         document.getElementById('search-input').value = ''; 
-        // 제목에선 폴더명(__ 앞부분) 제거하고 표시
         const displayName = name.includes('__') ? name.split('__')[1] : name;
         document.getElementById('deck-title').innerText = displayName;
         
         renderDeckList(); showCard();
         document.getElementById('sidebar').classList.remove('open');
         document.querySelector('.sidebar-overlay').classList.remove('open');
+    }
+
+    // === 현재 위치 저장 함수 ===
+    function saveCurrentProgress() {
+        if (!currentDeckName) return;
+        // 전체 보기(기본) 상태일 때만 저장 (검색/필터 중에는 위치 꼬임 방지)
+        if (activeDeck.length === originalDeck.length) {
+            const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
+            progress[currentDeckName] = currentIndex;
+            localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
+        }
     }
 
     function handleImgUpload(input) {
@@ -462,22 +480,34 @@
         const result = []; let currentRow = [], currentField = '', inQuote = false;
         for (let i = 0; i < text.length; i++) {
             const char = text[i];
+            const next = text[i+1];
             if (inQuote) {
-                if (char === '"' && text[i+1] === '"') { currentField += '"'; i++; }
+                if (char === '"' && next === '"') { currentField += '"'; i++; }
                 else if (char === '"') inQuote = false;
                 else currentField += char;
             } else {
                 if (char === '"') inQuote = true;
                 else if (char === '\t') { currentRow.push(currentField); currentField = ''; }
                 else if (char === '\n' || char === '\r') {
-                    if (char === '\r' && text[i+1] === '\n') i++;
+                    if (char === '\r' && next === '\n') i++;
                     currentRow.push(currentField);
-                    if (currentRow.length >= 2) result.push({ q: currentRow[0], a: currentRow[1] });
+                    if (currentRow.length >= 2) {
+                        const q = currentRow.slice(0, currentRow.length - 1).join('<br>');
+                        const a = currentRow[currentRow.length - 1];
+                        result.push({ q, a });
+                    }
                     currentRow = []; currentField = '';
                 } else currentField += char;
             }
         }
-        if (currentField || currentRow.length > 0) { currentRow.push(currentField); if(currentRow.length >= 2) result.push({ q: currentRow[0], a: currentRow[1] }); }
+        if (currentField || currentRow.length > 0) {
+            currentRow.push(currentField);
+            if(currentRow.length >= 2) {
+                const q = currentRow.slice(0, currentRow.length - 1).join('<br>');
+                const a = currentRow[currentRow.length - 1];
+                result.push({ q, a });
+            }
+        }
         return result;
     }
 
@@ -556,12 +586,21 @@
 
     function moveCard(delta) {
         let nextIdx = currentIndex + delta;
-        if(nextIdx >= 0 && nextIdx < activeDeck.length) { currentIndex = nextIdx; showCard(); }
+        if(nextIdx >= 0 && nextIdx < activeDeck.length) { 
+            currentIndex = nextIdx; 
+            saveCurrentProgress(); // 이동할 때마다 위치 저장
+            showCard(); 
+        }
     }
+    
     function grade(score) {
         saveStats(activeDeck[currentIndex].id, score);
-        if (currentIndex < activeDeck.length - 1) { currentIndex++; showCard(); }
-        else { alert("끝!"); currentIndex=0; showCard(); }
+        if (currentIndex < activeDeck.length - 1) { 
+            currentIndex++; 
+            saveCurrentProgress(); // 채점 후 이동 시에도 저장
+            showCard(); 
+        }
+        else { alert("끝!"); currentIndex=0; saveCurrentProgress(); showCard(); }
     }
     
     function getStats(id) { 
