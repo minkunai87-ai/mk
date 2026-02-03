@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (깃헙 완전 연동)</title>
+<title>나만의 안키 (images 폴더 연동)</title>
 <style>
-    /* 디자인: 다크모드 + 아이폰 핏 + 3단 폴더 스타일 유지 */
+    /* 디자인: 다크모드 + 3단 폴더 + 아이폰 최적화 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; --sub-group-bg: #252525; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
@@ -34,24 +34,13 @@
     
     /* 트리 구조 */
     .tree-folder { margin-bottom: 4px; }
-    .tree-header { 
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 10px; border-radius: 8px; cursor: pointer;
-        background: var(--input-bg); border: 1px solid var(--border);
-        transition: 0.2s; margin-bottom: 4px;
-    }
+    .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); transition: 0.2s; margin-bottom: 4px; }
     .tree-header:hover { background: var(--btn-hover); }
     .tree-children { display: none; padding-left: 10px; margin-left: 8px; border-left: 2px solid #444; }
     .tree-children.open { display: block; }
     .folder-title { flex: 1; font-weight: bold; color: #ffd43b; font-size: 0.95rem; display: flex; align-items: center; gap: 6px; }
-    
-    .tree-deck { 
-        padding: 12px; border-radius: 8px; cursor: pointer; 
-        background: var(--input-bg); margin-bottom: 4px; color: var(--text); font-size: 0.9rem;
-        display: flex; justify-content: space-between; align-items: center;
-    }
+    .tree-deck { padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); margin-bottom: 4px; color: var(--text); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
     .tree-deck.active { background: #182836; color: #74c0fc; font-weight: bold; border: 1px solid #1c7ed6; }
-    
     .play-btn { background: var(--primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 8px; flex-shrink: 0; }
     .del-btn { background: none; border: none; color: var(--text-sub); font-weight: bold; padding: 0 5px; cursor: pointer; font-size: 1rem; }
 
@@ -64,7 +53,6 @@
     .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
     .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; box-shadow: none; border: none; display: flex; flex-direction: column; position: relative; overflow: hidden; }
     .card-scroll-area { flex: 1; padding: 25px 20px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) var(--bg); }
-    
     .card-info { display: flex; justify-content: space-between; width: 100%; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed var(--border); align-items: center; }
     .rate-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; background: var(--input-bg); color: var(--text-sub); }
     .rate-badge.high { background: #0b2e13; color: #69db7c; } .rate-badge.low { background: #2e0b0b; color: #ff8787; }
@@ -82,7 +70,7 @@
     .text-area { 
         font-size: 1.35rem; line-height: 1.6; word-break: keep-all; white-space: pre-wrap; 
         width: 100%; margin-bottom: 20px; color: var(--text); font-weight: 500; 
-        position: relative; /* 오클루전 기준점 */
+        position: relative; 
     }
     .text-area img { max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: block; margin: 10px 0; }
 
@@ -173,7 +161,7 @@
         </div>
         
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">
-            My Anki v10.20 (GitHub Auto-Image)
+            My Anki v10.21 (Images in /images/)
         </div>
     </div>
 
@@ -249,8 +237,8 @@
 <script>
     const repoOwner = 'minkunai87-ai';
     const repoName = 'mk';
-    // 🔥 깃헙 이미지 기본 경로 (main 브랜치 기준)
-    const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/`;
+    // 🔥 깃헙 이미지 경로: /images/ 추가
+    const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
 
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let imageMap = new Map(), isRevealed = false;
@@ -368,7 +356,7 @@
         });
     }
 
-    // === 🔥 핵심: 깃헙 이미지 자동 연동 ===
+    // === 🔥 핵심: 깃헙 images 폴더 자동 연동 + 오클루전 보존 ===
     function createDOM(rawText, isAnswer) {
         let formattedText = rawText.replace(/""/g, '"');
         if (formattedText.startsWith('"') && formattedText.endsWith('"')) formattedText = formattedText.slice(1, -1);
@@ -380,18 +368,16 @@
         tempDiv.innerHTML = cleanText;
 
         // 🔥 이미지 및 파일명 패턴을 모두 깃헙 URL로 변환
-        // src="..." 뿐만 아니라, style="background: url(...)" 등도 처리
-        // 로컬 imageMap에 있으면 그거 쓰고, 없으면 깃헙으로 연결
+        // 로컬 imageMap에 있으면 그거 쓰고, 없으면 깃헙 /images/ 경로로 연결
         const regex = /([a-zA-Z0-9_\-\.\%\(\)\s\uAC00-\uD7A3]+\.(jpg|jpeg|png|gif|svg|webp))/gi;
         
         tempDiv.innerHTML = tempDiv.innerHTML.replace(regex, (match) => {
             let fname = match.trim();
-            // 1. 로컬 맵 확인 (수동 업로드 우선)
+            // 1. 로컬 맵 확인
             let url = imageMap.get(fname) || imageMap.get(fname.normalize('NFC')) || imageMap.get(fname.normalize('NFD'));
             
-            // 2. 없으면 깃헙 Raw URL 사용
+            // 2. 없으면 깃헙 Raw URL 사용 (images 폴더 지정)
             if (!url) {
-                // 한글 파일명 등 인코딩 처리
                 url = githubRawBase + encodeURIComponent(fname);
             }
             return url;
