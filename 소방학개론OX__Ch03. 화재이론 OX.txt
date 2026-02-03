@@ -1,0 +1,279 @@
+#separator:tab
+#html:true
+"<img src=""paste-8693f1d2b731c95def02f6025487fbecb02480b8.jpg"" title=""이 &lt;&gt; 기본서 0.96 참조화재란사람의의도에반하거나고의또는과실에의하여발생하는연소현상으로서소화할필요가있는현상또는사람의의도에반하여발생하거나확대된물리적폭발현상을말한다 .
+@1%×※""/>"	"<img src=""paste-f2a73c743b735900d842ebaa6479c9897cfd34fe.jpg"" title/>X"
+"<img src=""paste-88338baf34764ec9926079d3918f2a84c2512502.jpg"" title=""02 &lt;5 기본서 0.98 참조표시색은일반화재의경우백색 , 유류화재의경우청색 , 전기화재의경우무색 , 34
+화재의경우황색이다 .
+0 ㅇ 1×""/>"	"<img src=""paste-66f0e2a09fc0ae877407785639fd2eab26537919.jpg"" title/>X"
+"<img src=""paste-4834c6bb97dc0f592d6c33c181714b0fa9537ea3.jpg"" title=""03 &lt;&gt; 기본서 0.98 참조국내의화재안전기술기준에서는화재의종류를일반화재 , 유류화재 , 전기화재 , 금속화재및주방화재로분류한다 .
+ㅇ 1×""/>"	"<img src=""paste-2a4bcc0d983aef5dc35bc208f769d9850dcb44d7.jpg"" title/>O"
+"<img src=""paste-1d4b4221e179a80b102f5e8d39aa66830acd293b.jpg"" title=""04 &lt;&gt; 기본서 0.99 참조일반화재의연기색상은백색이며 , 화재성장속도가유류화재에비해빠른편이다 .
+ㅇ 1×""/>"	"<img src=""paste-96ff1a11dd0ee0147e1aca3338e90f57ed163e9f.jpg"" title/>X"
+"<img src=""paste-8bd9e5ecd4978389275af6e3fdee9248df4d1f9c.jpg"" title=""05 가본서 0.99 참조유류화재란인화성액체 , 가연성액체 , 석유그리스 , 타르 , 오일 , 유성도료 , 솔벤트 , 래커 ,
+알코올및인화성가스와같은유류가타고나서재가남는화재를말한다 .
+@.1%""/>"	"<img src=""paste-3a3667495598c4eae3c5cf1880c1cd657d7f78a3.jpg"" title/>X"
+"<img src=""paste-641f78f4d056546d64ecfc5cebe3ebaaaf7e3dcf.jpg"" title=""06 &gt; 기본서 0.99 참조유류화재시주수를하게되면물의비중이기름보다작은밀도차이에의해유류가물위에떠서흘러연소면을확대시킬우려가있으므로주의하여야한다 .
+ㅇ 1×※""/>"	"<img src=""paste-404726ef33161211a856f81e64739968a1b8e276.jpg"" title/>X<div><img src=""paste-99bc2fb5e375069e3108ce8bbe6e59c9a5fdf5da.png"" title/><br/></div>"
+"<img src=""paste-abef834f7bffe94ddc28031b40a9b6affd9836f0.jpg"" title=""07 기본서 0100 참조오일오버 ( 이 0/0) 란유류가탱크내용적의 50% 이상으로충전되어있을때화재로인해증기압력이상승하고유류를외부로분출하면서탱크가파열되는현상으로 ,
+다른이상현상보다안전성이높은편이다 .
+ㅇ 1×""/>"	"<img src=""paste-d2efa99b5365848ed824a85b5f076d0bcd212aaf.jpg"" title/>X<div><img src=""paste-4d12e2a2d441b8013a3d81d6c0ea088327a3f686.png"" title/><br/></div><div><img src=""image-5ee0d7a6b032f1bb08cf3c747763d573ae754626.jpg"" title/><br/></div>"
+"<img src=""paste-815ffa7b33eb6cc83bdb94a959afd7e6786ca14e.jpg"" title=""08 &lt;&gt; 기본서 000 참조보일오버 (801 over)E 방지하기위해서는탱크내부에기계적교반을실시하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-7d32a3b75e3a6c2c702f03588141ceca0377babe.jpg"" title/>O<div><img src=""paste-4d12e2a2d441b8013a3d81d6c0ea088327a3f686.png"" title/><br/></div><div><img src=""image-3f6dad1c66de81614b3e6182b7cdeb2054b0c334.png"" title/><br/></div>"
+"<img src=""paste-4589f64bf2efb9088fdc34f0f38eeb350b08a631.jpg"" title=""09 &lt;5 기본서 0- 이참조보일오버 (80 over)2t 비점이높고점성을가진고온의유류표면에서부터소화작업등에의한물또는포소화약제가주입되면수분의급격한증발에의해불이붙은유류가탱크벽을타고넘는현상을말한다 .
+ㅇ 1×""/>"	"<img src=""paste-2eaa48260716f14f875a1e69054b8ed2874ec5d8.jpg"" title/>X<div><div><img src=""paste-3f6dad1c66de81614b3e6182b7cdeb2054b0c334.png"" title/><br/></div></div><div><img src=""image-4a202185c176f1f9d91af21b598441482f5b3a11.jpg"" title/><br/></div>"
+"<img src=""paste-89936aa6005db7dbab42dfd78c1d3b2c0a5f4269.jpg"" title=""10 5 기본서 002 참조
+Z2AQH|(Forth ㅇ /6!) 란점성을가진뜨거운유류표면의아래부분에서물이비등할경우비등하는물이저장탱크내의유류를외부로넘쳐흐르게하는현상을말하며 , 발생횟수가많으나화재를수반하지않는다 . 또한 , 다른이상현상보다위험성이매우높다 .""/>"	"<img src=""paste-ffc7f6bb4a0c4b1d3a975e3481b3237e55d8f501.jpg"" title/>X<div><img src=""paste-3f6dad1c66de81614b3e6182b7cdeb2054b0c334.png"" title/><br/></div><div><img src=""paste-baea324d0258561b762ec9227519912f72ed4635.jpg"" title/><br/></div>"
+"<img src=""paste-ef247362d1fcb56d2f64f76c0a56e5185e04fdcd.jpg"" title=""ㅠ &lt;5 기본서 0103 참조중질유는액온이인화점보다높아상은에서도쉽게기화하여연소범위를형성하며화염이그증기층을통하여전파하며가연성혼합기의화염전파 ( 예혼합형전파 ) 와비숫하다 .
+ㅇ 1×""/>"	"<img src=""paste-132fb1d7bb60bc224c17c7ef9f178d993b644063.jpg"" title/>X<div><img src=""paste-80db317f4768a53464dd08746db91c1ee0e2f062.png"" title/><br/></div>"
+"<img src=""paste-beaa44dd6aa5106282d4452eab46d222964ab930.jpg"" title=""12 &lt;&gt; 기본서 0103 참조경질유는부상지붕구조 (581) 에저장하고 , 중질유는콘루프탱크 (&lt;11) 에저장한다 .
+ㅇ 1×""/>"	"<img src=""paste-e42082ed0975fb30a130ca3ac83edb3fe988d16f.jpg"" title/>O<div><img src=""paste-80db317f4768a53464dd08746db91c1ee0e2f062.png"" title/><br/></div>"
+"<img src=""paste-040b248a15d6c7b9115170544c37c479c0bb05d2.jpg"" title=""13 &lt;&gt; 기본서 0102 참조화재안전기술기준에따른전기화재의정의는전기적점화원에의해발생하는모든화재를말한다 .
+ㅇ 1×""/>"	"<img src=""paste-3c740302020075c39f556fcbc09f886c967347f9.jpg"" title/>X<div><img src=""paste-80db317f4768a53464dd08746db91c1ee0e2f062.png"" title/><br/></div>"
+"<img src=""paste-0a53c6048ee2ebbfcfc8967df26d7e202a4b5cdf.jpg"" title=""14 &gt; 기본서 0702 참조주유소에서유증기가체류하고있고정전기에의한스파크로화재가발생한것은 ( 급화재로분류한다 .
+ㅇ 1×""/>"	"<img src=""paste-691261da6ea1c66f5a00d983b9c02839b299e4c8.jpg"" title/>X"
+"<img src=""paste-c1980d4de439d03af94c554b37b70e5801a1094e.jpg"" title=""15 &lt;&gt; 기본서 0102 참조과전류 , 단락 , 단선및절연저항의증가는모두전기적점화원이될수있으며 , 역기전력은전기적점화원의종류에해당하지않는다 .
+o1x""/>"	"<img src=""paste-478a9c40e2b09f0860906078d4b063544b88f290.jpg"" title/>X<div><img src=""paste-80db317f4768a53464dd08746db91c1ee0e2f062.png"" title/><br/></div>"
+"<img src=""paste-2e4705b97c3537ac8e4c8ac5d36d5eec817c22ad.jpg"" title=""16 &lt;&gt; 기본서 002 참조외출시전원이차단된콘센트에서불이난경우는전기화재 (&lt;- 급화재 ) 에해당한다 .
+01X""/>"	"<img src=""paste-5627c74d8a57c5f4cccff4253da360b46a9ffe3b.jpg"" title/>X<div><img src=""paste-80db317f4768a53464dd08746db91c1ee0e2f062.png"" title/><br/></div>"
+"<img src=""paste-0467a71f9dced52e31e6c080f8c6bae7ec5028be.jpg"" title=""17 기본서 0103 참조
+ES 화재란마그네슴합금등의가연성금속에서일어나는화재를말하며 , 분말형태의금속의경우폭발을동반할수있다 .
+0 ㅇ 1×""/>"	"<img src=""paste-13980fb1e440aa0affe27ae1be3ed28427a1d240.jpg"" title/>X<div><img src=""paste-ec30d5bd42f1275d309e5f3fe86854e5f1763b71.png"" title/><br/></div>"
+"<img src=""paste-d33b4cb954b03f929be84d958515c9301f28619e.jpg"" title=""18 &lt;&gt; 기본서 0103 참조국내의화재안전기술기준 (\1&lt;.) 에서는유류화재를가스화재에포함한다 .
+olx""/>"	"<img src=""paste-ccd6947e81c1a6d4bb91e051b8d9506b93a0fb19.jpg"" title/>X<div><img src=""paste-ec30d5bd42f1275d309e5f3fe86854e5f1763b71.png"" title/><br/></div>"
+"<img src=""paste-690c71fc3efff1e65abb9d8f0935827c6faa6aca.jpg"" title=""19 &gt; 기본서 6104 참조가스를저장상태에따라분류할경우압축가스 ., 액화가스및용해가스로분류할수있으며 , 액화가스는임계온도가상온보다낮은가스로 , 상온에서가압또는냉각에의해비교적쉽게액화되어액체상태로용기에충전하는가스를말한다 .
+ㅇ 1×""/>"	"<img src=""paste-019b1b79bebb5c245c55640dc5b2aff68b511781.jpg"" title/>X<div><img src=""paste-9f3ae18e91024f242a4dbdb3d9ed7dbe5da72d77.png"" title/><br/><div><img src=""paste-726c37c4d352022fdc94e25443179a7b546c8b17.png"" title/><br/></div></div>"
+"<img src=""paste-0ab975e0057e3e5bf6947bafe709ebbf5f1d8e4e.jpg"" title=""20 &lt;&gt; 기본서 004 참조산소 (02) 는압축가스에해당하며 , 이산화탄소 (&lt;02) 는액화가스에해당하며 , 아세틸렌 (&lt;12) 는용해가스에해당한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-64fd31512104a8ab7aa0efc9fc0edd475e816eda.jpg"" title/>O<div><img src=""paste-64fa5f499bc79ace341558614fbb17651272ce29.png"" title/><br/></div>"
+"<img src=""paste-74b4bfdc69cd42e0ad69c7d437320c0ff0afc017.jpg"" title=""21 &lt;&gt; 기본서 0704 참조가연성가스란공기중에서연소하는가스로서폭발한계의하한이 5[%] 이하인것과폭발한계의상한과하한의차가 10[%] 이상인것을말한다 .
+O X""/>"	"<img src=""paste-4378ddcdfd60dbb8128274bfbb5dab39903b5810.jpg"" title/>X<div><img src=""paste-64fa5f499bc79ace341558614fbb17651272ce29.png"" title/><br/></div>"
+"<img src=""paste-6f3c10441c80523751c4a38366f630d71366e0b7.jpg"" title=""22 &lt;5 기본서 “0105 참조액화석유가스는프로판 (&lt;!?) 과 HEHCHO)E 주성분으로구성되어있으며 , 액화천연가스에비해발열량및끊는점이높고 , 연소속도가빠르다 .
+ㅇ 1×""/>"	"<img src=""paste-419ffd12aa67d0c30971fa6241274f8104fbdc17.jpg"" title/>X<div><img src=""paste-fcf33ef2626dcc4f566120de4d64011356250bc0.png"" title/><br/></div>"
+"<img src=""paste-126e5c211c4872f7e10f875b381014e2695bf8bb.jpg"" title=""23 &lt; 가본서 6105 참조주방화재의가연물중하나인식용유의발화점은비점보다낮다 .""/>"	"<img src=""paste-0ed2002157746d800c31243f243c9c0b59560fbb.jpg"" title/>O<div><img src=""paste-fcf33ef2626dcc4f566120de4d64011356250bc0.png"" title/><br/></div>"
+"<img src=""paste-f37628897a4f0a20bfb623c39c28f7a7295a2f80.jpg"" title=""24 5 기본서 0105 참조식용유로인한화재시유면상의화염을제거하면복사열에의한기화를차단하여재발화를방지할수있다 .
+o1 x""/>"	"<img src=""paste-c804b7a9c4e653ea0677bda445ff9251922a6b8b.jpg"" title/>X<div><img src=""paste-fcf33ef2626dcc4f566120de4d64011356250bc0.png"" title/><br/></div>"
+"<img src=""paste-3ff79eb562c48824631fae2a42abc1a541a9a266.jpg"" title=""25 5 기본서 0106 참조건성유란요오드값이 100 미만인것을말하며불포화도가높은기름으로반응성이뛰어나다 .
+ㅇ 1×""/><div>건성유</div><div>반건성유</div><div>불건성유</div>"	"<img src=""paste-88e03af59f6373f81ebcf0abd460dc058e0bd68e.jpg"" title/>X<div><img src=""paste-cba05ddf8ed0dfd7e770f814b20b2690d7c5ab30.png"" title/><br/></div>"
+"<img src=""paste-e94fb63664d2bcd4b3f38c2680d31aceede34075.jpg"" title=""26 5 기본서 0106 참조산림화재중수관화는나무의줄기에서화재가발생하는것을말한다 .""/><div>가지 잎</div><div>줄기</div><div>낙엽 관목</div><div>유기물</div><div>바람</div>"	"<img src=""paste-0d733b44b93e0536d946d8af9f30a2bc27942837.jpg"" title/>X<div><img src=""paste-cba05ddf8ed0dfd7e770f814b20b2690d7c5ab30.png"" title/><br/></div>"
+"<img src=""paste-d2aef435b278f544ca92342aa288f80e2a65f212.jpg"" title=""27 &gt; 기본서 0107 참조열가소성플라스틱은열경화성플라스틱에비해훈소의위험성이높다 .""/><div>폴리- 염화비닐수지</div><div>-수지 폴리우레탄</div>"	"<img src=""paste-90803cbc30f2116bac13b1e88fa9d8c71b4254b0.jpg"" title/>X<div><img src=""paste-02e9650775ce96b31a05fd3369a10dc04868f859.png"" title/><br/></div>"
+"<img src=""paste-61fba18181f4369a20c3b97f1cf3c11758837bb4.jpg"" title=""28 &lt;&gt; 기본서 6107 참조염화비닐수지의경우열을가한뒤한번굳어지고나면다시열을가해도다른모양으로변형할수없는플라스틱으로재사용이불가능한것이다 .
+ㅇ 1×""/><div>열가소성</div><div>열경화성</div>"	"<img src=""paste-b03323404d5b138db6f281f17d58616253763641.jpg"" title/>X<div><img src=""paste-02e9650775ce96b31a05fd3369a10dc04868f859.png"" title/><br/></div>"
+"<img src=""paste-80477bf17707f93fcb9894cc0012e0e371a4ae09.jpg"" title=""29 &lt;&gt; 기본서 0107 참조훈소는발열량및발연량이매우낮은연소로 , 연소속도도매우느린편이다 .
+ㅇ 1×""/><div>연기입자크기</div><div>어떤 감지기가 유리</div>"	"<img src=""paste-c6e35ccdcb5f847e2430946f70533a8338fecfdb.jpg"" title/>X<div><img src=""paste-02e9650775ce96b31a05fd3369a10dc04868f859.png"" title/><br/></div>"
+"<img src=""paste-237bff373365a1d17442d3cf45ba6e2571adfd8e.jpg"" title=""흐으허소와훈 . &lt;&gt; 기브서 #107 잠조면연소와훈소는모두연쇄반응을하지않는무염연소이다 . 그러나훈소의경우표면연소와달리가연성가스를발생시키며불꽃연소로발전가능성이있는득잠직_밌훑
+ㅇ 1×""/>"	"<img src=""paste-e0942fd3586d3bbd4b71ef004e98f946b5e0a18b.jpg"" title/>O<div><img src=""paste-02e9650775ce96b31a05fd3369a10dc04868f859.png"" title/><br/></div>"
+"<img src=""paste-9b84ae816787a7d34c9eda18823b599416e84db2.jpg"" title=""31 &lt;&gt; 기본서 0107 참조훈소성화재에서는연기의온도와주변공기의온도가같아져상승력이감소함에따라연기가천장에도달하지못하고하부에서하나의 58 형성하는현상이나타난다 .
+ㅇ 1%※""/>"	"<img src=""paste-45d9378df297b218d8a26c873c9aa1addcff8489.jpg"" title/>O<div><img src=""paste-02e9650775ce96b31a05fd3369a10dc04868f859.png"" title/><br/></div>"
+"<img src=""paste-537736d1721e13723bd34c89a14c82f8526f1030.jpg"" title=""32 &lt;5 기본서 0108 참조전력 - 통신용의전선이나가스 - 냉난방용의배관또는이와비슷한것을집합수용하기위하여설치한지하인공구조물로서사람이점검또는보수를하기위하여출입이가능한것중폭이 2m 이상이고높이가 1807 이상이며길이가 1077 이상인것은지하구에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-73b2f6fdef60f153de0a77db3e46aa23bff68ba1.jpg"" title/>X<div><img src=""paste-966647a8b9691d5df0e33c3bbefd7d8a0ae0f62b.png"" title/><br/></div>"
+"<img src=""paste-374750928482c28c961f2308085ac2ac8b3b853c.jpg"" title=""33 &lt;&gt; 가본서 0108 참조고층건축물이란층수가 50[m] 이상이면서높이가 200[77)] 이상인건축물을말하며 , 화재시수직방향으로의빠른연소확대의우려와굴뚝효과에의한빠른화재전파의위험성이존재한다 .
+ㅇ 1※""/><div>초고층</div><div>준초고층</div><div>고층</div>"	"<img src=""paste-901cc45b404d21993963ffe5a4e71c0c87b896e6.jpg"" title/>X<div><img src=""paste-966647a8b9691d5df0e33c3bbefd7d8a0ae0f62b.png"" title/><br/></div>"
+"<img src=""paste-49a13a954d616660c22177074323fa4e626bd02b.jpg"" title=""34 &lt;5 기본서 009 참조실내건축물의구획실화재시진행단계는화재초기 - 최성기 - 성장기 - 감쇠기순으로나타난다 .
+ㅇ 1×""/>"	"<img src=""paste-327b8465bbcb611b635d8dc335fb73bbc87a6819.jpg"" title/>X<div><img src=""paste-40196a6fd7423e1fee52d86f57539f91f319686e.png"" title/><br/></div>"
+"<img src=""paste-f749b8401aec496c21096847dd8599930038c842.jpg"" title=""35 &gt; 기본서 6109 참조화재초기에는다른동으로의연소위험이없으며 , 다량의흑색연기가발생한다 .
+18""/>"	"<img src=""paste-da76e05733bdc5bc1efd0d2916bfb444e69276cc.jpg"" title/>X<div><img src=""paste-40196a6fd7423e1fee52d86f57539f91f319686e.png"" title/><br/></div>"
+"<img src=""paste-7821a541cf513454b2978687a8c013d605c17fa4.jpg"" title=""36 &lt;&gt; 기본서 010 참조최성기에는산소가부족하여연소되지 Q2 가스가다량발생하며 , 감퇴기에는지붕이나벽체 , 대들보나기둥도무너져떨어지고열발산율은증가하기시작하는시기이다 .
+ㅇ 1×""/>"	"<img src=""paste-088bc2b78161ad8c266187c516362a5ddde8448e.jpg"" title/>X<div><img src=""paste-38785237c3b6bb1991a5516a2985d5d59903682f.png"" title/><br/></div>"
+"<img src=""paste-c795a43a5226e15b01d28d3af95255e50c0b8d9e.jpg"" title=""37 (SRR TR
+성장기는연소가가장격렬한시기로천장이나벽등구조물의낙하가발생할위험이있는단계이다 .
+ㅇ 1×""/>"	"<img src=""paste-106aafb910bae069c990cae1f98e10cd6ccfbb16.jpg"" title/>X<div><img src=""paste-38785237c3b6bb1991a5516a2985d5d59903682f.png"" title/><br/></div>"
+"<img src=""paste-9d0f5e2318d07614bb39c2ac7c96406683293f0d.jpg"" title=""웃춤 &lt;5 기본서 0.10 참조성장기에는일반적으로연료지배형화재가나타나며 , 최성기에는일반적으로환기지배형화재가나타난다 .
+ㅇ 1×""/>"	"<img src=""paste-c0fa2264bf30de52ed9f978801fca5aa58f9403e.jpg"" title/>O<div><img src=""paste-38785237c3b6bb1991a5516a2985d5d59903682f.png"" title/><br/></div>"
+"<img src=""paste-37beb331b9c83a6e8737e61bfd79533e89106c89.jpg"" title=""39 &lt;&gt; 기본서 0.10 참조화재성장속도는 635\, Medium, Slow2] 3 단계로분류하며 , Mediume| 22 ㅠ 4\ 에도달하는시간은 300 초이다 .
+0 ㅇ 1×""/>"	"<img src=""paste-57380caba85397a3ae7190803454c372140965dc.jpg"" title/>X<div><img src=""paste-38785237c3b6bb1991a5516a2985d5d59903682f.png"" title/><br/></div>"
+"<img src=""paste-01d0098ca2c073cb55fb2e0824f29aa5e52dea0d.jpg"" title=""40 &lt;&gt; 기본서 0.10 참조성장기에벽근처에있는가연물들은중앙에위치한가연물에비해비교적적은공기를흡수하며상대적으로낮은화염온도를지닌다 .
+ㅇ 1×""/>"	"<img src=""paste-d6ceed51b52677e2728ac1d1ab7490b55114ec30.jpg"" title/>X<div><img src=""paste-38785237c3b6bb1991a5516a2985d5d59903682f.png"" title/><br/></div>"
+"<img src=""paste-452b02a9e14cf32539266edb434b28db303043c7.jpg"" title='41 &lt;5 가본서 609 참조실내건축물의구획실화재시나타나는특수현상중 “ 성장기 ""” 에서먼저나타날수있는현상을순서대로나열하면 "" 플래임오버 - 롤오버 - 백드래프트 - 플래시오버 ” 이다 .
+ㅇ 1×'/>"	"<img src=""paste-a3e03034d6fb68a089f9a3cb71a839dc0bdb7256.jpg"" title/>X<div><img src=""paste-a9013546da8c7bca6e33f79af1863c472c0ff9fb.png"" title/><br/></div>"
+"<img src=""paste-18d4bff61bf73799611f98769ca627e759e1f26c.jpg"" title=""42 5 기본서 0.10 참조최성기에는실내화염이최고조에도달하나실내산소부족으로연소속도가빨라진다 .
+으""/>"	"<img src=""paste-15c42d6ace6c9ae99b23dfe62f49acca14e1a66a.jpg"" title/>X<div><img src=""paste-224318bb469e9949b0150006533523a8375143ac.png"" title/><br/></div>"
+"<img src=""paste-9a9bba49ca347e4c33a7c9df7e1357d37afee964.jpg"" title=""43 &lt;&gt; 가보서 0.11 참조
+E2HAI2H](Flash over)i= 구획실내가연성재료의전표면이 B2 덮이는현상으로구획화재또는국부연소라고도한다 . 또한 , 환기지배형화재에서연료지배형화재로전이되는시기이다 .
+ㅇ 1×""/>"	"<img src=""paste-77f3a9f6cde4777c5812c0058f32cd0b0b8a406c.jpg"" title/>X<div><img src=""paste-eb6fbeea65a1f591e87e1f0b17146bea8b78c908.png"" title/><br/></div>"
+"<img src=""paste-f4042236a15d1fbc5ff924edfae1e0d8e5bcc7d7.jpg"" title=""44 &lt;5 기본서 6.01 참조플래시오버 ( 티 3 060) 의발생징후로는플래임오버 (3076 ㅇ \/6) 가나타나며 , 일정공간내에서의훈소가관찰된다 .
+ㅇ 1※×""/>"	"<img src=""paste-6bf4db2f01c03bf2d3712868058e8e6a56b19e47.jpg"" title/>X<div><img src=""paste-eb6fbeea65a1f591e87e1f0b17146bea8b78c908.png"" title/><br/></div>"
+"<img src=""paste-7425b5a1c48601499c7891839d76e290fdb71636.jpg"" title=""45 &lt;&gt; 기본서 6.12 참조
+E2HA|281(Flash over)= 성장기에발생하며 , 롤오버 (80 over)i= 최성기에나타난다 . 또한 , B2 28] (Flash over)i= 복사열이강하게나타나며 , &amp; 28 (Roll over)=
+복사열이상대적으로약하게나타난다 .
+ㅇ 1×""/>"	"<img src=""paste-57a79b24d1e44a8256a5e1484ec99bbfc97a13cf.jpg"" title/>X<div><img src=""paste-ad7e78c6a203a37328c030fe3485bc20da37c6c3.png"" title/><br/><div><img src=""paste-c834401cf5d7ca56e98dbf27bf674fdf3a933299.png"" title/><br/></div></div>"
+"<img src=""paste-ae8a29c56b3705a03b480999690586eaec9ce772.jpg"" title=""46 &lt;&gt; 기본서 0.112 참조플래시오버 (30/6『) 는천장재보다벽의마감재가플래시오버에대한영향이크다 .
+oI""/>"	"<img src=""paste-b5b8e5bb5d5bdd123de70aa5694418dc48a5cd47.jpg"" title/>X<div><img src=""paste-477b159b6d70dd8ca5e2e3bd5653d45dee74e1ed.png"" title/><br/></div>"
+"<img src=""paste-aadb04335f7df9ca6999defb08068832bda9a340.jpg"" title=""47 &lt;&gt; 기본서 6.12 참조
+E2HA|261(Flash over)i= 개구부의크기가클수록 , 가연물의발열량이클수록 , 소규모공간보다대규모공간일수록 , 열전도율이높을수록플래시오버의발생시기가빨라진다 .
+ㅇ 1×""/>"	"<img src=""paste-6d7c00f10484a689568942364db11182c57cb039.jpg"" title/>X<div><img src=""paste-477b159b6d70dd8ca5e2e3bd5653d45dee74e1ed.png"" title/><br/></div>"
+"<img src=""paste-caf3341be50271e24afe01efedd2832ba9236687.jpg"" title=""48 &lt;&gt; 기본서 0.13 참조백드래프트 (83&lt; draft)2t 실내에공기의부족으로자유연소상태에있을때 , 복사열의축적으로실내에축적된가연성가스가단시간에연소 . 폭발하는현상을말한다 .
+ㅇ 1×""/>"	"<img src=""paste-fc3ef3e6bad4f0b37e44352c6d541c0a8ff74576.jpg"" title/>X<div><img src=""paste-0d76bc72291a591c60562331ddfae29a26948f9b.png"" title/><br/></div>"
+"<img src=""paste-4fa4592ec79b67158126dea95540cbdf73c40395.jpg"" title=""49 &lt;&gt; 기본서 014 참조백드래프트 (830&lt; draft)ofl 의한화재진압시지붕등상부를개방하는것보다출입문을먼저개방하는것이효과적이다 .
+ㅇ 1×""/>"	"<img src=""paste-bafe568324885cf5c1782abb2913df1f30d17937.jpg"" title/>X<div><img src=""paste-3822f47d65b4cde7b53eed857691bbe9d27295db.png"" title/><br/></div>"
+"<img src=""paste-03a079e00c3ae5f8517438247e6967372e449fdf.jpg"" title=""50 &lt;&gt; 기본서 0.04 참조개구부를통해화염이분출되는것을통해백드래프트 (83 ㅇ &lt; draft)2] 발생징후를확인할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-56aaddff7aed0cd10c1f461b64b4add9a8602fc4.jpg"" title/>X<div><img src=""paste-3822f47d65b4cde7b53eed857691bbe9d27295db.png"" title/><br/></div>"
+"<img src=""paste-ca1d3fc07ff617589dc9bb73df57af8f4eb4b7f2.jpg"" title=""51 &lt;5 기본서 0.14 참조백드래프트 (83 는연료지배형화재가진행되고있는공간에산소가일시적으로다량공급됨에따라가연성가스가폭발적으로연소하는현상이다 .
+ㅇ 1×""/>"	"<img src=""paste-a251fc2d51d0c1bc3bb5aa6cbfc217eef64dc926.jpg"" title/>X<div><img src=""paste-3822f47d65b4cde7b53eed857691bbe9d27295db.png"" title/><br/></div>"
+"<img src=""paste-b7fcae9ca3b74043fc34eabb8f83aacab5fa742f.jpg"" title=""52 &lt;5 가본서 0.15 참조플래시오버 0/6) 는충격파는발생하지않고 , 연소파만발생하는현상이다 .
+그에반해백드래프트 (83&lt; draftys 충격파와연소파가함께발생하는현상이다 .
+ㅇ 1×""/>"	"<img src=""paste-53c2964b39d5f54d98d37a21d75a9a884f1bd299.jpg"" title/>O<div><img src=""paste-50273c8371fc8e173e52af60d73bec8b3a3ef3f5.png"" title/><br/></div>"
+"<img src=""paste-db4b8aca3c1e16d0f1a4733a1f2115b6c7b7a023.jpg"" title='53 &lt;&gt; 기본서 0.15 참조
+E2fjA| 2t (Flash over)2| 악화요인은 “ 급격한산소공급 "" 이고 , 백드래프트 (83
+draft)o] 악화요인은 “ 복사열의축적 ” 이다 .
+O x'/>"	"<img src=""paste-27f5e81491c07129ee45ac22d273d32236485cf9.jpg"" title/>X<div><img src=""paste-50273c8371fc8e173e52af60d73bec8b3a3ef3f5.png"" title/><br/></div>"
+"<img src=""paste-ac75cd4a4a2362f75179b7fe1ca93e0ee9983607.jpg"" title=""54 &lt;&gt; 기본서 0.15 참조백드래프트가플래시오버보다발생빈도가높다 .""/>"	"<img src=""paste-2ab3923b80f392093310add2759ea2dd7903f8d4.jpg"" title/>X<div><img src=""paste-50273c8371fc8e173e52af60d73bec8b3a3ef3f5.png"" title/><br/></div>"
+"<img src=""paste-aa8c728e787457ed109393b134069b5dd47f9ddc.jpg"" title=""55 0 기본서 6.16 참조연료지배형화재란주로성장기에발생하며 , 연료량보다환기량이많은것을의미한다 .
+또한 , 환기인자가증가할수록연소속도가빨라진다 .
+ㅇ 1×""/>"	"<img src=""paste-4051eb20603246c60508e6b067ecaede47787375.jpg"" title/>X<div><img src=""paste-144c437d509cb02f6b015646237aa23d2ff10e52.png"" title/><br/></div>"
+"<img src=""paste-edde8c4cd0940efe59ae32e257195acb1f983a27.jpg"" title=""56 기본서 0.16 참조환기계수는개구부의면적에비례하고 , 개구부의높이에반비례한다 .""/>"	"<img src=""paste-7d7e1f6a130d0847025429fb76ac9be0c3dd4be6.jpg"" title/>X<div><img src=""paste-144c437d509cb02f6b015646237aa23d2ff10e52.png"" title/><br/></div>"
+"<img src=""paste-4de7ae90b603a1b619f913438f720b95c370e5a5.jpg"" title=""57 5 기본서 0.16 참조가로 100], 세로 ( 높이 ) 4[07] 인개구부의세로 ( 높이 ) 를 S[m) 연장하는경우환기인자는약 3.4 배증가한다 . ( 단 , 계산결과는소수점둘째자리에서반올림하여산정한다 .)
+o1x""/>"	"<img src=""paste-cd875157d782ec99acd15e9f008aae7af7cbe9d7.jpg"" title/>O"
+"<img src=""paste-7789c3b9e83a54fa4da60e2f712245cd1a8978f1.jpg"" title=""58 &lt; 가본서 0.16 참조환기계수가커지면화재실의온도는상승하고 , 화재지속시간은길어진다 .""/>"	"<img src=""paste-2d81f764cf3f92946db21f474d0983dbc5ff2d8a.jpg"" title/>X<div><img src=""paste-144c437d509cb02f6b015646237aa23d2ff10e52.png"" title/><br/></div>"
+"<img src=""paste-b2d2d7b7ff19f3bb2c8b04920dfe918c477a832d.jpg"" title='59 &lt;5 기본서 0.17 참조목재건축물의화재진행과정은 "" 발화 - 발염착화 - 무염착화 - 최성기 - 연소낙하 -
+진화 "" 의순으로나타난다 .
+o1x'/>"	"<img src=""paste-d39e4de5e5fcabe657d70a0b2c3ea84a03ac0540.jpg"" title/>X<div><img src=""paste-402c8fb6574e84a37e084d159b9bbc5162acc738.png"" title/><br/></div>"
+"<img src=""paste-106e4137770af9c2314a9b5d055d7698395b1dc6.jpg"" title=""60 &lt;&gt; 기본서 0.17~109 참조내화건축물과비교한목조건축물의화재는일반적으로환기지배형화재로나타나며 ,
+저온장기형화재이다 .
+ㅇ ×""/>"	"<img src=""paste-6ecb154abd9dda98d0c027d8701f8189e84751c2.jpg"" title/>X"
+"<img src=""paste-340da9c6320b54eb4f1a7ea10b2193e0339cc16b.jpg"" title=""이 &lt;5 기본서 0.18 참조불연천장이나불연벽체의경우실내의뒷면에서발염착화하는경우는목조건축물의옥내출화시기에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-bc2f4f29eca1833302c1f0aca8fa4f5219d858e2.jpg"" title/>O<div><img src=""paste-44683e7115699a54f35dc74e9bd5a4d640fb5f01.png"" title/><br/></div>"
+"<img src=""paste-10fae6c542a916314593fa4b9dc3f414016db04a.jpg"" title=""62 Ol pnsas
+목재는표면이거친것보다는매끄러운것이 , 흑색인것보다는백색인것이연소하기쉽다 . 또한 , 목재는열팽창률이크므로일반콘크리트에비해붕괴확률이높다 .
+읍 |""/>"	"<img src=""paste-e49d47a3bbf78a1626eb439d8935c092ae4721ad.jpg"" title/>X<div><img src=""paste-44683e7115699a54f35dc74e9bd5a4d640fb5f01.png"" title/><br/></div>"
+"<img src=""paste-e6ffab0467180235ae65021e5c79956e0216d711.jpg"" title=""63 &lt;5 기본서 020 참조폭렬현상 (50209) 은일반콘크리트의화재시온도상승으로내부수증기가감소되면서균열이일어나박리되는현상으로콘크리트성분의열분해로인한압축강도가증가되며발생하는것으로물리적및화학적변화에의한현상이다 .
+ㅇ 1×""/>"	"<img src=""paste-2e95b8607afd7d6db1efa73e3b4e1b48b8ca3109.jpg"" title/>X<div><img src=""paste-03d621d3c79598b5168972cb558e36e436a72013.png"" title/><br/></div>"
+"<img src=""paste-5b8d2e1828861fd3dbef03a41b0cfab7386b334b.jpg"" title=""64 가본서 0120 참조콘크리트가물을많이함유할수록 , 내열피복을부착한콘크리트일수록 , 화재의강도가클수록 , 화재의지속시간이길수록폭렬현상 (562311009) 이발생하기쉽다 .
+01X""/>"	"<img src=""paste-42035dc2d46565de7fbd5ada324201e8326f69e2.jpg"" title/>X<div><img src=""paste-03d621d3c79598b5168972cb558e36e436a72013.png"" title/><br/></div>"
+"<img src=""paste-a5f62af4b9892a2fa2642f5e2bd265f426d0efac.jpg"" title=""혹좇뻬싣력에영향을미치는환 sy
+도에영향을미치는환기요소는개구부면적의제곱
+i 구부면적의제곱근에비례하고개구부높
+O X%""/>"	"<img src=""paste-14a50c5da9ff88fe392cc36cda095fd65a3024c5.jpg"" title/>X<div><img src=""paste-a410da360cce15bf2eef08e9c4430f66aee2d167.png"" title/><br/></div>"
+"<img src=""paste-a39d41bc1b3ec7f36b28942e0547ea3a3f851dba.jpg"" title=""66 &lt;5 기본서 0122 참조화재강도란화재실의단위시간당축적되는열의양을의미하며 , 벽 , 바닥 , 천장 82
+구조가단열성및밀폐성이좋을수록화재강도가작아진다 .
+ㅇ 1×""/><div>식</div>"	"<img src=""paste-f5166f7952bee1df9c3333da07a343e837927e14.jpg"" title/>X<div><img src=""paste-00783e1183f453b57fb5574e02b9663949a5d157.png"" title/><br/></div>"
+"<img src=""paste-bbb273ef26ddcbac7eac0b17cdfa2e64ae26c71f.jpg"" title=""67 &lt; 기본서 022 참조화재하중은입체면적 ( ㅁ ? 당중량 (&lt;9) 이다 .""/>"	"<img src=""paste-a9457cebb432238f7dc8bf147c528182597d0e10.jpg"" title/>X<div><img src=""paste-00783e1183f453b57fb5574e02b9663949a5d157.png"" title/><br/></div>"
+"<img src=""paste-0bf3529ee92dbf50b0f71291b47c6883472b8b92.jpg"" title=""68 &lt;5 기본서 0122 참조화재하중은단위면적당가연물의총량을목재를기준으로환산한무게로서가연물의양과최고온도의질적개념을가지는것을말하며 , 단위면적당등가가연물의발열량및화재의위험성을의미한다 .
+ㅇ 1×""/>"	"<img src=""paste-e1db7293747de2fe9f661679e82131438d0432e6.jpg"" title/>X<div><img src=""paste-00783e1183f453b57fb5574e02b9663949a5d157.png"" title/><br/></div>"
+"<img src=""paste-d07d4f6838d220c77820b78e56d82cbc63117862.jpg"" title=""69 5 기본서 6122 잠조가연물의배열상태 , 가연물의질량 , 가연물의단위발열량 , 목재의단위발열량및화재실의바닥면적은화재하중에영향을준다 .
+ㅇ 1×""/>"	"<img src=""paste-de5c55033cadd28c4f2bccfd766858b8de69074b.jpg"" title/>X<div><img src=""paste-00783e1183f453b57fb5574e02b9663949a5d157.png"" title/><br/></div>"
+"<img src=""paste-2506eb307deae33bfbbe0c1669e56cd0414289cf.jpg"" title=""70 &lt;&gt; 기브서먼참조화재하중이클경우주수율이커져야하며 , 화재강도가클경우주수시간이길어져야한다 .
+o1x""/>"	"<img src=""paste-664ec932bda8fa059fa51c3cf29896973e06296a.jpg"" title/>X<div><img src=""paste-d5b47b462d5dc15ae8281e372b742ec230976060.png"" title/><br/></div>"
+"<img src=""paste-86578428e9950cf79d757a06eaf37d356317a864.jpg"" title=""기 5 기본서 0123 참조내화구조물의화재가혹도판단을위한주요요소중화재지속시간을산정하기위한인자로는화재실의바닥면적 , 화재실의최고온도 , 화재실의개구부높이및화재실의개구부면적이있다 .
+0 ㅇ 1×※""/><div>시간인자</div><div>온도인자</div>"	"<img src=""paste-b1100499fbc3632df8279dab620e351ae465b336.jpg"" title/>X<div><img src=""paste-e1f20e5b0565e42129b1ae0747626e084cdf0b7c.png"" title/><br/></div>"
+"<img src=""paste-5248db33549f3eca6d461d7d4adfdbb02da9356c.jpg"" title=""72 &lt;&gt; 기본서 6126 참조화재조사관이란화재조사에전문성을인정받아화재조사를수행하는소방공무원및일반전문가를말한다 .
+ㅇ 1×※×""/>"	"<img src=""paste-e1531811636f4476fe50d4aa152a1af1b7673330.jpg"" title/>X<div><img src=""paste-007c17fe3d1fda5f445467dda56e93d8f0a441b9.png"" title/><br/></div>"
+"<img src=""paste-831011034fbf956169e15dcdfe8e40473d11b57c.jpg"" title=""73 &lt;&gt; 기본서 627 참조소방청장 , 소방본부장또는소방서장은화재현장에도착한때에는지체없이화재조사를하여야한다 . 이경우수사기관의범죄수사에지장을주어서는아니된다 .
+oIx""/>"	"<img src=""paste-097d8286d112b0ab4c8a113009165a26cd191973.jpg"" title/>X<div><img src=""paste-83c60b1b1aeebe6c3055eb2d2d73e0c49eacfdec.png"" title/><br/></div>"
+"<img src=""paste-427e3f7f06e7bef670d8d754c87dbb9336edd9fa.jpg"" title=""74 &lt;5 기본서 0127 참조소방관서장은화재조사를하는경우화재안전조사의실시 Zajo| 관한사항을포함하여야한다 .
+으 1""/>"	"<img src=""paste-62b90b4cd88fb032b6878b6d13aa5fe01f4c6405.jpg"" title/>O<div><img src=""paste-8d6ed29b4ee93495c40189b908908d8673ddc34a.png"" title/><br/></div>"
+"<img src=""paste-e55740fb400e3f06e81e7def33bd2a2c99e5bf76.jpg"" title=""75 &lt;&gt; 기본서 0127 참조화재조사의절차는 “ 현장출동중조사 - 정밀조사 - 화재현장조사 - 화재조사결과보고 ” 이다 .
+ㅇ""/>"	"<img src=""paste-7390baa402df523fbce1053814201cd43e0df609.jpg"" title/>X<div><img src=""paste-8d6ed29b4ee93495c40189b908908d8673ddc34a.png"" title/><br/></div>"
+"<img src=""paste-36f8a7c13aa10a2274a2ade949c71f16906da1e6.jpg"" title=""76 &lt;&gt; 기본서 0128 참조소방관서장은화재조사전담부서에화재조사관을 5 명이상배치해야한다 .""/>"	"<img src=""paste-e17834d7b88dd4224da2cb63038047731cea3c64.jpg"" title/>X<div><img src=""paste-fcb4f3c8f397496e96f7993e49a1327af9bad1be.png"" title/><br/></div>"
+"<img src=""paste-0a763803378ad189257ee6a2d7c2712fffa865a0.jpg"" title=""77 &lt;&gt; 기본서 0130 참조국립과학수사연구원또는소방청장이인정하는외국의화재조사관련기관에서 4 주이상화재조사에관한전문교육을이수한소방공무원은소방청장이실시하는화재조사관자격시험에응시할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-f744adaa98ac3827fa33d2807ad652a3269b2878.jpg"" title/>X<div><img src=""paste-1690e6acfb5a39a8bc169c11039e11add8cdd955.png"" title/><br/></div>"
+"<img src=""paste-67d80239a8866a88197b151eba52197c458bbdeb.jpg"" title=""78 &lt;&gt; 기본서 0.131 참조소방관서장은사상자가 5 명이상발생한화재가발생한경우종합적이고정밀한화재조사를위하여유관기관및관계전문가를포함한화재합동조사단을구성 - 운영할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-f1115073df20fc71e3dea7c1989f29d7af9d89ad.jpg"" title/>X<div><img src=""paste-ec0b793d14a6cb4fe8955b9e4423dce8fdcf3e23.png"" title/><br/></div><div><img src=""paste-6651a276862bc7698997d458f56b13a8669e317e.jpg"" title/><br/></div>"
+"<img src=""paste-e3c950c3e318d2ac39899f2956f13542cc3b0688.jpg"" title=""79 5 기본서 6132 참조화재조사업무에관한경력이 3 년이상인소방공무원은화재합동조사단의단원이될수있다 .
+ㅇ 1×""/><div><img src=""image-2e6a06a754476f945379bbd930d254a01a9de0eb.jpg"" title=""2 화재조사관
+© 화재조사업무에관한경력이 083 이상인소방공무원
+© 「 고등교육법 .」 에따른학교또는이에준하는교육기관에서화재조사 , 소방또는안전관리등관련분야 gus 이상의직이녀콩묻졸재직한사람
+@ 「 국가기술자격법 」 에따른국가기술자격의직무분야중안전관리분야이시 0
+이상의자격을취득한사람
+© 그밖에건축 ㆍ 안전분야또는화재조사에관한학식과경험이풍부한사람화재합동조사단의단장 : 단원중에서소방관서장이지명하거나위촉하는사람이된다 .
+소속공무원또는소속임직원의파견요청 : 소방관서장은화재합동조사단운영을위하여관계행정기관또는기관 ㆍ 단체의장에게 A% 공무원또는소속임직원의파견을요청할수있다 .""/><br/></div>"	"<img src=""paste-88dc734418098d2b0da38a8f0d9158a099597def.jpg"" title/>O<div><img src=""paste-d614030ee8e3afbfb42a07548913e0950513eac6.png"" title/><br/></div>"
+"<img src=""paste-26062d9b2208e1c08f83111dddad5cca6f63006b.jpg"" title=""80 &lt;5 기본서 6132 참조국가기술자격의직무분야중안전관리분야에서기능사자격을취득한사람은화재합동조사단의단원이될수있다 .
+o x""/><div>소공 ~년</div><div>x교수 ~년</div>"	"<img src=""paste-09f67e00a3fd746e0965f9dd163e6c1809347eaa.jpg"" title/>X<div><img src=""paste-d614030ee8e3afbfb42a07548913e0950513eac6.png"" title/><br/></div><div><img src=""paste-7b525157f0404232b691e827b91d7976748818db.jpg"" title/><br/></div>"
+"<img src=""paste-437175be1ed223d1f344571ca4437baa7e1e38bd.jpg"" title=""81 &lt;&gt; 기본서 0133 참조방화또는실화의혐의로수사의대상이된경우에는소방관서장이통제구역을설정한다 .
+ㅇ 1×""/>"	"<img src=""paste-551b08d2ed9e5e85d94fb0a38b748e43da5079df.jpg"" title/>X"
+"<img src=""paste-65b61449cf7c749ab0c4f358247bd979d7d8f0cf.jpg"" title=""82 5 기본서 035 참조소방관서장은화재조사를위하여필요한최대한의범위에서화재조사관에게증거물을수집하여검사 - 시험 ㆍ 분석 S8 하게할수있다 .
+ㅇ 1※""/>"	"<img src=""paste-a1ce6a037bc010949614be36e0d925c865a33f4e.jpg"" title/>X<div><img src=""paste-a78e8a78108da0ce0f0074cff88ea754e0738485.png"" title/><br/></div>"
+"<img src=""paste-ca24214f1fcc0692131c457ccb7e3e0d6d1d6631.jpg"" title=""83 &lt;5 기브서 6740 참조화재감정기관의전문인력은주된기술인력을 3 명이상 , 보조기술인력을 5 명이상보유하여야한다 .
+o1x""/>"	"<img src=""paste-2ce75d54f6867f0449d8c888d7182d067b33db1e.jpg"" title/>X<div><img src=""paste-26fd8bbd48941320390858d2c414cb21162fdea1.png"" title/><br/></div>"
+"<img src=""paste-53351518f54212281aa8a1ac7b6a08ed3c1704c4.jpg"" title=""84 &lt;&gt; 기본서 ”640 참조화재조사관자격취득후화재조사관련분야에서 3 년이상근무한사람 , 이공계분야의박사학위취득후화재조사관련분야에서 1 년이상근무한사람은화재감정기관의주된기술인력이될수있다 .
+ㅇ 1×""/><div><img src=""image-9794e1b2b871f2c44a5625f2f993705640c5bf06.jpg"" title=""ㅡ 다음의어느하나에해당하는사람을유할것
+© ' 국가기술자격법 , 에 G2 국가기술자격의칙무분야중화재감식핑가분야의 . 기사자격취득후화재조사관련분야에서변이상근무한사람
+@
+기술인력 ㅣ0 회재조사관자격취득후회재조사관련분이에서년이상근무한사람
+@R 분야의 AR 취득후회재조사관련 SOOI i1 이상근무한사람 &quot;
+ㅡ 다음의어느하나에해당하는 Al e 04 보유할것
+O ' 국가기술자격법 , 에때른국가기술자격의직무분야중화재감식평가분야
+s ?ﬂag 취득한
+= e ;hna 취득한시럼?| 배기술인력 =
+@ 소방청장이인정하는화재조사관려갠헹쇠찌
+© DB 분야의 A 이상학위취득후화재조사관련분이에서년이상근무한사람 &quot;""/><br/></div>"	"<img src=""paste-ab5dbee2722558c8236f944a257da8e455f1f5a9.jpg"" title/>X<div><img src=""paste-26fd8bbd48941320390858d2c414cb21162fdea1.png"" title/><br/></div>"
+"<img src=""paste-4acb03c7671297c72ece25ea42f48c5382390332.jpg"" title=""85 &lt;&gt; 기본서 0140 참조이공계분야의석사이상학위취득후화재조사관련분야에서 1 년이상근무한사람은화재감정기관의보조기술인력이될수있다 .
+ㅇ 1×""/><div>-자격 이상</div><div>-자격</div><div>-자격증</div><div><br/></div>"	"<img src=""paste-a9454e58de4e39634179dcc0d5c8b4db95877cb5.jpg"" title/>O<div><img src=""paste-26fd8bbd48941320390858d2c414cb21162fdea1.png"" title/><br/></div>"
+"<img src=""paste-ba6b427d4fc79413c1ba8084ba5ec59475ea06e2.jpg"" title=""86 &lt;&gt; 기본서 044 참조감식이란화재와관계되는물건의형상 , 구조 , 재질 , 성분 , 성질등이와관련된모든현상에대하여과학적방법에의한필요한실험을행하고그결과를근거로화재원인을밝히는자료를얻는것을말한다 .
+o1x""/>"	"<img src=""paste-8c0a500e94b3cfcccd9cd030591588f606d52b4b.jpg"" title/>X<div><img src=""paste-04bd37d75e1a4d0535b6442a7be1ce84d72a87e7.png"" title/><br/></div>"
+"<img src=""paste-2654324abc33e230a7561624c6398942ce96d03f.jpg"" title=""87 &lt;&gt; 기본서 6744 참조동력원이란발화에관련된불꽃또는열을발생시킨기기또는장치나제품을말한다 .
+ㅇ 1%""/><div><img src=""paste-e4bf5cd82a3ca989bc4018fe1fa4f97364e1914c.png"" title=""화재원인의판정을위하여전문적인지식, 기술및경험을활용하여주로시각에의한종합적인판단으로구체적인사실관계를명확하게규명하는것을말한다 .
+화재와관계되는물건의형상 , 구조 , 재질 , 성분 , 성질등이와관련된모든현상에대하여과학저방법에의한필요한실험을행하고그결과를근거로화재원인을 |
+밝히는자료를얻는것을말한다 .
+열원에의하여가연물질에지속적으로불이붙는현상을말한다 .
+발화의최초원인이된 ¥R 또는열을말한다 .
+열원과가연물이상호작용하여화재가시말한다 .
+화재가발생한장소를말한다 .
+발화열원에의해불이붙은훑톱일흐언』글말한다 .
+발화열원에의하여발화로이어진연소현상에영향을준인적 ㆍ 물적 ㆍ 자연적엔요인을말한다 .
+발화에관련된불꽃또는열을발생시킨기기또는장치나제품을말한다 .
+발화관련기기나제품을작동또는연소시킬때사용되어진연료또는에너지를말한다 . ㄴ
+연소가확대되는데있어결청적영향을미친가연물을말한다 .""/><br/></div><div>발화지점 발화장소 연소확대물 발화열원 발화관련기기 발화요인 최초착화물 동력원 감정 감식 발화</div>"	"<img src=""paste-492d2cd099b45bf4d2a6a880f3022615a232554b.jpg"" title/>X<div><img src=""paste-04bd37d75e1a4d0535b6442a7be1ce84d72a87e7.png"" title/><br/></div>"
+"<img src=""paste-cfe53d748555a646d99b6ed0cdbe42ad9da6b352.jpg"" title=""88 &lt;5 기본서 0.144 참조최종잔가율이란화재당시에피해물의재구입비에대한현재가의비율을말하며 , 이는건물 , 부대설비 , 구축물 , 가재도구의경우 10[%] 로하며 , 그이외의자산은 20[%]
+로정한다 .
+ㅇ 1×""/><div><img src=""image-a117fe50a5dc7854dfcc7fd649309a84ea821a63.jpg"" title=""구부 : 정의 ` 기새구입비 | S 당시의 TSR 같거나비슷한것을재건축 ( 설계감리비를포함한다 ) 또는
+| 재휘등하는데필요한금액을말한다 .
+000006 ㅣ 고정자산을경제적으로사용할수있는연수를말한다 . B
+소해읍 UOIESIBR. &amp;4 상태및정도에 Rt 피해금액을 AMPIE 일정한비율음
+, 말한다 .
+W o A0 피해몰의재구의뷔에대한현재가의비율을말힌다 .
+돕뺀뻔쁘우/《츰!는가치의재구입비에대한비율을말한다 .
+| ㆍ 컨 , 부더설비 , 구축물 , 가재도구 : @%
+ㆍ 이외의자산 gl
+C5- 0 adab2d 12""/><br/></div>"	"<img src=""paste-bd48c822eebc9f48f0d5bebce47c5dc8e47de496.jpg"" title/>X<div><img src=""paste-18f34a30ad5e9ea82e5864942d7b3b22727088a6.png"" title/><br/></div>"
+"<img src=""paste-7bb7f25d19df94c4999adc6bd69610fd380689be.jpg"" title=""89 &lt;5 기본서 6145 참조잔불정리란화재초진후잔불을점검하고처리하는것을말한다 . 이단계에서는열에의한수증기나화염없이연기만발생하는연소현상은제외한다 .
+@1%""/><div><img src=""paste-6c19872c485a9c643de58f5b0211bda149a950f1.png"" title='화재가발생하여소방대및관계인등에의해소화활동이행하여지고있거나행하여진장소를말한다 .
+119 종합상황실 ( 이하 "" 상황실 "" 이라한다 ) 에서유 ㆍ 무선전화또는다매체를통하여화재등의신고를받는것을말한다 .
+화재를접수하고상황실로부터출동지령을받아소방대가차고등에서출발하는것을말한다 .
+출동지령을받고출동한소방대가현장에도착하는것을말한다 .
+화재현장에가장먼저도착한소방대를말한다 .
+소방대의소화활동으로화재확대의위험이현저하게줄어들거나없어진상태를말한다회재초진후진불을점검하고처리하는것을말한다 . 이단계에서는열에의한수증기이연기만발생하는연소현상이포함될수있다 .
+소방대에의한 , 소화활동의필요성이 , 사라진것을말한다 .
+진화가끝난후 , 소방대가화재현장에서복귀하는것을말한다 .
+화재를진화한후화재가재발되지않도록감시조를편성하여일정시간동안감시하는것을말한다 , o='/><br/></div><div>화재현장 출동 선착대 완진 철수 재발화감시 초진 접수 도착 잔불정리</div>"	"<img src=""paste-5b3978a10308ee44c51d656ac00864072754115b.jpg"" title/>X<div><img src=""paste-40dcd9b108f26dd94d4df78e9281a6d39c7f4632.png"" title/><br/></div>"
+"<img src=""paste-d5f4d04715436a61c6b7627848c393c426f7b640.jpg"" title=""90 &lt;5 가본서 0745 참조소방관서장은조사시전문지식과기술이필요하다고인정되는경우한국소방안전원또는한국소방산업기술원등에감정을의뢰할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-e36189fc1eb4346dc66684816b20e2ce949f52e6.jpg"" title/>X<div><img src=""paste-0a1f52f6836696fa80e902606064f46c1bf258f5.png"" title/><br/></div>"
+"<img src=""paste-b3a84db6a5efa59bee11eaad61bff021a0d91006.jpg"" title=""91 5 기본서 0.47 참조동일소방대상물의발화점이 2 개소이상있는누전점이동일한누전에의한화재는 1건의화재로한다 .
+ㅇ 1×""/>"	"<img src=""paste-abbb94f5b5dac6cb8019dacda91a1083965dc695.jpg"" title/>O<div><img src=""paste-792cdefbe32eaae7330bc33e5cd69819fc1a14c5.png"" title/><br/></div>"
+"<img src=""paste-fea75701f264e50b7a79a2a252df0fe787d21c0f.jpg"" title=""92 &lt;5 기본서 147 참조사상자는화재현장에서사망한사람과부상당한사람을말한다 . ( 단 , 화재현장에서부상을당한후 3주이내에사망한경우에는당해화재로인한사망으로본다 .)
+ol x""/><div>중상</div><div>경상</div>"	"<img src=""paste-5e3fe93ea5efd6340c5263a4042cd6532c919a28.jpg"" title/>X<div><img src=""paste-792cdefbe32eaae7330bc33e5cd69819fc1a14c5.png"" title/><br/></div>"
+"<img src=""paste-6504cd1ea754f10efe7cb2bedfd26b235124fb57.jpg"" title=""93 &lt;&gt; 가본서 0147 참조부상자중경상은중상이외의부상을말하며 , 입원치료를필요로하지않는것과병원치료를필요로하지않고단순하게연기를흡입한사람을포함한다 .
+ㅇ 1×""/>"	"<img src=""paste-89422f37dc0749fbeee27864830ab9c867f393a7.jpg"" title/>X<div><img src=""paste-792cdefbe32eaae7330bc33e5cd69819fc1a14c5.png"" title/><br/></div>"
+"<img src=""paste-60c626145a49269ed86ad023bd2fc9e87815b3f4.jpg"" title=""94 &lt;5 기본서 0148 참조목조또는내화조건물의경우격벽으로방화구획이되어있는경우도 22 동으로한다 .
+@ |\""/>"	"<img src=""paste-71262f8dbb2fd0ab870d6aed22733bd2580bd586.jpg"" title/>O<div><img src=""paste-7ec16f54048352ea7e5721abe571647383f23594.png"" title/><br/></div>"
+"<img src=""paste-9edf319130933910bdf7fb038a0c1cba936f74f8.jpg"" title=""95 기본서 6148 참조주된건물에부착된건물이옥내로출입구가연결되어있는경우와기계설비등이쌍방에연결되어있는경우등건물기능상하나인경우에는다른동으로한다 .
+ㅇ 1×""/>"	"<img src=""paste-49a05e4a75f6b76e1f9dca2408b1adbdf48da1bc.jpg"" title/>X<div><img src=""paste-7ec16f54048352ea7e5721abe571647383f23594.png"" title/><br/></div>"
+"<img src=""paste-012893e304000ca45b3f9c8ac17073ad7e40499f.jpg"" title=""96 &lt;5 기본서 0149 참조건물의소실면적산정은소실입체면적으로산정한다 .""/><div><img src=""image-1272484e5f6652a3865cbd0380936e96c164aa1a.jpg"" title=""구분 ug
+© 건축 ㆍ 구조물의소실정도는다음에따른다 .
+전소 | 29| NPOISRE 8 비를 2, st 2001 Skt
+거나 / 또는그미만이라도잔존부분을보수하여도재사용이불가능한것받소 | ol 88% o1y @ 미민이소실된것부분소 | 위에해당하지아니하는것
+@ 자동차 ㆍ 철도차량 , 선박 ㆍ 항공기등의소실정도는 09 규정을준용한다 .
+0 건물의소실면적산정은 , 소실 000 면적으로산정한다 .
+@ 수손및기타파손의경우에도 0) 의규정을준용한다 .
+초실정도
+o
+5
+소실면적""/><br/></div>"	"<img src=""paste-f0afba6b23befe035a50ad005614954ac256c967.jpg"" title/>X<div><img src=""paste-a55068e5b8b24597241be530f4b3e48590903d31.png"" title/><br/></div>"
+"<img src=""paste-15222632ea6e8b1a250b33c5a580fd74fe1b49d4.jpg"" title='97 &lt;5 기본서 6149 참조건축물의 50[%] 가소실되고잔존부분을보수하여도재사용이불가능한경우에는
+"" 반소 ” 에해당한다 .
+@'/><div>70 입체면적 or 재사용 불가 </div><div>30 70</div>"	"<img src=""paste-9fb9853799b03f4e8c21ad216442a2b2c42f2be7.jpg"" title/>X<div><img src=""paste-a55068e5b8b24597241be530f4b3e48590903d31.png"" title/><br/></div>"
+"<img src=""paste-3e6c8441b22b48031155c4681849298af4fc11e9.jpg"" title=""98 &lt;&gt; 가본서 6.49 참조화재피해금액은화재당시의피해물과동일한구조 , 용도 , 질 , 규모를재건축또는재구입하는데소요되는가액에서경과연수등에따른감가공제를하고현재가액을산정하는실질적 - 구체적방식에따른다 . 다만 , 회계장부상구매가격이입증된경우에는그에따른다 .
+ㅇ 1×""/>"	"<img src=""paste-2c040468a7501fbb1e60be38aa2340c83a1660bf.jpg"" title/>X<div><img src=""paste-fe676f91e781e7f27ce1bbc41d8c8fb39f079fd8.png"" title/><br/></div>"
+"<img src=""paste-9ad717ea22d9c94dd28066ad7f3e31122f872312.jpg"" title=""99 &lt;&gt; 기본서 0149 참조정확한피해물품을확인하기곤란한경우에는소방청장이정하는 「 화재피해금액산정매뉴얼 .」』 의간이평가방식으로산정해야한다 .
+ㅇ 1×""/>"	"<img src=""paste-40fd3ff77bfbb1b8f1443c3fbe07a581183a8ed2.jpg"" title/>X<div><img src=""paste-fe676f91e781e7f27ce1bbc41d8c8fb39f079fd8.png"" title/><br/></div>"
+"<img src=""paste-6bd562b7765de136742b233fd114a4bd891a90d0.jpg"" title='100 &lt;&gt; 가본서 0149 참조화재피해금액의산정기준중건물의화재피해금액은 "" 신축단가 (7"" 당 )× 소실면적 *[1
+-(0.8× 내용연수 / 경과연수 )]× 손해율 ” 로산정한다 .
+ㅇ 1×'/>"	"<img src=""paste-6211e7f2038659d2b3020912a7521570f8530fd9.jpg"" title/>X<div><img src=""paste-fe676f91e781e7f27ce1bbc41d8c8fb39f079fd8.png"" title/><br/></div>"
+"<img src=""paste-e7cd8b672ad94bf00116e98b91be71b37250e1f0.jpg"" title=""101 &lt;5 기본서 0150 참조샤상자가 30 명이상이거나 2 개시 - 도이상에걸쳐발생한화재 ( 임야화재는제외한다 .) 가발생한경우에는소방본부장이화재합동조사단을구성하여운영하는것을원칙으로한다 .""/><div>본부장</div><div>서장</div>"	"<img src=""paste-3f5138c946ffef8b8737441d8ca88bb93c1c3645.jpg"" title/>X<div><img src=""paste-8d8ae572e15b07f6221363243e0151a5ec76a3fd.png"" title/><br/></div>"
+"<img src=""paste-1643d4aa806aae952867b731c73f449b2ae44c30.jpg"" title=""102 &lt;&gt; 기본서 0150 참조재산피해액이 50 억원이상발생한화재 ( 임야화재는제외한다 .) 의경우소방서장이화재합동조사단을구성하여운영하는것을원칙으로한다 .
+ㅇ 1×""/><br/>1. 사망자 ( )명, 사상자 ( )명<br/>2. 이재민 ( )명<br/>3. 재산 ( )억원<br/>4. 층수 ( )층 건축물<br/>5. 지정수량 ( )배 제조소, 저장소, 취급소<br/>6. 층수 ( )층 OR 객실( )실 숙박<br/>7. 층수 ( )층 OR 병상 ( )개 병원<br/>8.연면적 ( ) 공장<br/>9. 톤수 ( )톤 선박<br/>조사결과보고 : 화재발생일 ( )일<br/>위에 해당하지 않는 조사결과보고 : 화재발생일 ( )일"	"<img src=""paste-fdef597a17fde4cb74aa3097162cbc19f0d1abca.jpg"" title/>X<br/><img src=""paste-d82233d124e39c333231b1c65f1186180ef06fca.jpg"" title/><br/><div><img src=""paste-11ffeed1bb825e90e6ccddb1254bbc550557ded6.png"" title/><br/></div>"
+"<img src=""paste-687ab8df582c51f6cbf911dba63dbffbfb41010f.jpg"" title=""103 &lt;5 기본서 0150 참조사망자가 5인이상발생하거나사상자가 10 인이상발생한화재 , 이재민이 100 인이상발생한화재 , 항구에매어둔총톤수가 1 천톤이상인선박에서발생한화재는모두소방관서장이화재합동조사단을구성하여운영할수있다 .
+ㅇ 1×""/><br/>1. 사망자 ( )명, 사상자 ( )명<br/>2. 이재민 ( )명<br/>3. 재산 ( )억원<br/>4. 층수 ( )층 건축물<br/>5. 지정수량 ( )배 제조소, 저장소, 취급소<br/>6. 층수 ( )층 OR 객실( )실 숙박<br/>7. 층수 ( )층 OR 병상 ( )개 병원<br/>8.연면적 ( ) 공장<br/>9. 톤수 ( )톤 선박<br/>조사결과보고 : 화재발생일 ( )일<br/>위에 해당하지 않는 조사결과보고 : 화재발생일 ( )일"	"<img src=""paste-8d1b4b84a5cd73fe8d31c35e7bcbeb16f0454480.jpg"" title/>O<div><img src=""paste-11ffeed1bb825e90e6ccddb1254bbc550557ded6.png"" title/><br/></div>"
+"<img src=""paste-9c1f0d4188da58689d3c7407fa5841aefb3d0d56.jpg"" title=""104 &lt;&gt; 기본서 0+151 참조소방관서장은자격을갖춘사람중단장 1 명과단원 2 명이상을화재합동조사단원으로임명하거나위촉할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-157a319d57df87ac59ad42f8c1d0631c491ff3c8.jpg"" title/>X<div><img src=""paste-24b8fbca1a883f00a8bed43a7a66ddd67df9d4f6.png"" title/><br/></div>"
+"<img src=""paste-f424c9033cf481073f3220cb8ab26dbe32cedc7d.jpg"" title=""105 &lt;5 기보서 0.5! 참조지정수량의 3 천배이상의위험물의제조소 - 저장소 - 취급소에서발생한화재에대한최종결과보고는화재발생일로부터 15 일이내하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-83d1d10791d17a14f711c425eb8a5bc2b599cbf8.jpg"" title/>X<div><img src=""paste-83d9f9434ac3e058019928f8fb4158e53442e2d8.png"" title/><br/></div>"
+"<img src=""paste-9a72d67118fddb92d4aa89d5dbdc288fe9e8d57a.jpg"" title=""106 &lt;&gt; 기본서 0.91 참조화재조사관에대한의무보수교육시간은 4 시간이상으로한다 .""/>"	"<img src=""paste-067279f0ba3567eb12388bc5e55212a77a6db0d3.jpg"" title/>O<div><img src=""paste-6c306912affe256ffc5e866685105f6c95f3d6f4.png"" title/><br/></div>"
