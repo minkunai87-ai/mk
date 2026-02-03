@@ -1,0 +1,569 @@
+#separator:tab
+#html:true
+#deck column:1
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-7ceb212b1db0d6a7c2b0559191a442da32d1c06c.jpg"" title='o1 &amp; s 18200 w5
+“ 위험물 "" 이란인화성또는발화성등의성질을가지는것으로서행정안전부령이정하는물품을말한다 .
+0 ㅇ 1×'/>"	"<img src=""paste-b250572d712e33255f229eadac59b47440603bf3.jpg"" title/>X"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-001c5b00b0a472d54fe9823f6417195233de8139.jpg"" title=""02 &amp; a0 un
+” 지정수량 ” 이란위험물의종류별로위험성을고려하여대통령령이정하는수량으로서규정에의한제조소등의설치허가등에있어서최대의기준이되는수량을말한다 .
+ㅇ 1×""/>"	"<img src=""paste-4a7b3ab5c4535358540fb01816591ee797fb0a63.jpg"" title/>X"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-f3c7d406de2dafa12483544844c0c25cc7d9b158.jpg"" title=""03 O et 18 221 과조옥외저장소란옥외에제 1 류위험물중염소산염류를저장하는장소 ( 옥외탱크저장소는제외한다 ) 를말한다 .
+흡1""/>"	"<img src=""paste-c720c1fd95376c568059e230985278ca1c3f5288.jpg"" title/>X"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-63bb5facced5cbfa13eb20c2db9a7be2e59a5b9b.jpg"" title=""04 &amp; 20 서 1 련 .202 첨조관매취급소란점포에서위험물을응기에담아판매하기위하여지정수량의 40 배초과의위험물을취급하는장소를말한다 .
+6 1%""/>"	"<img src=""paste-1cd2c78f25a596c48aad8770f91ff7b7510e82f0.jpg"" title/>X"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-912c4832e9cc56659ce2bca357506120327b782d.jpg"" title=""05 &amp; e 괴 274 점조위험물안전관리법은항공기 ㆍ 선박 (「 선박법 」 제 1 조의 2 제 1 항의규정에따른선박을말한다 ) ㆍ 차량및궤도에의한위험물의저장 ㆍ 취급및운반에있어서는이를적용하지아니한다 .
+ㅇ 1×""/>"	"<img src=""paste-08f80084eaa13a6382b70566fff576bb3453e0f9.jpg"" title/>X"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-5a2d32325f69bc3141faf7db2959c8c169af6921.jpg"" title=""06 &amp; e 13 2276 관조지정수량미만인위험물의저장또는취급에관한기술상의기준은행정안전부령으로정한다 .
+ㅇ 1×""/>"	"<img src=""paste-d00ec842e68469a2ce7f7077ee437e871ca6b481.jpg"" title/>X"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-ee5124c2ec8a1645aedd6a818c09eeef89ffd906.jpg"" title=""07 &amp; 7 12t 216 8
+지정수량이상의위험물을저장소가아닌장소에서저장하거나제조소등이아닌장소에서취급하여서는아니되며 , 위반시 3 년이하의징역또는 3 천만원이하의벌금에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-8467d122eb3ad4bab355e4343a3ae2eac1cc7225.jpg"" title/>O"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-859b370e075c7e7ca4347334629370e20e328271.jpg"" title=""08 52 s v v
+시 ㆍ 도의조례가정하는바에따라소방청장의승인을받아지정수량이상의위험물을 30 일이내의기간동안임시로저장또는취급하는경우에는제조소등이아닌장소에서지정수량이상의위험물을취급할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-e8ee6dfb34397381491f24a78665a1e4e7b227ed.jpg"" title/>X"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-66ce8476f325de48f515f2d446b36fea068bc245.jpg"" title=""09 O st 128 0277 과조둘이상의위험물을같은장소에서저장또는취급하는경우에있어서당해장소에서저장또는취급하는각위험물의수량을그위험물의지정수량으로각각나누어얻은수의합계가 1 이상인경우당해위험물은지정수량이상의위험물로본다 .
+ㅇ 1×""/>"	"<img src=""paste-e7ad724f0dc6965a2dc73aea24e07680d2d21bc1.jpg"" title/>O"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-4b79841d60b1556322efe916412004f1dc9e92ac.jpg"" title=""10 &amp; 7n 27 95
+제 1 석유류비수용성액체 100 리터 , 제 2 석유류비수용성액체 400 리터의위험물을같은장소에동시에저장하려면 , 위험물제조소등 ( 저장소 ) 으로허가받아야한다 .
+ㅇ 1×""/>"	"<img src=""paste-8387b151fa7895d3ecc7967a23a05b9a8275943a.jpg"" title/>X"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-057cdd57fc75e4008cee0c30f8a614cc88505ecd.jpg"" title=""11
+&amp; e 견 12270 견즈 |
+산화성고체란고체로서화염에의한발화의위험성또는인화의위혐성을판단하기위하여고시로쟁하는사형메서 NS 정하는성설과상매를나타내는것를멀한다 ,
+o1x""/>"	"<img src=""paste-701c5034a8d5021cbae738f45fba2566100f379d.jpg"" title/><img src=""paste-ef46af337769241668dcf2403cfd52d5e6462e49.jpg"" title/><div><img src=""paste-a645ca34d441a578131f27e3be8807df17a4b58b.png"" title/><br/></div><div><img src=""paste-803cd1941c18b26af77c05536b5fb1ba9c5abb50.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-524df96797f1039128c5ba57561ebb132782f8af.jpg"" title=""12 &amp; e 13 p278 85
+무기과산화물은제 1 류위험물에해당하며 , 지정수량은 50069 이다 .
+ㅇ 1×""/>"	"<img src=""paste-bb574af1836714af8d32eeecc16836cf9e0d3cb6.jpg"" title/><img src=""paste-ef46af337769241668dcf2403cfd52d5e6462e49.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-caa042274745b3319e570d9e35c8405f8e08d7b9.jpg"" title=""13 &amp; s 년 280 추조철분이란철의분말로서 53 마이크로미터의표준체를통과하는것이 50 중량퍼센트미만인것을말한다 .
+ㅇ 1×""/>"	"<img src=""paste-c42cd447ec2cedc3ff246d0a97e10d121b3ac51a.jpg"" title/><img src=""paste-ef46af337769241668dcf2403cfd52d5e6462e49.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-33334d2027b4c3fec5b478215ad496b1793e6b18.jpg"" title=""14 &amp; 2 서 1 견 0280 4z
+황화인 , 적린 , 황은제 2 류위험물에해당하며 , 지정수량은 10066 위험등급은 |
+이다 .
+ㅇ 1%×""/>"	"<img src=""paste-fb875a1effd506d1dd64b26d927958d71ee335c3.jpg"" title/><img src=""paste-ef46af337769241668dcf2403cfd52d5e6462e49.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-532407ce3dd2b6133a837f2e6c8b8c9ac61d1df1.jpg"" title=""15 &amp; e 겨 e s
+인화성고체란고형알코을그밖에 1 기압에서인화점이섭씨 40 도이상인고체를말한다 .
+Gl X""/>"	"<img src=""paste-e6d4b6609e8afc600ba6e56d770c2f0e68ab742c.jpg"" title/><img src=""paste-b30bccd5163611800bb679bd20c4899f0158daad.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-5909887498be38435b7221035562d5658a6af431.jpg"" title=""16 5 1 년 12201 s
+제 3 류위험물 ( 자연발화성물질및금수성물질 ) 이란고체또는액체로서공기중에서발화의위험성이있거나물과접촉하여발화하거나가연성가스를발생하는위험성이있는것을말한다 .
+ㅇ 1×""/>"	"<img src=""paste-5c89bedbef73626c74d697f974220e7c8e30cf66.jpg"" title/><img src=""paste-b30bccd5163611800bb679bd20c4899f0158daad.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-a96d71d775729c0748c4d94a2dee3144abe22fb9.jpg"" title=""17 O 년 207 04 관조염소화규소화합물은제 3 류위험물에해당하며 , 질산구아니딘은제 5 류위험물에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-2cc2abef884f59097ff744a5d6ef315e480b54c8.jpg"" title/><img src=""paste-b30bccd5163611800bb679bd20c4899f0158daad.jpg"" title/><div><img src=""image-a541c013420dc2a55f5ca1f7ae9062aeb2a2c126.jpg"" title/><img src=""image-fea046f1eee5ee633d8d0a3a9f0ffc46c8e99c3e.jpg"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-42dc1c3d91b5a5d97b9e5f2c8e68539ac2d7633c.jpg"" title=""&amp; A28 조
+18
+특수인화물이란이황화탄소 , 디에틸에테르그밖에 1 기압어서인화점이섭씨 100 도이하인것또는비점이섭씨영하 20 도이하이고발화점이섭씨 40 도이하인것을말한다 。
+olx""/>"	"<img src=""paste-a48788f25f8c2bb09c7f557e2d421f6371ba1ff3.jpg"" title/><img src=""paste-b30bccd5163611800bb679bd20c4899f0158daad.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-ed9c2d85613913c7ced2410245aed896e04494fb.jpg"" title=""19 O pman
+제 2 석유류는등유 , 경유그밖에 1 기압에서인화점이섭씨 70 도이상 200 도미만인것을말한다 . 다만 , 도료류그밖의물품에있어서가연성액체량이 40 중량퍼센트이하이면서인화점이섭씨 40 도이상인동시에연소점이섭씨 60 도이상인것은제외한다 .
+ㅇ 1%""/>"	"<img src=""paste-2f87956db159708e34f4af3e06b2c06a75272747.jpg"" title/><img src=""paste-ac2f98c8b6c087da274bbcfab7758c23915026f9.jpg"" title/><div><img src=""paste-010407e928d92be57f39f5c0303173f6b8e6547e.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-c60f1e9918f5d69d19e7f4289968b0d038e5f261.jpg"" title=""20 3쁘견 22 디스자기반응성물질은고체또는액체로서폭발의위험성또는가열분해의격렬함을판단하기위하여고시로정하는시험에서고시로정하는성질과상태를나타내는것을말하며 , 위험성유무와등급에따라제 1 종또는제 2 종으로분류한다 .
+ㅇ 1×""/>"	"<img src=""paste-08197758ee3f3a435a2ab8867c247d45db916889.jpg"" title/><img src=""paste-ac2f98c8b6c087da274bbcfab7758c23915026f9.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-711ad3f4330d3b705c45532c1a3dadc7ff000aab.jpg"" title=""21 &amp; e vt 2265 관스과산화수소는그농도가 60 중량퍼센트이상인것에한하며 , 산화성액체의성상이있는것으로본다 .
+ㅇ 1×""/>"	"<img src=""paste-7b42ea0e0be9019ff3d845e78b1a4f534d229f12.jpg"" title/><img src=""paste-ac2f98c8b6c087da274bbcfab7758c23915026f9.jpg"" title/><div><img src=""paste-676ce30a6a78d77af56d806989a40688ec4c993a.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-edfa1ec9fb6894a84448ba55be8c7917cb956bba.jpg"" title=""22 O 개서견 2265 츄조질산은그비중이 1.49 이상인것에한하며 , 산화성액체의성상이있는것으로본다 .
+ㅇ 1×""/>"	"<img src=""paste-2760104ec3b735897ca19bbd9da41ac0c11672e8.jpg"" title/><img src=""paste-86a7ed7b3562d23fa4bbcce2c92c015090b9b9f0.jpg"" title/><div><img src=""paste-676ce30a6a78d77af56d806989a40688ec4c993a.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-e21e8c2275c4f2877a123d69c0673428e5b13827.jpg"" title=""23 &amp; st 12 206 82
+위험물의운반에관한기준에따라제 2 류위험물 , 제 4 류위험물및제 5 류위험물은혼재할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-cdf05ece1098bf07150c8d96a843590534f02ee0.jpg"" title/><img src=""paste-86a7ed7b3562d23fa4bbcce2c92c015090b9b9f0.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-2f2ad34c05e94ff8d0c300454b4bb3a91de44294.jpg"" title=""24 &amp; e 18 p2ss w5
+지정수량 15 배의경유와지정수량 20 배의유기과산화물 ( 제 1 종 ) 은혼재할수없다 .
+ㅇ 1×""/>"	"<img src=""paste-7e699b9388a123036716eaa95109c686ba58521d.jpg"" title/><img src=""paste-86a7ed7b3562d23fa4bbcce2c92c015090b9b9f0.jpg"" title/><div><img src=""paste-21c3c89f4821ea18f3caa2c76f16f66ae0121ec0.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-3d40fe8040acc0342adb709bd666826c0a3724a0.jpg"" title=""25 O N 1 p2ss 85
+지정수량 15 배의과산화수소와지정수량 20 배의염소산염류는혼재할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-80693bb669a6b28e39b066d6aeafe6658db29c31.jpg"" title/><img src=""paste-86a7ed7b3562d23fa4bbcce2c92c015090b9b9f0.jpg"" title/><div><img src=""paste-21c3c89f4821ea18f3caa2c76f16f66ae0121ec0.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-8936a70a5794d18f57abf19f0c378afba87cb72b.jpg"" title=""26 O A 1 280 과조제조소등을설치하고자하는자는대통령령이정하는바에따라그설치장소를관할하는소방본부장또는소방서장의허가를받아야한다 . 제조소등의위치 ㆍ 구조또는설비가운데행정안전부령이정하는사항을변경하고자하는때에도또한같다 .
+@1""/>"	"<img src=""paste-1ca96cbafde4dd00e9a6b57146a59f2b2a70a254.jpg"" title/><img src=""paste-4a357744171a58a8bf1a6cea4fe22ba60b0434ea.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-5ef6275c1b06f5ff606b32eed208916e469382f3.jpg"" title=""27 &amp; 7 1 개추소지정수량의 100 배이상의위험물을취급하는제조소의구조 ㆍ 설비에관한사항은한국소방산업기술원의기술검토를 YD 그결과가행정안전부령으로정하는기준에적합한것으로인정되어야한다 .
+ㅇ 1×""/>"	"<img src=""paste-cef0860c38add96695348acdc6fbea60ce2f8886.jpg"" title/><img src=""paste-4a357744171a58a8bf1a6cea4fe22ba60b0434ea.jpg"" title/><div><img src=""paste-19639cff73317d4ece7badb6300a5669ba28c310.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-935c0de706cf9aecb844a1773682f34ae65e651a.jpg"" title=""28 &amp; 7 년 2200 구스제조소등의위치 ㆍ 구조또는설비의변경없이당해제조소등에서저장하거나취급하는위험물의 BY ㆍ 수량또는지정수량의배수를변경하고자하는자는변경하고자하는날의 79 전까지행정안전부령이정하는바에따라시 ㆍ 도지사에게신고하여야한다 .
+01x""/>"	"<img src=""paste-5d9bbb6c0e03c8135aff7f503680a01cad0617ba.jpg"" title/><img src=""paste-4a357744171a58a8bf1a6cea4fe22ba60b0434ea.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-2559f713431613b7b87009f5dce59f1425a5575e.jpg"" title=""29 O 트겨 200 s
+농예용 ㆍ 축산용또는수산용으로필요한난방시설또는건조시설을위한지정수량
+30 배이하의저장소의경우에는허가를받지아니하고당해제조소등을설치하거나그위치 ㆍ 구조또는설비를변경할수있으며 , 신고를하지아니하고위험물의품명 ㆍ
+수량또는지정수량의배수를변경할수있다 .
+ㅎ 1※""/>"	"<img src=""paste-0785999ac8be5fe83ccdabed7f39b03ff922bd26.jpg"" title/><img src=""paste-925a5a66080362bb82b075e7203edb7e5723310d.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-dbf0f12222d9b726e71e13f7786ed6b6ff5beb7e.jpg"" title=""30 Ot 18 20 8
+제조소등의설치허가를받지아니하고제조소등을설치한자는 3 년이하의징역또는 3 천만원이하의벌금에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-f04c0cdea42283244339161b7ef6f1bfb53686f5.jpg"" title/><img src=""paste-925a5a66080362bb82b075e7203edb7e5723310d.jpg"" title/><div><img src=""paste-47db932e6f1d9d845054de13021a21044a32da66.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-ca09e598636c7c760ae15636a4cd8c96cefc6d20.jpg"" title=""31 O i 13 85
+위험물탱크가있는제조소등의설치또는그위치 ㆍ 구조또는설비의변경에관하여허가를받은자가위험물탱크의설치또는그위치 ㆍ 구조또는설비의변경공사를하는때에는완공검사를받은후에기술기준에적합한지의여부를확인하기위하여소방본부장또는소방서장이실시하는탱크안전성능검사를받아야한다 .
+ㅇ 1×""/>"	"<img src=""paste-a9231cb34c23f9560310b84606f251c6c2fefcde.jpg"" title/><img src=""paste-925a5a66080362bb82b075e7203edb7e5723310d.jpg"" title/><div><img src=""paste-3fb2a58f753dddfb49ff069bfbb41f0c2c07f007.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-97f1b386b1b993fd8068f754e37b08fc723c7d45.jpg"" title=""32 © 7w 18 s 1z
+탱크안전성능검사중충수 ㆍ 수압검사의대상은옥외탱크저장소의액체위험물탱크중그용량이 100 만리터이상인탱크이다 .
+olx""/>"	"<img src=""paste-d25fde4760b6ed62370d9c8249ec998430bce2cb.jpg"" title/><img src=""paste-36e32095131d95741fc484aeace732a0eef3da86.jpg"" title/><div><img src=""paste-8410a5ca780871993893fa1eea1b2975372d78dd.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-b923a5a15dc82d5d4750d7dab3c60af887d6f9d9.jpg"" title=""33 &amp; e 1 pasa 관조용접부검사는탱크에배관그밖의부속설비를부착하기전에당해탱크본체의누설및변형에대한안전성이행정안전부령으로정하는기준에적합한지여부를확인한다 .
+ㅇ 1×""/>"	"<img src=""paste-b628b61aee1dd587d1ae7267c95dc45cfbafb831.jpg"" title/><img src=""paste-36e32095131d95741fc484aeace732a0eef3da86.jpg"" title/><div><img src=""paste-8410a5ca780871993893fa1eea1b2975372d78dd.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-4543ed198c32f2e0604fbc4c185a6313838241ea.jpg"" title=""34 O s 13 2295 BE
+시 ㆍ 도지사는제출받은탱크시험합격확인증과해당위험물탱크를확인한결과기술기준에적합하다고인정되는때에는해당용접부검사를면제한다 .
+ㅇ 1%""/>"	"<img src=""paste-7c12d9f4ee915c5b1a7d53fb0eebe025626fe148.jpg"" title/><img src=""paste-36e32095131d95741fc484aeace732a0eef3da86.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-91730819f137328f9f42bfc2d55a1dd55ef47bee.jpg"" title=""35 &amp; v g s
+IS 중 BULUME 탱크본체에관한공사완료후신청하여야하며 ,
+기초 ㆍ 지반검사는위험물을저장또는취급하는탱크에배관그밖의부속설비를부척하기전에신청하여야한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-28088405025ffc2aeaacc83d213a8a5078a9b2d2.jpg"" title/><img src=""paste-36e32095131d95741fc484aeace732a0eef3da86.jpg"" title/><div><img src=""paste-8410a5ca780871993893fa1eea1b2975372d78dd.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-12d75b649af7a3586e3c6c58ea11c91639fe4e74.jpg"" title=""36 &amp; e 1겨 0297 과조완공검사합격확인증을잃어버려재교부를받은자는잃어버린완공검사합격확인증을발견하는경우에는이를지체없이완공검사합격확인증을재교부한시 - XM
+에게제출해야한다 .
+olx""/>"	"<img src=""paste-55eace40ed780481bec1a9ef23173e92672c1dc5.jpg"" title/><img src=""paste-0590f0a4a36f89efb4fdc042709678083fe52ec5.jpg"" title/><div><img src=""paste-6e6cfdab1bddca7b434114f68cfcb99a4011f1a7.png"" title/><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span><div><img src=""paste-32632ea1109495d4d1aa069a20b7f6adcc8f6000.png"" title/><br/></div></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-118600052d6810a47003ec29c5069e1d1912096c.jpg"" title=""37 O 18 p2se wx
+이동탱크저장소의경우완공검사는상치장소를확보하기전이동저장탱크를완공한후에신청하여야한다 .
+o1x""/>"	"<img src=""paste-25ffabf5fb2bad856d59a47167855a32b9a36661.jpg"" title/><img src=""paste-0590f0a4a36f89efb4fdc042709678083fe52ec5.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-9b9a9ae4df98d8201aae563bbc3cc16809e3b62f.jpg"" title=""38 &amp; et 12 2300 w3
+제조소등의설치자의지위를승계한자는행정안전부령이정하는바에따라승계한날부터 14 일이내에시 ㆍ 도지사에게그사실을신고하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-0efdb43a44c42dd568535d81b73af3f7f587cbb2.jpg"" title/><img src=""paste-0590f0a4a36f89efb4fdc042709678083fe52ec5.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-e5e16abde02d8386e49fc9c5c5460e2ad14e656c.jpg"" title=""39 O e 18 p201 청주제조소등의관계인 ( 소유자 ㆍ 점유자또는관리자 ) 은당해제조소등의용도를폐지한때에는행정안전부령이정하는바에따라제조소등의용도를폐지한날부터 30 일이내에소방본부장또는소방서장에게신고하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-4b5c9397a365feceaa142a9d8e380b388ab204ed.jpg"" title/><img src=""paste-0590f0a4a36f89efb4fdc042709678083fe52ec5.jpg"" title/><div><img src=""paste-02bd34fc1b49b524f7c9bc4d2c744b4e739c734d.png"" title/><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span><div><img src=""paste-56d483e83d9ea8aed3df9b9775b9c75669c93cb8.png"" title/><br/></div></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-71b5fc5e2bfb3cd218e203bef72b379949095f5c.jpg"" title=""40 O e 1 권 6302 참조제조소등의관계인은제조소등의사용을중지하려는경우에는위험물의제거및제조소등에의출입통제등행정안전부령으로정하는안전조치를하여야한다 . 다만 , 제조소등의사용을중지하는기간에도위험물안전관리자가계속하여직무를수행하는경우에는안전조치를아니할수있다 .
+ㅇ 1×""/><div>안전조치</div>"	"<img src=""paste-5473ec092cae8492d792e0bccae1983d203c9a20.jpg"" title/><img src=""paste-010c971e02d724d62458041dced2bc44aa88be9c.jpg"" title/><div><img src=""paste-54100c1111031e96b77c3b2052b22b835147d2a6.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-eb77fcf769ab2db413aaa3917111c79f5189e21d.jpg"" title=""41 &amp; et 13 p 305 정조시 ㆍ 도지사는제 12 조각호 ( 제조소등설치허가의취소와사용정지 ) 의어느하나에해당하는경우로서제조소등에대한사용의정지가그이용자에게심한불편을주거나그밖에공익을해칠우려가있는때에는사용정지처분에갈음하여 3 천만원이하의과징금을부과할수있다 .
+o1x""/>"	"<img src=""paste-9d2339c0272e66f8a96834edabedd20b902a0ca3.jpg"" title/><img src=""paste-010c971e02d724d62458041dced2bc44aa88be9c.jpg"" title/><div><img src=""paste-0bc55f7b5f0807d31a8df7f02b1c2d3771bbecc6.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-d5cf80238f4bc19e97d83a27806cac9fb12cca8d.jpg"" title=""42 &amp; e 18 pos w1z
+제조소등의설치하는소방시설의종류에는소화설비 , 경보설비 , 피난구조설비 , 소화용수설비및소화활동설비가있다 .
+01x""/>"	"<img src=""paste-030e5a865e4c8225cd5a2b761864b22ae5d0627d.jpg"" title/><img src=""paste-010c971e02d724d62458041dced2bc44aa88be9c.jpg"" title/><div><img src=""paste-00a4cf38b4cda6da0df5410bb4ed1643f51424ed.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-f7a049568459e6b130262232a1e839230d318051.jpg"" title=""43 O s 12 p207 과조지정수량의 10 배이상의위험물을저장또는취급하는제조소등 ( 이송취급소를제외한다 ) 에는화재발생시이를알릴수있는경보설비를설치하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-968421f401ee5764e49e0d68f5077ec100f773e7.jpg"" title/><img src=""paste-c51fd19d5e95d5c78c41cae98c92ee77d9c773fc.jpg"" title/><div><img src=""paste-113bc0b67f587c4015e9cfec466537f1f77400a6.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-10cb6a3daa975dc5b6c10bd6cef6bd1c26c9b31b.jpg"" title=""44 &amp; st 128 p307 관조제조소등의경보설비에는자동화재탐지설비 , 자동화재속보설비 , 비상경보설비 ( 비상벨장치또는경종을포함한다 ), 확성장치 ( 휴대용확성기를포함한다 ) 및비상조명등이있다 .
+ㅇ 1×""/>"	"<img src=""paste-b8fedcf911965cf93230cda3788bd1a71dbeb6e8.jpg"" title/><img src=""paste-c51fd19d5e95d5c78c41cae98c92ee77d9c773fc.jpg"" title/><div><img src=""paste-113bc0b67f587c4015e9cfec466537f1f77400a6.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-235625eafc0faf287b8827d8d000a00f577f16d6.jpg"" title=""45 5 7 채서 1겨 2307 45
+주유취급소중건축물의 2 층이상의부분을점포 ㆍ 휴게음식점또는전시장의용도로사용하는것과옥내주유취급소에는피난설비를설치하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-3ff4675386a3bdc4979c915ef1de54bfa03cd789.jpg"" title/><img src=""paste-c51fd19d5e95d5c78c41cae98c92ee77d9c773fc.jpg"" title/><div><img src=""paste-113bc0b67f587c4015e9cfec466537f1f77400a6.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-1a886055310c7615a1662f1835aa781aa1afd4db.jpg"" title=""46 O 1z pan 즈안전관리자를선임한제조소등의관계인은그안전관리자를해임하거나안전관리자가퇴직한때에는해임하거나퇴직한날부터 14 일이내에다시안전관리자를선임하 .
+여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-eca74fd46964f98661820c00ecc72e2da0f5e690.jpg"" title/><img src=""paste-c51fd19d5e95d5c78c41cae98c92ee77d9c773fc.jpg"" title/><div><img src=""paste-f17af9617b6dbf8c07c09340652c4dfa6b692d5b.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-9a0e93572dcebd5c43c4df848d2e0c73ac52f74f.jpg"" title=""47 O 새녀 11 광조제조소등의관계인은안전관리자를선임한경우에는선임한날부터 14 일이내에행정안전부령으로정하는바에따라시 ㆍ 도지사에게신고하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-07dab5e1ce3f06c3a6df4cd3bdb4af8b516573bb.jpg"" title/><img src=""paste-1fc2749429f838815f7163c9ea5876e41d064bac.jpg"" title/><div><img src=""paste-f17af9617b6dbf8c07c09340652c4dfa6b692d5b.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-895b030b1ff4347ef8df326cc6f863f3f07a07dd.jpg"" title=""48 3 v pnz
+위험물취급자격자중소방공무원경력자 ( 소방공무원으로근무한경력이 3 년이상인자를말한다 ) 는모든위험물을취급할수있다 .
+ㅎ 1※""/>"	"<img src=""paste-09285cc6349400d1768425a36b9875bcdadfae0e.jpg"" title/><img src=""paste-1fc2749429f838815f7163c9ea5876e41d064bac.jpg"" title/><div><img src=""paste-2f45377d5b8437d84d3aad90ce493dc0c93c41af.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-2332ae67a4a85b7fc0d7082809db8900c7161a85.jpg"" title=""49 &amp; 새년 12 82
+안전관리자를선임한제조소등의관계인은안전관리자가여행 ㆍ 질병그밖의사유로인하여일시적으로직무를수행할수없는경우에는위험물안전에관한기본지식과경험이있는자로서행정안전부령이정하는자를대리자로지정하여그직무를대행하게하여야한다 . 이경우대리자가안전관리자의직무를대행하는기간은 14
+일을초과할수없다 .
+ㅇ 1×""/>"	"<img src=""paste-91d389ae71e7ac524f3cf2a110e54d3138125e83.jpg"" title/><img src=""paste-1fc2749429f838815f7163c9ea5876e41d064bac.jpg"" title/><div><img src=""paste-6e1e7f469153be6d441f964bd74ffc0e07af0590.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-466565803f85919b0e2f34fae0b3747aeb5b2f73.jpg"" title=""50 &amp; ez s
+제조소등에있어서위험물취급자격자가아닌자는안전관리자또는대리자가참여한상태에서위험물을취급하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-c86a59fbfc5f2148abf78532b84f9ad424f85423.jpg"" title/><img src=""paste-1fc2749429f838815f7163c9ea5876e41d064bac.jpg"" title/><div><img src=""paste-63f0502198006e1535966dd833309988404687e9.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-1c46fe299466cd2575e8d22e9cb59bcbcf7bd773.jpg"" title=""Y ) 가브서 1원 0314 청조동일구내에있거나상호 100 미터이내의거리에있는저장소로서 30 개이하의목내저장소를동일인이설치한경우에는 1 인의안전관리자를중복하여선임할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-addbfeb723568735890ae4ded5a263b5d32cba99.jpg"" title/><img src=""paste-e86dc92a590dc300b6b1a981ad5bc1b28c84135d.jpg"" title/><div><img src=""paste-cd0f465ef338b018e52d76ed90d80f470dae93a3.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-1b436054603dcc86de79c6918b0c494d9e531455.jpg"" title=""52 &amp; 서 1 pte 9z
+보일러 ㆍ 버너또는이와비슷한것으로서위험물을소비하는장치로이루어진 10 개이하의일반취급소와그일반취급소에공급하기위한위험물을저장하는저장소를동일인이설치한경우에는 1 인의안전관리자를중복하여선임할수있다 .
+ㅇ 1※""/><div>옮겨닮는</div>"	"<img src=""paste-c27e30f454eaeed2e037023dabc2c345ecfe0366.jpg"" title/><img src=""paste-e86dc92a590dc300b6b1a981ad5bc1b28c84135d.jpg"" title/><div><img src=""paste-cd0f465ef338b018e52d76ed90d80f470dae93a3.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-2a127fd8999847e577fd9f511fb6f69df9f90d9a.jpg"" title=""53 O 7 배서 par as
+소방청장 , 소방본부장또는소방서장은안전관리대행기관에대하여필요한 XS - Y
+독을하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-35990738fa076344b466b80ff2853dd83c10ebe7.jpg"" title/><img src=""paste-e86dc92a590dc300b6b1a981ad5bc1b28c84135d.jpg"" title/><div><img src=""paste-8eea62255a04b707032cfe24e022005232e1590a.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-0feb6274688e130032ea612298d0489af9291128.jpg"" title=""54 O st 1 p17 wE
+안전관리대행기관은휴업 ㆍ 재개업또는폐업을하려는경우에는휴업 ㆍ 재개업또는폐업하려는날 14 일전까지위험물안전관리대행기관휴업 ㆍ 재개업 ㆍ 폐업신고서에위험물안전관리대행기관지정서를첨부하여소방청장에게제출해야한다 .
+ㅇ 1×""/>"	"<img src=""paste-3c16d2cde50d2e67c06daee1677b9ad3ebca5716.jpg"" title/><img src=""paste-e86dc92a590dc300b6b1a981ad5bc1b28c84135d.jpg"" title/><div><img src=""paste-8eea62255a04b707032cfe24e022005232e1590a.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-cd6d086c11d53c0f0a5db11ebeb41008b06c2236.jpg"" title=""55 색 1겨 318 관조안전관리대행기관은기술인력을안전관리자로지정함에있어서 1 인의기술인력을다수의제조소등의안전관리자로중복하여지정하는경우에는규정에적합하게지정하거나안전관리자의업무를성실히대행할수있는범위내에서관리하는제조소등의수가 50 를초과하지아니하도록지정하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-b86bdc9b61aa4c54f4f4a3af6427616ea1553c67.jpg"" title/><img src=""paste-d7672056f95e2a805b0d1e25bd351b6df01afb91.jpg"" title/><div><img src=""paste-5a37f7b1604d88eb1b1b5306b4d8b6703651abdf.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-519515611e5c8a7e3e33bd62ca668c876c06a15b.jpg"" title=""56 3 게서견 300 관조탱크시험자로등록하지아니하고탱크시험자의업무를한자는 3 년이하의징역또는 3 천만원이하의벌금에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-a0ef912adaa44d91fae2da91dc409c58627284c6.jpg"" title/><img src=""paste-d7672056f95e2a805b0d1e25bd351b6df01afb91.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-07c35d6da01cfc2009cee02891d9c2f7669f0cec.jpg"" title=""57 O e 련오 322 청조탱크시험자의등록이취소 ( 피성년후견인에해당하여자격이취소된경우는제외한
+CHE 날부터 1 년이지난자는탱크시험자가될수없다 .
+ㅇ 1×""/>"	"<img src=""paste-6bec36e6881cde7b2a831e56d7a58052cea036ad.jpg"" title/><img src=""paste-d7672056f95e2a805b0d1e25bd351b6df01afb91.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-c4e06f4c223d34c0d3a621d7ac2318b988b4d9f7.jpg"" title=""58 &amp; 셔겨 .324 관조탱크안전성능시험자가갖추어야하는필수장비의종류에는자가탐상시험기 , 진공누설시험기 , 초음파무께측정기 , 영상초음파시험기등이있다 .
+ㅎ 1""/>"	"<img src=""paste-7404645dffc9728ec691e8ce889c7d33b1d2bc26.jpg"" title/><img src=""paste-d7672056f95e2a805b0d1e25bd351b6df01afb91.jpg"" title/><div><img src=""image-b98cadacd28e6a46a075b937a1dde321238f81be.jpg"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-6eca8af7b78d4be4aa16ab3f3db8017864f2d56d.jpg"" title=""59 새견 12251 스대통령령으로정하는제조소등의관계인은해당제조소등의화재예방과화재등재해발생시의비상조치를위하여행정안전부령으로정하는바에따라예방규정을정하여해당제조소등의착공신고후에시 ㆍ 도지사에게제출하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-86e5747d59681b7d7e9ae07fe14e1a03a1c16c20.jpg"" title/><img src=""paste-e4f5ec017e4fa77dd31fc6dfa4e15e6784083c2d.jpg"" title/><div><img src=""paste-a0a4deebebeacb509bc89b93112714e964506956.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-e37b93aaec7529cc2c973f62ca7b8a710c3d0a36.jpg"" title=""60 &amp;1 pas
+지정수량의 100 배이상의위험물을저장하는옥외탱크저장소는예방규정을정하여야한다 .
+ㅇ 1※""/>"	"<img src=""paste-fe7593a9865ccec567dcc27e2647d97e8d0e43bb.jpg"" title/><img src=""paste-e4f5ec017e4fa77dd31fc6dfa4e15e6784083c2d.jpg"" title/><div><img src=""paste-a0a4deebebeacb509bc89b93112714e964506956.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-4ef2e2b852dd97f14ef4de7ead326f1bb1b6ce0f.jpg"" title=""61 &amp; 변 325 즈 |
+이동탱크저장소및암반탱크저장소는예방규정을정하여야한다 .
+olIx""/>"	"<img src=""paste-213f2c6e49dc6d746701c20749add0a5639c6ab2.jpg"" title/><img src=""paste-e4f5ec017e4fa77dd31fc6dfa4e15e6784083c2d.jpg"" title/><div><img src=""paste-a0a4deebebeacb509bc89b93112714e964506956.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-0cbe6962ebfc99382c0182d91a2d50bb5018b92b.jpg"" title=""62 3현 227 즈예방규정의이행실태평가대상이란예방규정을정하여야하는제조소등가운데저장또는취급하는위험물의최대수량의합이지정수량의 1 천배이상인제조소등을말한다 .
+@ 1""/>"	"<img src=""paste-acd3b5d50ef2f9e9c6490d527b0c7c961921b262.jpg"" title/><img src=""paste-e4f5ec017e4fa77dd31fc6dfa4e15e6784083c2d.jpg"" title/><div><img src=""paste-3411dc1d28aaab79058c1e2aa05fa77a2582ed49.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-9e34f95cbf2ef9fb4be6836ddd309117cfed3989.jpg"" title=""63 새 1 견 12.327 광조예방규정의이행실태평가중정기평가는최초평가또는직전정기평가를실시한날을기준으로 4 년마다실시한다 . 다만 , 수시평가를실시한경우에는수시평가를실시한날을기준으로 4 년마다실시한다 .
+olx""/>"	"<img src=""paste-c5352612ee4119918ea984ae5da87621a5128daf.jpg"" title/><img src=""paste-2d6bbd6c99d7a51bf41de7edf87a810751a5b046.jpg"" title/><div><img src=""paste-3411dc1d28aaab79058c1e2aa05fa77a2582ed49.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-c96f112cd0dce03ca7dbe8aeb1ab4790c77bd5ef.jpg"" title=""64 빼 12t p327 8
+예방규정의이행실태평가를실시하는경우제조소등의위험성등을고려하여서면점검또는현장검사의방법으로실시할수있다 . 이경우서면점검은소방청장이정하여고시하는고위험군의제조소등에대하여만실시한다 .
+ㅇ 1×""/>"	"<img src=""paste-59e178ca7ef6dffa07646b7c8373333d6bb0ac4f.jpg"" title/><img src=""paste-2d6bbd6c99d7a51bf41de7edf87a810751a5b046.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-17f1ff420b0ea8a3c1a1af7e0b9099bf67043d93.jpg"" title=""65 37 견 12327 관조소방본부장또는소방서장은예방규정의이행실태평가를실시하는경우평가실시
+o 10 일전까지 ( 수시평가의경우에는 3 일전까지를말한다 ) 제조소등의관계인에게평가실시일 , 평가항목및세부평가일정에관한사항을통보해야한다 .
+ㅇ 1×""/>"	"<img src=""paste-aa482f7a6b9ee53305d088b522cbc0cc11206320.jpg"" title/><img src=""paste-2d6bbd6c99d7a51bf41de7edf87a810751a5b046.jpg"" title/><div><img src=""paste-3411dc1d28aaab79058c1e2aa05fa77a2582ed49.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-e8845d956a69e66afd104c812ecaf4bfccbf9115.jpg"" title=""66 3 e 13 0308 85
+정기점검을한제조소등의관계인은점검을한날부터 30 일이내에점검결과를소방본부장또는소방서장에게제출하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-6a29e835a298fd0bd1acbd7fc057e00621f0fcb7.jpg"" title/><img src=""paste-2d6bbd6c99d7a51bf41de7edf87a810751a5b046.jpg"" title/><div><img src=""paste-81f2016292d019c0d41aa9fca8e733f1e44d5d33.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-b61bbe142c2e1ee6c4c3305da9e2f378fa890d74.jpg"" title=""67 &gt; 션 228 02
+정기점검의대상이되는제조소등의관계인가운데대통령령으로정하는제조소등의관계인은행정안전부령으로정하는바에따라소방본부장또는소방서장으로부터해당제조소등이기술기준에적합하게유지되고있는지의여부에대하여정기적으로검사를받아야한다 .
+ㅇ 1×""/>"	"<img src=""paste-adf565df479249ff13e54f5754eb70a8ec2158b3.jpg"" title/><img src=""paste-dc9270ed0703c2ead072143b4e485dba60cedd88.jpg"" title/><div><img src=""paste-81f2016292d019c0d41aa9fca8e733f1e44d5d33.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-51712739bacfd370fa23251b802b8c072a7ec42a.jpg"" title=""68 O et 12 0229 2
+예방규정을정하여야하는제조소등은정기점검을받아야한다 .
+ㅇ 1×""/><div>정기점검 대상</div>"	"<img src=""paste-48fcaf0bb9dfcca80f68b41159e41a559d071c13.jpg"" title/><img src=""paste-dc9270ed0703c2ead072143b4e485dba60cedd88.jpg"" title/><div><img src=""paste-34a2966df339d37a90f104d20c7453d2da8998dc.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-28e8b6b0200422a7db4733d5d8ce6b77b339a6f1.jpg"" title=""69 &amp; pas Bz
+구조안전점검은특정 ㆍ 준특정옥외탱크저장소의설치허가에따른완공검사합격확인증을발급받은날부터 11 년 , 최근의정밀정기검사를받은날부터 12 년 , 특정 ㆍ 준특정목외저장탱크에안전조치를한후구조안전점검시기연장신청을하여해당안전조치가적정한것으로인정받은경우에는최근의정밀정기검사를받은날부터 13 년이내에 121 이상을해야한다 .
+ㅇ 1×""/>"	"<img src=""paste-1a10fa2cb3930d6c344b51f46aa0f48889f87c67.jpg"" title/><img src=""paste-dc9270ed0703c2ead072143b4e485dba60cedd88.jpg"" title/><div><img src=""paste-34a2966df339d37a90f104d20c7453d2da8998dc.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-99685c0e4940cce52efdf83dacb90b1f74116672.jpg"" title=""70 &amp; st 관조특정 ㆍ 준특정옥외저장탱크의구조안전점검에 et 기록은 3 년 ( 안전조치후연장신청을받는경우에는 5 년 ) 간보존하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-1bc1e89e56e08cf3d70e618d4d85e097df9f8fe1.jpg"" title/><img src=""paste-793f1b192022d2d7554352a2d712696fe201a31a.jpg"" title/><div><img src=""paste-64d4ee46d40b2a5a3488da9a07da48f70df653da.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-584f273a3f2b4b0071a2827ac9065a7f3c75e1e1.jpg"" title=""71 &amp; s 견 1233 조정기검사의대상은정기점검의대상중고체위험물을저장또는취급하는 50 만리터이상의옥내탱크저장소이다 。
+ㅇ 1×""/>"	"<img src=""paste-2c11579921c73251ba4d46689e36ab77a6163173.jpg"" title/><img src=""paste-793f1b192022d2d7554352a2d712696fe201a31a.jpg"" title/><div><img src=""paste-5dd62629586e159f60ff70dee8cd206f37f73dad.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-724b93741e0a4ca35882cdcb3efd60f203645440.jpg"" title=""72 &amp; 7 pa ux
+중간정기검사는특정 ㆍ 준특정옥외탱크저장소의설치허가에따른완공검사합격확인증을발급받은날부터 12 년 , 최근의정밀정기검사또는중간정기검사를받은날부터
+11 년이내에 1 회이상받아야한다 .
+01X""/>"	"<img src=""paste-42076f1b8910a254fe86d5307c00ee7b5025d249.jpg"" title/><img src=""paste-793f1b192022d2d7554352a2d712696fe201a31a.jpg"" title/><div><img src=""paste-5dd62629586e159f60ff70dee8cd206f37f73dad.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-d0bf97ea5a4349dc02a31210bf03c30d36c4860c.jpg"" title=""73 스련 233 져소정밀정기검사를받아야하는특정 ㆍ 준특정옥외탱크저장소의관계인은중간정기검사를구조안전점검을실시하는때에함께받을수있다 .
+1""/>"	"<img src=""paste-b238e67a70042361a6c479d044d262187dc845c4.jpg"" title/><img src=""paste-793f1b192022d2d7554352a2d712696fe201a31a.jpg"" title/><div><img src=""paste-5dd62629586e159f60ff70dee8cd206f37f73dad.png"" title/><br/></div><div><img src=""paste-661f192f05fdbde3bb6dddb73b978e9b838e775a.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-15a12aa1499451dfb90da12ba713d45e11f34a5f.jpg"" title=""74 O At 13 e gz
+중간정기검사대상인경우 B ㆍ 준특정옥외저장탱크의용접부에관한사항을검사한다 .
+ㅇ 1×""/><div>정밀</div>"	"<img src=""paste-7eca16aa9ed8953aeb52030a07299e0015ceec47.jpg"" title/><img src=""paste-4ab98ae81a1b5034cf8b471debdd031449e58b93.jpg"" title/><div><img src=""paste-5581929d0916d7462ce27cc6c2334420c0ee79a5.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-12e2a63ed38e0ffd410dc8928d44dde3e46cfbda.jpg"" title=""75 O 새 1 0395 조옥외탱크저장소에저장하는제 4 류위험물의최대수량이지정수량의 3 천배이상인것은자체소방대를설치하여야하는사업소에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-346e0c2504cba1dc2be882b9ba1131735cd88529.jpg"" title/><img src=""paste-4ab98ae81a1b5034cf8b471debdd031449e58b93.jpg"" title/><div><img src=""paste-7b3cf4c9fff7d86bfe83e41d95eb1c35c8dc7435.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-46fbf2cd6de225ec3d35a0dc0d6abff0c5cf5a3b.jpg"" title=""76 (TR
+이동저장탱크그밖에이와유사한것에위험물을주입하는일반취급소로서제 4 류위험물의최대수량의합이지정수량의 3 천배이상인것은자체소방대를두어야하는사업소에해당한다 .
+ㅇ 1×""/><div>암기법</div><div>자체소방대 둬야하는 사업소</div>"	"<img src=""paste-064158acaab8e59cf5fb4fd04e7e50a06504a403.jpg"" title/><img src=""paste-4ab98ae81a1b5034cf8b471debdd031449e58b93.jpg"" title/><div><img src=""paste-5e91032dbd9e0dfb3f1a4af7882bb3cc3e8a66e5.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-14388800f33deed6d37687cf83bc49b70bbf90a1.jpg"" title=""77 쁘겨추소제조소또는일반취급소에서취급하는제 4 류위험물의최대수량의합이지정수량의
+'50 만배인사업소는화학소방차를 2 대 , 자체소방대원은 10 인을두어야한다 .
+ㅇ 1×""/>"	"<img src=""paste-fe8075fcb9aea4be16f53fc673b60509b0401893.jpg"" title/><img src=""paste-4ab98ae81a1b5034cf8b471debdd031449e58b93.jpg"" title/><div><img src=""paste-5e91032dbd9e0dfb3f1a4af7882bb3cc3e8a66e5.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-7ac4eec35d0d4348939e4bce0847da84383a7a5e.jpg"" title=""78 &amp; e s
+포수용액을방사하는화학소방자동차의대수는화학소방자동차의대수의 2 분의 1
+이상이어야한다 .
+ㅎ 1%""/><div>2이상 상호협정 조건</div><div>화학소방차 ( )분의 ( )</div><div>자체소방대원 ( )명</div>"	"<img src=""paste-6f8209b2a2e4febe34436a2dbda7808f664d9c42.jpg"" title/><img src=""paste-7acb8043a9c702040bbb59e7a54fe745e40912e7.jpg"" title/><div><img src=""paste-5ede2a25f1894edbca9405091551ff0719394fef.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-89d68ee2e4b3c58cae7d441ff188b6e02194f066.jpg"" title=""79 &amp; 2 13 관즈할로젠화합물방사차는할로젠화합물의방사능력이매초 4069 이상이어야하고 ,
+소화약제량은 1,000kg 이상의할로젠화합물을비치하여야한다 .
+olIx""/>"	"<img src=""paste-3d9058bf09eb98eadda37051c1a6c039cde11556.jpg"" title/><img src=""paste-7acb8043a9c702040bbb59e7a54fe745e40912e7.jpg"" title/><div><img src=""paste-5ede2a25f1894edbca9405091551ff0719394fef.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-9ee0ceac16853a369e525103c239ba4e3309f3b3.jpg"" title=""80 개 120337 B2
+포수용액방사차는포수용액의방사능력이매분 1,000L 이상이어야한다 .
+ㅇ 1×""/>"	"<img src=""paste-c467442ff10c697cd156b46512b9e04b454ab19c.jpg"" title/><img src=""paste-7acb8043a9c702040bbb59e7a54fe745e40912e7.jpg"" title/><div><img src=""paste-5ede2a25f1894edbca9405091551ff0719394fef.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-4abbc339272939a849dd91b00919f2140fda7a33.jpg"" title=""81 O 견기뜨시 ㆍ 도지사는해당제조소등이금연구역임을알리는표지를설치하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-febac349775b73926ecd89a2abcbf5636d1643a1.jpg"" title/><img src=""paste-7acb8043a9c702040bbb59e7a54fe745e40912e7.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-bd3ee2cb6bd937cc75c83f0312dd463f4d9695a1.jpg"" title=""82 새 pn e
+제조소등의흡연장소는옥외로지정할것 . 다만 , 부득이한경우에는건축물내에지정할수있다 .
+01x""/>"	"<img src=""paste-bae70fd1ba75364b9b4e6e1da314662e33103c31.jpg"" title/><img src=""paste-e51fd433b98fd08dad2dc34d8482d5e2b8984b1c.jpg"" title/><div><img src=""paste-1d9fe7fa8227e11ae6d5b37fe54c18dae11f2101.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-a6673a6fe6199ffdc5ebe3cbc3727340582cc136.jpg"" title=""83 O e 1 s 2
+흡연장소를지정하는경우에는대형수동식소화기 ( 이에준하는소화설비를포함한다 ) 를 3 개이상비치하여화재예방조치를해야한다 .
+ㅇ 1×""/>"	"<img src=""paste-6375407b27ca8897063847d23134fdf75d6fc514.jpg"" title/><img src=""paste-e51fd433b98fd08dad2dc34d8482d5e2b8984b1c.jpg"" title/><div><img src=""paste-1d9fe7fa8227e11ae6d5b37fe54c18dae11f2101.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-8ea5a134f0013237bf2ccd9d183f180cc6e151c9.jpg"" title=""84 O s 120338 참조위험물의운반에관한중요기준을위반할경우 1 천 500 만원이하의벌금에해당하며 , 세부기준을위반할경우 500 만원이하의과태료에해당한다 .
+o1x""/><div>위험물 저장 취급 중요 / 세부 기준 과태료</div>"	"<img src=""paste-8d9936953409d2fa163227bd5fedf6649c7f048e.jpg"" title/><img src=""paste-e51fd433b98fd08dad2dc34d8482d5e2b8984b1c.jpg"" title/><div><img src=""paste-8d43ff515d852b46b7fbc4cb3faf6de203a628d0.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-a843fce6636258b1c3ecd287a7fc90fb0a1ed1a9.jpg"" title=""85 스애변 260 져조위험물운송자는운반용기에수납된위험물을지정수량이상으로차량에적재하여운반하는차량의운전자를말한다 .
+ㅇ 1×""/>"	"<img src=""paste-603d4099f04e8d0e1c2f9057b6864f0a0bbd959e.jpg"" title/><img src=""paste-e51fd433b98fd08dad2dc34d8482d5e2b8984b1c.jpg"" title/><div><img src=""paste-aee3f26c90de00b69cffccd333ccd9f671b64656.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-3af26b1885bacd4354c3993842cb9104ff8deea8.jpg"" title=""86 &amp; 7 1 o34 s
+제 5 류위험물을수납하는운반용기에관한주의사항은화기주의 , 충격주의및가연물접촉주의에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-aeb7c0fc23edda993a4aa115378c27923f6f7dfc.jpg"" title/><img src=""paste-1b7c9ec9de0cdda69e7dba373d15554efbbf5680.jpg"" title/><div><img src=""paste-4ca7c89649a147220633b132a36b1c81689e1e68.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-427a8681bbc3a93f9477a9c4a86e0472a8285c63.jpg"" title=""87 &amp; e s
+알칼리금속및알칼리토금속은운송책임자의감독 ㆍ 지원을받아운송하여야하는위험물이다 。
+ㅇ 1×""/>"	"<img src=""paste-a9909f1b9913b8875950ca332e779fb6fc6dc5da.jpg"" title/><img src=""paste-1b7c9ec9de0cdda69e7dba373d15554efbbf5680.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-fa18abadc62c81a19f6cd801d64a397bf46f7559.jpg"" title=""88 &amp; 7 @ 85
+위험물의운송에관한안전교육을수료하고관련업무에 1 년이상종사한경력이있는자는운송책임자가될수있다 .
+ㅇ 1×""/><div>국가기술자격 취득하고 관련 업무에 -년 이상 종사</div>"	"<img src=""paste-c000fdf621900a43462bb58d9f6a1733130344cd.jpg"" title/><img src=""paste-1b7c9ec9de0cdda69e7dba373d15554efbbf5680.jpg"" title/><div><img src=""paste-3b8375e4064314f40c1bf43a9b11ed4ca6c18e12.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-f88d2330bebff8dcdf3e9b71f05d32489d409c4e.jpg"" title=""89 O e 13 p 32 85
+위험물운송자는장거리에걸치는운송을하는때에는 2 명이상운전자로하여야한다 . 다만 , 운송책임자를동승시킨경우는그러하지아니하다 .
+ㅇ 1×""/><div>x x(~에 한함) x(~제외) 위험물 그러지 아니하다 </div>"	"<img src=""paste-d00eecb81e9c67e3aa4d7fd8cd01885ac3f9a955.jpg"" title/><img src=""paste-1b7c9ec9de0cdda69e7dba373d15554efbbf5680.jpg"" title/><div><img src=""paste-b17e61bae58db68a71c577531054c5b269f29ef6.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<div>위험물</div><img src=""paste-f4fadf6f3ccdabf6db0515ae19ee938c43884ce4.jpg"" title=""90 서 1 련 .365 참조관계인의정당한업무를방해하거나출입 - UM 등을수행하면서 WA 된비밀을누설한자는 300 만원이하의벌금에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-e1b3ee1c6580a65901033546ec68f3c42acc896d.jpg"" title/><img src=""paste-2bc52d930de314dd234fbb18cbbba653c4ceaf80.jpg"" title/><div><img src=""paste-b87a20d3bbb24172ccb9bb2aa57e4b9713de7563.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-474a2eec28c4b9d327031e5b5f8caaa72babbbaa.jpg"" title=""91 &amp; e 견이소시 ㆍ 도지사는사고조사에필요한경우자문을하기위하여관련분야에전문지식이있는사람으로구성된사고조사위원회를둘수있으며 , 위원장 1 명을포함하여 9 명이내의위원으로구성한다 .
+ㅎ 1※""/>"	"<img src=""paste-316edc6b3eeb140064a889053b0c9ad3266a27d6.jpg"" title/><img src=""paste-2bc52d930de314dd234fbb18cbbba653c4ceaf80.jpg"" title/><div><img src=""paste-39e591a7d1f36540ea5870311e4058a7860972bc.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-8192c674452cda87cd14bc34057a6289f7cd7b52.jpg"" title=""92 O 2쁘 12 p3s0
+제조소등에대한긴급사용정지 ㆍ 제한명령을위반한자의경우에는 1 천 500 만원이하의벌금에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-61d75153bdef3450dc1dda342e80bd0cb4c80b44.jpg"" title/><img src=""paste-2bc52d930de314dd234fbb18cbbba653c4ceaf80.jpg"" title/><div><img src=""paste-f57d5b427c8f8a26bda18019bd8d2f0d5600db71.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-70c039bb54dd620c799ca4585645f364ae21776f.jpg"" title=""93 &amp; i 겨어즈안전관리자 ㆍ 탱크시험자 ㆍ 위험물운반자 ㆍ 위험물운송자등위험물의안전관리와관련된업무를수행하는자로서대통령령이정하는자는해당업무에관한능력의습득또는향상을위하여소방본부장또는소방서장이실시하는교육을받아야한다 ,
+0 ㅇ 1×""/>"	"<img src=""paste-7145821c445acb034316dc73a66bcb6f08c42dd0.jpg"" title/><img src=""paste-2bc52d930de314dd234fbb18cbbba653c4ceaf80.jpg"" title/><div><img src=""paste-25c7469eb6f2f8689f6e1077dbd0f37387654465.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-a399a5267d34b240fd183a85cf215275a7e31fa7.jpg"" title=""94 &amp; o 1 pss 관조위험물운송자는이동탱크저장소의위험물운송자로종사한날부터 6 개월이내에교육을받은후 2 년마다 1 회실무교육을받아야한다 .
+ㅇ 1×""/><div><img src=""image-ac30b4db3325d92b0d45f22729f5c4f9a71c9f97.jpg"" title=""안전관리자가
+2% 선임되기전안전
+oy 최초선임되기원
+o ㅣ 위험물문송자가 ~
+2068 육 | o 최초종사하기전안전원위험물운반자가 I
+최초종사하기전안전되려는사람 R i
+O 제조소등의안전관리자로안전관리자적임된 SEEPHE 이너 o
+© 00l 따른교육을받은후
+2 년마다 1 회
+O 이동탱 3 저장소의위험물문송자로종사한 el R Ol
+위험물운송지안전
+= © 에따른교육을받은후삐마다 18
+실무교육 ,킵〈촬다、/파
+ㅇ 위험물운반자로종사한날부터
+@ 가월이위험물운반지안전시 5 © o0l 따른교육을받은후쁘
+@ 년마다 1 회
+@ 탱크시험자의기술인력으로탱크시험자의등록한날부터 @ 개월 - 이내
+7
+기술인력 0 에따른교육을받은후 | LE5:
+2 년마다 1 회""/><br/></div>"	"<img src=""paste-b9e5556bf9827d6c06f7952b124fb37604cddd54.jpg"" title/><img src=""paste-9a02bdc904bd80e2031ca673c83f04ab6f49621a.jpg"" title/><div><img src=""paste-11e9535d161a2a5ecd1ae21403b69924ef968fdc.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-0af19d1650e72acbfc8d48c917571279c1667633.jpg"" title=""95 색베 2355 45
+제조소등의설치허가의취소 , 탱크시험자의등록취소시에는청문을실시하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-8aac21710567e17478b171c41e4d78544be4f833.jpg"" title/><img src=""paste-9a02bdc904bd80e2031ca673c83f04ab6f49621a.jpg"" title/><div><img src=""paste-02333648f4eba451c615ea43462855cb7338f994.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-41d704c2684ebc9ad9a736b1ac9f106433f69419.jpg"" title=""96 &amp; 해서 1련 355 관조제조소등의관계인 , 위험물운송자 , 탱크시험자및안전관리자의업무를위탁받아수행할수있는안전관리대행기관으로시 ㆍ 도지사의지정을받은자는위험물의안전관리 , 사고예방을위한안전기술개발 , 그밖에위험물안전관리의건전한발전을도모하기위하여위험물안전관리에관한협회를설립할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-2e701c9dff108bb4f91604e63f701a7cbf4002eb.jpg"" title/><img src=""paste-9a02bdc904bd80e2031ca673c83f04ab6f49621a.jpg"" title/><div><img src=""paste-02333648f4eba451c615ea43462855cb7338f994.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-ef236104fc90e57e3d8e39a3659c46bc0a82ecc0.jpg"" title='97 &amp; 쁘시견 12355 과조위험물안전관리에관한협회에관하여이법에서규정한것외에는 "" 민법 」 중재단법인에관한규정을준용한다 .
+ㅇ 1※'/>"	"<img src=""paste-f8f8f5e19f8168118e84897fb4b9ccb91bdd883e.jpg"" title/><img src=""paste-9a02bdc904bd80e2031ca673c83f04ab6f49621a.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-a0a232879fee6fc1aef182bcb726c0d0f57be321.jpg"" title=""98 &amp; 7 12 p3s7 관조소방청장은탱크시험자에대한안전교육을한국소방안전원에위탁한다 .
+ㅇ 1×""/>"	"<img src=""paste-ab52fc7eefb9d426dbd6e268b7f1ccba05141cbd.jpg"" title/><img src=""paste-d064dcbf7894e077487c7cff9500b2832ee2a27f.jpg"" title/><div><img src=""paste-a685e39f61442a91e35e182b394014cd608ce249.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-58eb5236cb97bf6665171bc1e59baf69538e2e65.jpg"" title=""99 &amp; e 120 2357 관조시 ㆍ 도지사는정기검사를한국소방산업기술원에위탁한다 .
+ㅎ 1%&amp;""/>"	"<img src=""paste-1a7838b970fd0c76d601b6b86c66bfdf8e516227.jpg"" title/><img src=""paste-d064dcbf7894e077487c7cff9500b2832ee2a27f.jpg"" title/><div><img src=""paste-a685e39f61442a91e35e182b394014cd608ce249.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-1754304098f3a9e407c7ba625949d9c61ca97b7a.jpg"" title=""100 그 TR
+시 ㆍ 도지사는지정수량의 1 천배이상의위험물을취급하는제조소또는일반취급소의설치또는변경에대한완공검사를한국소방산업기술원에위탁한다 .
+ㅇ 1×""/>"	"<img src=""paste-34665614524e9fba1e6ce3ce7ccd71f4fed60e9b.jpg"" title/><img src=""paste-d064dcbf7894e077487c7cff9500b2832ee2a27f.jpg"" title/><div><img src=""paste-a685e39f61442a91e35e182b394014cd608ce249.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-03184bab5183ddc407401d986d52d7d32eaabe6b.jpg"" title=""101 &amp; 7 쁘시견 357 견조시 ㆍ 도지사는용량이 50 만리터이상인액체위험물을저장하는탱크에대한탱크안전성능검사를한국소방산업기술원에위탁한다 .
+ㅇ 1×""/>"	"<img src=""paste-ca01423e3b2e0a4d8320f42a9b148a141c1cb17f.jpg"" title/><img src=""paste-d064dcbf7894e077487c7cff9500b2832ee2a27f.jpg"" title/><div><img src=""paste-a685e39f61442a91e35e182b394014cd608ce249.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-f35a381a600c9309f9a9cd3f29870ca440358f1c.jpg"" title=""102 &amp; 7 재서견 12399 과조업무상과실로제조소등에서위험물을유출 ㆍ 방출 ㆍ 확산시키는경우사람을사상에이르게한때는 7 년이하의금고또는 7 천만원이하의벌금에해당한다 .
+o1x""/><div><img src=""image-ee123b2b7eb32ac35dd0979250efe9fc4633034c.jpg"" title=""@ 발이 00011
+@ 위험물을유출 … 방출 ㆍ 확산시키는경우
+(1) 제조소등또는허가를받지않고지정수량 049 위험물을저장또는취급하는장소에서위험물을유출 ㆍ 방출 ㆍ 확산시키는경우 008886
++ 고의성사람의싱뀜}쇼쩨}재신해몇텀훑발생시킨자사람을이르게한때사망에이르게한때
+e
+(Z)W 제조소등또는허가를받지않고지정수량이상의위험저장또는취급하는장소에서위험물을유출 ㆍ 방출 ㆍ 확산시키는사람의싱짤.스팩_찹배뻣뻑킨자사람을사상에이르게한때
+@ 침고비슷한벌칙 ( 소방시설법 )
+소방시설에폐쇄 ㆍ 차단등의행위를한자벌칙위험발생사람을상해에이르게한때사망에이르게한때""/><br/></div>"	"<img src=""paste-4158ff3d4f235ab72d55c80e5e36672b81f3c246.jpg"" title/><img src=""paste-de4391896eec1b8ed9327cec70cbc4afb4c87139.jpg"" title/><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">칠위 십사<br/></span><div><img src=""paste-45434d146f0d5aabb5c8e628f6d646af62db2c36.png"" title/><br/></div></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-a7df8e65b98f19642ff52ab2d9ee57ad3bef557c.jpg"" title=""103 &amp; s 12 0.360 5.
+제조소등의설치허가를받지아니하고제조소등을설치한자는 5 년이하의징역또는 1 천만원이하의벌금에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-f68a87fd5e156d74c06256424bc148004a6ce5d3.jpg"" title/><img src=""paste-de4391896eec1b8ed9327cec70cbc4afb4c87139.jpg"" title/><div><img src=""paste-3562629bc6d9f91015a89dcdcd4f60a02a3dfa17.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터01(1~7)	"<img src=""paste-f4f5fd2686ae9d0dbbd102ebc53312c61c699000.jpg"" title=""104 5 7 13 p.363 첨조제조소등의관계인이금연구역임을알리는표지를설치하지아니하거나보완이필요하여내린시정명령을따르지아니한자에게는 200 만원이하의과태료를부과한다 .
+ㅇ 1×""/>"	"<img src=""paste-96d5846b4e2e4b19161a58c95c7e36f392071121.jpg"" title/><img src=""paste-de4391896eec1b8ed9327cec70cbc4afb4c87139.jpg"" title/><div><img src=""paste-07dcd47b90e9625793ecbde77e716854bbceb0b8.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-f47b094dda96b9f2bafcbe9d7ccfb86cb22916b7.jpg"" title=""o1 o 1apa s
+제 4 류위험물을취급하는제조소에는안전거리를두지않아도된다 .
+ㅇ 1×""/>"	"<img src=""paste-b62c730141d10435967263549adaab47510c0f3c.jpg"" title/><img src=""paste-7ab8310e862ce3b4a61ebbdf4ff76219a11fe480.jpg"" title/><div><img src=""paste-d2e1fc2b4de869eac5cf47c42f2ab06cdd0076b3.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-8bf18c0c3bd74dcbef5a72445452aedf78eb369c.jpg"" title=""02 3 브셔견 12374 관조제조소는지정문화유산 , 천연기념물등과의사이에안전거리를 5007 이상두어야한다 .
+o1x""/>"	"<img src=""paste-492e3e82408cfbe58e9273f3a85fe50c778e2828.jpg"" title/><img src=""paste-7ab8310e862ce3b4a61ebbdf4ff76219a11fe480.jpg"" title/><div><img src=""paste-d2e1fc2b4de869eac5cf47c42f2ab06cdd0076b3.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-bf0336b65ee7df450a0dd860ce9d02bf1edcec08.jpg"" title=""03 빼 o 4
+제조소에취급하는위험물의최대수량이지정수량의 20 배인경우보유공지는 37
+이상확보하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-d6569e12e6258b00d3b617e810d337af1c7bb67e.jpg"" title/><img src=""paste-7ab8310e862ce3b4a61ebbdf4ff76219a11fe480.jpg"" title/><div><img src=""paste-8a482eab8b51de4951edbc4c54c11e1dddfc6261.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-2f91bb4cd79d03659f9400c78aa31404427ce7fb.jpg"" title=""04 O 견 36 과즈제조소에설치하는방화상유효한격벽의양단및상단이외벽또는지붕으로부터
+10cm 이상돌출하도록하여야한다 .
+61""/>"	"<img src=""paste-7662781c79cd7d5af90f5c388f6eddbcfdc864fd.jpg"" title/><img src=""paste-be8d2946a0d358ea6d657f74e3a7e12d3913726e.jpg"" title/><div><img src=""paste-fccae9e7593c286339fe93acae11a63ebcb6a225.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-baee3d9cd14d38ee117e1d29ebc3a93fe921793f.jpg"" title=""05 O 13 937 45
+위험물제조소에설치하는게시판에는위험물의유별 ㆍ 품명 , 저장취급수량 ㆍ 취급최대수량 , 지정수량의배수 , 안전관리자의성명 ㆍ 선임일자 ㆍ 연락처를기재하여야한다 .
+으 1%※""/><div>위험물</div><div>특수가연물 </div><div>소방안전관리자</div>"	"<img src=""paste-a6685072a0a020a79d186af8d744631258974113.jpg"" title/><img src=""paste-be8d2946a0d358ea6d657f74e3a7e12d3913726e.jpg"" title/><div><img src=""paste-68dbcb5bacffca18c9bb53ee79f69e152baed5b9.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-a0ea697fd0faf4d85acb233500c11d9d74a102be.jpg"" title=""06 i 133 85
+제 2 류위험물중인화성고체 , 제 3 류위험물중금수성물질 , 제 4 류위험물 , 제 5 류위험물및제 6 류위험물을취급하는제조소에는화기엄금의주의사항을표시하여야한다 .
+ㅎ 1%""/>"	"<img src=""paste-680c8be21896eab9672c0e6b089a1b442fb8618d.jpg"" title/><img src=""paste-be8d2946a0d358ea6d657f74e3a7e12d3913726e.jpg"" title/><div><img src=""paste-24d297bf0d70312bf2b76a1a791f20bcf98755d6.png"" title/><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span><div><img src=""paste-2dc7010fd98b1f8d7f66b81250fcd18c1c87e087.png"" title/><br/></div></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-c572b450ab44bdd7db0c6e04f299422c02b2730b.jpg"" title=""07 스개서견 378 s
+물기엄금에대한바탕의색상은백색으로 , 문자의색상은청색으로해야한다 .
+ㅇ 1×""/>"	"<img src=""paste-d5688f354b8b7c33846958fcdc34ae883aa97e6e.jpg"" title/><img src=""paste-be8d2946a0d358ea6d657f74e3a7e12d3913726e.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-3ec60597134e4fddf8a0978e923d689a210c2b38.jpg"" title=""08 O 10 85
+제조소에출입하는사람이불특정다수인이고 , 해당제조소를포함하는사업소의출입구에해당사업소전체가금연구역임을알리는표지를설치한경우에는해당제조소에금연구역임을알리는표지를설치한것으로본다 .
+ㅇ 1×""/>"	"<img src=""paste-ef6412ac807e1dc370c61b9f9394cc1493db0bb9.jpg"" title/><img src=""paste-63575f4964f1013e928f3d1af8a8569916443d27.jpg"" title/><div><img src=""paste-e78c4370e6376dba94db7733723fa5ef2703ffd6.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-961f6d519dd07c3ae97ac9e383c7ba0a3b4b7b76.jpg"" title=""09 57 새 1 견 200 환조제조소의건축물중지붕은폭발력을견딜수있을정도의단단한내화구조로덮어야한다 .
+ㅇ 1×""/>"	"<img src=""paste-8dfa0701d0624806eda01d875f4efb04826dead0.jpg"" title/><img src=""paste-63575f4964f1013e928f3d1af8a8569916443d27.jpg"" title/><div><img src=""paste-e78c4370e6376dba94db7733723fa5ef2703ffd6.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-dbddda80f5924fc83640d26aab061cbcbc471228.jpg"" title=""10 O pam2 s
+제조소의환기설비에설치하는급기구는높은곳에설치하고가는눈의구리망등으로인화방지망을설치하며 , 환기구는지붕위또는지상 1.5m 이상의높이에회전식고정벤틸레이터또는루프팬방식으로설치하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-c36415570b59dcf831f04cfef7249fce93773e05.jpg"" title/><img src=""paste-63575f4964f1013e928f3d1af8a8569916443d27.jpg"" title/><div><img src=""paste-7007ed55347f60fc10e9ca05ac108f8b881b627a.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-2472b60d7595b3f848e24e3b402629c0386faae3.jpg"" title=""11 거 18 s
+제조소의환기설비를설치하는바닥면적이 90m’Y 경우급기구의 UM 450cm?
+이상으로하여야한다 .
+olx""/><div>급기구는 바닥 ( )제곱미터마다 1개 이상</div><div>급기구 크기 ( )제곱센티 이상</div><div>환기구 위치 높이 ( )</div>"	"<img src=""paste-7adee3bc7b073bc9b330931a0177abfbb929a5cc.jpg"" title/><img src=""paste-63575f4964f1013e928f3d1af8a8569916443d27.jpg"" title/><div><img src=""paste-7007ed55347f60fc10e9ca05ac108f8b881b627a.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-1b7feae99639e43c0cb10c08b08bcbca2f1fd3e0.jpg"" title=""12 ONen 1 p 3 85
+제조소에설치하는배출설비의배출은자연배기방식으로하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-3556130d752a3a3b8b72db731a7f89d3cd754efe.jpg"" title/><img src=""paste-0b293d3b6cf5a48e552f535f9ec75ace094507a1.jpg"" title/><div><img src=""paste-4da4cf21a6dc65bbcb6e8f26cede0d4f4522ea65.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-9f752c36868d4ea675151e2e88b1bd329d42506f.jpg"" title=""13 O s 3
+옥외에서액체위험물을취급하는설비의제조소바닥은둘레에높이 0.2m 이상의턱을설치하는등위험물이외부로흘러나가지아니하도록하여야한다 .
+o1x""/>"	"<img src=""paste-f7a9489635888d15d1976e3cbfffebe36f39c3a6.jpg"" title/><img src=""paste-0b293d3b6cf5a48e552f535f9ec75ace094507a1.jpg"" title/><div><img src=""paste-8e822eb3b0b5ec67f4764b49b6a171504d347a09.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-2b7e52a94e731e6133bbed5dc25356bf923c0d2d.jpg"" title=""14 T
+지정수량의 10 배이상의제 6 류위험물을취급하는제조소에는피뢰침을설치하여야한다 .
+ㅎ""/>"	"<img src=""paste-4822bb5800f5f986f63e2678bfcfbfec6b329633.jpg"" title/><img src=""paste-0b293d3b6cf5a48e552f535f9ec75ace094507a1.jpg"" title/><div><img src=""paste-fab1eaf12dea693879f1a493914bd2a5b195de8e.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-d9382c0d8ca42e123e2896523d5139841eaedaf2.jpg"" title=""15 e 12 p38s 85
+제조소에설치하는정전기제거설비에는 3718 이온화하는방법 , 공기중의상대습도를 50% 이상으로하는방법이있다 .
+ㅇ 1×""/>"	"<img src=""paste-fce202f64c02178fe36b17463137a7051af636a2.jpg"" title/><img src=""paste-0b293d3b6cf5a48e552f535f9ec75ace094507a1.jpg"" title/><div><img src=""paste-fab1eaf12dea693879f1a493914bd2a5b195de8e.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-90742fd3dc59d9e4281a49d2f26ee6bb2d8dc856.jpg"" title=""16 Ot 변이 387 장조제조소의옥외에있는위험물취급탱크로서액체위험물중이황화탄소의방유제용량은하나의취급탱크인경우탱크용량의 50% 이상이어야한다 .
+0 1%""/><div>1. 하나의 취급탱크인 경우<br/></div><div>   👉 탱크 용량의 (      )% 이상</div><div><br/></div><div>2. 2개 이상의 취급탱크인 경우</div><div>   👉 (최대 탱크 용량의       %) + (나머지 탱크 용량 합계의       %) 이상</div>"	"<img src=""paste-e8d3b9c6a0838de0b12d99734cdcabdc66289712.jpg"" title/><img src=""paste-6c9763499b1e4827ab908a9b40dd96491f426dc0.jpg"" title/><div><img src=""paste-e6d05a2f7c6f6e4830c085328d804c0a9407f3a2.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-934f0b439ce0b161b5aad271d1034201348bc8ee.jpg"" title=""17 스객 18 0387 85
+고인화점위험물이란인화점이 100°C 이상인모든위험물을말한다 .
+ㅇ 1×""/>"	"<img src=""paste-cae48261e2d1fd5676f17c1c4769950689afb61f.jpg"" title/><img src=""paste-6c9763499b1e4827ab908a9b40dd96491f426dc0.jpg"" title/><div><img src=""paste-e6d05a2f7c6f6e4830c085328d804c0a9407f3a2.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-5c59828ac598a27e8d66cbdc50220fcc7b2fa242.jpg"" title=""18 스 2 셔련 128 건조아세트알데히드등을취급하는제조소의특례에따라아세트알데히드등을취급하는설비는은 ㆍ 수은 ㆍ 동 ㆍ 마그네슴또는이들을성분으로하는합금으로만들지아니하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-4a869b3df169179013d01ac82aa9d5acf5ed55b2.jpg"" title/><img src=""paste-6c9763499b1e4827ab908a9b40dd96491f426dc0.jpg"" title/><div><img src=""paste-5951508e68ecdb0eed81ce38e9f021698db2f068.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-1f96e2032e0e4eb2dd5bb15796ecf04c3f69067e.jpg"" title=""19 O 년 2309 s
+옥내저장소의저장창고는지면에서처마까지의높이가 607 이상인단층건물로하고그바닥을지반면보다낮게하여야한다 .
+o1x""/><div>-류 -류 -미터 이하 가능</div><div>내화구조 60 60+ 피뢰침</div>"	"<img src=""paste-7c4f0e1065d7ed04011e91a6f7f6cfa971e48a6a.jpg"" title/><img src=""paste-6c9763499b1e4827ab908a9b40dd96491f426dc0.jpg"" title/><div><img src=""paste-f68e94567828f0721b403ac5b532ec061efa8808.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-4b59524a264c7e261845cea97d2f9acf0db68e32.jpg"" title=""20 I 13 389 창조제 3 석유류 , 제 4 석유류또는동식물유류의위험물을저장또는취급하는옥내저장소로서그최대수량이지정수량의 20 배미만인경우안전거리를두지아니할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-591ce20192fcc217345860a1da730c99aa23ec02.jpg"" title/><img src=""paste-2eb31fd2becaef4872680d8bf6a6a087d80d58df.jpg"" title/><div><img src=""paste-a03bde277abc430da5f9689a738e65ed299051de.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-44257d92903c2a289858dd6645ffdeb5c02aa41e.jpg"" title=""21 &lt;5 기보서 1 권 0.390 참조제 3 류위험물중황린을저장하는옥내저장소창고의바닥면적은 100007 이하로하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-a0794b0b347f07f813ff8757352e69e3c3bd0ddf.jpg"" title/><img src=""paste-2eb31fd2becaef4872680d8bf6a6a087d80d58df.jpg"" title/><div><img src=""paste-cf863a49a06e4da3b129c167c0f3f05b830cd383.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-9e6de5227ca339613a2536ad2300376d65660fac.jpg"" title=""22 e 180392 점조복합용도건축물의옥내저장소기준에따라옥내저장소의용도에사용되는부분의출입구에는수시로열수있는자동폐쇄방식의 60 분 + 방화문 , 60 분방화문또는 30 분방화문을설치할것
+O I 있""/>"	"<img src=""paste-b1e93e88728724e5975af99deb8ad93fe62dab72.jpg"" title/><img src=""paste-2eb31fd2becaef4872680d8bf6a6a087d80d58df.jpg"" title/><div><img src=""paste-c61c626428656cc55060497a34482676f7be64ae.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-f7bdaba1a7d7f02157fce97eb5ccebdcd2c494b4.jpg"" title=""23 O 1 p393 85
+지정수량의 650 배를저장하는옥외탱크저장소의보유공지는 90 이상이다 .
+O X""/>"	"<img src=""paste-c54a869573bd02863f8a8bb1b4904c4f6adeafa1.jpg"" title/><img src=""paste-2eb31fd2becaef4872680d8bf6a6a087d80d58df.jpg"" title/><div><img src=""paste-d89f551c2b87fa097f39559a78588fd24bd3a5f5.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<div>옥외저장탱크</div><img src=""paste-a7d886a4c902a3d4c3a4b9cb484df82b6b4cff5c.jpg"" title=""24 &lt; 개브서 1 권 0394 참조기준에적합한물분무설비로방호조치를하는경우에는그보유공지를규정에의한보유공지의 1/3 이상의너비 ( 최소 3[m] 이상 ) 로할수있다 .
+스 1%""/>"	"<img src=""paste-5b622335466ea22c91112f6fcfc4ff4e3689681b.jpg"" title/><img src=""paste-30a419c34ef9115aa884fdc9a2c975b2ff1c1393.jpg"" title/><div><img src=""paste-de8b7e7cb0e2095704371ffa0cd67343c009f41b.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-4d22133a4d932ef11e7ef287e53c6cbccccb7e7e.jpg"" title=""25 &lt;5 가브서 1 0394 참조저장하는아세톤의최대수량이 200,000[ ㄴ ] 인옥외저장탱크의주위에보유하여야하는최소공지의너비는 1.5 미터이다 . ( 단 , 기준에적합한물분무설비에의한방호조치를한것으로가정한다 .)
+아 1%""/>"	"<img src=""paste-3dec45fd401aefe2926e69d9b9f0f2e2be8afdb7.jpg"" title/><img src=""paste-30a419c34ef9115aa884fdc9a2c975b2ff1c1393.jpg"" title/><div><img src=""paste-e40771e6919b6931e12cd61f403c18deeda584a5.png"" title/><br/></div><div><img src=""paste-27647ce3d2727c5703793719ba3c7ce9bdee09fe.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-92c61eb4dbf6204090f36b7b55096cc99a988f7d.jpg"" title=""26 O 1 P34 창조특정옥외저장탱크란옥외탱크저장소중그저장또는취급하는액체위험물의최대수량이 50 만 Ｌ 이상의것을말한다 .
+ㅇ 1×""/>"	"<img src=""paste-af51a2202d9b4b7ab6be36df79a953ea7a492a17.jpg"" title/><img src=""paste-30a419c34ef9115aa884fdc9a2c975b2ff1c1393.jpg"" title/><div><img src=""paste-27647ce3d2727c5703793719ba3c7ce9bdee09fe.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-3de7b117126fa1e976df9a8667d5c98070251a85.jpg"" title=""27 기보 1련 6395 4z
+옥외탱크저장소중밸브없는통기관의설치기준에따라인화점이 38°C 미만인위험물만을저장또는취급하는탱크에설치하는통기관에는인화방지장치를설치하고 ,
+그외의탱크에설치하는통기관에는 60 메쉬이상의구리망또는동등이상의성능을가진화염방지장치를설치하여야한다 .
+ㅇ 1×""/><div>지름 -미리 이하<br/></div><div>-이하 압력에서 개방</div>"	"<img src=""paste-865af6d54f5451d59798e5dda7ac508ca4853da8.jpg"" title/><img src=""paste-30a419c34ef9115aa884fdc9a2c975b2ff1c1393.jpg"" title/><div><img src=""paste-b23aa81e15b88be57f514412c6cbffd0d56025af.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-e03efbde4b87aa9597dd81cd9882f65743655f73.jpg"" title=""28 [CEETRETE R S
+펌프설비의주위에는너비 50 이상의공지를보유할것 . 다만 , 방화상유효한격벽을설치하는경우와제 6 류위험물또는지정수량의 30 배이하위험물의옥외저장탱크의펌프설비에있어서는그러하지아니하다 .
+ol X""/><div>펌프설비와 옥외탱 사이 거리</div>"	"<img src=""paste-a22ae5e6e242c2c66956efd126d9a5cafef0e1e4.jpg"" title/><img src=""paste-5157307491eb13765cfea405f8e7ea86f8f34e04.jpg"" title/><div><img src=""paste-930371fc113ec36f386bdc41ccd779406e4c676d.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-63f0e0de24728f9abb2c40e49791472f195231ee.jpg"" title=""29 5 기보서관 p97 첨조펌프설비로부터옥외저장탱크까지의사이에는당해옥외저장탱크의보유공지너비의 1/3 이상의거리를유지하여야한다 .
+으 1※""/>"	"<img src=""paste-fb32099f8e37d5dbab9ef8d8c16b63000c392726.jpg"" title/><img src=""paste-5157307491eb13765cfea405f8e7ea86f8f34e04.jpg"" title/><div><img src=""paste-930371fc113ec36f386bdc41ccd779406e4c676d.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-3cf49b2ffc12c942c1c690919a4599b992d5b09d.jpg"" title=""30 &lt;&gt; 기본서 1 권 0398 잠조펌프실외의장소에설치하는펌프설비에는그직하의지반면의주위에놓이 0.2m
+이상의턱을만들고당해지반면은콘크리트등위험물이스며들지아니하는재료로적당히경사지게하여그최저부에는집유설비를하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-85813af8b471af2a524b598d78d9c76f7201d9cc.jpg"" title/><img src=""paste-5157307491eb13765cfea405f8e7ea86f8f34e04.jpg"" title/><div><img src=""paste-ca5dbf891a86629670bb0cc5568aebcb9c86337c.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-71921180eb0bd617e2c5a199785bad0302c4546f.jpg"" title=""31 5 기보서 18 0399 참조옥외저장탱크의배수관은탱크의밑판에설치하여야한다 . 다만 , 탱크와배수관과의결합부분이지진등에의하여손상을받을우려가없는방법으로배수관을설치하는경우에는탱크의옆판에설치할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-c6f7d8ed3d7a6cc771566b473a04c58952a00a38.jpg"" title/><img src=""paste-5157307491eb13765cfea405f8e7ea86f8f34e04.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-e812fde1f881e6b520deacff654596e5a4d9adc1.jpg"" title=""32 &lt; 가보 12 0399 참조이황화탄소의옥외저장탱크에설치하는벽및바닥의두께가 0.107 이상이고누수가되지아니하는철근콘크리트의수조에 Hof 보관하여야하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-a2737ac3ddb52809e91efd96c36085084d67a29d.jpg"" title/><img src=""paste-c2fdf318495a025aec76640944b5908f49006cd1.jpg"" title/><div><img src=""paste-ba484b690641e95fd11b65a60540deb905d7a4f7.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-62aeab86ecb1ed0481ff5fd8e71632539930b04f.jpg"" title=""33 ok 12 0400 참조옥외저장탱크에설치하는방유제의높이는 0.5m 이상 307 이하이고 , 두께는 0.307
+이상 , 지하매설깊이는 0.1m 이상이어야한다 .
+ㅇ 1×""/><div>면적</div><div>탱크 수</div>"	"<img src=""paste-3efb8a28d0df40b32c35cc72c0ba71ec1275775a.jpg"" title/><img src=""paste-c2fdf318495a025aec76640944b5908f49006cd1.jpg"" title/><div><img src=""paste-029aba78766f000eb31200e4a44a097fd220a592.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-be920d3b5a2e7b637632c292c66c9ded96398236.jpg"" title=""34 &gt; 가본서 1 권 0401 침조용량이 100 만 Ｌ 이상인옥외저장탱크의주위에설치하는방유제에는당해탱크마다간막이둑을설치하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-afec1c355e761964747a40d72b29b336e91c1b19.jpg"" title/><img src=""paste-c2fdf318495a025aec76640944b5908f49006cd1.jpg"" title/><div><img src=""paste-144fb4800fa8de0e75e58350c43b94a473f85032.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-504608df024226cbbf598b7cc679a15eb16938c2.jpg"" title=""35 O 12t 400 5
+높이가 0.5mE 넘는방유제및간막이둑의 Qo= 방유제내에출입하기위한계단또는경사로를약 10077 마다설치하여야한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-387bbb3d5e6c254e710e6c50cf6e3ca923feb84f.jpg"" title/><img src=""paste-c2fdf318495a025aec76640944b5908f49006cd1.jpg"" title/><div><img src=""paste-9bdf2ce1da3c91ec0581546de90bb7a9129fa29d.png"" title/><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span><div><img src=""paste-144fb4800fa8de0e75e58350c43b94a473f85032.png"" title/><br/></div><div><br/></div></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-6e503087e8713009529ec254d5f0963227850d27.jpg"" title=""36 O 18 0404 참조지하저장탱크의윗부분은지면으로부터 0.30 이상아래에있어야한다 ,
+ㅇ 1×""/>"	"<img src=""paste-72f4da82ffe19ac42193bebbe6e5cebfae046aa9.jpg"" title/><img src=""paste-f8aba8529a30642435ecfac447ac3f0829969487.jpg"" title/><div><img src=""image-d9ba1aeba07c13f38e944f993db56f72dad0d7ea.jpg"" title/><img src=""image-c74ec0213141543dcc835f2a9b5dac149a2af114.jpg"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-72ebc731beaf1dce025d06ef0e64b22c594ce9af.jpg"" title=""37 &lt; 가본서 18 0404 장조지하저장탱크를 2 이상인접해설치하는경우에는그상호간에 107( 당해 2 이상의지하저장탱크의용량의합계가지정수량의 500 배이하인때에는 0.5m) 이상의간격을유지하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-9e4660799366f1269df232ac490f87ec2d206919.jpg"" title/><img src=""paste-f8aba8529a30642435ecfac447ac3f0829969487.jpg"" title/><div><br class=""Apple-interchange-newline""/><img src=""image-d9ba1aeba07c13f38e944f993db56f72dad0d7ea.jpg"" title/><img src=""image-c74ec0213141543dcc835f2a9b5dac149a2af114.jpg"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-9b7eba188943b5c1de33528f6e8d0da5433a5504.jpg"" title=""38 Ot 1t ok w5
+지하저장탱크에는탱크용량을초과하는위험물이주입될때자동으로그주입구를폐쇄하거나위험물의공급을자동으로차단하는방법 , 탱크용량의 50% 가찰때경보음을울리는방법으로과충전을방지하는장치를설치하여야한다 .
+ol X""/>"	"<img src=""paste-5ea31b8b261cdcb0d2cf3e8134f02d3f7daacafa.jpg"" title/><img src=""paste-f8aba8529a30642435ecfac447ac3f0829969487.jpg"" title/><div><img src=""image-c74ec0213141543dcc835f2a9b5dac149a2af114.jpg"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-94b813bf99f2c05134b01ed1a40e49b41ab375c1.jpg"" title=""39 &lt;&gt; 기보서 1 권 0405 침조지하저장탱크에는설치하는액체위험물의누설을검사하기위한관의재료는금속관또는경질합성수지관으로하여야한다 .
+ㅇ 1×""/><div>옥외탱 방유제</div><div>옥외탱 간막이둑</div>"	"<img src=""paste-e72fdc7b0a4fe74e2871abc39ce43369f22151e7.jpg"" title/><img src=""paste-f8aba8529a30642435ecfac447ac3f0829969487.jpg"" title/><div><img src=""paste-683603f7ab37aae93f34b58aed35ddb2685dd390.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-cc2e5717b91a21500ac020282520eb8506adf397.jpg"" title=""40 &amp;7k 18 paos 5
+간이저장탱크는 T 32mm 이상의강판으로흠이없도록제작하여야하며 , 70kPa
+의압력으로 10 분간의수압시험을실시하여새거나변형되지아니하여야한다 .
+ㅇ 1×""/><div>간이탱크 용량</div>"	"<img src=""paste-512d0685e9b4dc474b4c373718e69c48c1a4cf6f.jpg"" title/><img src=""paste-3e8331f5c66ccb5884ddb6ada91b1cc95424d92f.jpg"" title/><div><img src=""paste-0efef7479add284d66f96c3b30763bc7eca7cd7b.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-2a258d1084b7c9d19d49bbf8b9669e94eba387e3.jpg"" title=""41 &amp;M 1 권 0406 B2
+하나의간이탱크저장소에설치하는간이저장탱크은 5 이하이어야하고 , 동일한품질의위험물의간이저장탱크를 3 이상설치하지아니하여야한다 .
+O 5%""/>"	"<img src=""paste-8bf7034b89b85dcf957499067a2843519b427d17.jpg"" title/><img src=""paste-3e8331f5c66ccb5884ddb6ada91b1cc95424d92f.jpg"" title/><div><img src=""paste-0efef7479add284d66f96c3b30763bc7eca7cd7b.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-1044eff3f1418d60eaadf64a7bcb182bf604aa15.jpg"" title=""42 &amp; 71 버 12 0407 잠소간이저장탱크에설치하는밸브없는통기관은지름을 300707 이상으로하고 , 옥외에설치하되그끝부분의높이는지상 2m 이상으로하여야한다 .
+O X""/>"	"<img src=""paste-e296351b1f126c7d1058bd954e344a7208f05378.jpg"" title/><img src=""paste-3e8331f5c66ccb5884ddb6ada91b1cc95424d92f.jpg"" title/><div><img src=""paste-973a8a6a78c6e3fbba9b1f6fcb58d3cd64e6c3bc.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-2eed145a8e935d89a6d850150b1abc3d49caee56.jpg"" title=""43 5 가본서 1 0407 참조간이저장탱크에설치하는대기밸브부착통기관은 SkPa 이하의압력차이로작동할수있을것
+ㅇ 1×""/>"	"<img src=""paste-1d0711301c68f5b938b41243b7ddf7cfa33a56c8.jpg"" title/><img src=""paste-3e8331f5c66ccb5884ddb6ada91b1cc95424d92f.jpg"" title/><div><img src=""paste-973a8a6a78c6e3fbba9b1f6fcb58d3cd64e6c3bc.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-99722c37e691ffc94ee366949af5b5e14a827a5a.jpg"" title=""44 스기브서 12 0408 참조이동탱크저장소의옥외에있는상치장소는화기를취급하는장소또는인근의건축물로부터 307 이상 ( 인근의건축물이 1 증인경우에는 507 이상 ) 의거리를확보하여야한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-6f9979ebca042e6dc97fe896c45e4ae9dbb82eef.jpg"" title/><img src=""paste-ccc7e9f46be2a3b4c77ac24e14aede3a7ed07f16.jpg"" title/><div><img src=""paste-4c9e5f4459c23856307cd77b758d531938cb6e1b.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-cf1c6a44c28ac9a999a52dccd1977b2f9e1111cf.jpg"" title=""45 &lt;&gt; 가브서 1 권 0409 첨조이동저장탱크는그내부에 2,000L 이하마다 1.6mm 이상의강철판또는이와동등이상의강도 ㆍ 내열성및내식성이있는금속성의것으로칸막이를설치하여야한다 .
+O X""/>"	"<img src=""paste-65819d8856b93cb881f783c92b363900c58d5e80.jpg"" title/><img src=""paste-ccc7e9f46be2a3b4c77ac24e14aede3a7ed07f16.jpg"" title/><div><img src=""paste-8cb5d5e696fe73272a9930b43b4c321028d0f6e3.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-053a082474f4407948340d6309ecaaaf78eea167.jpg"" title=""46 7k 1 0409 참조제 4 류인화성액체만을저장하는이동탱크저장소의최대용량이 12,000 리터인이동저장탱크에설치되어야하는맨홀의최소개수는 3 개이다 . ( 단 , 컨테이너식이동탱크저장소 , 주유탱크차는제외한다 .)
+으 | ※""/>"	"<img src=""paste-baf8adb94013cbafd2c21ba84844224ae04e3d46.jpg"" title/><img src=""paste-ccc7e9f46be2a3b4c77ac24e14aede3a7ed07f16.jpg"" title/><div><img src=""paste-8cb5d5e696fe73272a9930b43b4c321028d0f6e3.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-545d932ab3e902bca40fbe48eb4409ca20c0f489.jpg"" title=""47 5 기보서 1 관 011 85
+이동저장탱크의방호틀정상부분은부속장치보다 300070 이상높게하거나이와동등이상의성능이있는것으로할것 .
+O X""/><div>방호틀 두께</div><div>주입설비 길이</div><div>분당 배출량</div>"	"<img src=""paste-3747056ec94693b0771d5205f0ac95ebe3062c4a.jpg"" title/><img src=""paste-ccc7e9f46be2a3b4c77ac24e14aede3a7ed07f16.jpg"" title/><div><img src=""paste-46e9a55f6c004aff3e8d6e3e755a87b1baeb213f.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-b9ecbd91a7e11fc3a008e25077a3c8adaeb55f90.jpg"" title=""48 기본서 12 pan gz
+제 4 류위험물중특수인화물 , 제 1 석유류또는알코올류의이동탱크저장소에는접지도선을설치하여야한다 .
+olX""/>"	"<img src=""paste-612be5c8b9a7c0d8cfcbd534137ab019d5db3069.jpg"" title/><img src=""paste-a3243a68b9fb11025d3fd05545e7ddc1830f3cb9.jpg"" title/><div><img src=""paste-46e9a55f6c004aff3e8d6e3e755a87b1baeb213f.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-331e281da29754b38c6e8444d3ddc9847f2f5940.jpg"" title=""49 M 18 par2 참조주유취급소의고정주유설비의주위에는주유를받으려는자동차등이출입할수있도록너비 6m 이상 , 길이 1507 이상의콘크리트등으로포장한공지를보유하여야한다 .
+ㅇ 1%×""/>"	"<img src=""paste-fc2495c89f065b7e99c707eae27901147be09136.jpg"" title/><img src=""paste-a3243a68b9fb11025d3fd05545e7ddc1830f3cb9.jpg"" title/><div><img src=""paste-8a938ffabd7b22b80f14ccc1dba156109ce9742f.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-30d5b1e122a059acd0845983cb115f1333528277.jpg"" title='50 스기본서 1 권 pa13 참조주유취급소에는흑색바탕에황색문자로 "" 주유중엔진정지 ""” 라는표시를한게시판을설치해야한다 .
+0 ㅇ 1×'/>"	"<img src=""paste-8c121e93cff686d4cc65a1e375d447d6e532176d.jpg"" title/><img src=""paste-a3243a68b9fb11025d3fd05545e7ddc1830f3cb9.jpg"" title/><div><img src=""paste-e2ec3f5cd8ee64c69127d02d2f44d02035c0d272.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-00018741cba60ae38900b7a71b5a46ba4cb35a11.jpg"" title=""51 5 기보서 1 관서3 청조주유취급소에설치하는탱크중자동차등을점검 ㆍ 정비하는작업장등에서사용하는폐유 ㆍ 윤활유등의위험물을저장하는탱크의 T2 10,000L 이하이어야한다 .
+O X""/><div>고정주유설비</div><div>고정급유설비</div><div>보일러 등</div><div>폐유 윤활유</div>"	"<img src=""paste-7dfae17d49287b5b189ff022b908cbee09c8982d.jpg"" title/><img src=""paste-a3243a68b9fb11025d3fd05545e7ddc1830f3cb9.jpg"" title/><div><img src=""paste-e2ec3f5cd8ee64c69127d02d2f44d02035c0d272.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-f19da66357fcb2d70d71d9071db10fe74dc6f55a.jpg"" title=""52 A 18 pae 85
+주유취급소의고정주유설비에설치하는주유관의길이는 5007 이내로하고 , 그끝부분에는축적된정전기를유효하게제거할수있는장치를설치하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-71418278a7a6c1db015755601243bb171f1088bb.jpg"" title/><img src=""paste-060ec53da1f98d9333e853c77ecaf90e8db684e8.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-3108241f42aeb1dbb53871eb3df3594e01c83901.jpg"" title=""53 &amp;I 12 시우 85
+고정주유설비는고정주유설비의중심선을기점으로하여도로경계선까지 10 이상의거리를유지할것
+ㅇ 1×""/>"	"<img src=""paste-4ba6b6e045ac64488ac1f8d5d4965279952df587.jpg"" title/><img src=""paste-060ec53da1f98d9333e853c77ecaf90e8db684e8.jpg"" title/><div><img src=""paste-d3d3fa2f7d77217b1917947283e31e6569b88f73.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-2499db833b74f6273a29e6cc54966bc3c43c3674.jpg"" title=""54 71 12 0415 첨조고정주유설비는고정주유설비의중심선을기점으로하여도로경계선까지 40 이상 ,
+부지경계선 ㆍ 담및건축물의벽까지 207( 개구부가없는벽까지는 1m) 이상의거리를유지해야한다 .
+ㅇ 1×""/><div>고정급유설비</div>"	"<img src=""paste-6dd385078f0daa77b917a784967b18e37715d54d.jpg"" title/><img src=""paste-060ec53da1f98d9333e853c77ecaf90e8db684e8.jpg"" title/><div><img src=""paste-d3d3fa2f7d77217b1917947283e31e6569b88f73.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-2dc11b9729beb4d57e678e3309d8e3db5e41f66f.jpg"" title='55 Ot 1 서관조주유취급소의업무를행하기위한사무소 , 자동차등의점검및간이정비를위한작업장 , 주유취급소에출입하는사람을대상으로한점포 ㆍ 휴게음식점또는전시장의바닥면적합계는 50010"" 를초과할수없다 .
+o X'/>"	"<img src=""paste-89bf8327d0df9c3bd1d5f013150fae6e14aecd9f.jpg"" title/><img src=""paste-060ec53da1f98d9333e853c77ecaf90e8db684e8.jpg"" title/><div><img src=""paste-a41d0a3b44766fa1488c0f142d623829f83b8555.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-01bf8014a9df4184d921c1c663268a66e1693a9e.jpg"" title=""56 G71EA 18 pat6 B2
+주유원간이대기실은바퀴가부착된이동식이어야하고 , 바닥면적이 Sm? 이하일것
+Ol X""/>"	"<img src=""paste-cf6b1b54296b6dd65301b102607e7f4326adf07d.jpg"" title/><img src=""paste-50de07f6b5479e03e75345c8a24c1efe5f25f7e8.jpg"" title/><div><img src=""paste-a41d0a3b44766fa1488c0f142d623829f83b8555.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-8896b778d08863f535c37e782d7178ae9cca8f9f.jpg"" title=""57 O 18 pate 첨조주유취급소의주위에는자동차등이출입하는쪽외의부분에높이 2m 이상의내화구조또는불연재료의담또는벽을설치하여야한다 .
+O X""/>"	"<img src=""paste-21c8d8be03318acf3ce34300b621288c97ae5eaf.jpg"" title/><img src=""paste-50de07f6b5479e03e75345c8a24c1efe5f25f7e8.jpg"" title/><div><img src=""paste-cc03eea514803ccbd5b15b5be20adac68cdeacfe.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-62e53cdb62054d75ad76e91c52f5c9a86a8c1f70.jpg"" title=""58 &amp;7 12 008 참조유리를부착하는범위는전체의담또는벽의길이의 2/10 를초과하지아니할것
+Ol X""/>"	"<img src=""paste-184a66583bcb4dee232ac4e51bed5e8a9e04dbee.jpg"" title/><img src=""paste-50de07f6b5479e03e75345c8a24c1efe5f25f7e8.jpg"" title/><div><img src=""paste-cc03eea514803ccbd5b15b5be20adac68cdeacfe.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-bf147e6face2da90bda5cedcdaec94322d432233.jpg"" title=""59 &lt;&gt; 기브서 18 0420 참조셀프용고정주유설비는자동차등의연료탱크가가득찬경우수동적으로정지시키는구조이어야한다 .
+O X""/>"	"<img src=""paste-0a68ffc220be4787f90add83854bb6bfcd41ca86.jpg"" title/><img src=""paste-50de07f6b5479e03e75345c8a24c1efe5f25f7e8.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-99adefaa38bc5d935d7c3c5d5ed695289cbbbae1.jpg"" title=""60 5 기보서 10420 참조셀프용고정주유설비의주유호스는 20066 중이하의하중에의하여깨져분리되거나이탈되어야하고깨져분리되거나이탈된부분으로부터의위험물누출을방지할수있는구조이어야한다 .
+ㅇ 1×""/>"	"<img src=""paste-f6f85ddac348569c178fe85a33b5fe152431412d.jpg"" title/><img src=""paste-42acc09225f3af87d2895be8ec2db699d861ecf8.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-e349fe7d8d30153dafb7171c70e82ce82f1fdc3d.jpg"" title=""61 Ot 12 pan s
+셀프용고정급유설비의기준에따라급유량의상한은 2001 이하이고 , 급유준의상한은급유시간
+by 급유 | 하이고 , 급유시간의
+ㅇ 1×""/><div>휘발유</div><div>경유</div>"	"<img src=""paste-1c484762a8ecee26959f80bebb2c1129562a3405.jpg"" title/><img src=""paste-42acc09225f3af87d2895be8ec2db699d861ecf8.jpg"" title/><div><img src=""paste-33623f5c0e33393d5b34104a973badea2608f3f7.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-5b7428eeee676d0e9748e1c2f33911fa38a0f5ce.jpg"" title=""62 6 기브서 12 0423 잠조제 1 종판매취급소는저장또는취급하는위험물의수량이지정수량의 20 배이하인판매취급소인것을말하고 , 제 2 종판매취급소는저장또는취급하는위험물의수량이지정수량의 40 배이하인판매취급소를말한다 .
+Ol X""/>"	"<img src=""paste-81ad95e764b2a4b08250608c971db37fe3520779.jpg"" title/><img src=""paste-42acc09225f3af87d2895be8ec2db699d861ecf8.jpg"" title/><div><img src=""paste-b312f5128dcacf22ae820cab6c7187ead3a86d84.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-9f5ff5eeb6ec66797c6efc8c70a39aeb76d2301b.jpg"" title=""63 &amp;I 18 pazs 참조판매취급소에설치하는위험물을배합하는실의바닥면적은 6m? 이상 1807” 이하로하여야하며 , 출입구문턱의높이는바닥면으로부터 0.20 이상으로하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-75e62d34f02b451476d036e17fc1ff2bbea44778.jpg"" title/><img src=""paste-42acc09225f3af87d2895be8ec2db699d861ecf8.jpg"" title/><div><img src=""paste-b312f5128dcacf22ae820cab6c7187ead3a86d84.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-2300ab7e05d1bc523e9cc97e14808394adb45c50.jpg"" title=""64 스기본서 1 권 0424 침조제 2 종판매취급소의기준에따라상층이있는경우에있어서는상증의바닥을내화구조또는불연재료로하는동시에상층으로의연소를방지하기위한조치를강구하고 , 상층이없는경우에는지붕을내화구조또는불연재료로할것
+0 ㅇ 1×""/>"	"<img src=""paste-4625bdaa33bbc4772409076bfe166de28eebd2e5.jpg"" title/><img src=""paste-32f169c06a93bd35c651c2d455cfd20158f40d51.jpg"" title/><div><img src=""paste-82a708d4e98f17704274343d362235b202101795.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-f41493920e89741b79fed6b31f84dabb583b147b.jpg"" title=""65 &amp;2 18 pazy 첨조이송취급소의배관에설치하는긴급차단밸브는시가지에설치하는경우에는약
+510 의간격으로설치하고 , 산림지역에설치하는경우에는약 10kme| 간격으로설치하여야한다 .
+Ol X""/>"	"<img src=""paste-0bedeed0d3e367e114369f167cbd24ac29eb5071.jpg"" title/><img src=""paste-32f169c06a93bd35c651c2d455cfd20158f40d51.jpg"" title/><div><img src=""paste-0ed6ef5888ab480f5d930acbe26310d8ef38be0b.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-271539ab16947f145f0b42327c7b268615c63f04.jpg"" title=""66
+스기본서 1 권 0427 참조송취급소에설치하여야하는경보설비의기준에따라이송기지에는비상벨장치및확성장치를설치하여야하며 , 가연성증기를발생하는위험물을취급하는펌프실등에는가연성증기경보설비를설치하여야한다 .
+Ol X""/>"	"<img src=""paste-38c0534859c78ae3b40f84f004b5242ea5202dc9.jpg"" title/><img src=""paste-32f169c06a93bd35c651c2d455cfd20158f40d51.jpg"" title/><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">① 이송기지</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">""비상벨장치 &amp; 확성장치""</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">(넓은 곳은 소리로!)</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">━━━━━━━━━━━━━━</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">② 펌프실 등</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">""가연성증기 경보설비""</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">(가스 새는 곳은 탐지기로!)</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span><div><img src=""paste-0ed6ef5888ab480f5d930acbe26310d8ef38be0b.png"" title/><br/></div></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-891ded0cdade0c6761a6c5b18e516b1cbfdeeb18.jpg"" title=""67 7R 1 1752 첨조연면적 500 제곱미터인일반취급소는소화난이도등급 | 에해당한다 .
+Ol X""/><div>일반취급소 소화난이도 2</div>"	"<img src=""paste-b0b0ceb22f0d57c8bfae2e1aa74697e782a08fa0.jpg"" title/><img src=""paste-32f169c06a93bd35c651c2d455cfd20158f40d51.jpg"" title/><div><img src=""paste-d90af1be3befeb9dc1e483656704267c6ba0f890.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-a84793657cba61589bb5982331e90c5006a1ec28.jpg"" title=""68 기보서 1 권 8517~521 첨조고체위험물만을저장하는것으로서지정수량의 100 배이상인암반탱크저장소는소화난이도등급 | 에해당한다 .
+ㅇ 1×""/><div><img src=""image-f36ab2f10876318ff2fe2e2c94ef8c7172dfb2df.png"" title=""옥외탱크저장소옥내탱크저장소암반탱크저장소""/><br/></div><div>제조소 일반취급소</div>"	"<img src=""paste-49897039096fdf1be07c80d3e27389315a81a50f.jpg"" title/><img src=""paste-dae988edaaf5af69db507dcd62f1514b8587d90c.jpg"" title/><div><img src=""paste-347fd856c9824ef1b0725df279e12dbfb8577196.png"" title/><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span><div><img src=""paste-7ff012a570015940c7f98b6007c8be70cf5b007f.png"" title/><br/></div></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-6f3af8cd0fea6b17a67e19e0fcb90646f4508248.jpg"" title=""69 A 1 0.517~521 잠조액표면적이 15m” 이상인옥외탱크저장소 ( 제 6 류위험물을저장하는것및고인화점위험물만을 100 미만의온도에서저장하는것은제외 ) 는소화난이도등급 | of 해당한다 .
+0 ㅇ 1×""/><div>높이 5m</div><div>지상탱크 또는 해저탱크 지정수량 50배 이상</div><div>액체위험물 80배 이상 </div><div>소화난이도 1등급이다 ?</div>"	"<img src=""paste-5dfcdf832ccdea95236e333075959510dcb8df97.jpg"" title/><img src=""paste-dae988edaaf5af69db507dcd62f1514b8587d90c.jpg"" title/><div><img src=""paste-afe0f775ed72d1f6a6954aea5a689984b359a0bc.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-19ee147c377227dbecc6b9daf676b3eb343cc7e1.jpg"" title=""70 &gt; 21 브서 1 권 0.517-521 첨조무상의물소화약제 8L 이상인것 , 할로겐화합물 3.2 킬로그램이상인것은소화난이도등급 | 의이동탱크저장소에두는자동차용소화기에해당한다 .
+ㅇ 1×""/><div>소화분말 2.3 킬로 이상?</div><div>-</div><div>마른모래 100리터 이상?</div><div>팽창질석 팽창진주암 500리터 이상?</div>"	"<img src=""paste-f4d426e88e0728a0bd3a41e8a5675fcecc58418d.jpg"" title/><img src=""paste-dae988edaaf5af69db507dcd62f1514b8587d90c.jpg"" title/><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">&lt; 핵심 리듬 &gt;</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">무팔 이삼이 소삼삼</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">브이 다일</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">마일오 질육사</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">────────────────</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">1. 자동차용 소화기</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">(반드시 2개 이상!)</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">무상의 강화액 8L</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">(무.팔 : 무한도전)</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">이산화탄소 3.2kg</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">(이.삼.이 : 2인데 3이 먼저)</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">소화분말 3.3kg</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">(소.삼.삼 : 속이 삼삼하다)</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">할론 (브로모...) 2L</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">(브.이 : 브로는 둘이다)</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">할론 (다이브로...) 1L</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">(다.일 : 다이는 1번뿐)</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">────────────────</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">2. 기타 설비</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">마른모래 150L</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">(마.일.오 : 마른 일오야)</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">팽창질석/진주암 640L</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">(질.육.사 : 질기게 육사)</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">────────────────</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">※ 단위 헷갈리지 말기!</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">물·할론 = L (리터)</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">가루·가스 = kg (킬로그램)</span></div><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);""><br/></span><div><img src=""paste-6fba8430fbd7d563ccb86d90b7c9f69982b4c1c3.png"" title/><br/></div></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-8dcbca485b2d790cf837cca1e6f731f44239cfdf.jpg"" title=""71 &amp; 12 ps17 521 R
+제 1 종판매취급소는소화난이도등급에해당하고 , 제 2 종판매취급소는소화난이도등급 ㅣ 에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-134c6a524f3a6054f769819245e3dfaf47173ece.jpg"" title/><img src=""paste-dae988edaaf5af69db507dcd62f1514b8587d90c.jpg"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-46f274f4e62f58d446f9b5cbdfb19e1410bc716a.jpg"" title='72 o 1 pazo 참조제조소또는취급소의건죽물중일반구조인경우에는 1 소요단위의 KK 75m?
+이고 , 내화구조인경우에는 15007"" 이다 .
+O | X'/><div>저장소</div><div>위험물</div>"	"<img src=""paste-a6071417a947e02a69c3a661f5e6a74abde27b90.jpg"" title/><img src=""paste-f2ed76f6e5d13d14082d7a81178348cfe96a0e6d.jpg"" title/><div><img src=""paste-65ddd35eeef953a7c595acbc1158730f3e7ec4bc.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-fd7b77a25d8e2dffed80d5e1d1966d6e07f92406.jpg"" title=""73 &gt; 가브서 1 권 0429 점조위험물은지정수량을 1 소요단위로할것
+O X""/>"	"<img src=""paste-664e4fbf408f70c83e99011800ae7b4938bdc2fd.jpg"" title/><img src=""paste-f2ed76f6e5d13d14082d7a81178348cfe96a0e6d.jpg"" title/><div><img src=""paste-65ddd35eeef953a7c595acbc1158730f3e7ec4bc.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<div>위험물</div><img src=""paste-ca9eec7b4d68ff8f87032dc3a21c939839b72a08.jpg"" title=""74 &lt;5 기본서 128 0429 참조옥내소화전설비의 W42 130L/min 이상이고 , 방사압력은 0.35MPa 이상이다 .
+Ol X""/><div>옥외</div>"	"<img src=""paste-68ed941635efe1c4910e35770f2a105a6779e30f.jpg"" title/><img src=""paste-f2ed76f6e5d13d14082d7a81178348cfe96a0e6d.jpg"" title/><div><img src=""paste-65ddd35eeef953a7c595acbc1158730f3e7ec4bc.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-e1705c99d45a44a85ccdd1a10c68f263fe4f21f5.jpg"" title=""75 &gt; 기보서 1 권 0430 참조옥내소화전은제조소등의건축물의증마다당해층의각부분에서하나의호스접속구까지의수평거리가 400 이하가되도록설치할 A
+Ol X""/><div>옥외소화전</div>"	"<img src=""paste-bae6b66b597a5af4ab75b9a769dc6062928bcc4a.jpg"" title/><img src=""paste-f2ed76f6e5d13d14082d7a81178348cfe96a0e6d.jpg"" title/><div><span style=""-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"">내이오 외사공<br/></span><div><img src=""paste-9564122a14d0137659ee98f0d0ea57b6b505a6df.png"" title/><br/></div></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-fa36a0aa5755cd6db9b77f35bc34e622f4335687.jpg"" title=""76 &lt;5 기보서 1 관 430 정조제조소에설치하는대형수동식소화기는보행거리를 20m 이하로설치하고 , 소형수동식소화기는보행거리를 300 이하로설치하여야한다 .
+Ol X""/>"	"<img src=""paste-e4221fff38fcf30c0e8bdc7ff7b487661a0f2b2f.jpg"" title/><img src=""paste-ff4ca2ebebe21de38faf8d27bd9f0c89acd3abb8.jpg"" title/><div><img src=""paste-9564122a14d0137659ee98f0d0ea57b6b505a6df.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-b81040556807d0e44a3783419028005d1c0a0e53.jpg"" title=""띠녁
+&gt; 기본서 1 권 0.431 참조에는경보설비중자동화재탐지설비를설치하여야
+O I X""/><div>자탐 + 자속</div>"	"<img src=""paste-66a7d7888d71e82dce0e3cf6e8ff5c3bbf6039ca.jpg"" title/><img src=""paste-ff4ca2ebebe21de38faf8d27bd9f0c89acd3abb8.jpg"" title/><div><img src=""paste-6b7db9f44b7fae82e3ead26c73ea7df96b8ec5c5.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<div>자탐설비기준</div><img src=""paste-e0a775d3e3a76e32db09be8b59d8f95fc44b971d.jpg"" title=""78 버 120432 청조하나의경계구역의면적은 60007” 이하로하고그한변의길이는 5007( 광전식분리형감지기를설치할경우 10007 이하로할것 . 다만 , 당해건축물그밖의공작물의주요한출입구에서그내부의전체를볼수있는경우에있어서는그면적을
+1,000m? 이하로할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-9919e279db6e5f69f901bfe69403991f9276ba51.jpg"" title/><img src=""paste-ff4ca2ebebe21de38faf8d27bd9f0c89acd3abb8.jpg"" title/><div><img src=""paste-c8dd87acb79faa61e556fa7a996410aa244636dd.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-6ecc7fe83c9cd75899c6ac4f7d5ee41408b2e5cd.jpg"" title=""79 &lt; 가본서 1 권 0432 참조위험물안전관리자가해당사업소에 24 시간상주하는옥외탱크저장소에는자동화재탐지설비를설치하지않아도된다 .
+ㅇ 1×""/>"	"<img src=""paste-ef6f99870f6703b8f2a6dff6be38218b6ee2861b.jpg"" title/><img src=""paste-ff4ca2ebebe21de38faf8d27bd9f0c89acd3abb8.jpg"" title/><div><img src=""paste-c8dd87acb79faa61e556fa7a996410aa244636dd.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-f8cbc1dfbc571be2e62dd9811e72175117691121.jpg"" title=""80 스기본서 1 권 0434 참조제 3 류위험물은산화제와의접촉 ㆍ 혼합이나불티 ㆍ 불꽃고온체와의접근또는과열을피하는한편 , 철분 ㆍ 금속분 ㆍ 마그네슴및이를함유한것에있어서는함부로증기를발생시키지아니하여야한다 .
+O | X""/>"	"<img src=""paste-568fca1c41440a23c095467903dcc7e28aacac61.jpg"" title/><img src=""paste-5ce9d8d8b836b084e2a2cfd8a4e93b93ca1f3b2c.jpg"" title/><div><img src=""paste-648fa84fef11fdb1c3af45aa86e3c6aba4cc18e3.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-f9d5c03c893511dd677ae608f1c9d2e6cd23e6d4.jpg"" title=""81 &lt; 기본서 12 pa3s 85
+제 2 류위험물중인화성고체그밖에물속에저장하는물품과금수성물질은동일한저장소에서저장하지아니하여야한다 .
+Ol X""/>"	"<img src=""paste-18efe35270df5b941c5bb8d986b75405a687891c.jpg"" title/><img src=""paste-5ce9d8d8b836b084e2a2cfd8a4e93b93ca1f3b2c.jpg"" title/><div><img src=""paste-fd53006b0e90abb004b05a6d889509b1527f1240.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-27f282ea82dd6e4e4f41b2ac625ce8abc07d1489.jpg"" title=""82 5 기브서 1련 0436 참조옥내저장소에서는용기에수납하여저장하는위험물의온도가 30&lt; 를넘지아니하도록필요한조치를강구하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-a89b86eae671a0b3c1dcd9fb93ba36d83d2787a4.jpg"" title/><img src=""paste-5ce9d8d8b836b084e2a2cfd8a4e93b93ca1f3b2c.jpg"" title/><div><img src=""paste-79aae78125d9cd077927118532233bd25324e5fc.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-d80c2d6429183d3b1ec2ddf903c4a9546f5b4d01.jpg"" title=""83 O 18 0437 W
+옥외저장소에서위험물을수납한용기를선반에저장하는경우에는 10mE 초과하여저장하지아니하여야한다 .
+으 1""/><div>기계</div><div>4류 3,4동</div><div>그 밖</div>"	"<img src=""paste-cdb99754ef406354ec0de7c08bd97f7502b4427d.jpg"" title/><img src=""paste-5ce9d8d8b836b084e2a2cfd8a4e93b93ca1f3b2c.jpg"" title/><div><img src=""paste-be10abc788e6f8c66e0711a8354617f75ee3143c.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-3638dc5d7c5cc3a7c2f3dbb5955f84a134e67b0b.jpg"" title=""84 기보 18 pad0 R
+자연발화성물질중알킬알루미늄 52 운반용기의내용적의 95% 이하의수납율로수납하되 , 55C2 온도에서 10% 이상의공간용적을유지하도록하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-ce986b2e5ddc9d142858f41192f7160ea6baad26.jpg"" title/><img src=""paste-afcd0f69e1fd4776ffaa2de87bd1535d40b62049.jpg"" title/><div><img src=""paste-1b8d48c1de3e1f35a9ae54f151fb04ba5297f072.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-524ca72c5c095c9483b6784296c7b80d18b34270.jpg"" title=""85 스기보 1 권 0440 첨조액체위험물은운반용기내용적의 98% 이하의수납율로수납하되 , 55“ 의온도에서누설되지아니하도록충분한공간용적을유지하도록하여야한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-a47e324f53cc57fc8b646cd1fc85be9bac71b6ce.jpg"" title/><img src=""paste-afcd0f69e1fd4776ffaa2de87bd1535d40b62049.jpg"" title/><div><img src=""paste-1b8d48c1de3e1f35a9ae54f151fb04ba5297f072.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-5e6d03468f94de01f9ef7d26ae7216ce6a7c7b6c.jpg"" title=""86 &gt; 기브서 120493 점조제 5 류위험물을수납하는운반용기에관한주의사항은화기주의 , 충격주의및가연물접촉주의에해당한다 .
+O X""/>"	"<img src=""paste-32e63b77a0efa2ceda8125c66c8ad5c8bd7b287e.jpg"" title/><img src=""paste-afcd0f69e1fd4776ffaa2de87bd1535d40b62049.jpg"" title/><div><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX::챕터02(별표)	"<img src=""paste-0ac5881398cbb34a0bddd9f039167e2c083bd45c.jpg"" title=""87 기보 1 권 0444 잠조위험물의운반에관한중요기준을위반할경우 1 천 500 만원이하의벌금에해당하며 , 세부기준을위반할경우 500 만원이하의과태료에해당한다 .
+으 |""/>"	"<img src=""paste-ec87e12b99894abd12c80571a8ad27af97a875ba.jpg"" title/><img src=""paste-afcd0f69e1fd4776ffaa2de87bd1535d40b62049.jpg"" title/><div><img src=""paste-1ad99fc8fded53ca9e1f32679508f8aa953155de.png"" title/><br/></div>"
+소방관계법규OX::P03. 위험물안전관리법 OX	"옥내저장소 보유공지<div><img src=""image-72fd2444ab67ec792b1e9c0a70a81cb871719b40.png"" title=""지정수량의
+〉 지정수량지점수량프지정수량8
+지정수량
+6 지정수랑희제조소등의설치허가를받지아니하고제조소등을설치한자떼 6 조제 1 행 ]
+저장소또는제조소등이아닌장소에서저장또는취급한자 [ 제 5 조제 1 항 ]
+랗탱크시험자로등록하지아니하고탱크시험자의업무를한자
+[ 떼 16 조제 2 항 ]
+@ 정기점검을하지아니하거나점검기록을허위로작성한관계인으로서허가를받은자 [ 제 18 조제 1 항 ]
+@ 정기검사를받지아니한관계인으로서허기를받은자 [ 제 18 조제 3 행 ]
+@ 자체소방대를두지아니한관계인으로서규정에따른허가를받은자 [ 제 19 조 ]
+@ 운반용기에대한검사를받지아니하고운반응기를사용하거나유통시킨자 [ 제 20 조제 3 항단세 ]
+@ 보고또는자료제출을하지아니하거나허위의보고또는자료제출을한자또는관계공무원의출입 ㆍ 검사또는수거를거부
+ㆍ 방해또는기피한 R [ 제 22 조제 1 항 ]
+제조소등에대한긴급 , 사용정지 ㆍ ː1뽀훌뺀 Xt 떼 25 조 ]""/><br/></div>"	"<img src=""paste-a03bde277abc430da5f9689a738e65ed299051de.png"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX	"<img src=""image-37189238c10620c1751606ae413d26303fc1181e.jpg"" title=""""/>"	"<img src=""paste-3562629bc6d9f91015a89dcdcd4f60a02a3dfa17.png"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX	"<img src=""image-598da81dd6e8f4bd1ea4aa54d08398c54192fe9b.jpg"" title=""© 지정수량이상의위험물을이내의기간동안임시로저장또는취급하는경우관할소방서장위승인을
+[ 제 5 조제 2 항제 1 호 ]
+@ 위험물의저장또는취급에관한세부기준을위반한자
+[ 제 5 조제 3 항제 2 호 ]
+, @ 품명등의 , 변경신고를기간이내에하지아니하거나허위로한자
+. _ [ 제 6 조제 2 항 ]
+@ 지위승계신고를기간이내에하지아니하거나허위로한자
+[ 제 10 조제 3 항 ]
+® 제조소등의폐지신고또는안전관리자의선임신고를기간이내에하지아니하거나허위로한자 [ 제 11 조 , 제 15 조제 3 함 ]
+® 제조소등의사용중지신고또는재개신고를기간이내에하지아니하거나거짓으로한자 [ 제 11 조의 2 제 2 항 ]
+탱크시험자의등록사항의변경신고를기간이내에하지아니하거나허위로한자 [ 제 16 조제 3 항 ]
+예방규정을준수하지아니한자 [ 제 17 조제 3 항 ]
+점검결과를기록 ㆍ 보존하지아니한자 [ 제 18 조제 1 항 ]
+기간이내에점검결과를제출하지아니한자 [ 제 18 조제 2 항 ]
+제조소등의지정된장소가아닌장소에서흡연을한자
+[ 제 19 조의 2 제 1 항 ]
+제조소등의관계인이금연구역임을알리는표지를설치하지아니하거나보완이필요하여내린 . 시정명령을따르지아니한자
+[ 제 19 조의 2 제 3 항 ]
+@ 위험물의운반에관한세부기준을위반한자 [ 제 20 조제 1 항제 2 호 ]
+@ 위험물의운송에관한기준을따르지아니한자 [ 제 21 조제 3 항 ]
+제 4 조 ( 지정수량미만인위험물의저장 ㆍ 취급 ) 및제 5 조제 2 항각호
+&lt; 지정수량 ， 이상인위험물의임시저장 ) 외의부분후단의규정에따른
+. 조례에는 200 만원이하의과태료를정할수있다 . 이경우과태료는
+/ 부과권자가부과 ㆍ 징수한다 .
+® ©6eee o""/>"	"<img src=""paste-07dcd47b90e9625793ecbde77e716854bbceb0b8.png"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX	"<img src=""image-79ca29bdc7dc813110ede9b08ddc642f85d0ef7a.jpg"" title=""불을사용할때지켜야하는사항제조소옥외탱크저장소노 ㆍ 화덕설비옥외설비의바닥 ( 액체위험물 )
+펌프실외펌프실펌프실위험물을배합하는실턱의높이""/>"	"<img src=""paste-ca5dbf891a86629670bb0cc5568aebcb9c86337c.png"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX	옥내저장소에서 자연발화 위험성있는 위험물을 저장할 때에는 지정수량의 20배 이하마다 구분하여 상호간 0.2m 이상의 간격을 두어 저장하여야한다.	"<img src=""paste-79aae78125d9cd077927118532233bd25324e5fc.png"" title/>"
+소방관계법규OX::P03. 위험물안전관리법 OX	"옥내저장소 옥외저장소 예외규정<div>1m 이상 거리를 두면 같이 저장해도 됨</div><div><img src=""image-13f3f953047f02da062e7f8453670a7da5067ddb.jpg"" title=""""/><br/></div>"	"<img src=""paste-fd53006b0e90abb004b05a6d889509b1527f1240.png"" title/>"

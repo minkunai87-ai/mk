@@ -1,0 +1,376 @@
+#separator:tab
+#html:true
+#deck column:1
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-eb70fef0602414d6f17099ff5fdb8f1c09cd3a7f.jpg"" title=""o1 &lt; 가보서 1 권 016 잠조소방기본법제 1 조에따른궁극의목적은공공의안전 , 질서유지 , 국민경제에이바지이다 .
+ㅇ 1×""/>"	"<img src=""paste-a0fad89039e95a3c8afe8cff257ef4a39202bf21.jpg"" title/>x"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-3d42e4d9d999851a84ddf90222257b640a4b3aa6.jpg"" title='02 G 13 016 참조
+"" 특정소방대상물 ” 이란건축물 , 차량 , 선박 ("" 선박법 」 제 1 조의 2 제 1 항에따른선박으로서항구에매어둔선박만해당한다 ), 선박건조구조물 , 산림 , 그밖의인공구조물또는물건을말한다 .
+ㅇ 1×'/>"	"<img src=""paste-463b2a2e9418361eed5a1af9f6b209b1b1724950.jpg"" title/>x<div><img src=""paste-be42df4072650e78c1f5e19409381e07e42f1d56.png"" title/><br/></div><div><img src=""paste-7b9e5112189024840abea344835afee18646482f.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-59809699e0e31d8462f403963658f5041df2e0da.jpg"" title=')3 O 1 p17 관조
+“ 관계지역 "" 이란특정소방대상물이있는장소로서화재의예방 ㆍ 경계 ㆍ 진압 , 구조 ㆍ
+구급등의활동에필요한지역을말한다 .
+ㅇ 1×'/>"	"<img src=""paste-90aaaf8b61c40f84d9191ead2b261e678262ccef.jpg"" title/>x"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-95c8f97ed88250e931e6485cdd89e6bcc84381e7.jpg"" title=""04 5 기본서 1 권규 17 참조
+“ 관계인 ” 이란소방대상물의소유자 , 관리자또는점유자를말한다 .
+ㅇ 1×""/>"	"<img src=""paste-ecdf62d4443eee49c1c3a94cbf320a36f9c78545.jpg"" title/>o"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-95e078182aaa38ac2ab4abf9c202bbfd342aa9a1.jpg"" title=""05 71 18 ps 창조
+“ 소방본부장 ” 이란시 ㆍ 도에서화재의예방 ㆍ 경계 ㆍ 진압 ㆍ 조사및구조 ㆍ 구급등의업무를담당하는기관의장을말한다 .
+ㅇ 1×""/>"	"<img src=""paste-06dac117add57e04d388f38301bc61960d977100.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-23f85a5117552052c395d7043355c9fc577d080d.jpg"" title=""06 스 7k 13 p18 4
+“ 소방대 ” 란화재를진압하고화재 , 재난 ㆍ 재해 , 그밖의위급한상황에서구조 ㆍ 구급활동 58 하기위하여소방공무원 , 자체소방대원 , 자위소방대원으로구성된조직체를말한다 .
+ㅇ 1×""/>"	"<img src=""paste-06d19034065f871552c293dd1aa8ac415368da19.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-401224bf572483817297df465e5ea9d6480e3205.jpg"" title=""07 ks 1 p1B 첨조
+“ 현장지휘관 ” 이란소방본부장또는소방서장등화재 , 재난 ㆍ 재해 , 그밖의위급한상황이발생한현장에서소빙지휘하는사람을말한다 .""/>"	"<img src=""paste-048c51b0923d68a06bcb4cd232404a4ab1a588b8.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-856072b7ab96be001dcd1455b8a1f9b053d8598c.jpg"" title=""08 스쁘시견 119 천뜨시 ㆍ 도의화재예방 ㆍ 경계 ㆍ 진압및조사 , 소방안전교육 ㆍ 홍보와화재 , 재난 ㆍ 재해 ,
+그밖의위급한상황에서의구조 ㆍ 구급등의업무 ( 소방업무 ) 를수행하는소방기관의설치에필요한사항은행정안전부령으로정한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-1b60ea04916d3d526ddc6cd1ac34eac153372d57.jpg"" title/>X<div><img src=""paste-77cad88118c326c4c5948f784c74f93e1f26c38f.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-60c7744a1daab3483d9e55f724f96afc108b0fc1.jpg"" title=""09 O 가 8 서 12 p19 창조소방업무를수행하는소방본부장또는소방서장은그소재지를관할하는시 ㆍ 도지사의지휘와감독을받는다 .
+0 ㅇ 1×""/>"	"<img src=""paste-817ec9c54a82aa93c75f5daee82faa739d9fcb62.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-56f92703a996266a451f908e81069618eacbb3e0.jpg"" title=""10 &amp;7 12 p20 참조소방청장 , 소방본부장및소방서장은화재 , 재난 ㆍ 재해 , 그밖에구조 ㆍ 구급이필요한상황이발생하였을때에신속한소방활동을위한정보의수집 ㆍ 분석과판단 ㆍ 전파 , 상황관리 , 대응계획실행및평가등의업무를수행하기위하여 119 종합상황실을설치 ㆍ 운영하여야한다 .
+01X""/>"	"<img src=""paste-50ea4e6d350195b18f3c82dd9745154664bebfd1.jpg"" title/>X<div>정보 수분단전 현상 조통<br/><div><img src=""paste-ce6544ef8fc88e9fb7de1c073cb6906466e7c9a5.png"" title/><br/></div></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-f03748a046bea402fc6d48edf04511768e59b75d.jpg"" title=""11 i 18 020 창조소방본부에설치하는 119 종합상황실에는 ' 지방자치단체에두는국가공무원의정원에관한법률 . 에도불구하고대통령령으로정하는바에따라경찰공무원을둘수있으며 , 119 종합상황실의설치 ㆍ 운영에필요한사항은대통령령으로정한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-dd672beff32d5c2c11861dde0bb587317fc6307b.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-7a83b44400eea3fac1ab9b33c638e78cba620972.jpg"" title=""12 O 18 021 참조소방청장 , 소방본부장또는소방서장은신속한소방활동을위한정보를수집 ㆍ 전파하기위하여종합상황실에 ' 소방력기준에관한규칙 」 에의한구조 ㆍ 구급요원을배치하고 , 소방청장이정하는구조 ㆍ 구급장비를갖출것
+0 ㅇ 1×""/>"	"<img src=""paste-bc3ad66238602c7c5b26c17a566b2d1c20cd0c2b.jpg"" title/>X<div><img src=""paste-9b7de67e54cea8d955f42cc50c2c15bcd15d10ec.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-fc49f84b587be83693fc7540cacbc60341e1b8f1.jpg"" title=""13 &amp; 2hen 121 1 관조종합상황실의실장은사망자가 5인이상발생하거나사상자가 10 인이상발생한화재 , 이재민이 100 인이상발생한화재 , 재산피해액이 50 억원이상발생한화재가발생하는때에는그사실을지체없이서면 ㆍ 팩스또는컴퓨터통신등으로소방서의종합상황실의경우는소방본부의종합상황실에 , 소방본부의종합상황실의경우는소방청의종합상황실에각각보고할것
+@ | ×""/><div>호텔</div><div>지정수량</div><div>층수 개/실 숙박 병원</div><div>화재예방강화지구</div><div>톤수</div><div>-상황</div>"	"<img src=""paste-05ab0cc5924cb1202aacbc5363b435e84f9f797d.jpg"" title/>O<div><img src=""paste-1c385709c93643e27b9376d03ec77e770e7896a7.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-37490f9e40ff51304ec017ba6a302008b7eddf82.jpg"" title=""14 O 18 02 82
+종합상황실의실장은상급소방기관에대한출동지령또는동급이상의소방기관및유관기관에대한지원요청의업무를행하고 , 그에관한내용을기록 ㆍ 관리하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-aaa7b4e71c08412280f73377f4e0bfadf86c5b53.jpg"" title="""">X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-46d651cf9c791c37ca85a412e786146fe5068a6d.jpg"" title=""15 O 기브서 12 p23 첨조소방청장및시 ㆍ 도지사는소방정보통신망의안정적운영을위하여소방정보통신망의회선을이중화할수있다 . 이경우이중화된회선은같은사업자로부터제공받아야한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-635c95c0b26297c997334aaae1fbd4bc9e4860c3.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-02b4eb529247872997959ee2f3eec9e902b43fbb.jpg"" title=""16 6 기보서 1련 p2e 5
+소방청장및시 ㆍ 도지사는소방정보통신망이안정적으로운영될수있도록월 1 회이상소방정보통신망을주기적으로점검 ㆍ 관리해야한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-7de1a839591502556e32e06fa96318b95b46819e.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-b6e884aaf388302f0db248f9559d5b5c8dfd1768.jpg"" title=""17 Ok 13 p2s 청조소방기술민원센터는소방기술민원과관련된현장확인및처리업무를수행한다 .
+0o X""/>"	"<img src=""paste-4d2a36e8f0d3c67b746483ea5eaa73263305be1d.jpg"" title/>O<div><img src=""paste-4272443a36be261d9650f7835b0d2bbb2c68de8f.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-e4a0e0bd6f0aa3a9cdc135d4cdf0ea841171689e.jpg"" title=""18 &lt; 기브서 1 p2s 참조소방기술민원센터의설치 - 2 등에필요한사항은행정안전부령으로정한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-19b455306f4dc4ed700e80d53645fc514c782480.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-a4e24fe7f6e091a414a1e4fbdcccfe023e5be1d1.jpg"" title=""19 &amp; 기보서 12 024 참조소방기술민원센터는센터장을포함하여 7 명이내로구성한다 .
+ㅇ 1×""/>"	"<img src=""paste-a914310bc14c45ccccf54e8a272b115ff8b54181.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-dfb7d67a0ef534a960ab1425080f541ce760bcf4.jpg"" title=""20 O7hen 12 p25 청조소방기술민원센터장은소방기술민원센터의업무수행을위하여필요하다고인정하는경우에는관계기관의장에게소속공무원또는직원의파견을요청할수있다 .
+oI X""/><div>민원센터 수행업무</div>"	"<img src=""paste-fa351da6a76daf5c7bfbe884196b90a75230d39e.jpg"" title/>X<div><img src=""paste-4272443a36be261d9650f7835b0d2bbb2c68de8f.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-ead94c2493209e73296d3c7984f6f8a09c1856d8.jpg"" title=""21 ok 18 p26 잠조소방의역사와안전문화를발전시키고국민의안전의식을높이기위하여소방청장은소방박물관을 , 시 ㆍ 도지사는소방체험관 ( 화재현장에서의피난등을체험할수있는체험관을말한다 ) 을설립하여운영할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-a39d8b4de3d1be01304d106679e6ebe5f864a6e2.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-e18ffc89e04399cb4f1d91be7b60296bca8360a4.jpg"" title=""22 O 18 p27 85
+소방박물관에는그운영에관한중요한사항을심의하기위하여 7 인이내의위원으로구성된운영위원회를둘것
+ㅇ 1×""/>"	"<img src=""paste-b6e6f3d633abba3161814e2c62838f273a2a485f.jpg"" title/>O<div><img src=""image-b15facc50a91ccb1fa438ae89fa3f0d74c84663d.jpg"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-08259b540c4c904f9069deb5b8dbdc5508e98d68.jpg"" title=""23 &gt; 기브서 1 권 028 정조소방체험관에모두갖추어야하는체험실의종류에는생활안전분야 , 교통안전분야 ,
+사회기반안전분야 , 보건안전분야가있다 .
+ㅇ 1×""/>"	"<img src=""paste-c22ede5c909dae600b8cd6b2910aaa41a2af0ff6.jpg"" title/>X<div>교(보자) 생(화시) 보(응) 자(기지)<br/><div><img src=""paste-388946c0e0745bd39262ee39ed42d2f15bc87e69.png"" title/><br/></div></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-5048009d5135a0424c6ec8003c0d930b8f8de469.jpg"" title=""24 5 가보서 12 0.29 장조소방활동이나생활안전활동을 5 년간수행한경력이있는소방공무원은소방체험관의교수요원이될수있다 .
+olx""/><div>
+<div>( )학위 이상</div>
+<div>( ), ( )자격 취득</div>
+<div>( )년 이상 근무 소공 중 ( )가 인정</div></div>"	"<img src=""paste-a3375f58c4877e8c6001166c8958513d6ea65864.jpg"" title/>x<div>( )학위 이상</div><div>( )자격 취득</div><div>( )년 이상 근무 소공 중 ( )가 인정<br/><div><img src=""paste-5dc9ecccdbf11c8316edac7b05e9a0cbbac9cb44.png"" title/><br/></div></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-5c5c2388e5646079752ab1c0699b1f0fccd3a618.jpg"" title=""25 18 유30 청조소방청장 , 소방본부장또는소방서장은소방체험관에서발생한사고로인한이용자등의생명 ㆍ 신체나재산상의손해를보상하기위한보험또는공제에가입하여야한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-e61a66f59d3f4441b532906b40c0acb98a3f5079.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-399c1d0f04e689677a0270de378876abfd7ae05c.jpg"" title=""26 o 18 p30 82
+소방체험관의 Y2 체험교육의운영결과 , 만족도조사결과등을기록하고이를 2년간보관하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-6305307648afeb86ebdbaaa3549a647fb200a27c.jpg"" title="""">X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-7e28a01340b4032a9772389afd9eca3748e084f5.jpg"" title=""27 S rapa s
+소방청장은소방업무에관한종합계획을관계중앙행정기관의장과의협의를거쳐계획시행전년도 12 월 31 일까지수립해야한다 .
+ㅇ 1×""/>"	"<img src=""paste-09694bdd0905a71f9f41be2a6d2f7950a86c5fe8.jpg"" title/>X<div><img src=""paste-99583cb4158969ebdfda5c6d901e4fc17e053300.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-f806539d52871d063399bcab92891bbea16b12f1.jpg"" title=""28 O 1 p31 장조소방업무에관한종합계획에는장애인 , 노인 , 임산부 , 영유아및어린이등이동이어려운사람을대상으로한소방활동에필요한조치에관한사항을포함하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-0af800617518e1d18b85727ae8caaae155ae6715.jpg"" title/>O<div>서비스 장인 연체 기교 + 어려운 재난<br/><div><img src=""paste-79e294a79149b0c69518fc97f432df9bef7a356d.png"" title/><br/></div></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-474b06758208a880b0a5c67126f693a53a1ecde1.jpg"" title=""29 O a1 p32 85
+시 ㆍ 도지사는관할지역의특성을고려하여종합계획의시행에필요한세부계획을매년수립하여행정안전부장관에게제출하여야하며 , 세부계획에따른소방업무를성실히수행하여야한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-0585a4a1dfcf77797eee855195cc35c3dff5b719.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-862bd89fda2ef4c3c58b4f0f3f43e27354fb2715.jpg"" title=""30 7브 1 0.32 정조세부계획추진실적등의평가계획에대한통지를받은시 ㆍ 도지사는전년도세부계획추진실적등을 1월 31 일까지소방청장에게제출해야하고 , 소방청장은평가결과를 3월 31 일까지시 ㆍ 도지사에게통보해야한다 .
+0 ㅇ 1×""/><div>소방청장-&gt;시도지사 다음년도 평가계획 통지</div>"	"<img src=""paste-f7442e1db4a9882d8c1c9d4c413f9485da989f33.jpg"" title="""">O<div><img src=""paste-f07d0c875da06bf1f282edb24dac879c7426a4df.png"" title=""""><br></div><div><img src=""paste-d9f32b8ee1690e5c2cb68331d8d2313c971929a8.png"" title=""""><br></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-69a74848d7265ff74ce1f07d2542f4d897717045.jpg"" title=""31 Oolen 18 034 참조국민의안전의식과화재에대한경각심을높이고안전문화를정착시키기위하여매년 1월 19 일을소방의날로정하여기념행사를한다 .
+o1lx""/>"	"<img src=""paste-bd7b1c9e1a99a5eeadf3dbc84f73e675c8461b2b.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-b70758ec4800c103dfdf8b5f623b592cca8eb19a.jpg"" title=""32 2 유3 창조소방의날행사에관하여필요한사항은소방청장과시 ㆍ 도지사가함께정하여시행하여야한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-f0ef8053b5c8baedf1ba2f48f276b0d7847417c8.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-049d70b0ed14397f4f9f2f9f22f5cec9129b53ee.jpg"" title=""33 &lt;5 브서 1 권 035 참조소방기관이소방업무를수행하는데에필요한인력과장비등 ( 소방력 ) 에관한기준은대통령령으로정한다 .
+ㅇ 1×""/>"	"<img src=""paste-c83cbe7cebc9ea07035be5e2eee6e72722e417eb.jpg"" title="""">X<div>력기 행정 표따</div><div><img src=""paste-30b1f019e6071bd3c861c731e66d30db4aa528cc.png"" title=""""><br></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-b7998489112c3e4f397378d8829b4af1fa69af5f.jpg"" title=""34 스가본 18 p3s 참조소방청장은소방력의기준에따라관할구역의소방력을확충하기위하여필요한계획을수립하여시행하여야한다 .
+01X""/>"	"<img src=""paste-9bffa9d752bb155f79f5b763857d8df63082c79c.jpg"" title/>X<div><img src=""paste-30b1f019e6071bd3c861c731e66d30db4aa528cc.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-1cf6c2da6e3241553833d8cab39a37600720663e.jpg"" title=""35 &gt; 기브서 12 0.35 참조국가는소방장비의구입등시 ㆍ 도의소방업무에필요한경비의전부를보조하며 ,
+보조대상사업의범위와기준보조율은행정안전부령으로정한다 .
+ㅇ 1×""/>"	"<img src=""paste-f5d4f0d0a3dc14b868b2a0b258d54529777838f5.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-89925ebf4f3d61a5076edb8ef866537dcb142b9d.jpg"" title=""36 BN 1 036 장조국고보조대상사업의범위에는 AUHRIEE] 및소방정 , 소방전용통신설비및전산설비 , 소방용수시설이포함된다 .
+O X""/>"	"<img src=""paste-04c36b4aa780caef188f924934447fd53b3f9945.jpg"" title/>X<div><img src=""paste-9c1a17a4cf8e99cbf5712deeec3678dad3b68d46.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-6dcfa28c57ba1d8465995c0019b08a884d8e705b.jpg"" title=""37 oM 1 036 참조국고보조대상사업의기준보조율은 「 보조금관리에관한법률시행령 .」 에서정하는바에따른다 .
+ㅇ 1×""/>"	"<img src=""paste-e2a67384867b98eb5e1a98808210ed1e9cac81ab.jpg"" title/>O<div><img src=""paste-489ea32cbcb836e6a4ad81aee865f9731026cc89.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-625d0153274671babbaf8a965fce8faae2ba8faf.jpg"" title=""38 5 기브서관 037 창조국고보조의대상이되는소방활동장비의종류와규격중 “ 구조정 ” 은 90 마력이상인
+A, “ 소방헬리콤터 ”는 5~17 인승인것을말한다 .
+ㅇ |%※""/><div>펌프차 대중소</div><div>배연차 중</div><div>구급차 특일</div>"	"<img src=""paste-1c908464adf5a0017c1ca7174c9fd3d37ba7e6c6.jpg"" title/>X<div><img src=""paste-6263f956b23b962745f8b3f5c6c91796f5024974.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-a2144b5589fc4d4d10b00d34d36352ecd229823f.jpg"" title=""39 &amp;1 12 039 점조
+「 수도법 」 제 45 조에따라소화전을설치하는일반수도사업자는관할소방서장과사전협의를거친후소화전을설치하여야하며 , 설치사실을관할소방서장에게통지하고 , 관할소방서장은그소화전을유지 ㆍ 관리하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-589f09b56506d1d421a8b53d0ed5f4c00b5de3f6.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-450bff1bead7435a9bf42f1091e21dce7d8e5bf1.jpg"" title=""40 O 기본서 12 39 참조석유화학제품을생산하는공장이있는지역 , 소방시설 ㆍ 소방용수시설또는소방출동로가없는지역 , 소방청장이비상소화장치의설치가필요하다고인정하는지역에는비상소화장치를설치할수있다 .
+ㅇ 1※""/>"	"<img src=""paste-62b3a60881bf87e0182ca25c47b29dba13002b85.jpg"" title/>X<div><img src=""paste-40523ee649cdf8fe0ff35f144c5c82ed37adddc9.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-262769fa2322d75178ae24e7566b806fab0fdc54.jpg"" title=""41
+서 12 pa0
+소방용수시설과비상소화장치의설치기준은행정안전부령으로정한다 .
+ㅇ 1×""/>"	"<img src=""paste-07aeebdb91184014a6f98a2bd9feeb8ffebf223b.jpg"" title/>O<div><img src=""paste-1969eb1687ea3040cf982c2a7eec997b25a9a2c7.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-e55ddde84d5e3da7b2c92e2dc54b631cdb2d8ac0.jpg"" title=""42 ok 1 o 참조소방용수시설중소화전은상수도와연결하여지하식또는지상식의구조로하고 ,
+소방용호스와연결하는소화전의연결금속구의구경은 40 밀리미터로할것
+ㅇ 1×""/>"	"<img src=""paste-7f4f4234dcb38687b59ea59598e9cc3ab51c40d9.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-5a6207b3266ae942ace52a93722a8cf12fc12fab.jpg"" title=""43 &gt; 기본서 1 권서참조소방용수시설중급수탑은급수배관의구경은 150 밀리미터이상으로하고 , 개폐밸브는지상에서 0.8 미터이상 1.5 미터이하의위치에설치하도록할것
+ㅇ 1×""/>"	"<img src=""paste-1c86f4396c5c1c9531125216a78013a3eb57a659.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-0de0d37f830e60d59f0389cf2b451747a2e234b8.jpg"" title=""44 o 1 pa 창조소방용수시설중저수조는지면으로부터의낙차가 5.5 미터이하로하고 , 흡수부분의수심이 0.5 미터이상일것
+ㅇ 1×""/>"	"<img src=""paste-4bda7439b8a220ce0330069ba71136587d1568d5.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-b93e7172b0dfbdb5ba0a555854d99bb3fcd1d22a.jpg"" title=""45 스가보서 12 042 참조소방호스및관창은 「 소방시설설치및관리에관한법률 .」 에따라소방청장이정하여고시하는형식승인및제품검사의기술기준에적합한것으로설치할것
+0 ㅇ 1×""/>"	"<img src=""paste-a683768910342c7ebce1317daf8995220d3f7f96.jpg"" title/>O<div><img src=""paste-b7d7e7e7564020b654ec6bca79d79fc711ab298b.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-74182aa0af794c21a7eaa7582246b0f0a3b582f1.jpg"" title=""46 &amp;l 1 pa2 점조비상소화장치함은 、 소방시설설치및관리에관한법률 .에따라소방청장이정하여고시하는형식승인및제품검사의기술기준에적합한것으로설치하여야한다 .
+Ol X""/>"	"<img src=""paste-b305ae365fc3def0025e492fdcb78f19637beb16.jpg"" title/>X<div><img src=""paste-b7d7e7e7564020b654ec6bca79d79fc711ab298b.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-930199a5138bccef1d5683cb3fdefddbc3d0bc10.jpg"" title=""47 &gt; 기본서 1 권 042 5
+소방청장은설치된소방용수시설에대하여소방용수표지를보기쉬운곳에설치하여야한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-a6d922016dbe2235c9e0e71cfa31ae488897d226.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-2e5915f0a37ff9a4d21d2d746f878ed478e9ed3d.jpg"" title=""48 oty 12 pa2 청조지하에설치하는소화전또는저수조의경우소방용수표지의 WEEY 부근에는백색반사도료로폭 25 센티미터의선을그둘레를따라칠할것
+Ol X""/>"	"<img src=""paste-3e127ff795bc3c037dd03a58ded69edb4c450c47.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-91fa7e17abd9e8b2e7154912edb81ee7ed719ca8.jpg"" title=""49 &amp;7 12 pas 85
+지상에설치하는소화전 , 저수조및급수탑의경우소방용수표지의안쪽문자색상은흰색 , 바깥쪽문자색상은노란색으로하고 , 안쪽바탕색상은붉은색 , 바깥쪽바탕색상은파란색으로할것
+ㅇ 1×""/>"	"<img src=""paste-6891258cd0a865c8e5c0e05f46ca8b6ff6e3ac4b.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-9f434521cfed3f5cc5e659b931bedbbaec94c679.jpg"" title=""50 Ol 1 04 참조시 ㆍ 도지사는규정에의하여설치된소방용수시설에대한조사 , 원활한소방활동을위하여소방대상물에인접한도로의폭 ㆍ 교통상황 , 도로주변의토지의고저 , 건축물의개황 , 그밖의소방활동에필요한지리에대한조사를월 1 회이상실시하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-ec06d778b75ced690b8ea45795127ef28ae802b9.jpg"" title/>X<div>지용 고개 교폭<br/><div><img src=""paste-acb57278cf40c37adec0670a57e7aec4cd30f502.png"" title/><br/></div></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-30a839d33101b4168eccf256fcfe8a57a0e2a71a.jpg"" title=""51 G2 13 pas 참조소방업무의응원을위하여파견된소방대원은 S 요청을받은소방본부장또는소방서장의지휘에따라야한다 .
+ㅇ 1×""/>"	"<img src=""paste-6e2542380a964c9961437d700f1090d31dac914e.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-7298b1216aa4ac24880ebdc88220660eee37da77.jpg"" title=""52 G710 12 pas 참조소방청장은소방업무의응원을요청하는경우를대비하여출동대상지역및규모와필요한경비의부담등에관하여필요한사항을대통령령으로정하는바에따라시 ㆍ
+도지사와협의하여미리규약으로정하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-cadbaac5430a2fb75f021ff8a2f57339aae3f2ad.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-243e5c1717b60138b646fc56ec90a25d41d81d54.jpg"" title=""53 &amp; 기보서 12 045~46 참조소방업무의상호응원협정에포함되어야하는사항에는응원출동대상지역및규모 ,
+응원출동의요청방법 , 응원출동훈련및평가등에관한사항이있다 .
+ㅇ 1×""/>"	"<img src=""paste-a6e76d6f3ae669d0d3c882f43590274616db1b90.jpg"" title/>O<div>응원(방규평가) 활동 경비<br/><div><img src=""image-b473dd8ab18b2e664589059df85c74f5b019fd61.jpg"" title/><br/></div><div><img src=""image-2bc57d69e00d66ece90024be3d6138376238f6e1.jpg"" title/><br/></div></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-7a91f96c6c1ca9c2664d5f3397296c70f5065df3.jpg"" title=""54 &amp; 21 1 046 15
+소방청장은해당시 ㆍ 도의소방력만으로는소방활동을효율적으로수행하기어려운화재 , 재난 ㆍ 재해 , 그밖의구조 ㆍ 구급이필요한상황이발생하거나특별히국가적차원에서소방활동을수행할필요가인정될때에는각소방본부장에게행정안전부령으로정하는바에따라소방력을동원할것을요청할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-10f1433bcdd4e76ae4552ff5222fb7aaef8fb09f.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-9bc92caaccc0217a91cb861defa2a88923d52436.jpg"" title=""55 &amp;N 18 pa7 창조동원된소방대원이다른시 ㆍ 도에파견 ㆍ 지원되어소방활동을수행할때에는특별한사정이없으면화재 , 재난 ㆍ 재해등이발생한지역을관할하는소방본부장또는소방서장의지휘에따라야한다 . 다만 , 소방청장이직접소방대를편성하여소방활동을하게하는경우에도또한같다 .
+ㅇ 1×""/>"	"<img src=""paste-eb25a479d52d02b9cb0265ecf763ea1b294f0dab.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-e9a27a4e299f96fc6321c3a108a966ed3283c91b.jpg"" title=""56 &amp;k 12t par 9%
+소방력동원을요청하는경우로서긴급을요하는경우에는시 ㆍ 도소방본부또는소방서의소방기술민원센터장에게직접요청할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-92349ea35229ac6cebfbe5f974b75ee8a2db8e9c.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""paste-048a68331ff06b84bae33f73da394852492b40b4.jpg"" title=""57 &amp; s 120 par 8
+동원된민간소방인력이소방활동을수행하다가사망하거나부상을입은경우동원된민간소방인력이소속된소방기관의소재지를관할하는시 ㆍ 도가보상한다 .
+ㅇ 1×""/>"	"<img src=""paste-5810183430d447c761ee05b6ce33eecb47e86de0.jpg"" title/>X<div><img src=""paste-42f83e67ead1a6d66dc384e653e86fb159432af2.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-6c617a2fb746f3b75658b13a19245b9a4c7fb010.jpg"" title=""o1 기쁘서련 ps7
+위력 (&amp;77) 을사용하여출동한소방대의화재진압 ㆍ 인명구조또는구급활동을방해하는행위는 3 년이하의징역또는 3 천만원이하의벌금에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-7053306ef67d37b3be8ea2f33a1439818e87b68a.jpg"" title/>X<div><img src=""paste-6c7045e78099bf4baa39c25f9271057a344995a5.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-06a0010e2164f1fc7471f39cf8a0831c321db651.jpg"" title=""02 O 12 ps7 첨조자연재해에따른급수 ㆍ 배수및제설등지원활동 , 화재 , 재난 ㆍ 재해로인한피해복구지원활동 , 소방시설오작동신고에따른조치활동 , 단전사고시비상전원또는조명의공급은소방지원활동에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-1fc38b0f1545075c46fe8f7eee0365f85c825e14.jpg"" title/>X<div><img src=""paste-6c7045e78099bf4baa39c25f9271057a344995a5.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-2d51acbfaf3ae4949f03e5413b78db6dec517efd.jpg"" title=""03 &gt; 기보서 18 pss s
+소방활동은소방지원활동수행에지장을주지아니하는범위에서할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-6ec7182a34485715f0b56881d69d89881f811702.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-99d5048fa6046be454d17afbe8b84f63f9559e05.jpg"" title=""04 Ok 12 pso 창조정당한사유없이소방대의생활안전활동을방해한자는 300 만원이하의벌금에해당한다 . 틀
+ㅇ 1×""/>"	"<img src=""paste-2a7a1e016be1d0f70ddcde200a161ed1eea8849f.jpg"" title/>X<div><img src=""paste-9579481e320593e7ab5c1214696fb2a2d3de2cbc.png"" title/><br/></div><div><img src=""paste-c4410e159a59399d2450815ea3fa71872e2054b2.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-38ef42936e739d98e0f53b99451b3eab113ea6fc.jpg"" title=""05 &amp; 기보 12 peo 25
+소방대원은소방지원활동및생활안전활동을한경우소방지원활동등기록지에해당활동상황을상세히기록하고 , 소속소방관서에 2 년간보관해야한다 .
+@ |""/>"	"<img src=""paste-50f457ada53de620b0de751ac824f322b731ce1d.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-efd194da11ccb69787696f35403eb1716c490bee.jpg"" title=""06 &gt; 7 보서 1 권 0600 잠조소방서장은소방지원활동및생활안전활동의상황을종합하여연 2 회소방본부장에게보고해야한다 .
+흐 Xx""/>"	"<img src=""paste-b7838949e0e265adfd1737b4c93c91f835dbc22e.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-607b6ff164a766d1c9d371484909756b03006df1.jpg"" title=""07 &gt; 7 보서 18 860 잠조시 ㆍ 도지사는소방자동차의공무상운행중교통사고가발생한 22 그운전자의법률상분쟁에소요되는비용을지원할수있는보험에가입하여야하며 , 국가는보험가입비용의일부를지원할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-c570d1dd2c8ce1d93556328a1958e3f27641e87c.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-5fc1a74e91d9b7ce625ee343242dc177741af89f.jpg"" title=""08 &amp; 710 1 견 60 청주시 ㆍ 도지사는소방공무원이소방활동 , 소방지원활동 , 생활안전활동으로인하여민 ㆍ
+형사상책임과관련된소송을수행할경우변호인선임등소송수행에필요한지원을할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-730827c0eeb42f13e9484757b0e429cea8a49fe4.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-d15f379904fbbd162949bbdba2f8763bedc7ecdd.jpg"" title=""09 &amp;7 12 41 15
+소방청장 , 소방본부장또는소방서장은화재를예방하고화재발생시인명과재산피해를최소화하기위하여 ' 영유아보육법 」 제 2 조에따른어린이집의영유아 , 「 유아교법 」」 제 2 조에따른유치원의유아 , 「 초 ㆍ 중등교육법 」 제 2 조에따른학교의학생 ,
+「 장애인복지법 」 제 58 조에따른장애인복지시설에거주하거나해당시설을이용하는장애인 , 「 아통복지법 」 제 52 조에따른아동복지시설에거주하거나해당시설을이용하는아동 , 「 노인복지법 」 제 31 조에따른노인복지시설에거주하거나해당시설을이용하는노인을대상으로소방안전에관한교육과훈련을실시할수있다 ,
+0 ㅇ 1×""/>"	"<img src=""paste-973c8e5276e2d5dfa3d96e7486ce0f8befd6af51.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-d626d78d4dfe74d070f75f2f9d0c1774399d843f.jpg"" title='10 기보 1 062 점조소방대원에게실시할교육 ㆍ 훈련중 “ 현장지휘훈련 "" 은소방공무원중소방령 , 소방경 , 소방위 , 소방장의계급에있는사람이받아야한다 .
+01X'/>"	"<img src=""paste-cc74c34054a20d48a90dd4d62027676048e17d99.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-32eff99a260282076f3063a8ef384b9b6d9f1222.jpg"" title=""11 7l 1 062 청조소방대원에게실시할교육 ㆍ 훈련에는화재진압훈련 , 불시출동훈련 , 응급처치훈련 ,
+인명대피훈련 , 현장지휘훈련이있으며 , 2 년마다 1 회실시한다 .
+olx""/>"	"<img src=""paste-ce5a9939b98a8d6ce9ae20d575649277e1db4464.jpg"" title/>X<div><img src=""paste-28914f3d8564e29b24a55a5a73940c2f65e47927.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-993ab7c1efe7d52bee92b35fafc103cc97c354bf.jpg"" title=""12 &amp;k 12 063 참조소방공무원으로 3 년간근무한경력이있는사람은소방안전교육훈련시설의강사가될수있다 .
+ㅇ 1×""/><div>-학위 이상</div><div>-, -자격 x</div><div><br/></div>"	"<img src=""paste-6af7869379489776585a392e4c1b6759375ad56a.jpg"" title/>X<div><img src=""image-30624300477f29b147b1ec0fedae48f53b83ec15.jpg"" title/><br/></div><div><img src=""image-55ae9513f4637ef3a9da56a6d3cd0e5b1af3bfa7.jpg"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-0cf225ed9368b7370fd76a4d07393d6cf454d38b.jpg"" title=""스가본서 1 권 6.64 참조
+13
+소방청장 , 소방본부장또는소방서장은소방안전교육훈련중발생한사고로인한교육훈련대상자등의생명 ㆍ 신체나재산상의손해를보상하기위한보험또는공제에가입하여야한다 .
+O | X""/>"	"<img src=""paste-fa441894bd66a54fed8bdd8e29482f98e12d4342.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-b0eced9e6d5567bbbce85d0c89d20da9388e3e81.jpg"" title=""14 Gk 1 065 정조소방안전교육사는소 ! 교육 “
+흐퍽줌육사는소방안전교육의기획 ㆍ 흥보 ㆍ 연구 ㆍ 평가및교수업무를수행
+o X""/>"	"<img src=""paste-dbd6f1100fa1460385b0a68ab09f588eb496ef6a.jpg"" title/>X<div>교평 진기분</div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-9f76a6b81ae45575fd619b61664119cac2e33d2d.jpg"" title=""15 기보 13 per 정초소방공무원으로 5 년이상근무한사람은소방안전교육사시험의응시자격심사위원이될수있다 .
+o Xx""/><div>x교수 x년</div>"	"<img src=""paste-39332172a6272eb25a417ba6bdff569d5cca7f5d.jpg"" title/>X<div><img src=""paste-3484da8a9d9b52b57d17022efd0d5f89b170e8fa.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-995a804294f02190f0504c93c118ed8e6ffe0d93.jpg"" title=""16 O i 련 pes 점조소방안전교육사시험은연 1 회시행함을원칙으로하며 , 소방청장이필요하다고인정하는때에는그횟수를증감할수있다 .
+0 ㅇ 1×""/>"	"<img src=""paste-d5ffb5fe065c4d48c4ee8a9b5edc7ad20c43b129.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-914fd62cfe83220d0b573757432b8248d9cc8c37.jpg"" title=""17 &amp; 기보 1 pes wx
+소방청장은소방안전교육사시험을시행하려는때에는응시자격 ㆍ 시험과목 ㆍ 일시 ㆍ
+장소및응시절차등에관하여필요한사항을모든응시희망자가알수있도록소방안전교육사시험의시행일 30 일전까지소방청의인터넷홈페이지등에공고해야한다 .
+ㅇ 1×""/><div>소방시설관리사 소방안전교육사</div><div>소방안전관리자 화재조사관</div>"	"<img src=""paste-f88633932e461d08ce786bd9118f6de7b21a3380.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-9386c261f618699a6698bc34f77318f9d578b0bb.jpg"" title=""18 O 7 보서 1 권 p70 85
+소방청장은시험합격자공고일부터 3 일이내에행정안전부령으로정하는소방안전교육사증을시험합격자에게발급하며 , 이를소방안전교육사증교부대장에기재하고관리하여야한다 .
+O X""/><div>안전관리자 x일</div><div>시설관리사 x일</div>"	"<img src=""paste-ce44856bc7c3b00b57bd63c6168c0351c71bc28f.jpg"" title/>X<div><img src=""image-a5d6e05452c468a8b60826a4fa8cb39b17f4e6a0.jpg"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-a4c2730cac674b93d6d01bac6a8112b8bce4214f.jpg"" title=""19 &lt;&gt;71 쁘시 18 p71-72 8%
+소방공무원으로 3 년이상근무한경력이있는사람 , 중앙소방학교또는지방소방학교에서 2주이상의소방안전교육사관련전문교육과정을이수한소방공무원 , 2 급응급구조사자격을취득한후응급의료업무분야에 2년이상종사한사람은모두소방안전교육사의시험에응시할수있다 .
+0 ㅇ 1×""/>"	"<img src=""paste-a2b17c13d6b9dcc8e5d6c0b0358e1db5af38f3d3.jpg"" title/>X<div><img src=""paste-9c601584788d97ddd97944b924d4b8baf4335dec.png"" title/><br/><div><img src=""paste-f9dd985caed486441e4e4ba2e8fb71f6cf91f077.png"" title/><br/></div></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-9707391823b1a39ad6379fa623ca1ff68e3ca7ab.jpg"" title=""20 O 1apnna
+금고이상의실형을선고받고그집행이끝나거나 ( 집행이끝난것으로보는경우 |
+포함한다 ) 집행이면제된날부터 3 년이지난사람은소방안전교육사가될수있다 .
+ㅇ 1×""/>"	"<img src=""paste-ac1d62d1b56217f5a68a09d8bddaa48f9cb13d3a.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-434a16dfe0f1813cb428073a52c0de8d076e44a0.jpg"" title=""ok 1 p73 참조
+! 교육사를 19 이상배치하여야한다 ,
+기관에는소방안전 :
+교육 ;
+교등등학
+= 기혀써""/><div>청 </div><div>본부</div><div>서</div><div>안전원 본회 </div><div>안전원 시도지부</div><div>기술원</div>"	"<img src=""paste-8573c898001242d2a04ef107682496dbc35bc99b.jpg"" title/>X<div><img src=""paste-6df458f7f242c9503cfe4ef7889264c10bf27a3e.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-5bdc2201621691a3d19a540b97548707ca68211c.jpg"" title=""22 &gt;7 브서련5 참조이법에따른한국 119 청소년단이아닌자는한국 119 청소년단또는이와유사한명침을사용할수없으며 , 이를위반할경우 200 만원이하의과태료에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-0fede927ad30c6fa978bd9b2747ac75ea256ecdd.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-286f37d862f1f214e253d75558dd0aecc344863b.jpg"" title=""23 &amp;I 12 6 =
+시 ㆍ 도지사는한국 119 청소년단의설립목적달성및원활한사업추진등을위하여필요한지원과지도 ㆍ 감독을할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-e9dd730945525c2e2d83fe6a6caf4caf2f96f2b8.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-4680a789ddbbb001b7b3a9fe487a526fa53be8aa.jpg"" title=""24 5 기본서 13 077 8
+예방신호는화재예방상필요하다고인정되거나화재위험경보시발령하는신호이다 .
+ㅇ 1×""/>"	"<img src=""paste-2cf918dc2c9747074dac453a75dc012be2740e22.jpg"" title/>X<div><img src=""paste-ef6e8bbe8f9c90891a972a1ad4578f06dd0594f1.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-4cb8b3551f588bbc4378b3aaf5c30169a6a2dadc.jpg"" title=""25 &amp;2k 18 p77 82
+발화신호는타종신호로는난타 , 싸이렌신호로는 10X 간격을두고 124 3 회이다 .
+ㅇ 1×""/>"	"<img src=""paste-e3e84f93c27fc6059290629c8f7946fd9bf1fa1f.jpg"" title/>X<div><img src=""paste-ef6e8bbe8f9c90891a972a1ad4578f06dd0594f1.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-1c9a81eec6b580e279c40ace87ee3fb4b400de85.jpg"" title=""26 s 1 p77 첨조소방대의비상소집을하는경우에는훈련신호를사용할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-cf24792ed76ed7ed2d26280b266c5a7621adef71.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-7db0ff112f77bd9eb384c9f237232519694b7b6a.jpg"" title=""27 oA 178 청조소방시설 ㆍ 소방용수시설또는소방출동로가없는지역에서화재로오인할만한우려가있는불을피우거나연막소독을하려는자는시 ㆍ 도의조례로정하는바에따라관할소방본부장또는소방서장에게신고하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-7dc124fcebfecab9710301c298e1f98628268a1d.jpg"" title/>x<div>시공창 목위 석</div><div><img src=""paste-cf59ecd371d6d5a27fd4570b7c12a9e8c46952eb.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-474ab916c641804f1ee574b2d73f0c6a477fae3c.jpg"" title=""28 oM 13 p79 칭조화재 , 재난 ㆍ 재해 , 그밖의위급한상황을소방본부 , 소방서또는관계행정기관에알리지아니한관계인은 100 만원이하의벌금에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-7844cd005cdc92a0474c23c858fe2ca591bc6abf.jpg"" title/>X<div><img src=""paste-159e99be2b423fe7c4dc09ff2b0caaf43b698806.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-dc49fcc0aecf9f5353967071c97dc555cbb6eaf0.jpg"" title=""29 &lt; 쁘서 79 관조자체소방대는소방대가현장에도착한경우자체소방대장의지휘 ㆍ 통제에따라야한다 .
+ㅇ 1×""/>"	"<img src=""paste-ef79f09f009f2ef9880150e3f384b52291e240b6.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-32b20f8035665c88b151cf2e582536873d8065d3.jpg"" title=""30 &amp;t 12 pso =
+소방청장 , 소방본부장또는소방서장은자체소방대의역량향상을위하여필요한교육 ㆍ 훈련등을지원할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-964bc4f69811e2b64cde125a0a5b486f88664db0.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-a2f28b19923996168a11ee0d754891799f3f2c7e.jpg"" title=""31 21 빼견 1003 즈일부의경우를제외하고소방자동차의우선통행에관하여는 ' 자동차관리법 」 에서정하는바에따른다 .
+ㅇ 1!×""/>"	"<img src=""paste-925d95420a0d5f5f3c9c8edbf04dea07acafac4e.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-97b4e55f9efa7866145a6bfb54067f82a06390d5.jpg"" title=""32 스기보서관 081 창조
+「 건축법시행령 」』 의아파트중세대수가 100 세대이상인아파트 , 「 건축법시행령 」 의기숙사중 3 층이상의기숙사에는소방자동차전용구역을설치하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-cfc71771a81f33320b27fbe6656cf24e93c1e560.jpg"" title/>O<div><img src=""paste-1663a9da8fe7db60151a159caa7e007cab65d394.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-2ac7bece0ad28c594f62379aa91f27213e3d436a.jpg"" title=""33 O 12 p82 85
+소방본부장또는소방서장은소방자동차가접근하기쉽고소방활동이원활하게수행될수있도록공동주택의각동별전면또는후면에소방자동차전용구역을 1 개소이상설치하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-d077c44cc5b47d10f0e4881eb12446a8e8801153.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-7cb5281630f31caca600127262cde3c3ef5befe6.jpg"" title=""34 Ot 12182 85
+소방자동차전용구역노면표지의외곽선은빗금두늬로표시하되 , 빗금은두께를 50
+센티미터로하여 30 센티미터간격으로표시한다 .
+ㅇ 1×""/>"	"<img src=""paste-7dd5883caafa614c7eb078b3eefd6710f1fa1aae.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-3f279b0df3ee7d0263f967fd0bae61929e637889.jpg"" title=""35 O 12 p83 8z
+「 주차장법 」』 에따른부설주차장의주차구획내에주차하는경우는소방자동차전용구역의방해행위에해당하며 , 100 만원이하의과태료에해당한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-ec7b908563d58e46e9d3aef81fc3ccf5a7a1085e.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-4ad3401da5af329742e5576e951ff2c3df16eb7a.jpg"" title=""36 O7ies 1 pBa s
+소방청장 , 소방본부장또는소방서장은대통령령으로정하는소방자동차에행정안전부령으로정하는기준에적합한운행기록장치를장착하고운용하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-aacc19e175cb2955d4ff11e82214424c49170b61.jpg"" title/>X<div><img src=""paste-d9caee6bb17d35c558bde859fd7dbc999b445d6b.png"" title/><br/><div><img src=""paste-aead0572ef34128131e194619cf563ffdd1d6f4f.png"" title/><br/></div></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-5c321476b07b6dbec8eb8cddb3b5a5d992d36cde.jpg"" title=""37 &amp; 12 테 05
+소방펌프차 , 소방물탱크차 , 소방행정차 , 소방화학차 , 구급차에는모두운행기록장치를장착하고운용하여야한다 .
+olx""/>"	"<img src=""paste-6b926a28e9eb69f763d4f9fabaf0312c11a52ba0.jpg"" title/>X<div><img src=""paste-d9caee6bb17d35c558bde859fd7dbc999b445d6b.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-02d3717e2f2d297bcb3dd34d7e1ffee331e75b81.jpg"" title=""38 Ok 134 pss
+소방청장 , 소방본부장및소방서장은소방자동차교통안전분석시스템으로처리된자료를이용하여필요할경우소방자동차의장비운용자등에게적절한제재나처벌을할수있다 .
+O x""/>"	"<img src=""paste-f22105e812fe5f234b6cff8dcb9097136af380fe.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-fd7820c186cd84e19aac723d9140206af1ae90ff.jpg"" title=""39 oM 12 s 참조소방자동차교통안전분석시스템의구축 ㆍ 운영 , 운행기록장치데이터및전산자료의보관 ㆍ 활용등에필요한사항은행정안전부령으로정한다 .
+ㅇ 1×""/>"	"<img src=""paste-94828f11ef8a3a2ef36f1cf52abad608c6baca3c.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-dfcd7864dc3ec759b238c8b54966f5eb1ad320e4.jpg"" title=""40 &gt; 가본서 1 권 0.85 참조소방청장 , 소방본부장및소방서장은소방자동차운행기록장치에기록된데이터를
+3 개월동안저장 ㆍ 관리해야한다 .
+ㅇ 1×""/>"	"<img src=""paste-7c4692002f9e33e0bde0e80fd774af9b62c1c6fc.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-90c1e110e2bcaa2ea2f411eec51ee518b9095407.jpg"" title=""41 i 12t pas
+소방청장 , 소방본부장및소방서장은운행기록장치데이터중과속 , 급감속 , 급출발등의운행기록을점검 ㆍ 분석해야하고 , 분석결과를소방자동차의안전한소방활동수행에필요한교통안전정책의수립 , 교육 ㆍ 훈련등에활용할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-fef9c8bf9d18dc31d348bf7fa1131b9be021b7f2.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-5562304b068dae58108782e1dcbf5a59925355b6.jpg"" title=""42 &amp; e v s 3
+소방대의우선통행에따라 “ 소방대는화재 , 재난 ㆍ 재해 , 그밖의위급한상황이발생한현장에신속하게출동하기위하여긴급할때에는일반적인통행에쓰이지아니하는도로 ㆍ 빈터또는물위로통행할수 0
+ㅇ 1×""/>"	"<img src=""paste-4039c72cad821c1abc24f108f8f1d5e6fc4e0776.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-efa2185e424a2c5664e100833f7feffe8651c2ca.jpg"" title=""43 65 기브서 1 권 0686 청주소방청장은화재 , 재난 ㆍ 재해 , 그밖의위급한상황이발생한현장에소방활동구역을정하여소방활동에필요한사람으로서대통령령으로정하는사람외에는그구역에입하는것을제한할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-d4a6993bd0e071e890fcc6c67a5f138cf2543adc.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-a41d1831662799684e654ed3edc441f5712f10bb.jpg"" title=""44
+스기본서 1 권 6.86 참조전기 ㆍ 기계 ㆍ 수도 ㆍ 통신 ㆍ 교통의업무에종사하는사람으로서원활한소방활동을위하여필요한사람및소방대장이소방활동을위하여출입을허가한사람은소방활동구역에출입할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-cf554116def52bc55b73ed00bde1ddc2210b953d.jpg"" title/>X<div><img src=""paste-2a14200ec5beb327383de66c85f6f7924f5bb48b.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-098df70942a3b7b59fd8c7806d02659c46b1b132.jpg"" title=""45 브서견 . 287 85
+소방대상물에화재 , 재난 ㆍ 재해 , 그밖의위급한상황이발생한경우그관계인은소방활동의비용을지급받을수있다 .
+ㅇ 1×""/>"	"<img src=""paste-57eee3d3a2b020214710e1789e2967c13d45c20d.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-a43b35a80cd45cacb23c00b9d96550aa9c9d364a.jpg"" title=""46 O7ien 18 pes 창조소방본부장 , 소방서장또는소방대장은사람을구출하거나불이번지는것을막기위하여필요할때에는화재가발생하거나불이번질우려가있는소방대상물및토지를일시적으로사용하거나그사용의제한또는소방활동에필요한처분을할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-b3a70b071b6cd7cc9ceba6866116e052b0025671.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-e1a060a3b9c2c053e8fcee51ddcfe38f36d520ba.jpg"" title=""47 28 서 138 pon 점조국가는소방산업과관련된기술의개발을촉진하기위하여기술개발을실시하는자에게그기술개발에드는자금의전부나일부를출연하거나보조할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-5d3b9afb6d8116d263ef510a739e9816e7da3ac9.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-9684505262e46aaccc4d32e5a53b5d8566afe6e0.jpg"" title=""48 &gt; 기브서 1 권 692 참조국가가국공립연구기관등기관이나단체로하여금소방기술의연구 ㆍ 개발사업을수행하게하는경우에는필요한경비를지원하여야한다 .
+ㅇ 1%""/>"	"<img src=""paste-7a81b0cfb560892a3d8338740dc81d9ec5143aec.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-23e0afb97aaf33b9f13bcfc4189392a14b8f53e0.jpg"" title=""49 O 1 ps3 am
+국가는소방기술및소방산업의국제경쟁력과국제적통용성을높이기위하여소방기술및소방산업의국제협력을위한조사 ㆍ 연구의사업을추진하여야한다 .
+O X""/>"	"<img src=""paste-815e5829d2511b14ebe9f16f98d0ed049d1902b9.jpg"" title/>X<div><img src=""paste-283ee1c5254b51b5e402686180732cc92cbfd11a.png"" title/><br/><div><br/></div></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-6f8f8e9970cfc9ca14336590153b7ad62adf6579.jpg"" title=""50 O 12 게광조소방기술과안전관리기술의향상및홍보 , 그밖의교육 ㆍ 훈련등행정기관이위탁하는업무의수행과소방관계종사자의기술향상을위하여한국소방안전원은시 ㆍ
+도지사에게신고하여야한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-13740f0ca32ac1cda61ad851685f986c3505082b.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-dda48727c0664158867638ed96e898b209c5dbab.jpg"" title=""51 6 기본서관 p95 BE
+한국소방안전원의업무에는소방기술과안전관리에관한교육및조사 ㆍ 연구 , 소방기술과안전관리에관한각종간행물발간이포함된다 .
+ㅇ 1×""/>"	"<img src=""paste-7ee3f2a5e6462bad75d0888a91f8f43ce53c3004.jpg"" title/>O<div><img src=""paste-2b8b327f2c170c56b4b33486b3d1ab711d00039e.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-dd333912056d0e08fc036473a131e9f8464319e5.jpg"" title=""52 O po7 82
+한국소방안전원의임원으로원장 1 명과감사 1 명을포함한 9 이내의이사를두며 ,
+원장과감사는소방청장이임명한다 .
+ㅇ 1×""/>"	"<img src=""paste-4ca1da4371cd05b6d8808155edc30a523e139d6e.jpg"" title/>X<div>       [ 한국소방안전원 임원 암기 ]</div><div><br/></div><div>        📢 핵심 포인트 : ""9.1.청"" 📢</div><div><br/></div><div>      ""안전하게 9(구)해줘서 감사(1)해!""</div><div>          (이사 9명 / 감사 1명)</div><div><br/></div><div>       ""원장과 감사는 청장이 픽(Pick)!""</div><div>        (소방청장이 원장, 감사 임명)</div><div><br/></div><div>    ------------------------------------</div><div><br/></div><div>        ✅ 이 사 : 9명 이내 (원장포함)</div><div>        ✅ 감 사 : 1명</div><div>        ✅ 임 명 : 소방청장 (원장,감사)</div><div><br/><div><img src=""paste-2b8b327f2c170c56b4b33486b3d1ab711d00039e.png"" title/><br/></div></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-6a1d2f8d2a369b9df844b8296ef1d569ddcf61cf.jpg"" title=""53 O 1057 관조이법 ( 소방기본법 ) 에따른안전원이아닌자는한국소방안전원또는
+o s ot 방안전원또는이와유사한명
+ㅇ 1×""/>"	"<img src=""paste-22a55a4252caed9434192ccc7c40eb25735aa910.jpg"" title/>0"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-bb4a5f1ad2e1396b8c592d3ff5afdb5f0a68b702.jpg"" title=""54 5 기브서 1 권유9 첨조소방청장또는시 ㆍ 도지사는소방지원활동에따른조치로인하여손실을입은자에게손실보상심의위원회의심사 ㆍ 의결에따라정당한보싱을하여야한다 .
+0 ㅇ 1×""/>"	"<img src=""paste-9f6ae4d5247d06fa2c72a13b39cef41f900686ed.jpg"" title/>X<div>적법한 위생종강<br/><div><img src=""paste-b3ba11ecc009651adff98f607c1d624f4dfe2996.png"" title/><br/></div></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-453931f564eb3c9cbc115166b66e5e265a2aaa0b.jpg"" title=""55 &amp;M 12 0.99 잠조소방청장또는시 ㆍ 도지사는법령을위반하여소방자동차의통행과소방활동에방해가된경우에도보상하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-bf5b7e66508ee87394324794ffb3b5b108e850c4.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-f40f1106e415fd28e314aa713f73e5f638d42d6f.jpg"" title=""56 oA 12 99 창조손실보상을청구할수있는권리는손실이있음을안날부터 1 년 , 손실이발생한날부터 3 년간행사하지아니하면시효의완성으로소멸한다 .
+ㅇ 1×""/>"	"<img src=""paste-7b6c50a203f85f3c16da0db55740f032417227bc.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-94c03a218765152e7c235f1719dceb66fba25133.jpg"" title=""57 s 18 p100 w5
+소방청장 Al ㆍ 도지사는손실보상심의위원회의심사 ㆍ 의결을거쳐특별한사유가없으면보상금지급청구서를받은날부터 30 일이내에보상금지급여부및보상금액을결정하여야한다 .
+ㅇ 1×""/>"	"<img src=""paste-f30da3b08fccbeef6a06d8593055f899dec7659b.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-2a7b7a913984003bc70adc47e43902b5882c816c.jpg"" title=""58 28 서 1 권 0100 점조소방청장또는시 ㆍ 도지사는보상금지급여부및지급액의결정일부터 30 이내에결정내용을청구인에게통지하고 , 보상금을지급하기로결정한경우에는특별한사유가없으면통지한날부터 10 일이내에보상금을지급하여야한다 .
+ㅇ 1×""/><div>지급 청구서 수령부터 지급여부 및 보상금액결정 기간</div>"	"<img src=""paste-dd0078123e9c1d5539f14eb01e53ff8cae9b725c.jpg"" title/>X<div><img src=""paste-2e25c148e53db876f8d9fdebcc3ca719e61209ed.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-6bf7070be88a0223160614fc42e245f5f12d5d2a.jpg"" title=""59 기본서 @ a2 첨조소방활동종사사상자의보상금액등의기준에는보상금의환수기준 , 의료급여의지급기준 , 사망자의보상금액기준등이있다 .
+ㅇ 1×""/>"	"<img src=""paste-5a7e9df856de0bdc3f8b81df0187fd6fee7d90d0.jpg"" title/>X<div><img src=""paste-b972f04140dee07b3b4564337526faacb74fb96a.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-d16f7ba69766541b007f3407c85628fa23966f1c.jpg"" title=""60 &gt; 기보서 1련 6402 B
+손실보상심의위원회는위원장 1 명을포함하여 5 명이상 9 명이하의위원으로구성한다 . 다만 , 청구금액이 300 만원이하인사건에대해서는소방공무원의위원 5 명으로만구성할수있다 .
+ㅇ 1×""/>"	"<img src=""paste-0f5195c0b4b048f3211c413185f1fb4d0f3d4342.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-44499339b2424f287e1827fdd8693f460e5e47fb.jpg"" title=""61
+O 기본서 1 권 6.102 참조손실보상심의위원회의위원은판사 ㆍ 검사또는변호사로 3 년이상근무한사람 , T2
+등교육법 」 에따른학교에서법학또는행정학을가르치는조교수이상으로 3 년이상재직한사람이될수있다 .
+ㅇ 1×""/>"	"<img src=""paste-d9f49fbbff233cdaa799e48f27c63309cfde9adf.jpg"" title/>X<div><img src=""paste-b972f04140dee07b3b4564337526faacb74fb96a.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-1a43ee564b5f067662e40091b96b2038e3e19468.jpg"" title=""62 &amp; 7 보서 12 0103 참조손실보상심의위원회의사무를처리하기위하여보상위원회에간사 1 명을두되 , 간사는소속소방공무원중에서소방청장또는시 ㆍ 도지사가지명한다 .
+ㅇ 1×""/>"	"<img src=""paste-e399020f3d071b70471936587fe12210c4af365e.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-317990d5c4c4b9cc97a847dbf831aac15335c77c.jpg"" title=""63 &amp; 2k 12 6706 x
+출동한소방대원에게폭행또는협박을행사하여화재진압 - ㆍ 인명구조또는구급동을방해하는행위는 5 년이하의징역또는 5 천만원이하의벌금에해당한다 .
+ㅇ |×""/>"	"<img src=""paste-2bb2f72677c8af53b1b54803756f48d2130d5e65.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-7ac085451eee22ef9d68230b75d1737de6027214.jpg"" title=""64 &amp; 1 브셔년 106 32
+화재진압및구조 ㆍ 구급활동을위하여출동하는소방자동차의출동을방해한사람은 100 만원이하의벌금에해당한다 .
+olx""/>"	"<img src=""paste-4f4a36b17b58c413051a54d835ae1de1ba6c12a4.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-2bc8d3acb89452860aefbf0bfa9e39a2a2b68c83.jpg"" title=""65 &amp; 기본서관 106 창조정당한사유없이소방대가현장에도착할때까지사람을구출하는조치또는불을끄거나불이번지지아니하도록하는조치를하지아니한관계인은 100 만원이하의과태료에해당한다 .
+ㅇ 1×""/>"	"<img src=""paste-bc88f565d69e1c32a8cf864a5ad442cbaad1eb87.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-b5b29a22706b24fbafd5b5e3ab0f7a337c681954.jpg"" title=""66 &amp; 70 18 pios 85
+정당한사유없이화재진압등소방활동을위하여필요할때물의사용이나수도의개폐장치의사용또는조작을하지못하게하거나방해한자은 300 만원이하의벌금에해당한다 .
+o X""/>"	"<img src=""paste-375d38c7cc8952699ae9be23422a5c218845e3eb.jpg"" title/>X<div><img src=""paste-e3220fcf2ed457afd174a404c67f4b1954e7bcd6.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-e03261cb80bb12c282a67139fb79e05cb8c318fc.jpg"" title=""67 5 M 1 107 85
+소방대상물에화재 , 재난 ㆍ 재해 , 그밖의위급한상황이발생한경우에는소방본부 ,
+소방서또는관계행정기관에지체없이알려야하나이를위반하여정당한사유없이화재 , 재난 ㆍ 재해 , 그밖의위급한상황을소방본부 , 소방서또는관계행정기관에알리지아니한관계인은 100 만원이하의과태료를부과한다 .
+ㅇ 1×""/>"	"<img src=""paste-396436865d781e31022d0daee814b7ec645a030f.jpg"" title="""">X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-6b7c4371e1d98cbda3438c91ea60cabce9e4a05e.jpg"" title=""68 O i 12 107 HE
+화재로오인할만한우려가있는불을피우거나연막소독을하려는자가신고를하지아니하여소방자동차를출동하게한자는 20 만원이하의과태료에해당하며 , 관할소방본부장또는소방서장이부과 ㆍ 징수한다 .
+ㅇ 1×""/>"	"<img src=""paste-2a4de77d32995a46333bb028d8f8a1188d76f253.jpg"" title/>O"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-ad7e02317e5898668f31d0ad38f88b31413c6944.jpg"" title=""69 &amp; 2 12 109 참조위반행위의횟수에따른과태료의가중된부과기준은최근 2 년간같은위반행위로과태료부과처분을받은경우에적용한다 .
+ㅇ 1×""/>"	"<img src=""paste-cc05cff81c89344352556786a4630ec0e69f8b2e.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-87c1d58bcb912ad3f9357d6e120d8099acee9941.jpg"" title=""70 3 ohen 12 0109 45
+위반행위자가법위반상태를시정하거나해소하기위하여노력한사실이인정되는
+29, 부과권자는개별기준에따른과태료의 3 분의 1 범위어서그금액을줄여부과할수있다 .
+ol x""/>"	"<img src=""paste-550bd537ff438e39acd07037e9db14dcd2886817.jpg"" title/>X"				
+소방관계법규OX::P01. 소방기본법 OX::챕터02(4~10)	"<img src=""paste-fdf75a946c062289e8e91bb3bd9e0f9bf6d8d949.jpg"" title=""71 &amp; 74 18 pt0 참조화재또는구조 ㆍ 구급이필요한상황을거짓으로알린사람이해당하는과태료금액은 2 회위반시과태료 500 만원에해당한다 .
+01X""/>"	"<img src=""paste-474ef09c737fda8bb7f3b95c6580b0448242a4d2.jpg"" title/>X<div><img src=""paste-e901b065398466a672933fc2fdec2b3ee150d3e7.png"" title/><br/></div>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""image-e8f048d2c72ea64f20501d67a77244dfac9ba9a0.jpg"" title=""7t 또는이와유사한명칭을사용한경우막제56좋저|2황
+[ 법제 17 조의 6 제 5 항 ] W
+- 나 . 화재또는구조 ㆍ 구급이필요한상황을거짓으로알린경우법제 56 조제함 |
+[ 법제 19 조제 1 항 ] |
+- 다 . 정당한사유없이화재 , 재난 ㆍ
+재해 , 그밖의위급한상황을소방본부 , 소방서또는관계행정 ㅣ O Hifg‘“g
+기관에알리지않은경우 ( 관계 ?
+[ 법제 20 조제 2 항 ]
+- 라 . 소방자동차의출동에지장을준 ㅣ 법제 56 조제 2 항경우 [ 법제 21 조제 3 항 ] 제 3 호의 2
+마 . 전용구역에 XS 주치하거나전용구역에의진입을가로막는등의방해행위를한경우법제 56 조제 3 항
+[ 법제 21 조의 2 제 2 항 ]
+경우법제 56 조제 2 항
+[ 법제 23 조제 1 항 ] i
+Al 한국소방안전원또는이와 QA
+” 법제 56 조제 2 항한명칭을사용한경우명칭을사용 e
+[ 법제 44 조의 3]""/>"	"<img src=""paste-cf715119ccbf18316183cf10e99952b73e14dbc3.png"" title/>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	"<img src=""image-14a6ed7ee85876276b3c5c648522eb99bed4abe0.jpg"" title=""방해하는다음의어느하나에해당하는행위를한사람 [ 제 16 조제 2 행
+@ 위력을사용하여출동한소방대의화재진압 ㆍ 인명구조또는구급활동을방해하는행위
+© 소방대가화재진압 ㆍ 인명구조또는구급활동을위하여현장에출동하거나현장에출입하는것을고의로방해하는행위
+© 출동한소방대원에게폭행또는협박을행사하여화재진압 ㆍ 인명구조또는구급활동을방해하는행위
+@ 출동한소방대의소방장비를파손하거나그효용을해하여화재진압 ㆍ 인명구조또는구급활동을방해하는행위자동차의 858 Yol 사람 [ 제 21 조제 1 황 ] . ) 204
+, 총 ^ ;! 따른사람을구출하는일또는불을끄거나방용수시설또는비샹지의흐으을빽폭꺼나그정당한사용을방해한사람 [ 제 28 조 ]
+. 강제처분에따른처분을방해한자또는정당한 AR 없이그처분에
+. 따르지아니한자 [ 떼 25 조제 1 행 ]
+! 제처분에따른처분을방해한자또는정당한사유없이그처분에따르지아니한자 [ 떼 25 조제 2 항및제 3 항 ])
+0) 정당한사유없이소방대의생활안전활동을방해한자
+[ 제 16 조의 3 제 2 항 ] :
+;%#- 정당한사유없이소방대가현장에도착힐조치또는불을끄거나불이번지지아니하도록하는조치를하지아니한사람 ( 관계인 ) [ 제 20 조제 1 항 ]
+® 피난명령을위반한사람 [ 제 26 조제 1 항 ]
+@ 정당한사유없이물의사용이나수도의개폐장치의사용또는조작을하지못하게하거나방해한자 [ 제 27 조제 1 항 ]
+@ 정당한사유없이유류 , 가스 , 전기의위험시설에대한공급차단의긴급조치를방해한자 [ 제 27 조제 2 항 ]""/>"	"<img src=""paste-5486ba535a33b7c4f1a1e9a3df0e849b5fed1bbb.png"" title/>"				
+소방관계법규OX::P01. 소방기본법 OX::챕터01(1~3)	{{c1::image-occlusion:rect:left=.6564:top=.178:width=.3041:height=.1065:oi=1}}<br/>{{c2::image-occlusion:rect:left=.6545:top=.2846:width=.3043:height=.1025:oi=1}}<br/>{{c3::image-occlusion:rect:left=.6555:top=.3894:width=.3016:height=.1673:oi=1}}<br/>{{c4::image-occlusion:rect:left=.6554:top=.554:width=.3015:height=.0736:oi=1}}<br/>{{c5::image-occlusion:rect:left=.6584:top=.6291:width=.3015:height=.1338:oi=1}}<br/>{{c6::image-occlusion:rect:left=.6574:top=.7652:width=.3015:height=.1039:oi=1}}<br/>{{c7::image-occlusion:rect:left=.6568:top=.8702:width=.3015:height=.1039:oi=1}}<br/>	"<img src=""paste-cf715119ccbf18316183cf10e99952b73e14dbc3.png"" title=""""/>"				
