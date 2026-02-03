@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (히든 검색)</title>
+<title>나만의 안키 (최종 파싱 엔진)</title>
 <style>
-    /* 디자인은 v10.14와 동일 (다크모드 + 핏) */
+    /* 디자인: 다크모드, 3단 폴더 구조, 아이폰 핏 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; --sub-group-bg: #252525; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
@@ -27,21 +27,25 @@
     .search-input:focus { border-color: var(--primary); outline: none; }
     .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-sub); }
     .deck-list { list-style: none; padding: 0; margin: 0; }
+    
+    /* 트리 구조 */
     .tree-folder { margin-bottom: 4px; }
     .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); transition: 0.2s; margin-bottom: 4px; }
     .tree-header:hover { background: var(--btn-hover); }
     .tree-children { display: none; padding-left: 10px; margin-left: 8px; border-left: 2px solid #444; }
     .tree-children.open { display: block; }
-    .folder-title { flex: 1; font-weight: bold; color: #ffd43b; font-size: 0.95rem; display: flex; align-items: center; gap: 6px; }
+    .folder-title { flex: 1; font-weight: bold; color: #ffd43b; font-size: 0.95rem; display: flex; align-items: center; gap: 6px; word-break: break-all; }
     .tree-deck { padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); margin-bottom: 4px; color: var(--text); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
     .tree-deck.active { background: #182836; color: #74c0fc; font-weight: bold; border: 1px solid #1c7ed6; }
-    .play-btn { background: var(--primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 8px; }
+    .play-btn { background: var(--primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 8px; flex-shrink: 0; }
     .del-btn { background: none; border: none; color: var(--text-sub); font-weight: bold; padding: 0 5px; cursor: pointer; font-size: 1rem; }
+
     .btn-upload, .sort-btn, .backup-btn, .restore-btn, .refresh-btn { width: 100%; padding: 12px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; font-weight: bold; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); text-align: left; }
     .btn-upload { background: var(--primary); color: white; border: none; text-align: center; }
     .backup-btn { background: #343a40; color: white; border: none; text-align: center; }
     .restore-btn { background: #495057; color: white; border: none; text-align: center; }
     .refresh-btn { background: #212529; color: var(--text-sub); border: 1px solid var(--border); text-align: center; margin-top: 10px; }
+    
     .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
     .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; box-shadow: none; border: none; display: flex; flex-direction: column; position: relative; overflow: hidden; }
     .card-scroll-area { flex: 1; padding: 25px 20px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) var(--bg); }
@@ -141,7 +145,7 @@
         </div>
         
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">
-            My Anki v10.15 (Hidden Search)
+            My Anki v10.16 (State Machine Parser)
         </div>
     </div>
 
@@ -252,18 +256,13 @@
     async function autoScanGitHub() {
         document.getElementById('loading').style.display = 'block';
         document.getElementById('question-section').style.display = 'none';
-        
-        let loadedCount = 0;
-        const edits = JSON.parse(localStorage.getItem(STORAGE_KEY_EDITS) || '{}');
-
+        let loadedCount = 0; const edits = JSON.parse(localStorage.getItem(STORAGE_KEY_EDITS) || '{}');
         try {
             const listUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/`;
             const listResponse = await fetch(listUrl);
             if (!listResponse.ok) throw new Error("Repo access failed");
-            
             const files = await listResponse.json();
             const txtFiles = files.filter(f => f.name.endsWith('.txt'));
-
             for (const file of txtFiles) {
                 try {
                     const contentResponse = await fetch(file.download_url + '?t=' + new Date().getTime());
@@ -272,69 +271,99 @@
                     loadedCount++;
                 } catch (e) { console.error("Error reading file:", file.name); }
             }
-
         } catch (error) { console.error("Auto scan failed:", error); }
-
         renderDeckTree();
         document.getElementById('loading').style.display = 'none';
         document.getElementById('question-section').style.display = 'block';
-        
         if (loadedCount > 0) {
             const lastDeck = localStorage.getItem(STORAGE_KEY_LAST_DECK);
             if (lastDeck) {
                 if (library[lastDeck]) selectDeck(lastDeck);
                 else selectDeckGroup(lastDeck);
-            } else {
-                selectDeck(Object.keys(library)[0]);
-            }
-        } else {
-            document.getElementById('question-section').innerHTML = "<h3>⚠️ 불러올 덱이 없습니다.</h3>";
-        }
+            } else { selectDeck(Object.keys(library)[0]); }
+        } else { document.getElementById('question-section').innerHTML = "<h3>⚠️ 불러올 덱이 없습니다.</h3>"; }
     }
 
-    // TSV 파서 (따옴표 처리)
-    function parseTSV(str) {
-        const rows = []; let currentRow = []; let currentCell = ''; let inQuote = false;
-        for (let i = 0; i < str.length; i++) {
-            const char = str[i]; const nextChar = str[i+1];
+    // === 🔥 최종 완결판 파서: 상태 머신 (State Machine) 방식 ===
+    // 따옴표 안에 따옴표, 엔터, 탭이 있어도 절대 깨지지 않음
+    function parseAnkiRawData(str) {
+        const rows = [];
+        let currentRow = [];
+        let currentCell = '';
+        let cursor = 0;
+        let inQuote = false;
+
+        while (cursor < str.length) {
+            const char = str[cursor];
+            const nextChar = str[cursor + 1];
+
             if (inQuote) {
-                if (char === '"' && nextChar === '"') { currentCell += '"'; i++; } 
-                else if (char === '"') { inQuote = false; } 
-                else { currentCell += char; }
+                if (char === '"' && nextChar === '"') {
+                    // 이스케이프된 따옴표 ("") -> 따옴표 하나(")로 변환
+                    currentCell += '"';
+                    cursor += 2;
+                } else if (char === '"') {
+                    // 따옴표 닫기
+                    inQuote = false;
+                    cursor++;
+                } else {
+                    currentCell += char;
+                    cursor++;
+                }
             } else {
-                if (char === '"') { inQuote = true; } 
-                else if (char === '\t') { currentRow.push(currentCell); currentCell = ''; } 
-                else if (char === '\n' || char === '\r') {
-                    if (char === '\r' && nextChar === '\n') i++; 
+                if (char === '"') {
+                    inQuote = true;
+                    cursor++;
+                } else if (char === '\t') {
+                    // 탭: 셀 분리
                     currentRow.push(currentCell);
-                    if (currentRow.length > 1 || currentRow[0] !== '') rows.push(currentRow);
-                    currentRow = []; currentCell = '';
-                } else { currentCell += char; }
+                    currentCell = '';
+                    cursor++;
+                } else if (char === '\n' || char === '\r') {
+                    // 엔터: 줄 바꿈
+                    if (char === '\r' && nextChar === '\n') cursor++;
+                    currentRow.push(currentCell);
+                    // 빈 줄 무시
+                    if (currentRow.length > 1 || (currentRow.length === 1 && currentRow[0].trim() !== '')) {
+                        rows.push(currentRow);
+                    }
+                    currentRow = [];
+                    currentCell = '';
+                    cursor++;
+                } else {
+                    currentCell += char;
+                    cursor++;
+                }
             }
         }
-        if (currentCell || currentRow.length > 0) { currentRow.push(currentCell); rows.push(currentRow); }
+        // 마지막 줄 처리
+        if (currentRow.length > 0 || currentCell !== '') {
+            currentRow.push(currentCell);
+            rows.push(currentRow);
+        }
         return rows;
     }
 
-    // === 🔥 핵심 로직: 투명 검색어(Hidden Index) 추출 ===
     function processAnkiText(text, filename, edits) {
-        const rows = parseTSV(text);
+        // 정밀 파서 호출
+        const rows = parseAnkiRawData(text);
         let currentDeck = filename.replace('.txt', '');
 
         rows.forEach(fields => {
-            if (fields.length < 2 || fields[0].startsWith('#')) return;
+            // 메타데이터(#) 무시
+            if (fields.length > 0 && fields[0].startsWith('#')) return;
 
             let deckNameInRow = null;
             let q = "", a = "";
 
-            if (fields[0].includes('::') || fields[0].includes('__')) {
+            if (fields.length >= 3) {
                 deckNameInRow = fields[0].replace(/::/g, '__');
                 q = fields[1];
-                a = fields.slice(2).join('<br>'); 
+                a = fields.slice(2).join('<br>'); // 정답이 여러 셀에 걸쳐있을 경우 안전장치
             } else {
                 deckNameInRow = currentDeck;
                 if (fields.length === 2) { q = fields[0]; a = fields[1]; } 
-                else { q = fields[0]; a = fields.slice(1).join('<br>'); }
+                else if (fields.length > 0) { q = fields[0]; a = fields.slice(1).join('<br>'); }
             }
 
             if(!q) return;
@@ -343,63 +372,40 @@
             const id = cyrb53(q);
             if (edits[id]) { q = edits[id].q; a = edits[id].a; }
             
-            // 🔎 투명 검색어 추출 (title="..." 속 내용)
+            // 투명 검색어(OCR) 추출
             let hiddenText = "";
-            const titleMatch = q.match(/title="([^"]*)"/);
-            if (titleMatch) {
-                hiddenText = titleMatch[1]; // OCR 텍스트 저장
-            }
+            // title="..." 패턴 추출 (줄바꿈 포함)
+            const titleMatch = q.match(/title="([\s\S]*?)"/);
+            if (titleMatch) hiddenText = titleMatch[1];
 
-            // card 객체에 hiddenText 추가
             library[deckNameInRow].push({ id, q, a, hiddenText });
         });
     }
 
-    // === 🔥 검색 로직 수정: 투명 검색어 & 태그 동시 검색 ===
-    function filterCards() {
-        const rawQuery = document.getElementById('search-input').value.toLowerCase();
-        if(!currentDeckName) return;
-        
-        if(!rawQuery) { 
-            activeDeck = [...originalDeck]; 
-        } else {
-            // 태그 검색인지 확인 (중요, 암기, 별 등)
-            const tagMap = { '중요': 'fav', '별': 'fav', '즐겨찾기': 'fav', '암기': 'mem', '비교': 'cmp', '숫자': 'num', '날짜': 'date', '벌칙': 'pen' };
-            const tagKey = tagMap[rawQuery];
-            
-            if (tagKey) {
-                // 태그 검색 모드
-                const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
-                activeDeck = originalDeck.filter(c => (allStats[c.id] || {})[tagKey]);
-            } else {
-                // 일반 텍스트 + OCR(히든) 검색 모드
-                activeDeck = originalDeck.filter(card => 
-                    card.q.toLowerCase().includes(rawQuery) || 
-                    card.a.toLowerCase().includes(rawQuery) ||
-                    (card.hiddenText && card.hiddenText.toLowerCase().includes(rawQuery)) // 히든 텍스트 검색
-                );
-            }
-        }
-        currentIndex = 0; showCard();
-    }
-
-    // === 🔥 DOM 생성: 화면엔 안 보이게 청소 (v10.13 로직 유지) ===
+    // === 🔥 DOM 생성: 안전한 HTML 세탁 ===
     function createDOM(rawText, isAnswer) {
-        let formattedText = rawText.replace(/""/g, '"');
-        if (formattedText.startsWith('"') && formattedText.endsWith('"')) formattedText = formattedText.slice(1, -1);
+        // DOM Parser를 이용해 안전하게 변환
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = rawText; // 이미 파서에서 따옴표 처리가 되었으므로 안전
 
         let images = [];
-        const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
-        let match;
-        while ((match = imgRegex.exec(formattedText)) !== null) { images.push(match[1]); }
-
-        // 화면에서는 태그를 싹 지워버림 (깨짐 방지)
-        let cleanText = formattedText.replace(/<img[^>]*>/gi, '');
+        const imgTags = tempDiv.querySelectorAll('img');
         
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = cleanText;
-        let text = tempDiv.innerHTML.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+        imgTags.forEach(img => {
+            const src = img.getAttribute('src');
+            if (src) images.push(src);
+            // ⭐️ 이미지 태그를 DOM에서 삭제 -> title 등 모든 속성 증발 -> 텍스트만 남음
+            img.remove();
+        });
 
+        // 남은 텍스트 (줄바꿈 처리)
+        let text = tempDiv.innerHTML
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n')
+            .replace(/<[^>]+>/g, '') // 나머지 태그 제거
+            .trim();
+
+        // 화면 구성
         const wrapper = document.createElement('div'); wrapper.className = 'answer-layout';
         const txtDiv = document.createElement('div'); txtDiv.className = 'text-area'; 
         
@@ -411,6 +417,8 @@
         } else { txtDiv.innerText = text; }
         
         const imgDiv = document.createElement('div'); imgDiv.className = 'img-area';
+        
+        // 이미지 재건축 (속성 없이 src만)
         [...new Set(images)].forEach(filename => {
             const img = document.createElement('img'); 
             try { filename = decodeURIComponent(filename); } catch(e){}
@@ -429,7 +437,7 @@
         return wrapper;
     }
 
-    // ... 나머지 함수들 (Tree Rendering, Events 등 기존 유지) ...
+    // ... 기존 렌더링, 이벤트 함수들 (v10.15 유지) ...
     function renderDeckTree() {
         const list = document.getElementById('deck-list-ui'); list.innerHTML = '';
         const names = Object.keys(library).sort();
@@ -490,7 +498,28 @@
         renderDeckTree(); showCard(); document.getElementById('sidebar').classList.remove('open'); document.querySelector('.sidebar-overlay').classList.remove('open');
     }
 
+    // 기존 함수 유지
     function toggleMenu() { document.getElementById('sidebar').classList.toggle('open'); document.querySelector('.sidebar-overlay').classList.toggle('open'); }
+    function filterCards() { 
+        const rawQuery = document.getElementById('search-input').value.toLowerCase();
+        if(!currentDeckName) return;
+        if(!rawQuery) { activeDeck = [...originalDeck]; } 
+        else {
+            const tagMap = { '중요': 'fav', '별': 'fav', '즐겨찾기': 'fav', '암기': 'mem', '비교': 'cmp', '숫자': 'num', '날짜': 'date', '벌칙': 'pen' };
+            const tagKey = tagMap[rawQuery];
+            if (tagKey) {
+                const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+                activeDeck = originalDeck.filter(c => (allStats[c.id] || {})[tagKey]);
+            } else {
+                activeDeck = originalDeck.filter(card => 
+                    card.q.toLowerCase().includes(rawQuery) || 
+                    card.a.toLowerCase().includes(rawQuery) ||
+                    (card.hiddenText && card.hiddenText.toLowerCase().includes(rawQuery))
+                );
+            }
+        }
+        currentIndex = 0; showCard(); 
+    }
     function handleFileUpload(input) { const files = input.files; if(files.length === 0) return; let processedCount = 0; const edits = JSON.parse(localStorage.getItem(STORAGE_KEY_EDITS) || '{}'); Array.from(files).forEach(file => { const reader = new FileReader(); reader.onload = (e) => { const text = e.target.result; processAnkiText(text, file.name, edits); processedCount++; if (processedCount === files.length) { saveLibrary(); renderDeckTree(); if (!currentDeckName) selectDeck(Object.keys(library)[0]); alert(`총 ${files.length}개 파일 처리됨`); toggleMenu(); } }; reader.readAsText(file, 'UTF-8'); }); input.value = ''; }
     function saveLibrary() { try { localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(library)); } catch(e){} }
     function deleteDeck(name) { if(confirm("삭제하시겠습니까?")) { delete library[name]; saveLibrary(); renderDeckTree(); if(currentDeckName === name) { currentDeckName=null; activeDeck=[]; showCard(); } } }
