@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>나만의 안키 (이어보기 기능)</title>
+<title>나만의 안키 (자동 스캔)</title>
 <style>
+    /* 기존 스타일 유지 */
     :root { --primary: #4dabf7; --bg: #f8f9fa; --text: #343a40; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
@@ -138,9 +139,9 @@
         <div class="menu-section">
             <span class="menu-label">덱 관리 (폴더 지원)</span>
             <div style="font-size:0.8rem; color:#868e96; margin-bottom:5px;">
-                * 파일명을 <b>소방__학개론.txt</b> 처럼<br>언더바 2개로 구분하면 폴더가 됩니다.
+                * <b>minkunai87-ai/mk</b> 저장소의 파일을<br>자동으로 불러옵니다. (1~2분 소요)
             </div>
-            <button class="btn-upload" onclick="document.getElementById('file-input').click()">+ 텍스트 파일 추가</button>
+            <button class="btn-upload" onclick="document.getElementById('file-input').click()">+ (로컬) 텍스트 파일 추가</button>
             <input type="file" id="file-input" accept=".txt" multiple style="display:none" onchange="handleFileUpload(this)">
             <ul class="deck-list" id="deck-list-ui"></ul>
         </div>
@@ -152,7 +153,7 @@
         </div>
         
         <div style="margin-top:auto; font-size:0.8rem; color:#adb5bd; text-align:center;">
-            My Anki v8.3 (Resume Support)
+            My Anki v9.0 (Auto-Scan)
         </div>
     </div>
 
@@ -227,9 +228,9 @@
 
 <script>
     // ==========================================
-    // 💡 소방__학개론.txt 형식으로 적으면 자동 분류됩니다.
-    // 예: const myFiles = ['소방__학개론.txt', '소방__법규.txt'];
-    const myFiles = ['data.txt']; 
+    // 👑 GitHub 자동 스캔 설정
+    const repoOwner = 'minkunai87-ai';
+    const repoName = 'mk';
     // ==========================================
 
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
@@ -237,10 +238,10 @@
     const STORAGE_KEY_LIBRARY = 'anki_final_library';
     const STORAGE_KEY_STATS = 'anki_final_stats';
     const STORAGE_KEY_EDITS = 'anki_final_edits';
-    const STORAGE_KEY_PROGRESS = 'anki_final_progress'; // 진행상황 저장용 키 (NEW)
+    const STORAGE_KEY_PROGRESS = 'anki_final_progress';
 
     window.onload = async function() {
-        if (location.protocol.startsWith('http')) { await loadCloudFiles(); }
+        if (location.protocol.startsWith('http')) { await autoScanGitHub(); }
         else { loadLocalLibrary(); }
     };
 
@@ -256,37 +257,64 @@
         }
     }
 
-    async function loadCloudFiles() {
+    // === 🔥 GitHub API 자동 스캔 ===
+    async function autoScanGitHub() {
         document.getElementById('loading').style.display = 'block';
         document.getElementById('question-section').style.display = 'none';
         
         let loadedCount = 0;
         const edits = JSON.parse(localStorage.getItem(STORAGE_KEY_EDITS) || '{}');
 
-        for (const fileName of myFiles) {
-            try {
-                const response = await fetch(fileName + '?t=' + new Date().getTime());
-                if (!response.ok) throw new Error("404");
-                const text = await response.text();
-                
-                let deckName = fileName.replace('.txt', '');
-                try { deckName = decodeURIComponent(deckName); } catch(e){}
+        try {
+            // GitHub API로 파일 목록 가져오기
+            const listUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/`;
+            const listResponse = await fetch(listUrl);
+            if (!listResponse.ok) throw new Error("Repo access failed");
+            
+            const files = await listResponse.json();
+            
+            // .txt 파일만 골라내기
+            const txtFiles = files.filter(f => f.name.endsWith('.txt'));
 
-                const parsed = parseAnkiFile(text);
-                library[deckName] = parsed.map(c => {
-                    const id = cyrb53(c.q);
-                    if (edits[id]) return { id, q: edits[id].q, a: edits[id].a };
-                    return { id, q: c.q, a: c.a };
-                });
-                loadedCount++;
-            } catch (e) {}
+            // 각 파일 내용 읽어오기
+            for (const file of txtFiles) {
+                try {
+                    // 캐시 방지용 시간 추가
+                    const contentResponse = await fetch(file.download_url + '?t=' + new Date().getTime());
+                    const text = await contentResponse.text();
+                    
+                    let deckName = file.name.replace('.txt', '');
+                    try { deckName = decodeURIComponent(deckName); } catch(e){}
+
+                    const parsed = parseAnkiFile(text);
+                    library[deckName] = parsed.map(c => {
+                        const id = cyrb53(c.q);
+                        if (edits[id]) return { id, q: edits[id].q, a: edits[id].a };
+                        return { id, q: c.q, a: c.a };
+                    });
+                    loadedCount++;
+                } catch (e) { console.error("Error reading file:", file.name); }
+            }
+
+        } catch (error) {
+            console.error("Auto scan failed:", error);
+            // 실패 시 기존 방식(수동 목록) 시도 (혹시 몰라서)
+            // const fallbackFiles = ['data.txt']; // 필요한 경우 활성화
         }
 
         renderDeckList();
         document.getElementById('loading').style.display = 'none';
         document.getElementById('question-section').style.display = 'block';
-        if (loadedCount > 0) selectDeck(Object.keys(library)[0]);
-        else document.getElementById('question-section').innerHTML = "<h3>⚠️ 불러올 파일이 없습니다.</h3>";
+        
+        if (loadedCount > 0) {
+            // 저장된 마지막 위치가 있으면 그 덱을, 없으면 첫번째 덱을 선택
+            const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
+            const lastDeck = Object.keys(progress).find(key => library[key]); 
+            if(lastDeck) selectDeck(lastDeck);
+            else selectDeck(Object.keys(library)[0]);
+        } else {
+            document.getElementById('question-section').innerHTML = "<h3>⚠️ 불러올 덱이 없습니다.</h3><p>GitHub에 .txt 파일을 올려주세요.</p>";
+        }
     }
 
     function renderDeckList() {
@@ -408,18 +436,14 @@
         }
     }
 
-    // === 이어보기 로직 추가된 덱 선택 ===
     function selectDeck(name) {
         if(!library[name]) return;
         currentDeckName = name; 
         originalDeck = library[name]; 
         activeDeck = [...originalDeck];
         
-        // 저장된 위치 불러오기
         const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
-        currentIndex = progress[name] || 0; // 없으면 0부터
-        
-        // 덱 크기가 줄었을 경우 대비
+        currentIndex = progress[name] || 0;
         if(currentIndex >= activeDeck.length) currentIndex = 0;
 
         isRevealed = false;
@@ -432,10 +456,8 @@
         document.querySelector('.sidebar-overlay').classList.remove('open');
     }
 
-    // === 현재 위치 저장 함수 ===
     function saveCurrentProgress() {
         if (!currentDeckName) return;
-        // 전체 보기(기본) 상태일 때만 저장 (검색/필터 중에는 위치 꼬임 방지)
         if (activeDeck.length === originalDeck.length) {
             const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
             progress[currentDeckName] = currentIndex;
@@ -492,8 +514,8 @@
                     if (char === '\r' && next === '\n') i++;
                     currentRow.push(currentField);
                     if (currentRow.length >= 2) {
-                        const q = currentRow.slice(0, currentRow.length - 1).join('<br>');
-                        const a = currentRow[currentRow.length - 1];
+                        const q = currentRow[0];
+                        const a = currentRow.slice(1).join('<br><br>');
                         result.push({ q, a });
                     }
                     currentRow = []; currentField = '';
@@ -503,8 +525,8 @@
         if (currentField || currentRow.length > 0) {
             currentRow.push(currentField);
             if(currentRow.length >= 2) {
-                const q = currentRow.slice(0, currentRow.length - 1).join('<br>');
-                const a = currentRow[currentRow.length - 1];
+                const q = currentRow[0];
+                const a = currentRow.slice(1).join('<br><br>');
                 result.push({ q, a });
             }
         }
@@ -538,8 +560,14 @@
             imgDiv.appendChild(img);
         });
 
-        if (!isAnswer) { if (images.length > 0) wrapper.appendChild(imgDiv); if (text) wrapper.appendChild(txtDiv); }
-        else { if (text) wrapper.appendChild(txtDiv); if (images.length > 0) wrapper.appendChild(imgDiv); }
+        if (!isAnswer) { 
+            if (images.length > 0) wrapper.appendChild(imgDiv); 
+            if (text) wrapper.appendChild(txtDiv); 
+        }
+        else { 
+            if (text) wrapper.appendChild(txtDiv); 
+            if (images.length > 0) wrapper.appendChild(imgDiv); 
+        }
         return wrapper;
     }
 
@@ -588,7 +616,7 @@
         let nextIdx = currentIndex + delta;
         if(nextIdx >= 0 && nextIdx < activeDeck.length) { 
             currentIndex = nextIdx; 
-            saveCurrentProgress(); // 이동할 때마다 위치 저장
+            saveCurrentProgress(); 
             showCard(); 
         }
     }
@@ -597,7 +625,7 @@
         saveStats(activeDeck[currentIndex].id, score);
         if (currentIndex < activeDeck.length - 1) { 
             currentIndex++; 
-            saveCurrentProgress(); // 채점 후 이동 시에도 저장
+            saveCurrentProgress(); 
             showCard(); 
         }
         else { alert("끝!"); currentIndex=0; saveCurrentProgress(); showCard(); }
