@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (Table Fit & IO fix)</title>
+<title>나만의 안키 (스크롤 복구)</title>
 <style>
     /* 기본 테마 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -51,18 +51,25 @@
     .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
     .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; box-shadow: none; border: none; display: flex; flex-direction: column; position: relative; overflow: hidden; }
     
-    /* 줌 래퍼 (핀치 줌 대상) */
+    /* 🔥 [스크롤 영역 수정] touch-action: none 제거 -> pan-y로 변경 (세로 스크롤 허용) */
     .card-scroll-area { 
         flex: 1; 
-        overflow: hidden; 
+        overflow-y: auto; /* 세로 스크롤 활성화 */
+        overflow-x: hidden;
         position: relative;
-        touch-action: none;
+        /* pan-y: 수직 스크롤 허용, 그 외(핀치 등)는 JS로 처리 */
+        touch-action: pan-y; 
+        -webkit-overflow-scrolling: touch; /* iOS 부드러운 스크롤 */
     }
+    
+    /* 줌 래퍼 */
     .zoom-content {
         padding: 25px 20px;
         min-height: 100%;
         width: 100%;
         transform-origin: 0 0;
+        /* 줌이 될 때만 will-change 적용하여 성능 최적화 */
+        will-change: transform;
     }
     
     .card-info { display: flex; justify-content: space-between; width: 100%; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed var(--border); align-items: center; }
@@ -77,39 +84,18 @@
     .num-btn.active { color: #66d9e8; } .date-btn.active { color: #b197fc; } .pen-btn.active { color: #ff6b6b; }
     .edit-btn { font-size: 1.2rem; margin-right: 5px; opacity: 1; color: var(--text-sub); }
 
-    /* 🔥 [핵심 CSS] 테이블 & 이미지 강제 축소 */
+    /* 🔥 [이미지/테이블 강제 핏] */
     .text-area { 
         font-size: 1.35rem; line-height: 1.6; word-break: keep-all; white-space: pre-wrap; 
         width: 100%; margin-bottom: 20px; color: var(--text); font-weight: 500; 
         position: relative; 
     }
-    
-    /* 1. 모든 요소의 최대 너비를 화면 100%로 강제 */
-    .text-area * {
-        max-width: 100% !important;
-        box-sizing: border-box !important;
-    }
-
-    /* 2. 테이블 강제 다이어트 (표가 화면 밖으로 나가는 주범) */
-    table {
-        width: 100% !important;
-        table-layout: fixed !important; /* 셀 너비 강제 조절 */
-        display: table !important;
-    }
-    td, th {
-        word-wrap: break-word; /* 긴 단어 줄바꿈 */
-        overflow-wrap: break-word;
-    }
-
-    /* 3. 이미지 반응형 */
+    .text-area * { max-width: 100% !important; box-sizing: border-box !important; }
+    table { width: 100% !important; table-layout: fixed !important; display: table !important; }
+    td, th { word-wrap: break-word; overflow-wrap: break-word; }
     .text-area img, .text-area svg {
-        width: auto !important; 
-        height: auto !important; 
-        max-width: 100% !important; 
-        display: block; 
-        margin: 10px auto;
-        border-radius: 8px; 
-        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        width: auto !important; height: auto !important; max-width: 100% !important; 
+        display: block; margin: 10px auto; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
 
     .divider { display: none; border: 0; border-top: 2px dashed var(--border); margin: 30px 0; position: relative; }
@@ -136,7 +122,6 @@
     .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
     .modal-btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
     .btn-save { background: var(--primary); color: white; } .btn-cancel { background: var(--input-bg); color: var(--text); }
-    
     #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
     .ox-highlight { font-size: 4rem; font-weight: 900; text-align: center; display: block; margin: 10px 0; }
     .ox-o { color: #40c057; } .ox-x { color: #fa5252; }
@@ -192,7 +177,7 @@
             <button class="refresh-btn" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">
-            My Anki v10.37 (Table Fix & IO)
+            My Anki v10.38 (Scroll & Zoom Fix)
         </div>
     </div>
 
@@ -271,36 +256,58 @@
     const repoName = 'mk';
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
 
-    // 핀치 줌 로직
+    // === 🔥 핀치 줌 & 스크롤 하이브리드 로직 ===
     const scrollContainer = document.getElementById('scroll-area');
     const zoomContent = document.getElementById('zoom-content');
-    let scale = 1, panning = false, pointX = 0, pointY = 0, startX = 0, startY = 0, lastTap = 0;
+    
+    let scale = 1;
+    let panning = false;
+    let pointX = 0, pointY = 0;
+    let startX = 0, startY = 0;
+    let lastTap = 0;
+    let startDist = 0, startScale = 1;
 
+    // 터치 시작: 2손가락이면 줌 모드, 1손가락이면 스크롤(기본) or 패닝(확대시)
     scrollContainer.addEventListener('touchstart', (e) => {
         if (e.touches.length === 2) {
-            e.preventDefault(); panning = false;
-            this.startDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
-            this.startScale = scale;
+            e.preventDefault(); // 2손가락일 때만 브라우저 동작 차단 (줌 시작)
+            panning = false;
+            startDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+            startScale = scale;
         } else if (e.touches.length === 1) {
+            // 더블 탭 로직
             const now = new Date().getTime();
-            if (now - lastTap < 300) { e.preventDefault(); resetZoom(); } 
-            else { if (scale > 1) { panning = true; startX = e.touches[0].pageX - pointX; startY = e.touches[0].pageY - pointY; } }
+            if (now - lastTap < 300) {
+                e.preventDefault();
+                resetZoom();
+            } else {
+                // 확대된 상태에서만 패닝(이동) 시작, 기본 배율에선 스크롤 허용
+                if (scale > 1) {
+                    panning = true;
+                    startX = e.touches[0].pageX - pointX;
+                    startY = e.touches[0].pageY - pointY;
+                }
+            }
             lastTap = now;
         }
     }, { passive: false });
 
+    // 터치 이동: 로직 분리
     scrollContainer.addEventListener('touchmove', (e) => {
         if (e.touches.length === 2) {
+            // 핀치 줌 중 -> 브라우저 줌/스크롤 차단
             e.preventDefault();
             const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
-            scale = Math.min(Math.max(1, this.startScale * (dist / this.startDist)), 4);
+            scale = Math.min(Math.max(1, startScale * (dist / startDist)), 4);
             updateTransform();
         } else if (e.touches.length === 1 && panning && scale > 1) {
+            // 확대된 상태에서 1손가락 이동 -> 패닝 (스크롤 차단)
             e.preventDefault();
             pointX = e.touches[0].pageX - startX;
             pointY = e.touches[0].pageY - startY;
             updateTransform();
         }
+        // 1손가락이고 scale이 1이면 아무것도 안 함 -> 브라우저가 알아서 스크롤 함 (OK)
     }, { passive: false });
 
     scrollContainer.addEventListener('touchend', (e) => {
@@ -308,11 +315,24 @@
         if (scale < 1.1) resetZoom();
     });
 
-    function resetZoom() { scale = 1; pointX = 0; pointY = 0; updateTransform(); scrollContainer.style.overflowY = 'auto'; }
+    function resetZoom() {
+        scale = 1; pointX = 0; pointY = 0;
+        updateTransform();
+        // 스크롤바 다시 생기게 (혹시 hidden 됐을까봐)
+        scrollContainer.style.overflowY = 'auto';
+    }
+
     function updateTransform() {
-        if (scale > 1) scrollContainer.style.overflow = 'hidden'; else scrollContainer.style.overflowY = 'auto';
+        if (scale > 1) {
+            // 확대 중일 땐 컨테이너 스크롤을 막아야 패닝이 자연스러움
+            scrollContainer.style.overflow = 'hidden';
+        } else {
+            // 원복 되면 다시 스크롤 가능
+            scrollContainer.style.overflowY = 'auto';
+        }
         zoomContent.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
     }
+    // === 핀치 줌 로직 끝 ===
 
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let imageMap = new Map();
@@ -413,32 +433,22 @@
         });
     }
 
-    // === 🔥 핵심: DOM 생성 & 강제 리사이징 & IO 패치 ===
     function createDOM(rawText, isAnswer, questionText = "", answerText = "") {
         let formattedText = rawText.replace(/""/g, '"');
         if (formattedText.startsWith('"') && formattedText.endsWith('"')) formattedText = formattedText.slice(1, -1);
 
-        // 1. title 제거
         let cleanText = formattedText.replace(/title\s*=\s*"[^"]*"/gi, ''); 
-        
-        // 2. IO 코드 숨기기 ({{c1::...}} 같은 코드는 화면에 안 나오게 span으로 감싸서 숨김)
-        // 정규식으로 찾아서 style="display:none" 처리
         cleanText = cleanText.replace(/(\{\{c\d+::.*?\}\})/g, '<span style="display:none">$1</span>');
 
-        // 3. [IO 패치] 만약 '문제' 화면인데 이미지가 없고, '정답'에는 이미지가 있다면 정답 이미지를 복사해옴
-        // (단, IO 코드 {{...}}가 있을 때만)
+        // IO 패치: 문제 화면에 이미지 없고 정답에만 있을 때 복사
         if (!isAnswer && cleanText.includes('<span style="display:none">{{') && !cleanText.includes('<img')) {
-            // 정답 텍스트에서 이미지 태그 추출
             const imgMatch = answerText.match(/<img[^>]+>/);
-            if (imgMatch) {
-                cleanText += "<br>" + imgMatch[0]; // 이미지 추가
-            }
+            if (imgMatch) { cleanText += "<br>" + imgMatch[0]; }
         }
 
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = cleanText;
 
-        // 이미지 연결
         const regex = /([a-zA-Z0-9_\-\.\%\(\)\s\uAC00-\uD7A3]+\.(jpg|jpeg|png|gif|svg|webp))/gi;
         tempDiv.innerHTML = tempDiv.innerHTML.replace(regex, (match) => {
             let fname = match.trim();
@@ -447,30 +457,18 @@
             return url;
         });
 
-        // 🔥 [강제 다이어트 v4] 테이블, div 등 모든 부모 요소 강제 축소
+        // 강제 핏 (테이블 포함)
         tempDiv.querySelectorAll('*').forEach(el => {
-            // 스타일 초기화
-            el.style.width = ""; 
-            el.style.height = "";
-            el.style.maxWidth = "100%";
-            el.style.minWidth = "0"; 
-            
-            // HTML 속성 제거
-            el.removeAttribute("width");
-            el.removeAttribute("height");
-            
-            // 테이블 강제
+            el.style.width = ""; el.style.height = ""; el.style.maxWidth = "100%"; el.style.minWidth = "0"; 
+            el.removeAttribute("width"); el.removeAttribute("height");
             if(el.tagName === 'TABLE' || el.tagName === 'TD' || el.tagName === 'TH') {
-                el.style.tableLayout = "fixed";
-                el.style.width = "100%";
-                el.removeAttribute("nowrap");
+                el.style.tableLayout = "fixed"; el.style.width = "100%"; el.removeAttribute("nowrap");
             }
         });
 
         const wrapper = document.createElement('div'); wrapper.className = 'answer-layout';
         const txtDiv = document.createElement('div'); txtDiv.className = 'text-area';
         
-        // 정답 O/X 강조
         let textContent = tempDiv.textContent.trim();
         const hasComplexTags = tempDiv.querySelector('div, svg, img'); 
         
@@ -486,7 +484,6 @@
             wrapper.appendChild(tempDiv);
         }
         
-        // 이미지 에러 핸들링
         const imgs = wrapper.querySelectorAll('img');
         imgs.forEach(img => {
             img.onerror = function() {
@@ -499,7 +496,8 @@
     }
 
     function showCard() {
-        resetZoom();
+        resetZoom(); // 줌 상태 초기화
+        
         if (!activeDeck || activeDeck.length === 0) {
             document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub)'>항목이 없습니다.</h3>";
             document.getElementById('card-info').style.display='none';
@@ -516,7 +514,6 @@
         updateStatsUI(stats); updateIconsUI(stats);
 
         const qSection = document.getElementById('question-section'); qSection.innerHTML = '';
-        // 질문 생성 (정답 내용도 전달해서 이미지 복사해올 수 있게 함)
         qSection.appendChild(createDOM(card.q, false, "", card.a));
         
         const aSection = document.getElementById('answer-section'); aSection.innerHTML = '';
@@ -527,10 +524,10 @@
         document.getElementById('click-guide').style.display = 'block';
         document.getElementById('nav-area').style.display = 'flex';
         document.getElementById('grade-area').style.display = 'none';
+        
         scrollContainer.scrollTop = 0;
     }
 
-    // 기존 함수들 유지 (filterCards, renderDeckTree, selectDeckGroup, handleFileUpload, etc...)
     function filterCards() { 
         const rawQuery = document.getElementById('search-input').value.toLowerCase();
         if(!currentDeckName) return;
