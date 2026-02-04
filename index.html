@@ -5,116 +5,137 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (최종 줌 & 핏)</title>
+<title>나만의 안키 (Table Fit & IO fix)</title>
 <style>
-    /* 다크모드 + 아이폰 핏 + 기본 스타일 */
+    /* 기본 테마 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
+    :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; --sub-group-bg: #252525; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
     
-    /* 헤더 */
-    .header { background: var(--surface); padding: 0 20px; padding-top: calc(env(safe-area-inset-top) + 15px); padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0; }
+    .header { background: var(--surface); padding: 0 20px; padding-top: calc(env(safe-area-inset-top) + 15px); padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0; position: relative; }
     .header-title { font-weight: bold; font-size: 1.15rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 60%; }
-    .menu-btn { font-size: 1.6rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); }
+    .header-controls { display: flex; gap: 10px; align-items: center; }
+    .menu-btn { font-size: 1.6rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); display: flex; align-items: center; }
     .counter { font-size: 0.85rem; font-weight: bold; color: var(--text-sub); background: var(--input-bg); padding: 5px 12px; border-radius: 15px; }
 
-    /* 사이드바 */
     .sidebar { position: fixed; top: 0; left: 0; width: 300px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); box-shadow: 2px 0 15px rgba(0,0,0,0.5); transition: transform 0.3s ease; z-index: 9999; padding: 25px; padding-top: calc(env(safe-area-inset-top) + 25px); display: flex; flex-direction: column; overflow-y: auto; transform: translateX(-105%); }
     .sidebar.open { transform: translateX(0); }
     .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9998; display: none; }
     .sidebar-overlay.open { display: block; }
     
-    /* 메뉴 스타일 */
     .menu-section { margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
     .menu-label { font-weight: bold; color: var(--text-sub); margin-bottom: 10px; display: block; font-size: 0.95rem; }
-    .search-input { width: 100%; padding: 12px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-size: 0.95rem; }
-    .btn-upload, .sort-btn, .backup-btn, .restore-btn, .refresh-btn { width: 100%; padding: 12px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; font-weight: bold; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); text-align: left; }
-    .btn-upload { background: var(--primary); color: white; border: none; text-align: center; }
-    
-    /* 덱 트리 */
+    .search-box { position: relative; margin-bottom: 15px; }
+    .search-input { width: 100%; padding: 12px 10px 12px 35px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-size: 0.95rem; }
+    .search-input:focus { border-color: var(--primary); outline: none; }
+    .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-sub); }
+
     .deck-list { list-style: none; padding: 0; margin: 0; }
     .tree-folder { margin-bottom: 4px; }
-    .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); margin-bottom: 4px; }
+    .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); transition: 0.2s; margin-bottom: 4px; }
+    .tree-header:hover { background: var(--btn-hover); }
     .tree-children { display: none; padding-left: 10px; margin-left: 8px; border-left: 2px solid #444; }
     .tree-children.open { display: block; }
-    .tree-deck { padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); margin-bottom: 4px; color: var(--text); display: flex; justify-content: space-between; align-items: center; }
+    .folder-title { flex: 1; font-weight: bold; color: #ffd43b; font-size: 0.95rem; display: flex; align-items: center; gap: 6px; }
+    .tree-deck { padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); margin-bottom: 4px; color: var(--text); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
     .tree-deck.active { background: #182836; color: #74c0fc; font-weight: bold; border: 1px solid #1c7ed6; }
-    .del-btn, .play-btn { background: none; border: none; font-weight: bold; cursor: pointer; color: var(--text-sub); }
-    .play-btn { background: var(--primary); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 8px; }
+    .play-btn { background: var(--primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 8px; flex-shrink: 0; }
+    .del-btn { background: none; border: none; color: var(--text-sub); font-weight: bold; padding: 0 5px; cursor: pointer; font-size: 1rem; }
 
-    /* 메인 컨테이너 */
-    .main-container { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; background: var(--bg); }
-    .card { background: var(--surface); width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+    .btn-upload, .sort-btn, .backup-btn, .restore-btn, .refresh-btn { width: 100%; padding: 12px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; font-weight: bold; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); text-align: left; }
+    .btn-upload { background: var(--primary); color: white; border: none; text-align: center; }
+    .backup-btn { background: #343a40; color: white; border: none; text-align: center; }
+    .restore-btn { background: #495057; color: white; border: none; text-align: center; }
+    .refresh-btn { background: #212529; color: var(--text-sub); border: 1px solid var(--border); text-align: center; margin-top: 10px; }
+
+    .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
+    .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; box-shadow: none; border: none; display: flex; flex-direction: column; position: relative; overflow: hidden; }
     
-    /* 🔥 [스크롤 영역] 핀치 줌을 위해 touch-action 조작 */
+    /* 줌 래퍼 (핀치 줌 대상) */
     .card-scroll-area { 
         flex: 1; 
-        overflow: hidden; /* JS로 스크롤/줌 제어 */
+        overflow: hidden; 
         position: relative;
-        touch-action: none; /* 브라우저 기본 동작 차단 (핀치 줌 구현용) */
+        touch-action: none;
     }
-    
-    /* 🔥 [줌 래퍼] 실제 확대/축소되는 판 */
     .zoom-content {
         padding: 25px 20px;
         min-height: 100%;
         width: 100%;
         transform-origin: 0 0;
-        /* 초기값 */
-        transform: translate(0px, 0px) scale(1);
     }
-
+    
     .card-info { display: flex; justify-content: space-between; width: 100%; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed var(--border); align-items: center; }
     .rate-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; background: var(--input-bg); color: var(--text-sub); }
+    .rate-badge.high { background: #0b2e13; color: #69db7c; } .rate-badge.low { background: #2e0b0b; color: #ff8787; }
     .icon-wrapper { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
     .icon-row { display: flex; gap: 12px; }
-    .icon-btn { font-size: 1.4rem; cursor: pointer; background: none; border: none; padding: 0; opacity: 0.4; filter: grayscale(100%); transition: 0.2s; }
+    .icon-btn { font-size: 1.4rem; cursor: pointer; background: none; border: none; padding: 0; line-height: 1; color: var(--text-sub); transition: 0.2s; opacity: 0.4; filter: grayscale(100%); }
+    .icon-btn:hover { opacity: 0.8; }
     .icon-btn.active { opacity: 1; filter: grayscale(0%); transform: scale(1.1); }
+    .mem-btn.active { color: #ff8787; } .cmp-btn.active { color: #74c0fc; } .fav-btn.active { color: #ffd43b; }
+    .num-btn.active { color: #66d9e8; } .date-btn.active { color: #b197fc; } .pen-btn.active { color: #ff6b6b; }
+    .edit-btn { font-size: 1.2rem; margin-right: 5px; opacity: 1; color: var(--text-sub); }
 
-    /* 🔥 [핵심] 이미지 & 컨테이너 강제 핏 CSS */
+    /* 🔥 [핵심 CSS] 테이블 & 이미지 강제 축소 */
     .text-area { 
         font-size: 1.35rem; line-height: 1.6; word-break: keep-all; white-space: pre-wrap; 
         width: 100%; margin-bottom: 20px; color: var(--text); font-weight: 500; 
         position: relative; 
     }
     
-    /* 모든 자식 요소(div, table, img 등) 강제 축소 */
-    .text-area > *, .text-area div, .text-area table, .text-area img, .text-area svg {
-        max-width: 100% !important; 
+    /* 1. 모든 요소의 최대 너비를 화면 100%로 강제 */
+    .text-area * {
+        max-width: 100% !important;
         box-sizing: border-box !important;
     }
-    
-    /* 이미지와 SVG는 비율 유지 */
+
+    /* 2. 테이블 강제 다이어트 (표가 화면 밖으로 나가는 주범) */
+    table {
+        width: 100% !important;
+        table-layout: fixed !important; /* 셀 너비 강제 조절 */
+        display: table !important;
+    }
+    td, th {
+        word-wrap: break-word; /* 긴 단어 줄바꿈 */
+        overflow-wrap: break-word;
+    }
+
+    /* 3. 이미지 반응형 */
     .text-area img, .text-area svg {
         width: auto !important; 
         height: auto !important; 
+        max-width: 100% !important; 
         display: block; 
         margin: 10px auto;
         border-radius: 8px; 
         box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
 
-    /* 구분선 */
     .divider { display: none; border: 0; border-top: 2px dashed var(--border); margin: 30px 0; position: relative; }
     .divider::after { content: "정답"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--surface); padding: 0 10px; color: var(--text-sub); font-size: 0.8rem; font-weight: bold; }
-    #answer-section { display: none; padding-bottom: 20px; }
+    #answer-section { display: none; padding-bottom: 20px; animation: fadeIn 0.3s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-    /* 푸터 */
-    .footer { width: 100%; padding: 10px 20px; padding-bottom: calc(35px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); z-index: 10; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+    .footer { width: 100%; padding: 10px 20px; padding-bottom: calc(35px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); z-index: 10; display: flex; flex-direction: column; gap: 10px; justify-content: center; flex-shrink: 0; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); }
     .nav-btns, .grade-btns { display: flex; justify-content: space-between; width: 100%; margin: 0; gap: 12px; }
-    .nav-btn, .g-btn { flex: 1; padding: 14px 0; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 1rem; text-align: center; border: none; }
-    .nav-btn { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); }
-    .g-btn { color: white; font-size: 1.1rem; }
+    .nav-btn { flex: 1; background: var(--input-bg); border: 1px solid var(--border); padding: 14px 0; border-radius: 12px; cursor: pointer; font-weight: bold; color: var(--text); font-size: 1rem; text-align: center; transition: 0.2s; }
+    .nav-btn:active { background: var(--btn-hover); }
+    .g-btn { flex: 1; padding: 16px 0; border: none; border-radius: 12px; font-weight: bold; color: white; cursor: pointer; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin: 0; text-align: center; }
+    .g-btn:active { transform: scale(0.98); opacity: 0.9; }
     .bg-x { background: #fa5252; } .bg-tri { background: #fab005; } .bg-o { background: #40c057; }
-    .click-guide { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-top: 40px; cursor: pointer; padding: 30px; border: 2px dashed var(--border); border-radius: 12px; background: #181818; }
 
-    /* 모달 */
+    .click-guide { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-top: 40px; cursor: pointer; padding: 30px; border: 2px dashed var(--border); border-radius: 12px; background: #181818; }
+    .click-guide:active { background: #222; }
+
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: none; align-items: center; justify-content: center; }
-    .modal-content { background: var(--surface); width: 90%; max-width: 500px; padding: 25px; border-radius: 15px; display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border); }
+    .modal-content { background: var(--surface); width: 90%; max-width: 500px; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border); }
+    .modal-title { font-weight: bold; font-size: 1.2rem; color: var(--text); }
+    .edit-label { font-size: 0.9rem; color: var(--text-sub); font-weight: bold; }
     .edit-input { width: 100%; padding: 10px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-family: inherit; font-size: 1rem; resize: vertical; min-height: 80px; }
     .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
     .modal-btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
-    .btn-save { background: var(--primary); color: white; }
+    .btn-save { background: var(--primary); color: white; } .btn-cancel { background: var(--input-bg); color: var(--text); }
     
     #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
     .ox-highlight { font-size: 4rem; font-weight: 900; text-align: center; display: block; margin: 10px 0; }
@@ -128,20 +149,30 @@
         <h2 style="margin-top:0; color:var(--text); font-size:1.4rem;">⚙️ 메뉴</h2>
         <div class="menu-section">
             <span class="menu-label">🔍 카드 검색</span>
-            <input type="text" id="search-input" class="search-input" placeholder="텍스트, OCR, 태그 검색" onkeyup="filterCards()">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="search-input" class="search-input" placeholder="텍스트, OCR, 태그 검색" onkeyup="filterCards()">
+            </div>
         </div>
         <div class="menu-section">
             <span class="menu-label">필터 및 모아보기</span>
-            <button class="sort-btn" onclick="sortCards('default')"><span>📋 전체 보기</span></button>
+            <button class="sort-btn" onclick="sortCards('default')"><span>📋 전체 보기 (기본)</span></button>
             <div style="height:10px;"></div>
             <button class="sort-btn" onclick="sortCards('mem')"><span>🧠 암기장 모음</span></button>
             <button class="sort-btn" onclick="sortCards('cmp')"><span>🆚 비교문제 모음</span></button>
             <button class="sort-btn" onclick="sortCards('fav')"><span>⭐ 중요(별표) 모음</span></button>
-            <button class="sort-btn" style="color:#ff8787; border-color:#ff6b6b; margin-top:10px;" onclick="sortCards('rate_asc')"><span>🔥 오답 노트</span></button>
+            <div style="height:10px;"></div>
+            <button class="sort-btn" onclick="sortCards('num')"><span>🔢 숫자문제 모음</span></button>
+            <button class="sort-btn" onclick="sortCards('date')"><span>📅 날짜/기한 모음</span></button>
+            <button class="sort-btn" onclick="sortCards('pen')"><span>🚨 벌칙/벌금 모음</span></button>
+            <div style="height:10px;"></div>
+            <button class="sort-btn" style="border-color:#ff6b6b; color:#ff8787;" onclick="sortCards('rate_asc')"><span>🔥 오답 노트</span></button>
         </div>
         <div class="menu-section">
             <span class="menu-label">덱 관리</span>
-            <div style="font-size:0.8rem; color:var(--text-sub); margin-bottom:5px;">* <b>minkunai87-ai/mk</b> 연동 중</div>
+            <div style="font-size:0.8rem; color:var(--text-sub); margin-bottom:5px;">
+                * <b>minkunai87-ai/mk</b> 자동 연동 중
+            </div>
             <button class="btn-upload" onclick="document.getElementById('file-input').click()">+ (로컬) 텍스트 파일 추가</button>
             <input type="file" id="file-input" accept=".txt" multiple style="display:none" onchange="handleFileUpload(this)">
             <ul class="deck-list" id="deck-list-ui"></ul>
@@ -160,13 +191,17 @@
         <div style="margin-top:20px; padding-bottom:30px;">
             <button class="refresh-btn" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">My Anki v10.36 (Pinch Fix)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">
+            My Anki v10.37 (Table Fix & IO)
+        </div>
     </div>
 
     <div class="header">
         <button class="menu-btn" onclick="toggleMenu()">☰</button>
         <div class="header-title" id="deck-title">나만의 안키</div>
-        <div class="header-controls"><span class="counter" id="card-counter">0 / 0</span></div>
+        <div class="header-controls">
+            <span class="counter" id="card-counter">0 / 0</span>
+        </div>
     </div>
 
     <div class="main-container">
@@ -179,22 +214,28 @@
                         <div class="icon-wrapper">
                             <div class="icon-row">
                                 <button class="icon-btn edit-btn" onclick="openEditModal(event)">✏️</button>
-                                <button class="icon-btn mem-btn" id="mem-btn" onclick="toggleTag(event, 'mem')">🧠</button>
-                                <button class="icon-btn cmp-btn" id="cmp-btn" onclick="toggleTag(event, 'cmp')">🆚</button>
-                                <button class="icon-btn fav-btn" id="fav-btn" onclick="toggleTag(event, 'fav')">⭐</button>
+                                <button class="icon-btn mem-btn" id="mem-btn" onclick="toggleTag(event, 'mem')" title="암기">🧠</button>
+                                <button class="icon-btn cmp-btn" id="cmp-btn" onclick="toggleTag(event, 'cmp')" title="비교">🆚</button>
+                                <button class="icon-btn fav-btn" id="fav-btn" onclick="toggleTag(event, 'fav')" title="중요">⭐</button>
                             </div>
                             <div class="icon-row">
-                                <button class="icon-btn num-btn" id="num-btn" onclick="toggleTag(event, 'num')">🔢</button>
-                                <button class="icon-btn date-btn" id="date-btn" onclick="toggleTag(event, 'date')">📅</button>
-                                <button class="icon-btn pen-btn" id="pen-btn" onclick="toggleTag(event, 'pen')">🚨</button>
+                                <button class="icon-btn num-btn" id="num-btn" onclick="toggleTag(event, 'num')" title="숫자">🔢</button>
+                                <button class="icon-btn date-btn" id="date-btn" onclick="toggleTag(event, 'date')" title="날짜">📅</button>
+                                <button class="icon-btn pen-btn" id="pen-btn" onclick="toggleTag(event, 'pen')" title="벌칙">🚨</button>
                             </div>
                         </div>
                     </div>
+                    
                     <div id="question-section" class="content-box">
                         <h3 style="color:var(--text-sub);" id="guide-msg">👈 메뉴에서 파일을 추가해주세요.</h3>
                     </div>
-                    <div id="click-guide" class="click-guide" onclick="revealAnswer()">👇 터치하여 정답 확인</div>
+                    
+                    <div id="click-guide" class="click-guide" onclick="revealAnswer()">
+                        👇 터치하여 정답 확인
+                    </div>
+                    
                     <hr id="divider" class="divider">
+                    
                     <div id="answer-section" class="content-box"></div>
                 </div>
             </div>
@@ -230,90 +271,51 @@
     const repoName = 'mk';
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
 
-    // === 🔥 핀치 줌 로직 (스크롤과 줌을 분리) ===
+    // 핀치 줌 로직
     const scrollContainer = document.getElementById('scroll-area');
     const zoomContent = document.getElementById('zoom-content');
-    
-    let scale = 1;
-    let panning = false;
-    let pointX = 0, pointY = 0;
-    let startX = 0, startY = 0;
-    let lastTap = 0;
+    let scale = 1, panning = false, pointX = 0, pointY = 0, startX = 0, startY = 0, lastTap = 0;
 
-    // 터치 시작
     scrollContainer.addEventListener('touchstart', (e) => {
         if (e.touches.length === 2) {
-            e.preventDefault(); // 줌 시작 시 브라우저 동작 차단
-            panning = false;
-            // 두 손가락 거리 계산 시작
-            this.startDist = Math.hypot(
-                e.touches[0].pageX - e.touches[1].pageX,
-                e.touches[0].pageY - e.touches[1].pageY
-            );
+            e.preventDefault(); panning = false;
+            this.startDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
             this.startScale = scale;
         } else if (e.touches.length === 1) {
-            // 더블 탭
             const now = new Date().getTime();
-            if (now - lastTap < 300) {
-                e.preventDefault();
-                resetZoom();
-            } else {
-                if (scale > 1) {
-                    panning = true;
-                    startX = e.touches[0].pageX - pointX;
-                    startY = e.touches[0].pageY - pointY;
-                }
-            }
+            if (now - lastTap < 300) { e.preventDefault(); resetZoom(); } 
+            else { if (scale > 1) { panning = true; startX = e.touches[0].pageX - pointX; startY = e.touches[0].pageY - pointY; } }
             lastTap = now;
         }
     }, { passive: false });
 
-    // 터치 이동
     scrollContainer.addEventListener('touchmove', (e) => {
         if (e.touches.length === 2) {
-            e.preventDefault(); // 화면 확대 방지
-            const dist = Math.hypot(
-                e.touches[0].pageX - e.touches[1].pageX,
-                e.touches[0].pageY - e.touches[1].pageY
-            );
-            // 새 배율 계산
+            e.preventDefault();
+            const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
             scale = Math.min(Math.max(1, this.startScale * (dist / this.startDist)), 4);
             updateTransform();
         } else if (e.touches.length === 1 && panning && scale > 1) {
-            e.preventDefault(); // 스크롤 방지하고 패닝
+            e.preventDefault();
             pointX = e.touches[0].pageX - startX;
             pointY = e.touches[0].pageY - startY;
             updateTransform();
         }
     }, { passive: false });
 
-    // 터치 끝
     scrollContainer.addEventListener('touchend', (e) => {
         if (e.touches.length < 2) panning = false;
-        // 경계 체크 (화면 밖으로 나가는 것 방지 - 간단히 리셋)
-        if (scale < 1.1) {
-            resetZoom();
-        }
+        if (scale < 1.1) resetZoom();
     });
 
-    function resetZoom() {
-        scale = 1; pointX = 0; pointY = 0;
-        updateTransform();
-        // 스크롤 가능하게 복구
-        scrollContainer.style.overflowY = 'auto';
-    }
-
+    function resetZoom() { scale = 1; pointX = 0; pointY = 0; updateTransform(); scrollContainer.style.overflowY = 'auto'; }
     function updateTransform() {
-        // 줌 상태에서는 스크롤을 막고 transform으로 제어
-        if (scale > 1) scrollContainer.style.overflow = 'hidden';
-        else scrollContainer.style.overflowY = 'auto';
-        
+        if (scale > 1) scrollContainer.style.overflow = 'hidden'; else scrollContainer.style.overflowY = 'auto';
         zoomContent.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
     }
-    // === 핀치 줌 끝 ===
 
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
-    let imageMap = new Map(), isRevealed = false;
+    let imageMap = new Map();
     const STORAGE_KEY_LIBRARY = 'anki_final_library';
     const STORAGE_KEY_STATS = 'anki_final_stats';
     const STORAGE_KEY_EDITS = 'anki_final_edits';
@@ -366,7 +368,6 @@
         } else { document.getElementById('question-section').innerHTML = "<h3>⚠️ 불러올 덱이 없습니다.</h3>"; }
     }
 
-    // TSV 파서
     function parseAnkiRawData(str) {
         const rows = []; let currentRow = []; let currentCell = ''; let cursor = 0; let inQuote = false;
         while (cursor < str.length) {
@@ -408,29 +409,36 @@
             if (!library[deckNameInRow]) library[deckNameInRow] = [];
             const id = cyrb53(q);
             if (edits[id]) { q = edits[id].q; a = edits[id].a; }
-            let hiddenText = "";
-            const titleMatch = q.match(/title="([\s\S]*?)"/);
-            if (titleMatch) hiddenText = titleMatch[1];
-            library[deckNameInRow].push({ id, q, a, hiddenText });
+            library[deckNameInRow].push({ id, q, a });
         });
     }
 
-    // === 🔥 핵심: DOM 생성 & 모든 부모 요소 강제 리사이징 ===
-    function createDOM(rawText, isAnswer, questionText = "") {
+    // === 🔥 핵심: DOM 생성 & 강제 리사이징 & IO 패치 ===
+    function createDOM(rawText, isAnswer, questionText = "", answerText = "") {
         let formattedText = rawText.replace(/""/g, '"');
         if (formattedText.startsWith('"') && formattedText.endsWith('"')) formattedText = formattedText.slice(1, -1);
+
+        // 1. title 제거
         let cleanText = formattedText.replace(/title\s*=\s*"[^"]*"/gi, ''); 
         
-        // 정답 중복 제거 (단순 텍스트)
-        if (isAnswer && questionText) {
-            const cleanQ = questionText.replace(/<[^>]*>/g, '').trim();
-            const cleanA = cleanText.replace(/<[^>]*>/g, '').trim();
-            if(cleanQ.length > 5 && cleanA.startsWith(cleanQ) && !cleanText.includes('<svg')) { }
+        // 2. IO 코드 숨기기 ({{c1::...}} 같은 코드는 화면에 안 나오게 span으로 감싸서 숨김)
+        // 정규식으로 찾아서 style="display:none" 처리
+        cleanText = cleanText.replace(/(\{\{c\d+::.*?\}\})/g, '<span style="display:none">$1</span>');
+
+        // 3. [IO 패치] 만약 '문제' 화면인데 이미지가 없고, '정답'에는 이미지가 있다면 정답 이미지를 복사해옴
+        // (단, IO 코드 {{...}}가 있을 때만)
+        if (!isAnswer && cleanText.includes('<span style="display:none">{{') && !cleanText.includes('<img')) {
+            // 정답 텍스트에서 이미지 태그 추출
+            const imgMatch = answerText.match(/<img[^>]+>/);
+            if (imgMatch) {
+                cleanText += "<br>" + imgMatch[0]; // 이미지 추가
+            }
         }
 
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = cleanText;
 
+        // 이미지 연결
         const regex = /([a-zA-Z0-9_\-\.\%\(\)\s\uAC00-\uD7A3]+\.(jpg|jpeg|png|gif|svg|webp))/gi;
         tempDiv.innerHTML = tempDiv.innerHTML.replace(regex, (match) => {
             let fname = match.trim();
@@ -439,18 +447,19 @@
             return url;
         });
 
-        // 🔥 [모든 요소 강제 다이어트] 
-        // 1. 모든 태그의 width/height 속성 및 스타일 제거
-        // 2. max-width: 100% 강제 (CSS 클래스에 이미 적용됨, 여기선 속성 제거에 집중)
+        // 🔥 [강제 다이어트 v4] 테이블, div 등 모든 부모 요소 강제 축소
         tempDiv.querySelectorAll('*').forEach(el => {
-            el.removeAttribute('width');
-            el.removeAttribute('height');
+            // 스타일 초기화
             el.style.width = ""; 
             el.style.height = "";
-            el.style.maxWidth = ""; 
+            el.style.maxWidth = "100%";
             el.style.minWidth = "0"; 
             
-            // 테이블 강제 축소
+            // HTML 속성 제거
+            el.removeAttribute("width");
+            el.removeAttribute("height");
+            
+            // 테이블 강제
             if(el.tagName === 'TABLE' || el.tagName === 'TD' || el.tagName === 'TH') {
                 el.style.tableLayout = "fixed";
                 el.style.width = "100%";
@@ -461,8 +470,9 @@
         const wrapper = document.createElement('div'); wrapper.className = 'answer-layout';
         const txtDiv = document.createElement('div'); txtDiv.className = 'text-area';
         
+        // 정답 O/X 강조
         let textContent = tempDiv.textContent.trim();
-        const hasComplexTags = tempDiv.querySelector('div, svg'); 
+        const hasComplexTags = tempDiv.querySelector('div, svg, img'); 
         
         if (isAnswer && !hasComplexTags && (textContent.startsWith('O') || textContent.startsWith('X'))) {
              const firstChar = textContent.charAt(0);
@@ -476,6 +486,7 @@
             wrapper.appendChild(tempDiv);
         }
         
+        // 이미지 에러 핸들링
         const imgs = wrapper.querySelectorAll('img');
         imgs.forEach(img => {
             img.onerror = function() {
@@ -488,9 +499,7 @@
     }
 
     function showCard() {
-        // 줌 상태 초기화
         resetZoom();
-
         if (!activeDeck || activeDeck.length === 0) {
             document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub)'>항목이 없습니다.</h3>";
             document.getElementById('card-info').style.display='none';
@@ -507,7 +516,8 @@
         updateStatsUI(stats); updateIconsUI(stats);
 
         const qSection = document.getElementById('question-section'); qSection.innerHTML = '';
-        qSection.appendChild(createDOM(card.q, false));
+        // 질문 생성 (정답 내용도 전달해서 이미지 복사해올 수 있게 함)
+        qSection.appendChild(createDOM(card.q, false, "", card.a));
         
         const aSection = document.getElementById('answer-section'); aSection.innerHTML = '';
         aSection.appendChild(createDOM(card.a, true, card.q));
@@ -517,12 +527,10 @@
         document.getElementById('click-guide').style.display = 'block';
         document.getElementById('nav-area').style.display = 'flex';
         document.getElementById('grade-area').style.display = 'none';
-        
-        // 스크롤 맨 위로
         scrollContainer.scrollTop = 0;
     }
 
-    function toggleMenu() { document.getElementById('sidebar').classList.toggle('open'); document.querySelector('.sidebar-overlay').classList.toggle('open'); }
+    // 기존 함수들 유지 (filterCards, renderDeckTree, selectDeckGroup, handleFileUpload, etc...)
     function filterCards() { 
         const rawQuery = document.getElementById('search-input').value.toLowerCase();
         if(!currentDeckName) return;
@@ -604,10 +612,12 @@
         renderDeckTree(); showCard(); document.getElementById('sidebar').classList.remove('open'); document.querySelector('.sidebar-overlay').classList.remove('open');
     }
 
+    function toggleMenu() { document.getElementById('sidebar').classList.toggle('open'); document.querySelector('.sidebar-overlay').classList.toggle('open'); }
     function handleFileUpload(input) { const files = input.files; if(files.length === 0) return; let processedCount = 0; const edits = JSON.parse(localStorage.getItem(STORAGE_KEY_EDITS) || '{}'); Array.from(files).forEach(file => { const reader = new FileReader(); reader.onload = (e) => { const text = e.target.result; processAnkiText(text, file.name, edits); processedCount++; if (processedCount === files.length) { saveLibrary(); renderDeckTree(); if (!currentDeckName) selectDeck(Object.keys(library)[0]); alert(`총 ${files.length}개 파일 처리됨`); toggleMenu(); } }; reader.readAsText(file, 'UTF-8'); }); input.value = ''; }
     function saveLibrary() { try { localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(library)); } catch(e){} }
     function deleteDeck(name) { if(confirm("삭제하시겠습니까?")) { delete library[name]; saveLibrary(); renderDeckTree(); if(currentDeckName === name) { currentDeckName=null; activeDeck=[]; showCard(); } } }
     function selectDeck(name) { if(!library[name]) return; currentDeckName = name; originalDeck = library[name]; activeDeck = [...originalDeck]; localStorage.setItem(STORAGE_KEY_LAST_DECK, name); const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'); currentIndex = progress[name] || 0; if(currentIndex >= activeDeck.length) currentIndex = 0; isRevealed = false; document.getElementById('search-input').value = ''; const displayName = name.split('__').pop(); document.getElementById('deck-title').innerText = `📄 ${displayName}`; renderDeckTree(); showCard(); document.getElementById('sidebar').classList.remove('open'); document.querySelector('.sidebar-overlay').classList.remove('open'); }
+    function saveCurrentProgress() { if (!currentDeckName) return; if (!library[currentDeckName]) return; if (activeDeck.length === originalDeck.length) { const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'); progress[currentDeckName] = currentIndex; localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress)); } }
     function handleImgUpload(input) { const files = input.files; if(files.length === 0) return; imageMap.clear(); for(let file of files) { const url = URL.createObjectURL(file); imageMap.set(file.name, url); imageMap.set(file.name.normalize('NFC'), url); imageMap.set(file.name.normalize('NFD'), url); } alert(`${files.length}개 이미지 연결됨`); showCard(); toggleMenu(); }
     function openEditModal(e) { e.stopPropagation(); if(!activeDeck || activeDeck.length === 0) return; const card = activeDeck[currentIndex]; document.getElementById('edit-q').value = card.q; document.getElementById('edit-a').value = card.a; document.getElementById('edit-modal').style.display = 'flex'; }
     function closeEditModal() { document.getElementById('edit-modal').style.display = 'none'; }
