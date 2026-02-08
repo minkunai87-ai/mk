@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (이미지 복구)</title>
+<title>나만의 안키 (트리 UI 복구)</title>
 <style>
-    /* v10.45 디자인 엔진 유지 (심플 메뉴, 오답 정렬 등) */
+    /* 기본 테마 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
     
+    /* 헤더 */
     .header { background: var(--surface); padding: 0 20px; padding-top: calc(env(safe-area-inset-top) + 15px); padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0; }
     .header-title-area { display: flex; flex-direction: column; max-width: 70%; }
     .header-title { font-weight: bold; font-size: 1.15rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -17,6 +18,7 @@
     .menu-btn { font-size: 1.6rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); }
     .counter { font-size: 0.85rem; font-weight: bold; color: var(--text-sub); background: var(--input-bg); padding: 5px 12px; border-radius: 15px; }
 
+    /* 사이드바 */
     .sidebar { position: fixed; top: 0; left: 0; width: 300px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); box-shadow: 2px 0 15px rgba(0,0,0,0.5); transition: transform 0.3s ease; z-index: 9999; padding: 25px; padding-top: calc(env(safe-area-inset-top) + 25px); display: flex; flex-direction: column; overflow-y: auto; transform: translateX(-105%); }
     .sidebar.open { transform: translateX(0); }
     .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9998; display: none; }
@@ -25,10 +27,47 @@
     .menu-section { margin-bottom: 25px; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
     .menu-label { font-weight: bold; color: var(--text-sub); margin-bottom: 10px; display: block; font-size: 0.9rem; }
     
+    /* 🔥 [트리 UI 스타일 복구] */
+    .deck-list { list-style: none; padding: 0; margin: 0; }
+    .tree-folder { margin-bottom: 4px; }
+    
+    /* 폴더 헤더 */
+    .tree-header { 
+        display: flex; justify-content: space-between; align-items: center; 
+        padding: 12px; border-radius: 8px; cursor: pointer; 
+        background: var(--input-bg); border: 1px solid var(--border); 
+        margin-bottom: 4px; transition: 0.2s;
+    }
+    .tree-header:hover { background: var(--btn-hover); }
+    
+    /* 하위 항목 컨테이너 (접힘/펼침) */
+    .tree-children { 
+        display: none; /* 기본 숨김 */
+        padding-left: 12px; 
+        margin-left: 6px; 
+        border-left: 2px solid #444; /* 계층선 */
+    }
+    .tree-children.open { display: block; /* 펼침 */ }
+    
+    /* 폴더 제목 */
+    .folder-title { flex: 1; font-weight: bold; color: #ffd43b; font-size: 0.95rem; display: flex; align-items: center; gap: 6px; }
+    
+    /* 파일(덱) 항목 */
+    .tree-deck { 
+        padding: 12px; border-radius: 8px; cursor: pointer; 
+        background: var(--input-bg); margin-bottom: 4px; color: var(--text); 
+        font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; 
+    }
+    .tree-deck.active { background: #182836; color: #74c0fc; font-weight: bold; border: 1px solid #1c7ed6; }
+    
+    /* 버튼들 */
+    .play-btn { background: var(--primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 8px; flex-shrink: 0; }
+    .del-btn { background: none; border: none; color: var(--text-sub); font-weight: bold; padding: 0 5px; cursor: pointer; font-size: 1rem; }
+
+    /* 필터 및 정렬 버튼 */
     .filter-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .filter-btn { padding: 10px; border-radius: 8px; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); font-size: 0.85rem; cursor: pointer; text-align: left; transition: 0.2s; }
     .filter-btn.active { border-color: var(--primary); background: #182836; color: #74c0fc; }
-
     .sort-options { display: flex; background: var(--input-bg); border-radius: 8px; padding: 4px; gap: 4px; }
     .sort-opt { flex: 1; text-align: center; padding: 8px 0; font-size: 0.8rem; cursor: pointer; border-radius: 6px; color: var(--text-sub); transition: 0.2s; }
     .sort-opt.active { background: var(--surface); color: var(--primary); font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
@@ -36,12 +75,10 @@
     .search-input { width: 100%; padding: 12px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-size: 0.95rem; margin-bottom: 10px; }
     .btn-upload { width: 100%; padding: 12px; border-radius: 8px; background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; margin-bottom: 5px; }
     .btn-sub { width: 100%; padding: 10px; border-radius: 8px; background: var(--input-bg); color: var(--text-sub); border: 1px solid var(--border); margin-top: 5px; cursor: pointer; text-align: left; font-size: 0.85rem; }
-    .deck-list { list-style: none; padding: 0; margin: 0; }
-    .tree-deck { padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); margin-bottom: 4px; color: var(--text); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
-    .tree-deck.active { background: #182836; color: #74c0fc; font-weight: bold; border: 1px solid #1c7ed6; }
 
+    /* 메인 카드 영역 */
     .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
-    .card { background: var(--surface); width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+    .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; box-shadow: none; border: none; display: flex; flex-direction: column; position: relative; overflow: hidden; }
     
     .card-scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
     .zoom-content { padding: 25px 20px; min-height: 100%; width: 100%; transform-origin: 0 0; will-change: transform; }
@@ -55,10 +92,8 @@
     .icon-row { display: flex; gap: 12px; }
     .icon-btn { font-size: 1.4rem; cursor: pointer; background: none; border: none; padding: 0; opacity: 0.4; filter: grayscale(100%); transition: 0.2s; }
     .icon-btn.active { opacity: 1; filter: grayscale(0%); transform: scale(1.1); }
-    .mem-btn.active { color: #ff8787; } .cmp-btn.active { color: #74c0fc; } .fav-btn.active { color: #ffd43b; }
-    .num-btn.active { color: #66d9e8; } .date-btn.active { color: #b197fc; } .pen-btn.active { color: #ff6b6b; }
-    .edit-btn { font-size: 1.2rem; margin-right: 5px; opacity: 1; color: var(--text-sub); }
-
+    
+    /* 🔥 이미지 & 컨테이너 강제 핏 */
     .text-area { font-size: 1.35rem; line-height: 1.6; word-break: keep-all; white-space: pre-wrap; width: 100%; margin-bottom: 20px; position: relative; }
     .text-area * { max-width: 100% !important; box-sizing: border-box !important; }
     table { width: 100% !important; table-layout: fixed !important; display: table !important; }
@@ -126,6 +161,7 @@
             <button class="btn-sub" onclick="document.getElementById('backup-input').click()">📂 백업 불러오기</button>
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
         </div>
+        
         <ul class="deck-list" id="deck-list-ui"></ul>
         <div style="height:50px;"></div>
     </div>
@@ -347,43 +383,43 @@
         });
     }
 
-    // === 🔥 핵심 수정: 정밀 DOM 탐색으로 이미지 누락 방지 ===
-    function createDOM(rawText, isAnswer) {
+    function createDOM(rawText, isAnswer, questionText = "", answerText = "") {
         if (!rawText) rawText = "";
         let formattedText = rawText.replace(/""/g, '"');
         if (formattedText.startsWith('"') && formattedText.endsWith('"')) formattedText = formattedText.slice(1, -1);
 
-        // 1. title 속성 제거
         let cleanText = formattedText.replace(/title\s*=\s*"[^"]*"/gi, ''); 
-        
-        // 2. IO 코드 숨기기
         cleanText = cleanText.replace(/(\{\{c\d+::.*?\}\})/g, '<span style="display:none">$1</span>');
+
+        // 🔥 답안 내용 공백일 때 정답 이미지 복구 (v10.46 로직 유지)
+        const hasContent = cleanText.replace(/<[^>]*>/g, '').trim().length > 0 || cleanText.includes('<img') || cleanText.includes('<svg');
+        if (isAnswer && !hasContent) {
+            const imgMatch = answerText.match(/<img[^>]+>/);
+            if (imgMatch) { cleanText = imgMatch[0]; } 
+            else { cleanText = '<div style="color:#666; text-align:center;">(정답 내용 없음)</div>'; }
+        }
+
+        // IO 패치 (문제 화면)
+        if (!isAnswer && cleanText.includes('<span style="display:none">{{') && !cleanText.includes('<img')) {
+            const imgMatch = answerText.match(/<img[^>]+>/);
+            if (imgMatch) { cleanText += "<br>" + imgMatch[0]; }
+        }
 
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = cleanText;
 
-        // 🔥 [이미지 정밀 복구] 정규식이 아니라 DOM으로 이미지를 직접 찾아서 src 교체
+        // 이미지 연결
         tempDiv.querySelectorAll('img').forEach(img => {
             const src = img.getAttribute('src');
             if (src && !src.startsWith('http') && !src.startsWith('data:')) {
-                // 파일명만 추출해서 깃헙 경로로 교체 (특수문자/공백 처리 강화)
                 const fname = src.trim();
-                const url = imageMap.get(fname) || 
-                            imageMap.get(fname.normalize('NFC')) || 
-                            githubRawBase + encodeURIComponent(fname);
+                const url = imageMap.get(fname) || imageMap.get(fname.normalize('NFC')) || githubRawBase + encodeURIComponent(fname);
                 img.src = url;
             }
-            
-            // 에러 핸들링
-            img.onerror = function() {
-                // 혹시 이미지가 안 뜨면 테두리로 표시
-                this.style.border = "2px dashed #ff6b6b"; 
-                // 원본 파일명 표시 (디버깅용)
-                this.alt = "이미지 없음: " + src;
-            };
+            img.onerror = function() { this.style.border = "2px dashed #ff6b6b"; };
         });
 
-        // 🔥 [강제 다이어트]
+        // 강제 핏
         tempDiv.querySelectorAll('*').forEach(el => {
             el.style.width = ""; el.style.height = ""; el.style.maxWidth = "100%"; el.style.minWidth = "0"; 
             el.removeAttribute("width"); el.removeAttribute("height");
@@ -394,10 +430,8 @@
 
         const wrapper = document.createElement('div'); wrapper.className = 'answer-layout';
         const txtDiv = document.createElement('div'); txtDiv.className = 'text-area';
-        
         let textContent = tempDiv.textContent.trim();
         const hasComplexTags = tempDiv.querySelector('div, svg, img'); 
-        
         if (isAnswer && !hasComplexTags && (textContent.startsWith('O') || textContent.startsWith('X'))) {
              const firstChar = textContent.charAt(0);
              const oxSpan = document.createElement('span'); 
@@ -409,7 +443,6 @@
         } else {
             wrapper.appendChild(tempDiv);
         }
-        
         return wrapper;
     }
 
@@ -421,7 +454,6 @@
             return;
         }
         if(currentIndex >= activeDeck.length) currentIndex = 0;
-        
         isRevealed = false;
         const card = activeDeck[currentIndex];
         const stats = getStats(card.id);
@@ -436,10 +468,10 @@
         else { dateBadge.style.display = 'none'; }
 
         const qSection = document.getElementById('question-section'); qSection.innerHTML = '';
-        qSection.appendChild(createDOM(card.q, false));
+        qSection.appendChild(createDOM(card.q, false, "", card.a));
         
         const aSection = document.getElementById('answer-section'); aSection.innerHTML = '';
-        aSection.appendChild(createDOM(card.a, true));
+        aSection.appendChild(createDOM(card.a, true, card.q, card.a));
         
         aSection.style.display = 'none';
         document.getElementById('divider').style.display = 'none';
@@ -487,11 +519,14 @@
         toggleMenu(false);
     }
 
+    // 🔥 [복구] 트리 구조 렌더링 함수
     function renderDeckTree() {
         const list = document.getElementById('deck-list-ui'); list.innerHTML = '';
         const names = Object.keys(library).sort();
         if (names.length === 0) { list.innerHTML = '<li class="deck-item" style="justify-content:center;">덱 없음</li>'; return; }
         const tree = {};
+        
+        // 트리 구조 생성
         names.forEach(path => {
             const parts = path.split('__'); let currentLevel = tree;
             parts.forEach((part, index) => {
@@ -500,23 +535,37 @@
                 currentLevel = currentLevel[part]._children;
             });
         });
+
+        // DOM 생성 (재귀)
         function createTreeDOM(node, container) {
             const keys = Object.keys(node).sort();
             keys.forEach(key => {
                 const item = node[key];
                 const hasChildren = Object.keys(item._children).length > 0;
+                
                 if (hasChildren) { 
                     const li = document.createElement('li'); li.className = 'tree-folder';
+                    
                     const header = document.createElement('div'); header.className = 'tree-header';
                     const titleArea = document.createElement('div'); titleArea.className = 'folder-title';
                     const countInfo = item._isLeaf ? `(${library[item._fullPath].length})` : '';
                     titleArea.innerHTML = `<span class="folder-icon">📂</span> ${item._name} <small style="opacity:0.6; font-weight:normal;">${countInfo}</small>`;
+                    
                     const playBtn = document.createElement('button'); playBtn.className = 'play-btn'; playBtn.innerText = '▶ 전체';
                     playBtn.onclick = (e) => { e.stopPropagation(); selectDeckGroup(item._fullPath + '__'); };
+                    
                     header.appendChild(titleArea); header.appendChild(playBtn); li.appendChild(header);
+                    
                     const childContainer = document.createElement('ul'); childContainer.className = 'tree-children deck-list';
-                    header.onclick = () => { childContainer.classList.toggle('open'); };
+                    
+                    header.onclick = () => { 
+                        childContainer.classList.toggle('open'); 
+                        // 접기/펼치기 아이콘 변경 등 추가 가능
+                    };
+                    
+                    // 현재 선택된 덱이 이 폴더 안에 있으면 자동 펼침
                     if (currentDeckName && currentDeckName.startsWith(item._fullPath)) { childContainer.classList.add('open'); }
+                    
                     li.appendChild(childContainer); container.appendChild(li);
                     createTreeDOM(item._children, childContainer);
                 } else { 
@@ -524,10 +573,13 @@
                     const header = document.createElement('div');
                     header.className = `tree-deck ${item._fullPath === currentDeckName ? 'active' : ''}`;
                     header.innerHTML = `<span>📄 ${item._name} <small>(${library[item._fullPath].length})</small></span>`;
+                    
                     const delBtn = document.createElement('button'); delBtn.className = 'del-btn'; delBtn.innerText = 'x';
                     delBtn.onclick = (e) => { e.stopPropagation(); deleteDeck(item._fullPath); };
+                    
                     header.appendChild(delBtn);
                     header.onclick = () => selectDeck(item._fullPath);
+                    
                     li.appendChild(header); container.appendChild(li);
                 }
             });
@@ -565,8 +617,10 @@
         const sidebar = document.getElementById('sidebar');
         const overlay = document.querySelector('.sidebar-overlay');
         const isOpen = force !== undefined ? force : !sidebar.classList.contains('open');
-        if (isOpen) { sidebar.classList.add('open'); overlay.classList.add('open'); setTimeout(() => { const active = document.querySelector('.tree-deck.active'); if(active) active.scrollIntoView({block:'center', behavior:'smooth'}); }, 300); } 
-        else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
+        if (isOpen) {
+            sidebar.classList.add('open'); overlay.classList.add('open');
+            setTimeout(() => { const active = document.querySelector('.tree-deck.active'); if(active) active.scrollIntoView({block:'center', behavior:'smooth'}); }, 300);
+        } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
     }
 
     function getStats(id) { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, last: 0 }; }
@@ -576,6 +630,7 @@
     function updateIconsUI(stats) { document.getElementById('mem-btn').classList.toggle('active', stats.mem); document.getElementById('cmp-btn').classList.toggle('active', stats.cmp); document.getElementById('fav-btn').classList.toggle('active', stats.fav); document.getElementById('num-btn').classList.toggle('active', stats.num); document.getElementById('date-btn').classList.toggle('active', stats.date); document.getElementById('pen-btn').classList.toggle('active', stats.pen); }
     function exportData() { const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), edits: localStorage.getItem(STORAGE_KEY_EDITS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: new Date().toLocaleString() }; const blob = new Blob([JSON.stringify(data)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,""); a.download = `anki_backup_${dateStr}.json`; a.click(); URL.revokeObjectURL(url); }
     function importData(input) { const file = input.files[0]; if (!file) return; if(!confirm("⚠️ 현재 기기의 기록을 덮어씌웁니다.\n계속하시겠습니까?")) { input.value = ''; return; } const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats); if(data.edits) localStorage.setItem(STORAGE_KEY_EDITS, data.edits); if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress); if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck); alert("✅ 복구 완료!\n페이지를 새로고침합니다."); location.reload(); } catch (err) { alert("❌ 잘못된 백업 파일입니다."); } }; reader.readAsText(file); }
+    function deleteDeck(name) { if(confirm("삭제하시겠습니까?")) { delete library[name]; saveLibrary(); renderDeckTree(); if(currentDeckName === name) { currentDeckName=null; activeDeck=[]; showCard(); } } }
     
     function moveCard(delta) { 
         let nextIdx = currentIndex + delta; 
