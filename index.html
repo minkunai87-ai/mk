@@ -5,18 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (그룹 이어보기)</title>
+<title>나만의 안키 (터치/스크롤 최종)</title>
 <style>
-    /* v10.38 디자인 엔진 유지 (안정성 보장) */
+    /* 기본 테마 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; --sub-group-bg: #252525; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
     
+    /* 헤더 */
     .header { background: var(--surface); padding: 0 20px; padding-top: calc(env(safe-area-inset-top) + 15px); padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0; position: relative; }
     .header-title { font-weight: bold; font-size: 1.15rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 60%; }
     .menu-btn { font-size: 1.6rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); display: flex; align-items: center; }
     .counter { font-size: 0.85rem; font-weight: bold; color: var(--text-sub); background: var(--input-bg); padding: 5px 12px; border-radius: 15px; }
 
+    /* 사이드바 */
     .sidebar { position: fixed; top: 0; left: 0; width: 300px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); box-shadow: 2px 0 15px rgba(0,0,0,0.5); transition: transform 0.3s ease; z-index: 9999; padding: 25px; padding-top: calc(env(safe-area-inset-top) + 25px); display: flex; flex-direction: column; overflow-y: auto; transform: translateX(-105%); }
     .sidebar.open { transform: translateX(0); }
     .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9998; display: none; }
@@ -50,12 +52,14 @@
     .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
     .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; box-shadow: none; border: none; display: flex; flex-direction: column; position: relative; overflow: hidden; }
     
+    /* 🔥 [스크롤 및 줌 영역 수정] */
     .card-scroll-area { 
         flex: 1; 
-        overflow-y: auto; 
+        overflow-y: auto; /* 세로 스크롤 허용 */
         overflow-x: hidden;
         position: relative;
-        touch-action: pan-y; 
+        /* pan-y: 수직 스크롤은 브라우저가, 나머지는 JS가 처리 */
+        touch-action: pan-y !important; 
         -webkit-overflow-scrolling: touch;
     }
     
@@ -69,7 +73,9 @@
     
     .card-info { display: flex; justify-content: space-between; width: 100%; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed var(--border); align-items: center; }
     .rate-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; background: var(--input-bg); color: var(--text-sub); }
+    .today-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; background: #1971c2; color: #e7f5ff; margin-left: 8px; }
     .rate-badge.high { background: #0b2e13; color: #69db7c; } .rate-badge.low { background: #2e0b0b; color: #ff8787; }
+    
     .icon-wrapper { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
     .icon-row { display: flex; gap: 12px; }
     .icon-btn { font-size: 1.4rem; cursor: pointer; background: none; border: none; padding: 0; line-height: 1; color: var(--text-sub); transition: 0.2s; opacity: 0.4; filter: grayscale(100%); }
@@ -106,7 +112,13 @@
     .g-btn:active { transform: scale(0.98); opacity: 0.9; }
     .bg-x { background: #fa5252; } .bg-tri { background: #fab005; } .bg-o { background: #40c057; }
 
-    .click-guide { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-top: 40px; cursor: pointer; padding: 30px; border: 2px dashed var(--border); border-radius: 12px; background: #181818; }
+    /* 🔥 클릭 가이드 (버튼) */
+    .click-guide { 
+        text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-top: 40px; 
+        cursor: pointer; padding: 30px; border: 2px dashed var(--border); border-radius: 12px; background: #181818; 
+        /* 중요: 버튼은 포인터 이벤트 허용 */
+        pointer-events: auto !important; 
+    }
     .click-guide:active { background: #222; }
 
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: none; align-items: center; justify-content: center; }
@@ -179,7 +191,7 @@
         </div>
         
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">
-            My Anki v10.42 (Group Resume Fix)
+            My Anki v10.44 (Touch & Scroll Fix)
         </div>
     </div>
 
@@ -197,7 +209,10 @@
                 <div class="zoom-content" id="zoom-content">
                     <div id="loading" style="display:none;">데이터 로딩 중...</div>
                     <div class="card-info" id="card-info">
-                        <span class="rate-badge" id="rate-badge">New</span>
+                        <div style="display:flex; align-items:center;">
+                            <span class="rate-badge" id="rate-badge">New</span>
+                            <span class="today-badge" id="today-badge" style="display:none;">✅ 오늘 완료</span>
+                        </div>
                         <div class="icon-wrapper">
                             <div class="icon-row">
                                 <button class="icon-btn edit-btn" onclick="openEditModal(event)">✏️</button>
@@ -217,7 +232,7 @@
                         <h3 style="color:var(--text-sub);" id="guide-msg">👈 메뉴에서 파일을 추가해주세요.</h3>
                     </div>
                     
-                    <div id="click-guide" class="click-guide" onclick="revealAnswer()">
+                    <div id="click-guide" class="click-guide" onclick="revealAnswer(event)">
                         👇 터치하여 정답 확인
                     </div>
                     
@@ -270,8 +285,16 @@
             startScale = scale;
         } else if (e.touches.length === 1) {
             const now = new Date().getTime();
-            if (now - lastTap < 300) { e.preventDefault(); resetZoom(); } 
-            else { if (scale > 1) { panning = true; startX = e.touches[0].pageX - pointX; startY = e.touches[0].pageY - pointY; } }
+            if (now - lastTap < 300) { 
+                e.preventDefault(); 
+                resetZoom(); 
+            } else { 
+                if (scale > 1) { 
+                    panning = true; 
+                    startX = e.touches[0].pageX - pointX; 
+                    startY = e.touches[0].pageY - pointY; 
+                } 
+            }
             lastTap = now;
         }
     }, { passive: false });
@@ -300,26 +323,35 @@
     // --- 안키 로직 ---
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let imageMap = new Map();
-    // 🔥 그룹 모드 여부 저장용 (중요!)
+    let currentFilterType = 'default';
+
     const STORAGE_KEY_LIBRARY = 'anki_final_library';
     const STORAGE_KEY_STATS = 'anki_final_stats';
     const STORAGE_KEY_EDITS = 'anki_final_edits';
     const STORAGE_KEY_PROGRESS = 'anki_final_progress'; 
     const STORAGE_KEY_LAST_DECK = 'anki_final_last_deck';
-    const STORAGE_KEY_IS_GROUP = 'anki_final_is_group'; // 🔥 [NEW] 그룹 모드 기억
+    const STORAGE_KEY_IS_GROUP = 'anki_final_is_group'; 
 
     window.onload = async function() {
         if (location.protocol.startsWith('http')) { await autoScanGitHub(); }
         else { loadLocalLibrary(); }
     };
 
+    function isStudiedToday(lastTimestamp) {
+        if (!lastTimestamp) return false;
+        const now = new Date();
+        const startOfToday = new Date(now);
+        if (now.getHours() < 4) { startOfToday.setDate(startOfToday.getDate() - 1); }
+        startOfToday.setHours(4, 0, 0, 0);
+        return lastTimestamp >= startOfToday.getTime();
+    }
+
     function saveProgress() {
         if (!currentDeckName) return;
-        if (activeDeck.length === originalDeck.length) {
-            const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
-            progress[currentDeckName] = currentIndex;
-            localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
-        }
+        const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
+        const key = `${currentDeckName}__${currentFilterType}`;
+        progress[key] = currentIndex;
+        localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
     }
 
     function loadLocalLibrary() {
@@ -329,7 +361,6 @@
                 library = JSON.parse(savedLib);
                 renderDeckTree();
                 const lastDeck = localStorage.getItem(STORAGE_KEY_LAST_DECK);
-                // 🔥 그룹 모드인지 확인 후 적절한 함수 호출
                 const isGroup = localStorage.getItem(STORAGE_KEY_IS_GROUP) === 'true';
                 if (lastDeck) {
                     if (isGroup) selectDeckGroup(lastDeck);
@@ -363,7 +394,6 @@
         document.getElementById('question-section').style.display = 'block';
         if (loadedCount > 0) {
             const lastDeck = localStorage.getItem(STORAGE_KEY_LAST_DECK);
-            // 🔥 자동 스캔 후에도 그룹 모드 확인
             const isGroup = localStorage.getItem(STORAGE_KEY_IS_GROUP) === 'true';
             if (lastDeck) {
                 if (isGroup) selectDeckGroup(lastDeck);
@@ -494,6 +524,9 @@
         document.getElementById('card-info').style.display='flex';
         updateStatsUI(stats); updateIconsUI(stats);
 
+        const todayBadge = document.getElementById('today-badge');
+        if (isStudiedToday(stats.last)) { todayBadge.style.display = 'inline-block'; } else { todayBadge.style.display = 'none'; }
+
         const qSection = document.getElementById('question-section'); qSection.innerHTML = '';
         qSection.appendChild(createDOM(card.q, false, "", card.a));
         
@@ -506,6 +539,20 @@
         document.getElementById('nav-area').style.display = 'flex';
         document.getElementById('grade-area').style.display = 'none';
         scrollContainer.scrollTop = 0;
+    }
+
+    // 🔥 정답 확인 함수 (이벤트 전파 중단 추가)
+    function revealAnswer(event) {
+        if(event) event.stopPropagation(); // 핀치 줌 로직으로 이벤트가 넘어가는 것 방지
+        document.getElementById('click-guide').style.display = 'none';
+        document.getElementById('divider').style.display = 'block';
+        document.getElementById('answer-section').style.display = 'block';
+        document.getElementById('grade-area').style.display = 'flex';
+        
+        // 정답 섹션으로 부드럽게 스크롤
+        setTimeout(() => {
+            document.getElementById('answer-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
     }
 
     function filterCards() { 
@@ -577,37 +624,21 @@
         createTreeDOM(tree, list);
     }
 
-    // 🔥 [수정됨] 그룹 전체 선택 함수
     function selectDeckGroup(prefix) {
         let mergedCards = [];
-        // 접두어(prefix)로 시작하는 모든 덱을 찾아서 합침
-        Object.keys(library).forEach(key => { 
-            if (key.startsWith(prefix) || key === prefix.replace('__', '')) { 
-                mergedCards = mergedCards.concat(library[key]); 
-            } 
-        });
-        
-        if (mergedCards.length === 0) { 
-            // 혹시나 하위 덱이 없고 본인만 있으면 일반 덱으로 취급
-            const exactKey = prefix.replace(/__$/, ''); 
-            if(library[exactKey]) { selectDeck(exactKey); return; } 
-            alert("하위 덱이 없습니다."); return; 
-        }
-        
-        // 상태 설정
+        Object.keys(library).forEach(key => { if (key.startsWith(prefix) || key === prefix.replace('__', '')) { mergedCards = mergedCards.concat(library[key]); } });
+        if (mergedCards.length === 0) { const exactKey = prefix.replace(/__$/, ''); if(library[exactKey]) { selectDeck(exactKey); return; } alert("하위 덱이 없습니다."); return; }
         let displayName = prefix.replace(/__$/, '').split('__').pop();
         currentDeckName = prefix.replace(/__$/, ''); 
         originalDeck = mergedCards; 
         activeDeck = [...originalDeck];
-        
         localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName);
-        localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true'); // 🔥 그룹 모드임!
-        
-        // 🔥 그룹 모드일 때도 진행도(resume) 복원
+        localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true');
+        currentFilterType = 'default';
         const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
-        const savedIndex = progress[currentDeckName];
-        currentIndex = (savedIndex && savedIndex < activeDeck.length) ? savedIndex : 0;
-        
+        const key = `${currentDeckName}__${currentFilterType}`;
+        currentIndex = progress[key] || 0;
+        if(currentIndex >= activeDeck.length) currentIndex = 0;
         isRevealed = false;
         document.getElementById('search-input').value = '';
         document.getElementById('deck-title').innerText = `📂 ${displayName} (통합 ${activeDeck.length}개)`;
@@ -621,15 +652,13 @@
         currentDeckName = name;
         originalDeck = library[name];
         activeDeck = [...originalDeck];
-        
+        currentFilterType = 'default';
         localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
-        localStorage.setItem(STORAGE_KEY_IS_GROUP, 'false'); // 🔥 일반 모드임!
-        
+        localStorage.setItem(STORAGE_KEY_IS_GROUP, 'false');
         const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
-        const savedIndex = progress[name];
-        
-        currentIndex = (savedIndex && savedIndex < activeDeck.length) ? savedIndex : 0;
-        
+        const key = `${currentDeckName}__default`;
+        currentIndex = progress[key] || 0;
+        if (currentIndex >= activeDeck.length) currentIndex = 0;
         isRevealed = false;
         document.getElementById('search-input').value = '';
         const displayName = name.split('__').pop();
@@ -646,20 +675,43 @@
         if (isOpen) {
             sidebar.classList.add('open');
             overlay.classList.add('open');
+            setTimeout(() => {
+                const activeItem = document.querySelector('.tree-deck.active');
+                if (activeItem) { activeItem.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+            }, 300);
         } else {
             sidebar.classList.remove('open');
             overlay.classList.remove('open');
         }
     }
 
-    function getStats(id) { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false }; }
+    function getStats(id) { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, last: 0 }; }
     function saveStats(id, score) { /* grade 함수로 대체됨 */ }
-    function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[card.id]) data[card.id] = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false }; data[card.id][type] = !data[card.id][type]; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateIconsUI(data[card.id]); }
+    function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[card.id]) data[card.id] = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, last: 0 }; data[card.id][type] = !data[card.id][type]; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateIconsUI(data[card.id]); }
     function updateStatsUI(stats) { const badge = document.getElementById('rate-badge'); if(stats.total === 0) { badge.innerText = "New"; badge.className = "rate-badge"; } else { const rate = Math.round((stats.correct/stats.total)*100); badge.innerText = `${rate}% (${stats.total}회)`; badge.className = `rate-badge ${rate>=80?'high':(rate<50?'low':'')}`; } }
     function updateIconsUI(stats) { document.getElementById('mem-btn').classList.toggle('active', stats.mem); document.getElementById('cmp-btn').classList.toggle('active', stats.cmp); document.getElementById('fav-btn').classList.toggle('active', stats.fav); document.getElementById('num-btn').classList.toggle('active', stats.num); document.getElementById('date-btn').classList.toggle('active', stats.date); document.getElementById('pen-btn').classList.toggle('active', stats.pen); }
     function exportData() { const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), edits: localStorage.getItem(STORAGE_KEY_EDITS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: new Date().toLocaleString() }; const blob = new Blob([JSON.stringify(data)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,""); a.download = `anki_backup_${dateStr}.json`; a.click(); URL.revokeObjectURL(url); }
     function importData(input) { const file = input.files[0]; if (!file) return; if(!confirm("⚠️ 현재 기기의 기록을 덮어씌웁니다.\n계속하시겠습니까?")) { input.value = ''; return; } const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats); if(data.edits) localStorage.setItem(STORAGE_KEY_EDITS, data.edits); if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress); if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck); alert("✅ 복구 완료!\n페이지를 새로고침합니다."); location.reload(); } catch (err) { alert("❌ 잘못된 백업 파일입니다."); } }; reader.readAsText(file); }
-    function sortCards(type) { if(!currentDeckName) return; const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); let newDeck = [...originalDeck]; if(type === 'rate_asc') { newDeck.sort((a,b) => { const sA = allStats[a.id] || {correct:0, total:0}; const sB = allStats[b.id] || {correct:0, total:0}; const rA = sA.total===0?100:(sA.correct/sA.total); const rB = sB.total===0?100:(sB.correct/sB.total); return rA - rB; }); alert("🔥 오답 위주 정렬"); } else if (type === 'default') { } else { newDeck = newDeck.filter(c => (allStats[c.id] || {})[type]); if(newDeck.length === 0) { alert("해당하는 카드가 없습니다."); return; } } activeDeck = newDeck; currentIndex = 0; showCard(); document.getElementById('sidebar').classList.remove('open'); document.querySelector('.sidebar-overlay').classList.remove('open'); }
+    
+    function sortCards(type) { 
+        if(!currentDeckName) return;
+        currentFilterType = type;
+        const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        let newDeck = [...originalDeck];
+        if(type === 'rate_asc') {
+            newDeck = newDeck.filter(c => { const s = allStats[c.id] || {correct:0, total:0}; return s.total > 0 && (s.correct/s.total) < 0.8; });
+            alert("🔥 오답 위주 필터");
+        } else if (type !== 'default') {
+            newDeck = newDeck.filter(c => (allStats[c.id] || {})[type]);
+            if(newDeck.length === 0) { alert("해당하는 카드가 없습니다."); return; }
+        }
+        activeDeck = newDeck;
+        const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
+        const key = `${currentDeckName}__${currentFilterType}`;
+        currentIndex = progress[key] || 0;
+        if(currentIndex >= activeDeck.length) currentIndex = 0;
+        showCard(); toggleMenu(false);
+    }
     
     function moveCard(delta) { 
         let nextIdx = currentIndex + delta; 
@@ -670,14 +722,23 @@
         } 
     }
     function grade(score) { 
-        saveStats(activeDeck[currentIndex].id, score); 
+        const card = activeDeck[currentIndex];
+        const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        if(!data[card.id]) data[card.id] = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, last: 0 };
+        data[card.id].total++;
+        if(score === 2) data[card.id].correct++;
+        else if(score === 1) data[card.id].correct += 0.5;
+        data[card.id].last = Date.now();
+        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
+        updateStatsUI(data[card.id]);
+
         if (currentIndex < activeDeck.length - 1) { 
             currentIndex++; 
             saveProgress();
             showCard(); 
         } else { 
             alert("끝!"); 
-            currentIndex=0; 
+            currentIndex = 0; 
             saveProgress();
             showCard(); 
         } 
