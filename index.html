@@ -3,80 +3,107 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (이미지 매칭 엔진 V2)</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>나만의 안키 (v10.49)</title>
 <style>
-    /* 기존 테마 및 스타일 유지 */
+    /* 기본 테마 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; --sub-group-bg: #252525; }
+    :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
     
-    .header { background: var(--surface); padding: 0 20px; padding-top: calc(env(safe-area-inset-top) + 15px); padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0; position: relative; }
-    .header-title-area { display: flex; flex-direction: column; max-width: 70%; }
-    .header-title { font-weight: bold; font-size: 1.15rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .header-subtitle { font-size: 0.75rem; color: var(--primary); margin-top: 2px; font-weight: bold; }
-    .header-controls { display: flex; gap: 10px; align-items: center; }
-    .menu-btn { font-size: 1.6rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); display: flex; align-items: center; }
-    .counter { font-size: 0.85rem; font-weight: bold; color: var(--text-sub); background: var(--input-bg); padding: 5px 12px; border-radius: 15px; }
+    /* 헤더 */
+    .header { background: var(--surface); padding: 0 20px; padding-top: calc(env(safe-area-inset-top) + 12px); padding-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0; position: relative; }
+    .header-title-area { display: flex; flex-direction: column; max-width: 60%; }
+    .header-title { font-weight: bold; font-size: 1.1rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .header-subtitle { font-size: 0.7rem; color: var(--primary); margin-top: 2px; font-weight: bold; }
+    .header-controls { display: flex; gap: 12px; align-items: center; }
+    
+    .menu-btn { font-size: 1.5rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); }
+    
+    /* 🔥 [NEW] 필터 토글 버튼 스타일 */
+    .filter-toggle-btn { font-size: 1.3rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text-sub); transition: 0.2s; }
+    .filter-toggle-btn.active { color: var(--primary); transform: scale(1.1); }
 
+    .counter { font-size: 0.8rem; font-weight: bold; color: var(--text-sub); background: var(--input-bg); padding: 4px 10px; border-radius: 12px; }
+
+    /* 🔥 [NEW] 필터 바 (숨김/표시 애니메이션) */
+    #filter-bar-container {
+        background: var(--surface);
+        max-height: 0; /* 기본 숨김 */
+        overflow: hidden;
+        transition: max-height 0.3s ease-in-out, border-bottom 0.1s;
+        border-bottom: 0px solid var(--border);
+    }
+    #filter-bar-container.show {
+        max-height: 60px; /* 열렸을 때 높이 */
+        border-bottom: 1px solid var(--border);
+    }
+
+    .filter-scroll { 
+        display: flex; gap: 8px; padding: 10px 15px; 
+        overflow-x: auto; white-space: nowrap; 
+        scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    }
+    .filter-scroll::-webkit-scrollbar { display: none; }
+    
+    .chip { 
+        padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; 
+        background: var(--input-bg); color: var(--text-sub); border: 1px solid var(--border); 
+        cursor: pointer; transition: 0.2s; flex-shrink: 0;
+    }
+    .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .chip-red { border-color: #ff6b6b; color: #ff8787; }
+    .chip.active.chip-red { background: #fa5252; color: white; }
+
+    /* 사이드바 */
     .sidebar { position: fixed; top: 0; left: 0; width: 300px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); box-shadow: 2px 0 15px rgba(0,0,0,0.5); transition: transform 0.3s ease; z-index: 9999; padding: 25px; padding-top: calc(env(safe-area-inset-top) + 25px); display: flex; flex-direction: column; overflow-y: auto; transform: translateX(-105%); }
     .sidebar.open { transform: translateX(0); }
     .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9998; display: none; }
     .sidebar-overlay.open { display: block; }
     
-    .menu-section { margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
-    .menu-label { font-weight: bold; color: var(--text-sub); margin-bottom: 10px; display: block; font-size: 0.95rem; }
-    .search-box { position: relative; margin-bottom: 15px; }
-    .search-input { width: 100%; padding: 12px 10px 12px 35px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-size: 0.95rem; }
-    .search-input:focus { border-color: var(--primary); outline: none; }
-    .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-sub); }
-
-    .filter-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-    .filter-btn { padding: 10px; border-radius: 8px; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); font-size: 0.85rem; cursor: pointer; text-align: left; transition: 0.2s; }
-    .filter-btn.active { border-color: var(--primary); background: #182836; color: #74c0fc; }
+    .menu-section { margin-bottom: 25px; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
+    .menu-label { font-weight: bold; color: var(--text-sub); margin-bottom: 10px; display: block; font-size: 0.9rem; }
+    
     .sort-options { display: flex; background: var(--input-bg); border-radius: 8px; padding: 4px; gap: 4px; }
     .sort-opt { flex: 1; text-align: center; padding: 8px 0; font-size: 0.8rem; cursor: pointer; border-radius: 6px; color: var(--text-sub); transition: 0.2s; }
     .sort-opt.active { background: var(--surface); color: var(--primary); font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
 
+    .search-input { width: 100%; padding: 12px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-size: 0.95rem; margin-bottom: 10px; }
     .deck-list { list-style: none; padding: 0; margin: 0; }
     .tree-folder { margin-bottom: 4px; }
-    .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); transition: 0.2s; margin-bottom: 4px; }
-    .tree-header:hover { background: var(--btn-hover); }
+    .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); margin-bottom: 4px; }
     .tree-children { display: none; padding-left: 10px; margin-left: 8px; border-left: 2px solid #444; }
     .tree-children.open { display: block; }
-    .folder-title { flex: 1; font-weight: bold; color: #ffd43b; font-size: 0.95rem; display: flex; align-items: center; gap: 6px; }
     .tree-deck { padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); margin-bottom: 4px; color: var(--text); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
     .tree-deck.active { background: #182836; color: #74c0fc; font-weight: bold; border: 1px solid #1c7ed6; }
-    .play-btn { background: var(--primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 8px; flex-shrink: 0; }
-    .del-btn { background: none; border: none; color: var(--text-sub); font-weight: bold; padding: 0 5px; cursor: pointer; font-size: 1rem; }
-
-    .btn-upload, .sort-btn, .backup-btn, .restore-btn, .refresh-btn { width: 100%; padding: 12px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; font-weight: bold; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); text-align: left; }
-    .btn-upload { background: var(--primary); color: white; border: none; text-align: center; }
-    .backup-btn { background: #343a40; color: white; border: none; text-align: center; }
-    .restore-btn { background: #495057; color: white; border: none; text-align: center; }
-    .refresh-btn { background: #212529; color: var(--text-sub); border: 1px solid var(--border); text-align: center; margin-top: 10px; }
+    .btn-upload { width: 100%; padding: 12px; border-radius: 8px; background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; margin-bottom: 5px; }
     .btn-sub { width: 100%; padding: 10px; border-radius: 8px; background: var(--input-bg); color: var(--text-sub); border: 1px solid var(--border); margin-top: 5px; cursor: pointer; text-align: left; font-size: 0.85rem; }
 
+    /* 메인 카드 영역 */
     .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
     .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; box-shadow: none; border: none; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+    
     .card-scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
     .zoom-content { padding: 25px 20px; min-height: 100%; width: 100%; transform-origin: 0 0; will-change: transform; }
     
     .card-info { display: flex; justify-content: space-between; width: 100%; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed var(--border); align-items: center; }
     .rate-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; background: var(--input-bg); color: var(--text-sub); }
     .rate-badge.high { background: #0b2e13; color: #69db7c; } .rate-badge.low { background: #2e0b0b; color: #ff8787; }
+    
     .date-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; margin-left: 6px; background: var(--input-bg); color: var(--text-sub); }
-    .date-badge.today { background: #1971c2; color: #e7f5ff; } .date-badge.recent { background: #1098ad; color: #e3fafc; }
+    .date-badge.today { background: #1971c2; color: #e7f5ff; }
+    .date-badge.recent { background: #1098ad; color: #e3fafc; }
 
     .icon-wrapper { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
     .icon-row { display: flex; gap: 12px; }
-    .icon-btn { font-size: 1.4rem; cursor: pointer; background: none; border: none; padding: 0; line-height: 1; color: var(--text-sub); transition: 0.2s; opacity: 0.4; filter: grayscale(100%); }
-    .icon-btn:hover { opacity: 0.8; }
+    .icon-btn { font-size: 1.4rem; cursor: pointer; background: none; border: none; padding: 0; opacity: 0.4; filter: grayscale(100%); transition: 0.2s; }
     .icon-btn.active { opacity: 1; filter: grayscale(0%); transform: scale(1.1); }
     .mem-btn.active { color: #ff8787; } .cmp-btn.active { color: #74c0fc; } .fav-btn.active { color: #ffd43b; }
     .num-btn.active { color: #66d9e8; } .date-btn.active { color: #b197fc; } .pen-btn.active { color: #ff6b6b; }
     .edit-btn { font-size: 1.2rem; margin-right: 5px; opacity: 1; color: var(--text-sub); }
 
-    /* 🔥 이미지 & 컨테이너 강제 핏 CSS */
+    /* 강제 핏 */
     .text-area { font-size: 1.35rem; line-height: 1.6; word-break: keep-all; white-space: pre-wrap; width: 100%; margin-bottom: 20px; position: relative; }
     .text-area * { max-width: 100% !important; box-sizing: border-box !important; }
     table { width: 100% !important; table-layout: fixed !important; display: table !important; }
@@ -85,24 +112,17 @@
 
     .divider { display: none; border: 0; border-top: 2px dashed var(--border); margin: 30px 0; position: relative; }
     .divider::after { content: "정답"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--surface); padding: 0 10px; color: var(--text-sub); font-size: 0.8rem; font-weight: bold; }
-    #answer-section { display: none; padding-bottom: 20px; animation: fadeIn 0.3s ease-in-out; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    #answer-section { display: none; padding-bottom: 20px; }
 
-    .footer { width: 100%; padding: 10px 20px; padding-bottom: calc(35px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); z-index: 10; display: flex; flex-direction: column; gap: 10px; justify-content: center; flex-shrink: 0; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); }
-    .nav-btns, .grade-btns { display: flex; justify-content: space-between; width: 100%; margin: 0; gap: 12px; }
-    .nav-btn { flex: 1; background: var(--input-bg); border: 1px solid var(--border); padding: 14px 0; border-radius: 12px; cursor: pointer; font-weight: bold; color: var(--text); font-size: 1rem; text-align: center; transition: 0.2s; }
-    .nav-btn:active { background: var(--btn-hover); }
-    .g-btn { flex: 1; padding: 16px 0; border: none; border-radius: 12px; font-weight: bold; color: white; cursor: pointer; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin: 0; text-align: center; }
-    .g-btn:active { transform: scale(0.98); opacity: 0.9; }
+    .footer { width: 100%; padding: 10px 20px; padding-bottom: calc(35px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); z-index: 10; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+    .nav-btns, .grade-btns { display: flex; justify-content: space-between; gap: 12px; }
+    .nav-btn, .g-btn { flex: 1; padding: 14px 0; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 1rem; text-align: center; border: none; }
+    .nav-btn { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); }
     .bg-x { background: #fa5252; color: white; } .bg-tri { background: #fab005; color: white; } .bg-o { background: #40c057; color: white; }
-
     .click-guide { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-top: 40px; cursor: pointer; padding: 30px; border: 2px dashed var(--border); border-radius: 12px; background: #181818; pointer-events: auto !important; }
-    .click-guide:active { background: #222; }
 
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: none; align-items: center; justify-content: center; }
     .modal-content { background: var(--surface); width: 90%; max-width: 500px; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border); }
-    .modal-title { font-weight: bold; font-size: 1.2rem; color: var(--text); }
-    .edit-label { font-size: 0.9rem; color: var(--text-sub); font-weight: bold; }
     .edit-input { width: 100%; padding: 10px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-family: inherit; font-size: 1rem; resize: vertical; min-height: 80px; }
     .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
     .modal-btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
@@ -126,23 +146,10 @@
             </div>
         </div>
         <div class="menu-section">
-            <span class="menu-label">🏷️ 필터 (모아보기)</span>
-            <div class="filter-grid">
-                <button class="filter-btn" id="filter-all" onclick="filterCards('default')">📁 전체 보기</button>
-                <button class="filter-btn" id="filter-fav" onclick="filterCards('fav')">⭐ 중요 모음</button>
-                <button class="filter-btn" id="filter-mem" onclick="filterCards('mem')">🧠 암기 모음</button>
-                <button class="filter-btn" id="filter-cmp" onclick="filterCards('cmp')">🆚 비교 모음</button>
-                <button class="filter-btn" id="filter-num" onclick="filterCards('num')">🔢 숫자 모음</button>
-                <button class="filter-btn" id="filter-date" onclick="filterCards('date')">📅 날짜 모음</button>
-                <button class="filter-btn" id="filter-pen" onclick="filterCards('pen')">🚨 벌칙 모음</button>
-            </div>
-        </div>
-        <div class="menu-section">
             <span class="menu-label">🔍 검색</span>
             <input type="text" id="search-input" class="search-input" placeholder="텍스트, OCR 검색" onkeyup="filterCards('search')">
         </div>
         <span class="menu-label">📚 덱 목록</span>
-        <div style="font-size:0.8rem; color:var(--text-sub); margin-bottom:5px;">* <b>minkunai87-ai/mk</b> 자동 연동 중</div>
         <ul class="deck-list" id="deck-list-ui"></ul>
         <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px; padding-bottom: 30px;">
             <span class="menu-label">💾 데이터 & 설정</span>
@@ -156,7 +163,7 @@
             <button class="btn-sub" style="text-align:center; font-weight:bold; color:var(--text);" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.47 (Image Matching Engine V2)
+            My Anki v10.49 (Filter Toggle & Clean Badge)
         </div>
     </div>
 
@@ -166,7 +173,23 @@
             <div class="header-title" id="deck-title">나만의 안키</div>
             <div class="header-subtitle" id="sort-info">🔥 틀린 순 정렬</div>
         </div>
-        <div class="header-controls"><span class="counter" id="card-counter">0 / 0</span></div>
+        <div class="header-controls">
+            <button class="filter-toggle-btn" id="filter-toggle-btn" onclick="toggleFilterBar()">🌪️</button>
+            <span class="counter" id="card-counter">0 / 0</span>
+        </div>
+    </div>
+
+    <div id="filter-bar-container">
+        <div class="filter-scroll">
+            <div class="chip active" id="chip-default" onclick="filterCards('default')">📁 전체</div>
+            <div class="chip" id="chip-fav" onclick="filterCards('fav')">⭐ 중요</div>
+            <div class="chip" id="chip-mem" onclick="filterCards('mem')">🧠 암기</div>
+            <div class="chip" id="chip-cmp" onclick="filterCards('cmp')">🆚 비교</div>
+            <div class="chip" id="chip-num" onclick="filterCards('num')">🔢 숫자</div>
+            <div class="chip" id="chip-date" onclick="filterCards('date')">📅 날짜</div>
+            <div class="chip" id="chip-pen" onclick="filterCards('pen')">🚨 벌칙</div>
+            <div class="chip chip-red" id="chip-rate_asc" onclick="filterCards('rate_asc')">🔥 오답</div>
+        </div>
     </div>
 
     <div class="main-container">
@@ -182,14 +205,14 @@
                         <div class="icon-wrapper">
                             <div class="icon-row">
                                 <button class="icon-btn edit-btn" onclick="openEditModal(event)">✏️</button>
-                                <button class="icon-btn mem-btn" id="mem-btn" onclick="toggleTag(event, 'mem')" title="암기">🧠</button>
-                                <button class="icon-btn cmp-btn" id="cmp-btn" onclick="toggleTag(event, 'cmp')" title="비교">🆚</button>
-                                <button class="icon-btn fav-btn" id="fav-btn" onclick="toggleTag(event, 'fav')" title="중요">⭐</button>
+                                <button class="icon-btn mem-btn" id="mem-btn" onclick="toggleTag(event, 'mem')">🧠</button>
+                                <button class="icon-btn cmp-btn" id="cmp-btn" onclick="toggleTag(event, 'cmp')">🆚</button>
+                                <button class="icon-btn fav-btn" id="fav-btn" onclick="toggleTag(event, 'fav')">⭐</button>
                             </div>
                             <div class="icon-row">
-                                <button class="icon-btn num-btn" id="num-btn" onclick="toggleTag(event, 'num')" title="숫자">🔢</button>
-                                <button class="icon-btn date-btn" id="date-btn" onclick="toggleTag(event, 'date')" title="날짜">📅</button>
-                                <button class="icon-btn pen-btn" id="pen-btn" onclick="toggleTag(event, 'pen')" title="벌칙">🚨</button>
+                                <button class="icon-btn num-btn" id="num-btn" onclick="toggleTag(event, 'num')">🔢</button>
+                                <button class="icon-btn date-btn" id="date-btn" onclick="toggleTag(event, 'date')">📅</button>
+                                <button class="icon-btn pen-btn" id="pen-btn" onclick="toggleTag(event, 'pen')">🚨</button>
                             </div>
                         </div>
                     </div>
@@ -262,6 +285,14 @@
         if (location.protocol.startsWith('http')) { await autoScanGitHub(); } else { loadLocalLibrary(); }
     };
 
+    // 🔥 [NEW] 필터 바 토글 함수
+    function toggleFilterBar() {
+        const bar = document.getElementById('filter-bar-container');
+        const btn = document.getElementById('filter-toggle-btn');
+        bar.classList.toggle('show');
+        btn.classList.toggle('active');
+    }
+
     function updateSortUI() {
         ['wrong', 'normal', 'random'].forEach(m => document.getElementById(`sort-${m}`).classList.toggle('active', currentSortMode === m));
         const labels = { 'wrong': '🔥 틀린 순 정렬', 'normal': '📋 원래 순서', 'random': '🎲 랜덤 정렬' };
@@ -290,13 +321,18 @@
         }
     }
 
-    function getDaysText(lastTimestamp) {
-        if (!lastTimestamp) return "";
+    // 🔥 [수정됨] 날짜 없음(과거기록) 배지 삭제
+    function getDaysText(stats) {
+        // 기록이 아예 없거나, 시간 기록이 없으면 빈 문자열 리턴 (배지 안 나옴)
+        if (!stats || !stats.last) return ""; 
+
         const now = new Date(); const todayStart = new Date(now);
         if (now.getHours() < 4) todayStart.setDate(todayStart.getDate() - 1);
         todayStart.setHours(4, 0, 0, 0);
-        const diff = todayStart.getTime() - lastTimestamp;
+        
+        const diff = todayStart.getTime() - stats.last;
         if (diff < 0) return "✅ 오늘 완료";
+        
         const days = Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
         return `🕒 ${days}일 전`;
     }
@@ -377,19 +413,14 @@
         });
     }
 
-    // === 🔥 핵심 수정: 정밀 DOM 탐색으로 이미지 누락 방지 ===
     function createDOM(rawText, isAnswer, questionText = "", answerText = "") {
         if (!rawText) rawText = "";
         let formattedText = rawText.replace(/""/g, '"');
         if (formattedText.startsWith('"') && formattedText.endsWith('"')) formattedText = formattedText.slice(1, -1);
 
-        // 1. title 속성 제거
         let cleanText = formattedText.replace(/title\s*=\s*"[^"]*"/gi, ''); 
-        
-        // 2. IO 코드 숨기기
         cleanText = cleanText.replace(/(\{\{c\d+::.*?\}\})/g, '<span style="display:none">$1</span>');
 
-        // 3. 정답 내용 공백 처리 (이미지 복구)
         const hasContent = cleanText.replace(/<[^>]*>/g, '').trim().length > 0 || cleanText.includes('<img') || cleanText.includes('<svg');
         if (isAnswer && !hasContent) {
             const imgMatch = answerText.match(/<img[^>]+>/);
@@ -397,7 +428,6 @@
             else { cleanText = '<div style="color:#666; text-align:center;">(정답 내용 없음)</div>'; }
         }
 
-        // 4. IO 패치 (문제 화면)
         if (!isAnswer && cleanText.includes('<span style="display:none">{{') && !cleanText.includes('<img')) {
             const imgMatch = answerText.match(/<img[^>]+>/);
             if (imgMatch) { cleanText += "<br>" + imgMatch[0]; }
@@ -406,34 +436,16 @@
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = cleanText;
 
-        // 🔥 [이미지 정밀 복구] src 속성 세척 및 재연결
         tempDiv.querySelectorAll('img').forEach(img => {
             let src = img.getAttribute('src');
             if (src && !src.startsWith('http') && !src.startsWith('data:')) {
-                // 파일명 추출 (경로 제거)
-                let fname = src.split('/').pop().split('\\').pop();
-                // URL 디코딩 (%20 -> 공백)
-                try { fname = decodeURIComponent(fname); } catch(e) {}
-                fname = fname.trim();
-
-                // 매칭 시도: 원본, NFC, NFD, 소문자
-                const url = imageMap.get(fname) || 
-                            imageMap.get(fname.normalize('NFC')) || 
-                            imageMap.get(fname.normalize('NFD'));
-                
-                if (url) {
-                    img.src = url;
-                } else {
-                    // 없으면 깃헙으로 연결 (파일명 다시 인코딩)
-                    img.src = githubRawBase + encodeURIComponent(fname);
-                }
+                const fname = src.trim();
+                const url = imageMap.get(fname) || imageMap.get(fname.normalize('NFC')) || githubRawBase + encodeURIComponent(fname);
+                img.src = url;
             }
-            img.onerror = function() { 
-                this.style.border = "2px dashed #ff6b6b"; 
-            };
+            img.onerror = function() { this.style.border = "2px dashed #ff6b6b"; };
         });
 
-        // 강제 핏
         tempDiv.querySelectorAll('*').forEach(el => {
             el.style.width = ""; el.style.height = ""; el.style.maxWidth = "100%"; el.style.minWidth = "0"; 
             el.removeAttribute("width"); el.removeAttribute("height");
@@ -478,8 +490,14 @@
         updateStatsUI(stats); updateIconsUI(stats);
 
         const dateBadge = document.getElementById('date-badge');
-        const dateText = getDaysText(stats.last);
-        if (dateText) { dateBadge.innerText = dateText; dateBadge.style.display = 'inline-block'; dateBadge.className = dateText.includes('오늘') ? 'date-badge today' : 'date-badge recent'; } 
+        const dateText = getDaysText(stats);
+        
+        if (dateText) { 
+            dateBadge.innerText = dateText; 
+            dateBadge.style.display = 'inline-block'; 
+            if(dateText.includes('오늘')) dateBadge.className = 'date-badge today';
+            else dateBadge.className = 'date-badge recent';
+        } 
         else { dateBadge.style.display = 'none'; }
 
         const qSection = document.getElementById('question-section'); qSection.innerHTML = '';
@@ -507,6 +525,12 @@
 
     function filterCards(type) { 
         if(!currentDeckName) return;
+        
+        // 칩 스타일 업데이트
+        document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        const chip = document.getElementById(`chip-${type}`);
+        if(chip) chip.classList.add('active');
+
         if (type === 'search') {
             const rawQuery = document.getElementById('search-input').value.toLowerCase();
             if(!rawQuery) { activeDeck = [...originalDeck]; } 
@@ -515,14 +539,13 @@
             currentFilterType = type;
             const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
             let newDeck = [...originalDeck];
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            const activeBtn = document.getElementById(`filter-${type}`);
-            if(activeBtn) activeBtn.classList.add('active');
 
-            if (type !== 'default') {
+            if (type === 'rate_asc') {
+                newDeck = newDeck.filter(c => { const s = allStats[c.id] || {correct:0, total:0}; return s.total > 0 && (s.correct/s.total) < 0.8; });
+            } else if (type !== 'default') {
                 newDeck = newDeck.filter(c => (allStats[c.id] || {})[type]);
-                if(newDeck.length === 0) { alert("해당하는 카드가 없습니다."); return; }
             }
+            if(newDeck.length === 0 && type !== 'default') { alert("해당하는 카드가 없습니다."); return; }
             activeDeck = newDeck;
         }
         applySort();
@@ -531,7 +554,6 @@
         currentIndex = progress[key] || 0;
         if(currentIndex >= activeDeck.length) currentIndex = 0;
         showCard();
-        toggleMenu(false);
     }
 
     function renderDeckTree() {
