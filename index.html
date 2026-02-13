@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (v10.52)</title>
+<title>나만의 안키 (v10.53)</title>
 <style>
-    /* 기본 테마 */
+    /* 기본 테마 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
@@ -85,7 +85,7 @@
     
     .card-info { display: flex; justify-content: space-between; width: 100%; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed var(--border); align-items: center; }
     
-    /* 정답률 배지 */
+    /* 정답률 배지 색상 (v10.51 로직 유지) */
     .rate-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; background: var(--input-bg); color: var(--text-sub); }
     .rate-badge.high { background: #0b2e13 !important; color: #69db7c !important; } 
     .rate-badge.low { background: #2e0b0b !important; color: #ff8787 !important; }
@@ -99,9 +99,8 @@
     .icon-btn { font-size: 1.4rem; cursor: pointer; background: none; border: none; padding: 0; opacity: 0.4; filter: grayscale(100%); transition: 0.2s; }
     .icon-btn.active { opacity: 1; filter: grayscale(0%); transform: scale(1.1); }
     .mem-btn.active { color: #ff8787; } .cmp-btn.active { color: #74c0fc; } .fav-btn.active { color: #ffd43b; }
-    .rev-btn.active { color: #69db7c; } /* 🔥 복습 아이콘 활성색 (초록) */
+    .rev-btn.active { color: #69db7c; } /* 복습 버튼 활성색 */
     .num-btn.active { color: #66d9e8; } .date-btn.active { color: #b197fc; } .pen-btn.active { color: #ff6b6b; }
-    .edit-btn { font-size: 1.2rem; margin-right: 5px; opacity: 1; color: var(--text-sub); }
 
     /* 강제 핏 */
     .text-area { font-size: 1.35rem; line-height: 1.6; word-break: keep-all; white-space: pre-wrap; width: 100%; margin-bottom: 20px; position: relative; }
@@ -163,7 +162,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.52 (Review Added)
+            My Anki v10.53 (Edit Removed)
         </div>
     </div>
 
@@ -186,7 +185,8 @@
             <div class="chip chip-sort" id="chip-sort-random" onclick="setSortMode('random')">🎲 랜덤</div>
             <div class="v-divider"></div>
             <div class="chip active" id="chip-default" onclick="filterCards('default')">📁 전체</div>
-            <div class="chip" id="chip-rev" onclick="filterCards('rev')">🔄 복습</div> <div class="chip" id="chip-fav" onclick="filterCards('fav')">⭐ 중요</div>
+            <div class="chip" id="chip-rev" onclick="filterCards('rev')">🔄 복습</div>
+            <div class="chip" id="chip-fav" onclick="filterCards('fav')">⭐ 중요</div>
             <div class="chip" id="chip-mem" onclick="filterCards('mem')">🧠 암기</div>
             <div class="chip" id="chip-cmp" onclick="filterCards('cmp')">🆚 비교</div>
             <div class="chip" id="chip-num" onclick="filterCards('num')">🔢 숫자</div>
@@ -208,8 +208,8 @@
                         </div>
                         <div class="icon-wrapper">
                             <div class="icon-row">
-                                <button class="icon-btn edit-btn" onclick="openEditModal(event)">✏️</button>
-                                <button class="icon-btn rev-btn" id="rev-btn" onclick="toggleTag(event, 'rev')" title="복습">🔄</button> <button class="icon-btn mem-btn" id="mem-btn" onclick="toggleTag(event, 'mem')" title="암기">🧠</button>
+                                <button class="icon-btn rev-btn" id="rev-btn" onclick="toggleTag(event, 'rev')" title="복습">🔄</button>
+                                <button class="icon-btn mem-btn" id="mem-btn" onclick="toggleTag(event, 'mem')" title="암기">🧠</button>
                                 <button class="icon-btn cmp-btn" id="cmp-btn" onclick="toggleTag(event, 'cmp')" title="비교">🆚</button>
                                 <button class="icon-btn fav-btn" id="fav-btn" onclick="toggleTag(event, 'fav')" title="중요">⭐</button>
                             </div>
@@ -238,18 +238,6 @@
         <div class="nav-btns" id="nav-area">
             <button class="nav-btn" onclick="moveCard(-1)">◀ 이전</button>
             <button class="nav-btn" onclick="moveCard(1)">다음 ▶</button>
-        </div>
-    </div>
-
-    <div class="modal-overlay" id="edit-modal">
-        <div class="modal-content">
-            <div class="modal-title">📝 카드 수정</div>
-            <div><span class="edit-label">질문 (Front)</span><textarea id="edit-q" class="edit-input"></textarea></div>
-            <div><span class="edit-label">정답 (Back)</span><textarea id="edit-a" class="edit-input"></textarea></div>
-            <div class="modal-btns">
-                <button class="modal-btn btn-cancel" onclick="closeEditModal()">취소</button>
-                <button class="modal-btn btn-save" onclick="saveEdit()">저장</button>
-            </div>
         </div>
     </div>
 
@@ -635,11 +623,22 @@
         } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
     }
 
-    function getStats(id) { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 }; }
-    function saveStats(id, score) { /* grade 함수로 대체됨 */ }
-    function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[card.id]) data[card.id] = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 }; data[card.id][type] = !data[card.id][type]; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateIconsUI(data[card.id]); }
+    // 🔥 [수정] 복습 필드(rev) 추가 및 초기화
+    function getStats(id) { 
+        return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 }; 
+    }
     
-    // 🔥 [복구] 색상 로직 적용된 배지
+    function toggleTag(e, type) { 
+        e.stopPropagation(); 
+        const card = activeDeck[currentIndex]; 
+        const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); 
+        if(!data[card.id]) data[card.id] = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 }; 
+        
+        data[card.id][type] = !data[card.id][type]; 
+        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); 
+        updateIconsUI(data[card.id]); 
+    }
+    
     function updateStatsUI(stats) { 
         const badge = document.getElementById('rate-badge'); 
         if(stats.total === 0) { 
@@ -657,7 +656,7 @@
         document.getElementById('mem-btn').classList.toggle('active', stats.mem); 
         document.getElementById('cmp-btn').classList.toggle('active', stats.cmp); 
         document.getElementById('fav-btn').classList.toggle('active', stats.fav); 
-        document.getElementById('rev-btn').classList.toggle('active', stats.rev); // 🔥 복습 UI
+        document.getElementById('rev-btn').classList.toggle('active', stats.rev); // 복습
         document.getElementById('num-btn').classList.toggle('active', stats.num); 
         document.getElementById('date-btn').classList.toggle('active', stats.date); 
         document.getElementById('pen-btn').classList.toggle('active', stats.pen); 
