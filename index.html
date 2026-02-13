@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (v10.53)</title>
+<title>나만의 안키 (v10.54)</title>
 <style>
-    /* 기본 테마 유지 */
+    /* 기본 테마 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
@@ -85,7 +85,7 @@
     
     .card-info { display: flex; justify-content: space-between; width: 100%; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed var(--border); align-items: center; }
     
-    /* 정답률 배지 색상 (v10.51 로직 유지) */
+    /* 정답률 배지 */
     .rate-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; background: var(--input-bg); color: var(--text-sub); }
     .rate-badge.high { background: #0b2e13 !important; color: #69db7c !important; } 
     .rate-badge.low { background: #2e0b0b !important; color: #ff8787 !important; }
@@ -162,7 +162,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.53 (Edit Removed)
+            My Anki v10.54 (Fix Rev Default)
         </div>
     </div>
 
@@ -241,7 +241,7 @@
         </div>
     </div>
 
-<script>
+    <script>
     const repoOwner = 'minkunai87-ai';
     const repoName = 'mk';
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
@@ -623,20 +623,32 @@
         } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
     }
 
-    // 🔥 [수정] 복습 필드(rev) 추가 및 초기화
+    // 🔥 [수정] 데이터 병합 로직 개선 (기본값 강제)
     function getStats(id) { 
-        return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 }; 
+        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id];
+        // 기본값 (특히 rev: false 가 중요)
+        const defaults = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 };
+        // 병합: 저장된 값이 있으면 쓰고, 없으면 기본값 사용
+        return { ...defaults, ...stored }; 
     }
     
     function toggleTag(e, type) { 
         e.stopPropagation(); 
         const card = activeDeck[currentIndex]; 
-        const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); 
-        if(!data[card.id]) data[card.id] = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 }; 
+        const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        const defaults = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 };
         
-        data[card.id][type] = !data[card.id][type]; 
-        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); 
-        updateIconsUI(data[card.id]); 
+        // 현재 카드의 스탯 가져오기 (없으면 기본값으로 초기화)
+        const currentCardStats = { ...defaults, ...(allStats[card.id] || {}) };
+        
+        // 토글
+        currentCardStats[type] = !currentCardStats[type];
+        
+        // 저장
+        allStats[card.id] = currentCardStats;
+        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(allStats));
+        
+        updateIconsUI(currentCardStats); 
     }
     
     function updateStatsUI(stats) { 
@@ -656,7 +668,7 @@
         document.getElementById('mem-btn').classList.toggle('active', stats.mem); 
         document.getElementById('cmp-btn').classList.toggle('active', stats.cmp); 
         document.getElementById('fav-btn').classList.toggle('active', stats.fav); 
-        document.getElementById('rev-btn').classList.toggle('active', stats.rev); // 복습
+        document.getElementById('rev-btn').classList.toggle('active', stats.rev); 
         document.getElementById('num-btn').classList.toggle('active', stats.num); 
         document.getElementById('date-btn').classList.toggle('active', stats.date); 
         document.getElementById('pen-btn').classList.toggle('active', stats.pen); 
