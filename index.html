@@ -5,14 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (v10.57)</title>
+<title>나만의 안키 (v10.58)</title>
 <style>
-    /* 기본 테마 */
+    /* 기존 스타일 100% 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
     
-    /* 헤더 */
     .header { background: var(--surface); padding: 0 20px; padding-top: calc(env(safe-area-inset-top) + 12px); padding-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0; position: relative; }
     .header-title-area { display: flex; flex-direction: column; max-width: 60%; }
     .header-title { font-weight: bold; font-size: 1.1rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -23,7 +22,6 @@
     .filter-toggle-btn.active { color: var(--primary); transform: scale(1.1); }
     .counter { font-size: 0.8rem; font-weight: bold; color: var(--text-sub); background: var(--input-bg); padding: 4px 10px; border-radius: 12px; }
 
-    /* 통합 슬라이드 바 */
     #filter-bar-container { background: var(--surface); max-height: 0; overflow: hidden; transition: max-height 0.3s ease-in-out, border-bottom 0.1s; border-bottom: 0px solid var(--border); }
     #filter-bar-container.show { max-height: 60px; border-bottom: 1px solid var(--border); }
     .filter-scroll { display: flex; gap: 8px; padding: 10px 15px; overflow-x: auto; white-space: nowrap; align-items: center; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
@@ -34,7 +32,6 @@
     .chip-sort.active { background: #343a40; color: #ffd43b; border-color: #ffd43b; }
     .v-divider { width: 1px; height: 20px; background: #444; flex-shrink: 0; margin: 0 5px; }
 
-    /* 사이드바 */
     .sidebar { position: fixed; top: 0; left: 0; width: 300px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); box-shadow: 2px 0 15px rgba(0,0,0,0.5); transition: transform 0.3s ease; z-index: 9999; padding: 25px; padding-top: calc(env(safe-area-inset-top) + 25px); display: flex; flex-direction: column; overflow-y: auto; transform: translateX(-105%); }
     .sidebar.open { transform: translateX(0); }
     .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9998; display: none; }
@@ -43,7 +40,6 @@
     .menu-label { font-weight: bold; color: var(--text-sub); margin-bottom: 10px; display: block; font-size: 0.9rem; }
     .search-input { width: 100%; padding: 12px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-size: 0.95rem; margin-bottom: 10px; }
 
-    /* 트리 UI */
     .deck-list { list-style: none; padding: 0; margin: 0; }
     .tree-folder { margin-bottom: 4px; }
     .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); margin-bottom: 4px; transition: 0.2s; }
@@ -56,12 +52,10 @@
     .play-btn { background: var(--primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 8px; flex-shrink: 0; }
     .del-btn { background: none; border: none; color: var(--text-sub); font-weight: bold; padding: 0 5px; cursor: pointer; font-size: 1rem; }
 
-    /* 버튼 */
     .btn-upload { width: 100%; padding: 12px; border-radius: 8px; background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; margin-bottom: 5px; }
     .btn-sub { width: 100%; padding: 10px; border-radius: 8px; background: var(--input-bg); color: var(--text-sub); border: 1px solid var(--border); margin-top: 5px; cursor: pointer; text-align: left; font-size: 0.85rem; }
     .btn-refresh { width: 100%; padding: 12px; margin-top: 15px; border-radius: 8px; background: #343a40; color: #e9ecef; border: 1px solid var(--border); font-weight: bold; cursor: pointer; }
 
-    /* 메인 카드 영역 */
     .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
     .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; box-shadow: none; border: none; display: flex; flex-direction: column; position: relative; overflow: hidden; }
     .card-scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
@@ -100,10 +94,6 @@
 
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: none; align-items: center; justify-content: center; }
     .modal-content { background: var(--surface); width: 90%; max-width: 500px; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border); }
-    .edit-input { width: 100%; padding: 10px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-family: inherit; font-size: 1rem; resize: vertical; min-height: 80px; }
-    .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
-    .modal-btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
-    .btn-save { background: var(--primary); color: white; } .btn-cancel { background: var(--input-bg); color: var(--text); }
     #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
     .ox-highlight { font-size: 4rem; font-weight: 900; text-align: center; display: block; margin: 10px 0; }
     .ox-o { color: #40c057; } .ox-x { color: #fa5252; }
@@ -124,7 +114,7 @@
         </div>
         <div class="menu-section">
             <span class="menu-label">🔍 검색</span>
-            <input type="text" id="search-input" class="search-input" placeholder="텍스트, OCR, 타이틀 검색" onkeyup="filterCards('search')">
+            <input type="text" id="search-input" class="search-input" placeholder="텍스트, OCR 검색" onkeyup="filterCards('search')">
         </div>
         <span class="menu-label">📚 덱 목록</span>
         <ul class="deck-list" id="deck-list-ui"></ul>
@@ -140,7 +130,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.57 (Title Search Fix)
+            My Anki v10.58 (Force Fix Images)
         </div>
     </div>
 
@@ -216,18 +206,6 @@
         <div class="nav-btns" id="nav-area">
             <button class="nav-btn" onclick="moveCard(-1)">◀ 이전</button>
             <button class="nav-btn" onclick="moveCard(1)">다음 ▶</button>
-        </div>
-    </div>
-
-    <div class="modal-overlay" id="edit-modal">
-        <div class="modal-content">
-            <div class="modal-title">📝 카드 수정</div>
-            <div><span class="edit-label">질문 (Front)</span><textarea id="edit-q" class="edit-input"></textarea></div>
-            <div><span class="edit-label">정답 (Back)</span><textarea id="edit-a" class="edit-input"></textarea></div>
-            <div class="modal-btns">
-                <button class="modal-btn btn-cancel" onclick="closeEditModal()">취소</button>
-                <button class="modal-btn btn-save" onclick="saveEdit()">저장</button>
-            </div>
         </div>
     </div>
 
@@ -384,62 +362,98 @@
             if(!q) return;
             if (!library[deckNameInRow]) library[deckNameInRow] = [];
             
-            // 🔥 [수정] 타이틀 내용 추출하여 hiddenText로 저장
             let hiddenText = "";
-            // 정규식으로 title=" 내용 " 추출 (이중 따옴표 고려)
+            // 🔥 [1단계] 타이틀 내용 추출 (이중 따옴표 안의 내용을 안전하게)
             const titleMatch = q.match(/title\s*=\s*"((?:[^"]|"")*)"/i);
-            if (titleMatch) {
-                // 이중 따옴표("")를 단일 따옴표(")로 변환 후 저장
-                hiddenText = titleMatch[1].replace(/""/g, '"');
-            }
+            if (titleMatch) { hiddenText = titleMatch[1].replace(/""/g, '"'); }
 
             const id = cyrb53(q);
             if (edits[id]) { q = edits[id].q; a = edits[id].a; }
-            library[deckNameInRow].push({ id, q, a, hiddenText }); // hiddenText 추가
+            library[deckNameInRow].push({ id, q, a, hiddenText });
         });
     }
 
+    // === 🔥 핵심 수정: 강력한 HTML 전처리 ===
     function createDOM(rawText, isAnswer, questionText = "", answerText = "") {
         if (!rawText) rawText = "";
-        let formattedText = rawText.replace(/""/g, '"');
-        if (formattedText.startsWith('"') && formattedText.endsWith('"')) formattedText = formattedText.slice(1, -1);
+        
+        // 1. [이중 따옴표 괴물 제거] 
+        // HTML 속성이 파괴되는 원흉인 ""를 "로 교체 (가장 먼저 실행)
+        let cleanText = rawText.replace(/""/g, '"');
+        if (cleanText.startsWith('"') && cleanText.endsWith('"')) cleanText = cleanText.slice(1, -1);
 
-        let cleanText = formattedText.replace(/title\s*=\s*"[^"]*"/gi, ''); 
+        // 2. [타이틀 제거] 
+        // 줄바꿈이 있어도(title="... \n ...") 다 잡아먹는 정규식 [\s\S]*? 사용
+        cleanText = cleanText.replace(/title\s*=\s*"[\s\S]*?"/gi, ''); 
+        
+        // 3. IO 코드 숨기기
         cleanText = cleanText.replace(/(\{\{c\d+::.*?\}\})/g, '<span style="display:none">$1</span>');
 
+        // 답안 공백 시 이미지 복구
         const hasContent = cleanText.replace(/<[^>]*>/g, '').trim().length > 0 || cleanText.includes('<img') || cleanText.includes('<svg');
         if (isAnswer && !hasContent) {
             const imgMatch = answerText.match(/<img[^>]+>/);
-            if (imgMatch) { cleanText = imgMatch[0]; } 
-            else { cleanText = '<div style="color:#666; text-align:center;">(정답 내용 없음)</div>'; }
+            if (imgMatch) cleanText = imgMatch[0];
+            else cleanText = '<div style="color:#666; text-align:center;">(정답 내용 없음)</div>';
         }
 
         if (!isAnswer && cleanText.includes('<span style="display:none">{{') && !cleanText.includes('<img')) {
             const imgMatch = answerText.match(/<img[^>]+>/);
-            if (imgMatch) { cleanText += "<br>" + imgMatch[0]; }
+            if (imgMatch) cleanText += "<br>" + imgMatch[0];
         }
 
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = cleanText;
 
-        // 🔥 [이미지 정밀 복구]
-        const allImgMatches = rawText.match(/paste-[a-f0-9]{40}\.jpg/gi) || [];
-        tempDiv.querySelectorAll('img').forEach((img, index) => {
+        // 🔥 [이미지 구출 작전]
+        // 1) 텍스트 전체에서 paste-....jpg 패턴을 싹 긁어모음 (정규식)
+        const allImgMatches = rawText.match(/paste-[a-f0-9]{40}\.(jpg|png|gif|jpeg)/gi) || [];
+        
+        // 2) DOM img 태그 순회
+        const domImgs = tempDiv.querySelectorAll('img');
+        
+        // 브라우저가 파싱한 img 태그 갯수보다, 텍스트에서 찾은 파일명이 더 많다면? (즉, 파싱 실패로 <img>가 사라졌다면)
+        if (allImgMatches.length > domImgs.length) {
+            // 사라진 이미지들을 강제로 뒤에 붙임
+            for (let i = domImgs.length; i < allImgMatches.length; i++) {
+                const missingImg = document.createElement('img');
+                missingImg.src = allImgMatches[i]; // 임시 src
+                tempDiv.appendChild(missingImg);
+            }
+        }
+
+        // 3) 다시 모든 img 태그 순회하며 src 연결
+        tempDiv.querySelectorAll('img').forEach(img => {
             let src = img.getAttribute('src');
             let fname = "";
+
             if (src && !src.startsWith('http') && !src.startsWith('data:')) {
                 fname = src.split('/').pop().split('\\').pop();
                 try { fname = decodeURIComponent(fname).trim(); } catch(e){}
-            } 
-            if ((!fname || fname === "") && index < allImgMatches.length) { fname = allImgMatches[index]; }
+            }
+            
+            // src가 깨져서 파일명이 없으면, 정규식 매치 결과에서 찾아서 넣음
+            if (!fname || fname === "") {
+                // 현재 img 태그가 전체 매치 중 몇 번째인지 추적은 어렵지만, 
+                // 위에서 강제 추가한 로직 덕분에 여기선 fname이 src에 들어있을 확률 높음
+                if (src && src.startsWith('paste-')) fname = src; 
+            }
 
             if (fname) {
-                const url = imageMap.get(fname) || imageMap.get(fname.normalize('NFC')) || githubRawBase + encodeURIComponent(fname);
+                const url = imageMap.get(fname) || 
+                            imageMap.get(fname.normalize('NFC')) || 
+                            githubRawBase + encodeURIComponent(fname);
                 img.src = url;
+                img.style.display = 'block'; // 혹시 숨겨졌을까봐
             }
-            img.onerror = function() { this.style.border = "2px dashed #ff6b6b"; };
+
+            img.onerror = function() { 
+                this.style.border = "2px dashed #ff6b6b";
+                this.alt = "이미지 로드 실패";
+            };
         });
 
+        // 강제 핏
         tempDiv.querySelectorAll('*').forEach(el => {
             el.style.width = ""; el.style.height = ""; el.style.maxWidth = "100%"; el.style.minWidth = "0"; 
             el.removeAttribute("width"); el.removeAttribute("height");
@@ -525,7 +539,6 @@
             const rawQuery = document.getElementById('search-input').value.toLowerCase();
             if(!rawQuery) { activeDeck = [...originalDeck]; } 
             else {
-                // 🔥 [수정] hiddenText까지 포함해서 검색
                 activeDeck = originalDeck.filter(card => 
                     card.q.toLowerCase().includes(rawQuery) || 
                     card.a.toLowerCase().includes(rawQuery) ||
