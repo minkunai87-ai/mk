@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.61)</title>
+<title>나만의 안키 (v10.63)</title>
 <style>
     /* 디자인 엔진 100% 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -13,7 +13,7 @@
     .header { background: var(--surface); padding: 0 20px; padding-top: calc(env(safe-area-inset-top) + 12px); padding-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0; position: relative; }
     .header-title-area { display: flex; flex-direction: column; max-width: 60%; }
     .header-title { font-weight: bold; font-size: 1.1rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .header-subtitle { font-size: 0.7rem; color: var(--primary); margin-top: 2px; font-weight: bold; }
+    .header-subtitle { font-size: 0.75rem; color: var(--primary); margin-top: 3px; font-weight: bold; }
     .header-controls { display: flex; gap: 12px; align-items: center; }
     .menu-btn { font-size: 1.5rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); }
     .filter-toggle-btn { font-size: 1.3rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text-sub); transition: 0.2s; }
@@ -38,10 +38,12 @@
     .menu-label { font-weight: bold; color: var(--text-sub); margin-bottom: 10px; display: block; font-size: 0.9rem; }
     .search-input { width: 100%; padding: 12px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-size: 0.95rem; margin-bottom: 10px; }
 
-    .deck-list { list-style: none; padding: 0; margin: 0; }
+    /* 🔥 [수정] 리스트 스타일 제거 (ㅇ, ㅁ 제거) */
+    .deck-list, .tree-children { list-style: none; padding: 0; margin: 0; }
+    
     .tree-folder { margin-bottom: 4px; }
     
-    /* 폴더 헤더 */
+    /* 폴더/파일 헤더 스타일 */
     .tree-header { 
         display: flex; justify-content: space-between; align-items: center; 
         padding: 12px; border-radius: 8px; cursor: pointer; 
@@ -50,16 +52,24 @@
     }
     .tree-header:hover { background: var(--btn-hover); }
     .tree-header:active { background: #333; }
-    /* 🔥 활성화된 폴더 스타일 */
+    /* 활성화된 덱/폴더 강조 */
     .tree-header.active-deck { background: #182836; border: 1px solid #1c7ed6; }
-
-    .tree-children { display: none; padding-left: 12px; margin-left: 6px; border-left: 2px solid #444; }
-    .tree-children.open { display: block !important; }
-    .folder-title { flex: 1; font-weight: bold; color: #ffd43b; font-size: 0.95rem; display: flex; align-items: center; gap: 6px; }
     .tree-deck { padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); margin-bottom: 4px; color: var(--text); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
     .tree-deck.active { background: #182836; color: #74c0fc; font-weight: bold; border: 1px solid #1c7ed6; }
+
+    /* 🔥 [수정] 하위 목록 불릿 제거 및 들여쓰기 */
+    .tree-children { 
+        list-style: none; /* 한번 더 명시 */
+        display: none; 
+        padding-left: 12px; 
+        margin-left: 6px; 
+        border-left: 2px solid #444; 
+    }
+    .tree-children.open { display: block !important; }
+    
+    .folder-title { flex: 1; font-weight: bold; color: #ffd43b; font-size: 0.95rem; display: flex; align-items: center; gap: 6px; }
     .play-btn { background: var(--primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 8px; flex-shrink: 0; }
-    .del-btn { background: none; border: none; color: var(--text-sub); font-weight: bold; padding: 0 5px; cursor: pointer; font-size: 1rem; }
+    .del-btn { background: none; border: none; color: #ff6b6b; font-weight: bold; padding: 0 5px; cursor: pointer; font-size: 1rem; }
 
     .btn-upload { width: 100%; padding: 12px; border-radius: 8px; background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; margin-bottom: 5px; }
     .btn-sub { width: 100%; padding: 10px; border-radius: 8px; background: var(--input-bg); color: var(--text-sub); border: 1px solid var(--border); margin-top: 5px; cursor: pointer; text-align: left; font-size: 0.85rem; }
@@ -112,15 +122,8 @@
 
     <div class="sidebar-overlay" onclick="toggleMenu()"></div>
     <div class="sidebar" id="sidebar">
-        <h2 style="margin-top:0; color:var(--text); font-size:1.4rem;">⚙️ 설정</h2>
-        <div class="menu-section">
-            <span class="menu-label">📊 정렬 기준</span>
-            <div class="sort-options">
-                <div class="sort-opt" id="sort-wrong" onclick="setSortMode('wrong')">🔥 틀린순</div>
-                <div class="sort-opt" id="sort-normal" onclick="setSortMode('normal')">📋 원래순</div>
-                <div class="sort-opt" id="sort-random" onclick="setSortMode('random')">🎲 랜덤</div>
-            </div>
-        </div>
+        <h2 style="margin-top:0; color:var(--text); font-size:1.4rem;">⚙️ 메뉴</h2>
+        
         <div class="menu-section">
             <span class="menu-label">🔍 검색</span>
             <input type="text" id="search-input" class="search-input" placeholder="텍스트, OCR, 타이틀 검색" onkeyup="filterCards('search')">
@@ -139,7 +142,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.61 (Menu Active Fix)
+            My Anki v10.63 (Clean & Stable)
         </div>
     </div>
 
@@ -223,6 +226,7 @@
     const repoName = 'mk';
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
 
+    // 핀치 줌 로직
     const scrollContainer = document.getElementById('scroll-area');
     const zoomContent = document.getElementById('zoom-content');
     let scale = 1, panning = false, pointX = 0, pointY = 0, startX = 0, startY = 0, lastTap = 0, startDist = 0, startScale = 1;
@@ -241,6 +245,7 @@
     function resetZoom() { scale = 1; pointX = 0; pointY = 0; updateTransform(); scrollContainer.style.overflowY = 'auto'; }
     function updateTransform() { if (scale > 1) scrollContainer.style.overflow = 'hidden'; else scrollContainer.style.overflowY = 'auto'; zoomContent.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`; }
 
+    // 안키 로직
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0, imageMap = new Map();
     let currentFilterType = 'default', currentSortMode = 'wrong';
     
@@ -561,7 +566,6 @@
         showCard();
     }
 
-    // 🔥 [복구] 문자열 기반 트리 렌더링 (가장 안정적)
     function renderDeckTree() {
         const list = document.getElementById('deck-list-ui'); list.innerHTML = '';
         const names = Object.keys(library).sort();
@@ -586,8 +590,7 @@
                 
                 if (hasChildren) {
                     const isOpen = (currentDeckName && currentDeckName.startsWith(item._fullPath)) ? 'open' : '';
-                    // 🔥 [활성화 로직 수정] 상위 폴더도 현재 보고 있는 덱의 경로에 포함되면 활성화
-                    const isActive = (currentDeckName === item._fullPath) ? 'active-deck' : ''; 
+                    const isActive = (currentDeckName === item._fullPath || (currentDeckName && currentDeckName.startsWith(item._fullPath + '__'))) ? 'active-deck' : ''; 
                     const countInfo = item._isLeaf ? `(${library[item._fullPath].length})` : '';
                     
                     html += `
@@ -652,10 +655,7 @@
         const isOpen = force !== undefined ? force : !sidebar.classList.contains('open');
         if (isOpen) {
             sidebar.classList.add('open'); overlay.classList.add('open');
-            setTimeout(() => { 
-                const active = document.querySelector('.tree-deck.active, .tree-header.active-deck'); 
-                if(active) active.scrollIntoView({block:'center', behavior:'smooth'}); 
-            }, 300);
+            setTimeout(() => { const active = document.querySelector('.tree-deck.active'); if(active) active.scrollIntoView({block:'center', behavior:'smooth'}); }, 300);
         } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
     }
 
@@ -712,20 +712,15 @@
         const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
         const defaults = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 };
         const currentStats = { ...defaults, ...(data[card.id] || {}) };
-        
         currentStats.total++;
-        if(score === 2) currentStats.correct++;
-        else if(score === 1) currentStats.correct += 0.5;
+        if(score === 2) currentStats.correct++; else if(score === 1) currentStats.correct += 0.5;
         currentStats.last = Date.now();
-        
         data[card.id] = currentStats;
         localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
         updateStatsUI(currentStats);
-        
         if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } 
         else { alert("끝!"); currentIndex = 0; saveProgress(); showCard(); } 
     }
-
     const cyrb53 = (str, seed = 0) => { let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed; for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); return 4294967296 * (2097151 & h2) + (h1 >>> 0); };
 </script>
 </body>
