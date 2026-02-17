@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.75 - Resume)</title>
+<title>나만의 안키 (v10.76 - Today Toggle)</title>
 <style>
     /* 디자인 100% 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -11,7 +11,7 @@
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
     
     .header { background: var(--surface); padding: 0 20px; padding-top: calc(env(safe-area-inset-top) + 12px); padding-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0; position: relative; }
-    .header-title-area { display: flex; flex-direction: column; max-width: 60%; }
+    .header-title-area { display: flex; flex-direction: column; max-width: 55%; }
     .header-title { font-weight: bold; font-size: 1.1rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
     
     .cloud-icon { font-size: 0.8rem; transition: 0.3s; opacity: 0.5; }
@@ -22,6 +22,12 @@
 
     .header-subtitle { font-size: 0.75rem; color: var(--primary); margin-top: 3px; font-weight: bold; }
     .header-controls { display: flex; gap: 12px; align-items: center; }
+    
+    /* 🔥 [NEW] 오늘 완료 보기/숨기기 토글 버튼 스타일 */
+    .today-toggle-btn { font-size: 1.3rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text-sub); transition: 0.2s; }
+    .today-toggle-btn.active { color: #40c057; } /* 켜져있을 때(보일 때) 초록색 */
+    .today-toggle-btn.hidden { color: #fa5252; opacity: 0.7; } /* 꺼져있을 때(숨길 때) 붉은색 */
+
     .menu-btn { font-size: 1.5rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); }
     .filter-toggle-btn { font-size: 1.3rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text-sub); transition: 0.2s; }
     .filter-toggle-btn.active { color: var(--primary); transform: scale(1.1); }
@@ -48,12 +54,7 @@
     .deck-list, .tree-children { list-style: none; padding: 0; margin: 0; }
     .tree-folder { margin-bottom: 4px; }
     
-    .tree-header { 
-        display: flex; justify-content: space-between; align-items: center; 
-        padding: 12px; border-radius: 8px; cursor: pointer; 
-        background: var(--input-bg); border: 1px solid var(--border); 
-        margin-bottom: 4px; transition: 0.2s; user-select: none; 
-    }
+    .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); margin-bottom: 4px; transition: 0.2s; user-select: none; }
     .tree-header:hover { background: var(--btn-hover); }
     .tree-header:active { background: #333; }
     .tree-header.active-deck { background: #182836; border: 1px solid #1c7ed6; }
@@ -134,7 +135,6 @@
     <div class="sidebar-overlay" onclick="toggleMenu()"></div>
     <div class="sidebar" id="sidebar">
         <h2 style="margin-top:0; color:var(--text); font-size:1.4rem;">⚙️ 메뉴</h2>
-        
         <div class="menu-section">
             <span class="menu-label">🔍 검색</span>
             <input type="text" id="search-input" class="search-input" placeholder="텍스트, OCR, 타이틀 검색" onkeyup="filterCards('search')">
@@ -143,18 +143,15 @@
         <ul class="deck-list" id="deck-list-ui"></ul>
         <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px; padding-bottom: 30px;">
             <span class="menu-label">💾 데이터 & 설정</span>
-            
             <button class="btn-sub" onclick="exportData()">💾 로컬 백업 저장</button>
             <button class="btn-sub" onclick="document.getElementById('backup-input').click()">📂 로컬 백업 불러오기</button>
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
-            
             <button class="btn-cloud" onclick="openGitHubSettings()">☁️ 클라우드 설정 (자동)</button>
             <div id="gh-status-text" style="font-size:0.8rem; color:#aaa; text-align:center; margin-top:5px;"></div>
-            
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.75 (Resume)
+            My Anki v10.76 (Today Toggle)
         </div>
     </div>
 
@@ -165,6 +162,8 @@
             <div class="header-subtitle" id="header-info">🔥 틀린 순 & 📁 전체</div>
         </div>
         <div class="header-controls">
+            <button class="today-toggle-btn active" id="today-toggle-btn" onclick="toggleTodayView()" title="오늘 완료 보기/숨기기">👁️</button>
+            
             <button class="filter-toggle-btn" id="filter-toggle-btn" onclick="toggleFilterBar()">🌪️</button>
             <span class="counter" id="card-counter">0 / 0</span>
         </div>
@@ -252,12 +251,10 @@
                 <span class="menu-label">토큰 (Token) <small>- 저장(백업)하려면 필수</small></span>
                 <input type="password" id="gh-token" class="edit-input" placeholder="ghp_... (없으면 읽기 전용)">
             </div>
-            
             <div class="modal-btns">
                 <button class="modal-btn btn-save" onclick="initGitHubSync()">연동 및 복구 시작</button>
                 <button class="modal-btn btn-cancel" onclick="document.getElementById('gh-modal').style.display='none'">닫기</button>
             </div>
-            
             <div id="log-area" class="log-area">대기 중...</div>
         </div>
     </div>
@@ -270,6 +267,9 @@
     let ghUser = localStorage.getItem('gh_user') || '';
     let ghRepo = localStorage.getItem('gh_repo') || '';
     let ghToken = localStorage.getItem('gh_token') || '';
+
+    // 🔥 [NEW] 오늘 완료 보기 설정 (기본값: true - 보기)
+    let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false';
 
     const scrollContainer = document.getElementById('scroll-area');
     const zoomContent = document.getElementById('zoom-content');
@@ -299,6 +299,7 @@
     window.onload = async function() {
         currentSortMode = localStorage.getItem(STORAGE_KEY_SORT) || 'wrong';
         updateHeaderUI();
+        updateTodayToggleUI(); // 초기 UI 설정
         
         try {
             if(Object.keys(library).length === 0) loadLocalLibrary();
@@ -313,7 +314,6 @@
              if (location.protocol.startsWith('http')) await autoScanGitHub();
         }
 
-        // 🔥 [추가] 마지막 덱 자동 복구 로직
         restoreLastSession();
 
         document.getElementById('loading').style.display = 'none';
@@ -322,14 +322,47 @@
         }
     };
 
-    // 🔥 [NEW] 마지막 세션 복구 함수
+    // 🔥 [NEW] 오늘 완료 토글 기능
+    function toggleTodayView() {
+        showTodayCompleted = !showTodayCompleted;
+        localStorage.setItem('anki_show_today', showTodayCompleted);
+        updateTodayToggleUI();
+        
+        // 현재 보고 있는 덱이 있다면 필터 다시 적용
+        if(currentDeckName) {
+            filterCards(currentFilterType);
+        }
+    }
+
+    function updateTodayToggleUI() {
+        const btn = document.getElementById('today-toggle-btn');
+        if(showTodayCompleted) {
+            btn.innerText = "👁️"; // 보임
+            btn.className = "today-toggle-btn active";
+            btn.title = "오늘 완료된 카드 숨기기";
+        } else {
+            btn.innerText = "🙈"; // 숨김
+            btn.className = "today-toggle-btn hidden";
+            btn.title = "오늘 완료된 카드 보기";
+        }
+    }
+
+    // 🔥 [NEW] 오늘 완료되었는지 확인하는 함수
+    function isCompletedToday(stats) {
+        if (!stats || !stats.last) return false;
+        const now = new Date();
+        const todayStart = new Date(now);
+        // 새벽 4시를 하루의 시작으로 간주 (사용자 패턴 고려)
+        if (now.getHours() < 4) todayStart.setDate(todayStart.getDate() - 1);
+        todayStart.setHours(4, 0, 0, 0);
+        return stats.last >= todayStart.getTime();
+    }
+
     function restoreLastSession() {
         const lastDeck = localStorage.getItem(STORAGE_KEY_LAST_DECK);
         if (lastDeck && library[lastDeck.replace('__', '')] || (lastDeck && Object.keys(library).some(k => k.startsWith(lastDeck)))) {
             const isGroup = localStorage.getItem(STORAGE_KEY_IS_GROUP) === 'true';
-            console.log("Restoring:", lastDeck, "Group:", isGroup);
             if (isGroup) {
-                // 그룹 복구 시에는 끝에 __가 붙어있을 수 있음
                 selectDeckGroup(lastDeck.endsWith('__') ? lastDeck : lastDeck + '__');
             } else {
                 selectDeck(lastDeck);
@@ -414,9 +447,7 @@
             localStorage.setItem('gh_sha', json.sha);
             
             updateCloudIcon('done');
-            // 로드 후 덱이 선택되어 있으면 리프레시
             if(currentDeckName) showCard(); 
-            // 만약 로드 시점에 아무 덱도 안 떠있으면 복구 시도
             else restoreLastSession(); 
             
             return true;
@@ -491,7 +522,6 @@
             }
             renderDeckTree();
             
-            // 🔥 스캔 완료 후에도 복구 시도 (타이밍 이슈 방지)
             restoreLastSession();
             
             if(showLog) log("✅ 덱 목록 구성 완료!", "success");
@@ -565,7 +595,7 @@
         const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
         progress[`${currentDeckName}__${currentFilterType}`] = currentIndex;
         localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
-        saveToGitHub(); // 🔥 자동 저장
+        saveToGitHub(); 
     }
 
     function loadLocalLibrary() {
@@ -574,7 +604,6 @@
             try {
                 library = JSON.parse(savedLib);
                 renderDeckTree();
-                // 🔥 로컬 로드 시에도 복구 시도
                 restoreLastSession();
             } catch(e) {}
         }
@@ -732,7 +761,16 @@
             let newDeck = [...originalDeck];
             if (type === 'rate_asc') { newDeck = newDeck.filter(c => { const s = allStats[c.id] || {correct:0, total:0}; return s.total > 0 && (s.correct/s.total) < 0.8; }); } 
             else if (type !== 'default') { newDeck = newDeck.filter(c => (allStats[c.id] || {})[type]); }
-            if(newDeck.length === 0 && type !== 'default') { alert("해당하는 카드가 없습니다."); return; }
+            
+            // 🔥 [수정] 오늘 완료된 카드 숨기기 로직 적용 (독립적)
+            if (!showTodayCompleted) {
+                newDeck = newDeck.filter(c => {
+                    const stats = allStats[c.id] || {};
+                    return !isCompletedToday(stats);
+                });
+            }
+
+            if(newDeck.length === 0 && type !== 'default' && showTodayCompleted) { alert("해당하는 카드가 없습니다."); return; }
             activeDeck = newDeck;
         }
         applySort(); updateHeaderUI();
@@ -893,8 +931,26 @@
         localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
         updateStatsUI(currentStats);
         saveToGitHub(); 
-        if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } 
-        else { alert("끝!"); currentIndex = 0; saveProgress(); showCard(); } 
+        
+        // 🔥 오늘 완료 숨김이 켜져있으면 다음 카드로 넘어가면서 현재 카드는 필터링됨
+        if (!showTodayCompleted) {
+            // 현재 덱 목록에서 방금 푼 카드를 제외
+            activeDeck = activeDeck.filter(c => c.id !== card.id);
+            // 인덱스 조정 (카드가 빠졌으니 현재 인덱스가 다음 카드를 가리킴)
+            // 하지만 마지막 카드였다면 인덱스 조정 필요
+            if (currentIndex >= activeDeck.length) currentIndex = 0;
+            
+            if (activeDeck.length === 0) {
+                alert("🎉 오늘 학습 분량을 모두 완료했습니다!");
+                showCard();
+                return;
+            }
+            saveProgress();
+            showCard();
+        } else {
+            if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } 
+            else { alert("끝!"); currentIndex = 0; saveProgress(); showCard(); } 
+        }
     }
     const cyrb53 = (str, seed = 0) => { let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed; for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); return 4294967296 * (2097151 & h2) + (h1 >>> 0); };
 </script>
