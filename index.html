@@ -3,24 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<<<<<<< HEAD
-<title>나만의 안키 (GitHub Sync)</title>
+<title>나만의 안키 (Auto Sync)</title>
 <style>
-    /* 디자인 100% 유지 */
-=======
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (v10.58)</title>
-<style>
-    /* 기존 스타일 100% 유지 */
->>>>>>> parent of 2482fd4 (Update index.html)
+    /* 디자인 엔진 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
     
     .header { background: var(--surface); padding: 0 20px; padding-top: calc(env(safe-area-inset-top) + 12px); padding-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0; position: relative; }
     .header-title-area { display: flex; flex-direction: column; max-width: 60%; }
+    
+    /* 🔥 [NEW] 동기화 상태 표시 디자인 */
+    .title-row { display: flex; align-items: center; gap: 8px; }
     .header-title { font-weight: bold; font-size: 1.1rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .sync-badge { font-size: 0.75rem; font-weight: bold; padding: 2px 6px; border-radius: 4px; background: #333; color: #aaa; transition: 0.3s; display: none; }
+    .sync-badge.visible { display: inline-block; }
+    .sync-badge.working { background: #1864ab; color: #d0ebff; animation: pulse 1.5s infinite; }
+    .sync-badge.done { background: #2b8a3e; color: #d3f9d8; }
+    .sync-badge.error { background: #c92a2a; color: #ffe3e3; }
+
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
     .header-subtitle { font-size: 0.7rem; color: var(--primary); margin-top: 2px; font-weight: bold; }
     .header-controls { display: flex; gap: 12px; align-items: center; }
     .menu-btn { font-size: 1.5rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); }
@@ -48,17 +51,12 @@
 
     .deck-list { list-style: none; padding: 0; margin: 0; }
     .tree-folder { margin-bottom: 4px; }
-<<<<<<< HEAD
     .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); margin-bottom: 4px; transition: 0.2s; user-select: none; }
     .tree-header:hover { background: var(--btn-hover); }
     .tree-header:active { background: #333; }
     .tree-header.active-deck { background: #182836; border: 1px solid #1c7ed6; }
-=======
-    .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); margin-bottom: 4px; transition: 0.2s; }
-    .tree-header:hover { background: var(--btn-hover); }
->>>>>>> parent of 2482fd4 (Update index.html)
     .tree-children { display: none; padding-left: 12px; margin-left: 6px; border-left: 2px solid #444; }
-    .tree-children.open { display: block; }
+    .tree-children.open { display: block !important; }
     .folder-title { flex: 1; font-weight: bold; color: #ffd43b; font-size: 0.95rem; display: flex; align-items: center; gap: 6px; }
     .tree-deck { padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); margin-bottom: 4px; color: var(--text); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
     .tree-deck.active { background: #182836; color: #74c0fc; font-weight: bold; border: 1px solid #1c7ed6; }
@@ -68,8 +66,10 @@
     .btn-upload { width: 100%; padding: 12px; border-radius: 8px; background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; margin-bottom: 5px; }
     .btn-sub { width: 100%; padding: 10px; border-radius: 8px; background: var(--input-bg); color: var(--text-sub); border: 1px solid var(--border); margin-top: 5px; cursor: pointer; text-align: left; font-size: 0.85rem; }
     
-    /* 🔥 깃헙 버튼 스타일 */
-    .btn-github { width: 100%; padding: 12px; border-radius: 8px; background: #24292e; color: white; border: 1px solid #444; font-weight: bold; cursor: pointer; margin-top: 5px; text-align: center; }
+    /* 🔥 깃헙 버튼 스타일 (메인) */
+    .btn-github { width: 100%; padding: 12px; border-radius: 8px; background: #24292e; color: white; border: 1px solid #444; font-weight: bold; cursor: pointer; margin-top: 5px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    
+    .btn-refresh { width: 100%; padding: 12px; margin-top: 15px; border-radius: 8px; background: #343a40; color: #e9ecef; border: 1px solid var(--border); font-weight: bold; cursor: pointer; }
 
     .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
     .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; box-shadow: none; border: none; display: flex; flex-direction: column; position: relative; overflow: hidden; }
@@ -109,6 +109,10 @@
 
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: none; align-items: center; justify-content: center; }
     .modal-content { background: var(--surface); width: 90%; max-width: 500px; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border); }
+    .edit-input { width: 100%; padding: 10px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-family: inherit; font-size: 1rem; resize: vertical; }
+    .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+    .modal-btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
+    .btn-save { background: var(--primary); color: white; } .btn-cancel { background: var(--input-bg); color: var(--text); }
     #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
     .ox-highlight { font-size: 4rem; font-weight: 900; text-align: center; display: block; margin: 10px 0; }
     .ox-o { color: #40c057; } .ox-x { color: #fa5252; }
@@ -118,18 +122,10 @@
 
     <div class="sidebar-overlay" onclick="toggleMenu()"></div>
     <div class="sidebar" id="sidebar">
-        <h2 style="margin-top:0; color:var(--text); font-size:1.4rem;">⚙️ 설정</h2>
-        <div class="menu-section">
-            <span class="menu-label">📊 정렬 기준</span>
-            <div class="sort-options">
-                <div class="sort-opt" id="sort-wrong" onclick="setSortMode('wrong')">🔥 틀린순</div>
-                <div class="sort-opt" id="sort-normal" onclick="setSortMode('normal')">📋 원래순</div>
-                <div class="sort-opt" id="sort-random" onclick="setSortMode('random')">🎲 랜덤</div>
-            </div>
-        </div>
+        <h2 style="margin-top:0; color:var(--text); font-size:1.4rem;">⚙️ 메뉴</h2>
         <div class="menu-section">
             <span class="menu-label">🔍 검색</span>
-            <input type="text" id="search-input" class="search-input" placeholder="텍스트, OCR 검색" onkeyup="filterCards('search')">
+            <input type="text" id="search-input" class="search-input" placeholder="텍스트, OCR, 타이틀 검색" onkeyup="filterCards('search')">
         </div>
         <span class="menu-label">📚 덱 목록</span>
         <ul class="deck-list" id="deck-list-ui"></ul>
@@ -140,27 +136,26 @@
             <button class="btn-sub" onclick="document.getElementById('img-input').click()">🖼️ 이미지 폴더 연결</button>
             <input type="file" id="img-input" webkitdirectory directory multiple style="display:none" onchange="handleImgUpload(this)">
             
-            <button class="btn-sub" onclick="exportData()">💾 로컬 백업 저장</button>
-            <button class="btn-sub" onclick="document.getElementById('backup-input').click()">📂 로컬 백업 불러오기</button>
-            <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
+            <button class="btn-github" onclick="openGitHubSettings()">
+                <span>☁️ 클라우드 설정 (GitHub)</span>
+                <span id="gh-status-indicator" style="font-size:0.8rem; color:#aaa; font-weight:normal;"></span>
+            </button>
             
-            <button class="btn-github" onclick="openGitHubSettings()">☁️ GitHub 연동 (클라우드)</button>
-            <div id="gh-status" style="font-size:0.8rem; color:#aaa; text-align:center; margin-top:5px;"></div>
+            <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-<<<<<<< HEAD
-            My Anki v10.63 (GitHub API)
-=======
-            My Anki v10.58 (Force Fix Images)
->>>>>>> parent of 2482fd4 (Update index.html)
+            My Anki v10.65 (Auto Sync)
         </div>
     </div>
 
     <div class="header">
         <button class="menu-btn" onclick="toggleMenu()">☰</button>
         <div class="header-title-area">
-            <div class="header-title" id="deck-title">나만의 안키</div>
-            <div class="header-subtitle" id="sort-info">🔥 틀린 순 정렬</div>
+            <div class="title-row">
+                <div class="header-title" id="deck-title">나만의 안키</div>
+                <span id="sync-badge" class="sync-badge">☁️</span>
+            </div>
+            <div class="header-subtitle" id="sort-info">🔥 틀린 순 & 📁 전체</div>
         </div>
         <div class="header-controls">
             <button class="filter-toggle-btn" id="filter-toggle-btn" onclick="toggleFilterBar()">🌪️</button>
@@ -233,45 +228,40 @@
 
     <div class="modal-overlay" id="gh-modal">
         <div class="modal-content">
-            <div class="modal-title">☁️ GitHub 클라우드 설정</div>
-            <div style="font-size:0.8rem; color:#aaa; margin-bottom:10px;">토큰(PAT)을 입력하면 자동 저장/로드됩니다.</div>
+            <div class="modal-title">☁️ GitHub 연동 설정</div>
+            <div style="font-size:0.8rem; color:#aaa; margin-bottom:10px;">
+                한 번만 설정하면 자동으로 저장되고 불러와집니다.<br>
+                (토큰은 기기 내부에만 안전하게 저장됩니다)
+            </div>
             <div>
-                <span class="menu-label">사용자 이름</span>
-                <input type="text" id="gh-user" class="edit-input" placeholder="예: minkunai87-ai">
+                <span class="menu-label">사용자 이름 (ID)</span>
+                <input type="text" id="gh-user" class="edit-input" placeholder="예: my-id">
             </div>
             <div style="margin-top:10px;">
-                <span class="menu-label">저장소 이름</span>
-                <input type="text" id="gh-repo" class="edit-input" placeholder="예: mk">
+                <span class="menu-label">저장소 이름 (Repo)</span>
+                <input type="text" id="gh-repo" class="edit-input" placeholder="예: anki-data">
             </div>
             <div style="margin-top:10px;">
                 <span class="menu-label">토큰 (Token)</span>
                 <input type="password" id="gh-token" class="edit-input" placeholder="ghp_...">
             </div>
             <div class="modal-btns">
-                <button class="modal-btn btn-save" onclick="saveGHSettings()">연동 시작</button>
+                <button class="modal-btn btn-save" onclick="saveGHSettings()">연동 시작 & 불러오기</button>
                 <button class="modal-btn btn-cancel" onclick="document.getElementById('gh-modal').style.display='none'">취소</button>
-            </div>
-            <div style="margin-top:15px; border-top:1px solid #444; padding-top:10px; display:flex; gap:10px;">
-                <button class="btn-sub" onclick="loadFromGitHub()">☁️ 불러오기 (Load)</button>
-                <button class="btn-sub" onclick="saveToGitHub()">☁️ 저장하기 (Save)</button>
             </div>
         </div>
     </div>
 
-<<<<<<< HEAD
 <script>
     const defaultRepoOwner = 'minkunai87-ai';
     const defaultRepoName = 'mk';
     const githubRawBase = `https://raw.githubusercontent.com/${defaultRepoOwner}/${defaultRepoName}/main/images/`;
 
-    // GitHub 설정 변수
-    let ghUser = localStorage.getItem('gh_user') || defaultRepoOwner;
-    let ghRepo = localStorage.getItem('gh_repo') || defaultRepoName;
+    // 저장된 설정 불러오기
+    let ghUser = localStorage.getItem('gh_user') || '';
+    let ghRepo = localStorage.getItem('gh_repo') || '';
     let ghToken = localStorage.getItem('gh_token') || '';
 
-=======
->>>>>>> parent of 2482fd4 (Update index.html)
-    // 핀치 줌 로직
     const scrollContainer = document.getElementById('scroll-area');
     const zoomContent = document.getElementById('zoom-content');
     let scale = 1, panning = false, pointX = 0, pointY = 0, startX = 0, startY = 0, lastTap = 0, startDist = 0, startScale = 1;
@@ -281,30 +271,38 @@
     function resetZoom() { scale = 1; pointX = 0; pointY = 0; updateTransform(); scrollContainer.style.overflowY = 'auto'; }
     function updateTransform() { if (scale > 1) scrollContainer.style.overflow = 'hidden'; else scrollContainer.style.overflowY = 'auto'; zoomContent.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`; }
 
-    // 안키 로직
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0, imageMap = new Map();
     let currentFilterType = 'default', currentSortMode = 'wrong';
-<<<<<<< HEAD
-    const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats';
-=======
+    const sortLabels = { 'wrong': '🔥 틀린 순', 'normal': '📋 원래 순', 'random': '🎲 랜덤' };
+    const filterLabels = { 'default': '📁 전체', 'fav': '⭐ 중요', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'rate_asc': '🔥 오답', 'search': '🔍 검색', 'rev': '🔄 복습' };
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_EDITS = 'anki_final_edits';
->>>>>>> parent of 2482fd4 (Update index.html)
     const STORAGE_KEY_PROGRESS = 'anki_final_progress', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck', STORAGE_KEY_IS_GROUP = 'anki_final_is_group', STORAGE_KEY_SORT = 'anki_final_sort_mode';
 
+    // 🔥 [초기화] 앱 켜지면 무조건 실행
     window.onload = async function() {
         currentSortMode = localStorage.getItem(STORAGE_KEY_SORT) || 'wrong';
-        updateSortUI();
-<<<<<<< HEAD
-        if(ghToken) {
-             document.getElementById('gh-status').innerText = "✅ GitHub 연동됨";
-             await loadFromGitHub(true); // 시작 시 자동 로드 (조용히)
+        updateHeaderUI();
+        
+        // 연동 되어 있으면 자동 로드
+        if(ghToken && ghUser && ghRepo) {
+             updateSyncBadge('working', '동기화 중...');
+             await loadFromGitHub(true); 
+        } else {
+             document.getElementById('gh-status-indicator').innerText = "(미연동)";
         }
-=======
->>>>>>> parent of 2482fd4 (Update index.html)
-        if (location.protocol.startsWith('http')) { await autoScanGitHub(); } else { loadLocalLibrary(); }
+        
+        // GitHub 파일 로드는 별개로 진행 (데이터 파일)
+        try {
+            if (location.protocol.startsWith('http')) { await autoScanGitHub(); } else { loadLocalLibrary(); }
+        } catch(e) { console.error(e); } 
+        finally {
+            document.getElementById('loading').style.display = 'none';
+            if(!activeDeck || activeDeck.length === 0) {
+                document.getElementById('question-section').innerHTML = "<h3 style='color:#aaa; text-align:center;'>메뉴(☰)를 눌러 덱을 선택하세요.</h3>";
+            }
+        }
     };
 
-    // 🔥 GitHub 연동 관련 함수들
     function openGitHubSettings() {
         document.getElementById('gh-user').value = ghUser;
         document.getElementById('gh-repo').value = ghRepo;
@@ -312,52 +310,66 @@
         document.getElementById('gh-modal').style.display = 'flex';
     }
 
-    function saveGHSettings() {
-        ghUser = document.getElementById('gh-user').value;
-        ghRepo = document.getElementById('gh-repo').value;
-        ghToken = document.getElementById('gh-token').value;
+    async function saveGHSettings() {
+        ghUser = document.getElementById('gh-user').value.trim();
+        ghRepo = document.getElementById('gh-repo').value.trim();
+        ghToken = document.getElementById('gh-token').value.trim();
+        
+        if(!ghUser || !ghRepo || !ghToken) { alert("모든 항목을 입력해주세요."); return; }
+
         localStorage.setItem('gh_user', ghUser);
         localStorage.setItem('gh_repo', ghRepo);
         localStorage.setItem('gh_token', ghToken);
         document.getElementById('gh-modal').style.display = 'none';
-        if(ghToken) {
-            document.getElementById('gh-status').innerText = "✅ GitHub 연동됨";
-            loadFromGitHub();
-        }
+        
+        // 설정 직후 바로 로드 시도
+        updateSyncBadge('working', '연결 중...');
+        await loadFromGitHub();
     }
 
-    // Base64 유틸 (한글 깨짐 방지)
+    // Base64 유틸
     function u_btoa(str) { return window.btoa(unescape(encodeURIComponent(str))); }
     function u_atob(str) { return decodeURIComponent(escape(window.atob(str))); }
 
+    // 🔥 [핵심] 자동 로드 함수
     async function loadFromGitHub(silent = false) {
-        if(!ghToken) { if(!silent) alert("토큰을 먼저 설정해주세요."); return; }
+        if(!ghToken) return;
         const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/user_data/save.json`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `token ${ghToken}` } });
-            if(res.status === 404) { if(!silent) alert("저장된 데이터가 없습니다."); return; }
+            if(res.status === 404) { 
+                if(!silent) alert("저장된 데이터가 없습니다. (첫 저장 시 생성됨)"); 
+                updateSyncBadge('done', '새 시작');
+                return; 
+            }
+            if(!res.ok) throw new Error("권한 오류");
+            
             const json = await res.json();
             const content = JSON.parse(u_atob(json.content));
             
             if(content.stats) localStorage.setItem(STORAGE_KEY_STATS, content.stats);
             if(content.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, content.progress);
             if(content.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, content.lastDeck);
+            localStorage.setItem('gh_sha', json.sha); // 중요: 업데이트용 SHA
             
-            // SHA 저장 (업데이트 시 필요)
-            localStorage.setItem('gh_sha', json.sha);
+            updateSyncBadge('done', '동기화 완료');
+            document.getElementById('gh-status-indicator').innerText = "✅ 연동됨";
             
-            if(!silent) alert("✅ GitHub에서 데이터를 불러왔습니다.");
             if(currentDeckName) showCard(); // 화면 갱신
         } catch(e) {
             console.error(e);
-            if(!silent) alert("불러오기 실패: " + e);
+            updateSyncBadge('error', '오류');
+            if(!silent) alert("연동 실패! ID나 토큰을 확인하세요.");
         }
     }
 
-    async function saveToGitHub() {
-        if(!ghToken) { alert("토큰을 먼저 설정해주세요."); return; }
-        const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/user_data/save.json`;
+    // 🔥 [핵심] 자동 저장 함수 (백그라운드)
+    async function autoSaveToGitHub() {
+        if(!ghToken) return;
         
+        updateSyncBadge('working', '저장 중...'); // UI 표시
+        
+        const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/user_data/save.json`;
         const data = {
             stats: localStorage.getItem(STORAGE_KEY_STATS),
             progress: localStorage.getItem(STORAGE_KEY_PROGRESS),
@@ -367,7 +379,7 @@
         const content = u_btoa(JSON.stringify(data));
         const sha = localStorage.getItem('gh_sha');
 
-        const body = { message: "Sync Anki Data", content: content };
+        const body = { message: "Auto Sync", content: content };
         if(sha) body.sha = sha;
 
         try {
@@ -378,14 +390,25 @@
             });
             const json = await res.json();
             if(json.content && json.content.sha) {
-                localStorage.setItem('gh_sha', json.content.sha);
-                alert("✅ GitHub에 저장되었습니다.");
+                localStorage.setItem('gh_sha', json.content.sha); // 새 SHA 갱신
+                updateSyncBadge('done', '저장됨');
             } else {
-                throw new Error("응답 오류");
+                // 충돌 시(다른 기기에서 수정됨) -> 다시 로드 후 저장 유도 (심화 로직 생략, 일단 에러 표시)
+                updateSyncBadge('error', '충돌!');
             }
         } catch(e) {
-            alert("저장 실패 (충돌 발생 시 불러오기를 먼저 하세요)");
+            console.error(e);
+            updateSyncBadge('error', '저장 실패');
         }
+    }
+
+    function updateSyncBadge(status, text) {
+        const badge = document.getElementById('sync-badge');
+        badge.className = `sync-badge visible ${status}`;
+        badge.innerText = status === 'working' ? '🔄' : (status === 'done' ? '☁️' : '❌');
+        
+        // 상태 텍스트는 헤더 제목 옆에 살짝 보여주거나, 아이콘만 유지
+        // 여기서는 아이콘만 깔끔하게 유지
     }
 
     function toggleFilterBar() {
@@ -394,20 +417,23 @@
         bar.classList.toggle('show'); btn.classList.toggle('active');
     }
 
-    function updateSortUI() {
-        ['wrong', 'normal', 'random'].forEach(m => document.getElementById(`chip-sort-${m}`).classList.toggle('active', currentSortMode === m));
-        const labels = { 'wrong': '🔥 틀린 순 정렬', 'normal': '📋 원래 순서', 'random': '🎲 랜덤 정렬' };
-        document.getElementById('sort-info').innerText = labels[currentSortMode];
+    function updateHeaderUI() {
+        const sortText = sortLabels[currentSortMode];
+        const filterText = filterLabels[currentFilterType] || '🔍 검색';
+        document.getElementById('header-info').innerText = `${sortText} & ${filterText}`;
+        ['wrong', 'normal', 'random'].forEach(m => {
+            const btn = document.getElementById(`chip-sort-${m}`);
+            if(btn) btn.classList.toggle('active', currentSortMode === m);
+        });
+        document.querySelectorAll('.chip:not(.chip-sort)').forEach(c => c.classList.remove('active'));
+        if(currentFilterType !== 'search') {
+            const btn = document.getElementById(`chip-${currentFilterType}`);
+            if(btn) btn.classList.add('active');
+        }
     }
 
     function setSortMode(mode) {
-<<<<<<< HEAD
-        currentSortMode = mode; localStorage.setItem(STORAGE_KEY_SORT, mode); updateSortUI();
-=======
-        currentSortMode = mode;
-        localStorage.setItem(STORAGE_KEY_SORT, mode);
-        updateSortUI();
->>>>>>> parent of 2482fd4 (Update index.html)
+        currentSortMode = mode; localStorage.setItem(STORAGE_KEY_SORT, mode); updateHeaderUI();
         if(currentDeckName) { applySort(); currentIndex = 0; showCard(); }
     }
 
@@ -440,6 +466,8 @@
         const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
         progress[`${currentDeckName}__${currentFilterType}`] = currentIndex;
         localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
+        // 🔥 진행 상황도 자동 저장
+        autoSaveToGitHub();
     }
 
     function loadLocalLibrary() {
@@ -506,7 +534,6 @@
             if(!q) return;
             if (!library[deckNameInRow]) library[deckNameInRow] = [];
             let hiddenText = "";
-            // 🔥 [1단계] 타이틀 내용 추출 (이중 따옴표 안의 내용을 안전하게)
             const titleMatch = q.match(/title\s*=\s*"((?:[^"]|"")*)"/i);
             if (titleMatch) { hiddenText = titleMatch[1].replace(/""/g, '"'); }
             const id = cyrb53(q);
@@ -514,30 +541,12 @@
         });
     }
 
-    // === 🔥 핵심 수정: 강력한 HTML 전처리 ===
     function createDOM(rawText, isAnswer, questionText = "", answerText = "") {
         if (!rawText) rawText = "";
-<<<<<<< HEAD
         let formattedText = rawText.replace(/""/g, '"');
         if (formattedText.startsWith('"') && formattedText.endsWith('"')) formattedText = formattedText.slice(1, -1);
         let cleanText = formattedText.replace(/title\s*=\s*"[\s\S]*?"/gi, ''); 
         cleanText = cleanText.replace(/(\{\{c\d+::.*?\}\})/g, '<span style="display:none">$1</span>');
-=======
-        
-        // 1. [이중 따옴표 괴물 제거] 
-        // HTML 속성이 파괴되는 원흉인 ""를 "로 교체 (가장 먼저 실행)
-        let cleanText = rawText.replace(/""/g, '"');
-        if (cleanText.startsWith('"') && cleanText.endsWith('"')) cleanText = cleanText.slice(1, -1);
-
-        // 2. [타이틀 제거] 
-        // 줄바꿈이 있어도(title="... \n ...") 다 잡아먹는 정규식 [\s\S]*? 사용
-        cleanText = cleanText.replace(/title\s*=\s*"[\s\S]*?"/gi, ''); 
-        
-        // 3. IO 코드 숨기기
-        cleanText = cleanText.replace(/(\{\{c\d+::.*?\}\})/g, '<span style="display:none">$1</span>');
-
-        // 답안 공백 시 이미지 복구
->>>>>>> parent of 2482fd4 (Update index.html)
         const hasContent = cleanText.replace(/<[^>]*>/g, '').trim().length > 0 || cleanText.includes('<img') || cleanText.includes('<svg');
         if (isAnswer && !hasContent) {
             const imgMatch = answerText.match(/<img[^>]+>/);
@@ -550,71 +559,36 @@
         }
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = cleanText;
-<<<<<<< HEAD
-=======
-
-        // 🔥 [이미지 구출 작전]
-        // 1) 텍스트 전체에서 paste-....jpg 패턴을 싹 긁어모음 (정규식)
->>>>>>> parent of 2482fd4 (Update index.html)
         const allImgMatches = rawText.match(/paste-[a-f0-9]{40}\.(jpg|png|gif|jpeg)/gi) || [];
-        
-        // 2) DOM img 태그 순회
         const domImgs = tempDiv.querySelectorAll('img');
-        
-        // 브라우저가 파싱한 img 태그 갯수보다, 텍스트에서 찾은 파일명이 더 많다면? (즉, 파싱 실패로 <img>가 사라졌다면)
         if (allImgMatches.length > domImgs.length) {
-            // 사라진 이미지들을 강제로 뒤에 붙임
             for (let i = domImgs.length; i < allImgMatches.length; i++) {
                 const missingImg = document.createElement('img');
-                missingImg.src = allImgMatches[i]; // 임시 src
+                missingImg.src = allImgMatches[i];
                 tempDiv.appendChild(missingImg);
             }
         }
-<<<<<<< HEAD
         tempDiv.querySelectorAll('img').forEach((img, index) => {
-=======
-
-        // 3) 다시 모든 img 태그 순회하며 src 연결
-        tempDiv.querySelectorAll('img').forEach(img => {
->>>>>>> parent of 2482fd4 (Update index.html)
             let src = img.getAttribute('src');
             let fname = "";
-
             if (src && !src.startsWith('http') && !src.startsWith('data:')) {
                 fname = src.split('/').pop().split('\\').pop();
                 try { fname = decodeURIComponent(fname).trim(); } catch(e){}
-<<<<<<< HEAD
             } 
             if ((!fname || fname === "") && index < allImgMatches.length) { fname = allImgMatches[index]; }
-=======
-            }
-            
-            // src가 깨져서 파일명이 없으면, 정규식 매치 결과에서 찾아서 넣음
-            if (!fname || fname === "") {
-                // 현재 img 태그가 전체 매치 중 몇 번째인지 추적은 어렵지만, 
-                // 위에서 강제 추가한 로직 덕분에 여기선 fname이 src에 들어있을 확률 높음
-                if (src && src.startsWith('paste-')) fname = src; 
-            }
-
->>>>>>> parent of 2482fd4 (Update index.html)
             if (fname) {
-                const url = imageMap.get(fname) || 
-                            imageMap.get(fname.normalize('NFC')) || 
-                            githubRawBase + encodeURIComponent(fname);
+                const url = imageMap.get(fname) || imageMap.get(fname.normalize('NFC')) || githubRawBase + encodeURIComponent(fname);
                 img.src = url;
-                img.style.display = 'block'; // 혹시 숨겨졌을까봐
+                img.style.display = 'block';
             }
-
             img.onerror = function() { 
-                this.style.border = "2px dashed #ff6b6b";
-                this.alt = "이미지 로드 실패";
+                this.style.display = 'none';
+                const errSpan = document.createElement('span');
+                errSpan.className = 'img-error';
+                errSpan.innerText = `❌ ${src} 없음`;
+                this.parentNode.insertBefore(errSpan, this);
             };
         });
-<<<<<<< HEAD
-=======
-
-        // 강제 핏
->>>>>>> parent of 2482fd4 (Update index.html)
         tempDiv.querySelectorAll('*').forEach(el => {
             el.style.width = ""; el.style.height = ""; el.style.maxWidth = "100%"; el.style.minWidth = "0"; 
             el.removeAttribute("width"); el.removeAttribute("height");
@@ -675,17 +649,9 @@
 
     function filterCards(type) { 
         if(!currentDeckName) return;
-<<<<<<< HEAD
         document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
         const chip = document.getElementById(`chip-${type}`);
         if(chip) chip.classList.add('active');
-=======
-        
-        document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-        const chip = document.getElementById(`chip-${type}`);
-        if(chip) chip.classList.add('active');
-
->>>>>>> parent of 2482fd4 (Update index.html)
         if (type === 'search') {
             const rawQuery = document.getElementById('search-input').value.toLowerCase();
             if(!rawQuery) { activeDeck = [...originalDeck]; } 
@@ -699,11 +665,7 @@
             if(newDeck.length === 0 && type !== 'default') { alert("해당하는 카드가 없습니다."); return; }
             activeDeck = newDeck;
         }
-<<<<<<< HEAD
-        applySort(); updateSortUI();
-=======
-        applySort();
->>>>>>> parent of 2482fd4 (Update index.html)
+        applySort(); updateHeaderUI();
         const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
         const key = `${currentDeckName}__${currentFilterType}`;
         currentIndex = progress[key] || 0;
@@ -730,37 +692,40 @@
                 const item = node[key];
                 const hasChildren = Object.keys(item._children).length > 0;
                 if (hasChildren) { 
-                    const li = document.createElement('li'); li.className = 'tree-folder';
-                    const header = document.createElement('div'); header.className = 'tree-header';
-                    const titleArea = document.createElement('div'); titleArea.className = 'folder-title';
+                    const isOpen = (currentDeckName && currentDeckName.startsWith(item._fullPath)) ? 'open' : '';
+                    const isActive = (currentDeckName === item._fullPath) ? 'active-deck' : ''; 
                     const countInfo = item._isLeaf ? `(${library[item._fullPath].length})` : '';
-<<<<<<< HEAD
-                    titleArea.innerHTML = `<span class="folder-icon">📂</span> ${item._name} <span class="count-badge">${countInfo}</span>`;
-=======
-                    titleArea.innerHTML = `<span class="folder-icon">📂</span> ${item._name} <small style="opacity:0.6; font-weight:normal;">${countInfo}</small>`;
->>>>>>> parent of 2482fd4 (Update index.html)
-                    const playBtn = document.createElement('button'); playBtn.className = 'play-btn'; playBtn.innerText = '▶ 전체';
-                    playBtn.onclick = (e) => { e.stopPropagation(); selectDeckGroup(item._fullPath + '__'); };
-                    header.appendChild(titleArea); header.appendChild(playBtn); li.appendChild(header);
-                    const childContainer = document.createElement('ul'); childContainer.className = 'tree-children deck-list';
-                    header.onclick = () => { childContainer.classList.toggle('open'); };
-                    if (currentDeckName && currentDeckName.startsWith(item._fullPath)) { childContainer.classList.add('open'); }
-                    li.appendChild(childContainer); container.appendChild(li);
-                    createTreeDOM(item._children, childContainer);
+                    const html = `
+                        <li class="tree-folder">
+                            <div class="tree-header ${isActive}" onclick="toggleFolder(this)">
+                                <div class="folder-title"><span class="folder-icon">📂</span> ${item._name} <span class="count-badge">${countInfo}</span></div>
+                                <button class="play-btn" onclick="event.stopPropagation(); selectDeckGroup('${item._fullPath}__')">▶ 전체</button>
+                            </div>
+                            <ul class="tree-children ${isOpen}"></ul>
+                        </li>`;
+                    const li = document.createElement('div'); li.innerHTML = html; const actualLi = li.firstElementChild;
+                    container.appendChild(actualLi);
+                    createTreeDOM(item._children, actualLi.querySelector('ul'));
                 } else { 
-                    const li = document.createElement('li');
-                    const header = document.createElement('div');
-                    header.className = `tree-deck ${item._fullPath === currentDeckName ? 'active' : ''}`;
-                    header.innerHTML = `<span>📄 ${item._name} <small>(${library[item._fullPath].length})</small></span>`;
-                    const delBtn = document.createElement('button'); delBtn.className = 'del-btn'; delBtn.innerText = 'x';
-                    delBtn.onclick = (e) => { e.stopPropagation(); deleteDeck(item._fullPath); };
-                    header.appendChild(delBtn);
-                    header.onclick = () => selectDeck(item._fullPath);
-                    li.appendChild(header); container.appendChild(li);
+                    const isActive = (item._fullPath === currentDeckName) ? 'active' : '';
+                    const html = `
+                        <li class="tree-item">
+                            <div class="tree-deck ${isActive}" onclick="selectDeck('${item._fullPath}')">
+                                <span>📄 ${item._name} <small>(${library[item._fullPath].length})</small></span>
+                                <button class="del-btn" onclick="event.stopPropagation(); deleteDeck('${item._fullPath}')">x</button>
+                            </div>
+                        </li>`;
+                    const li = document.createElement('div'); li.innerHTML = html;
+                    container.appendChild(li.firstElementChild);
                 }
             });
         }
         createTreeDOM(tree, list);
+    }
+
+    window.toggleFolder = function(element) {
+        const children = element.nextElementSibling;
+        if(children) children.classList.toggle('open');
     }
 
     function selectDeckGroup(prefix) {
@@ -772,7 +737,6 @@
         localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName);
         localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true');
         filterCards('default');
-        document.getElementById('search-input').value = '';
         document.getElementById('deck-title').innerText = `📂 ${displayName} (통합 ${activeDeck.length}개)`;
         renderDeckTree(); toggleMenu(false);
     }
@@ -783,7 +747,6 @@
         localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
         localStorage.setItem(STORAGE_KEY_IS_GROUP, 'false');
         filterCards('default');
-        document.getElementById('search-input').value = '';
         const displayName = name.split('__').pop();
         document.getElementById('deck-title').innerText = `📄 ${displayName}`;
         renderDeckTree(); toggleMenu(false);
@@ -805,19 +768,18 @@
         return { ...defaults, ...stored }; 
     }
     
+    // 🔥 [핵심] 태그 변경 시 자동 저장
     function toggleTag(e, type) { 
         e.stopPropagation(); 
         const card = activeDeck[currentIndex]; 
         const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
         const defaults = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 };
-        
         const currentCardStats = { ...defaults, ...(allStats[card.id] || {}) };
         currentCardStats[type] = !currentCardStats[type];
-        
         allStats[card.id] = currentCardStats;
         localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(allStats));
-        
         updateIconsUI(currentCardStats); 
+        autoSaveToGitHub(); // 자동 저장
     }
     
     function updateStatsUI(stats) { 
@@ -842,12 +804,15 @@
         document.getElementById('date-btn').classList.toggle('active', stats.date); 
         document.getElementById('pen-btn').classList.toggle('active', stats.pen); 
     }
+    function exportData() { const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), edits: localStorage.getItem(STORAGE_KEY_EDITS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: new Date().toLocaleString() }; const blob = new Blob([JSON.stringify(data)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,""); a.download = `anki_backup_${dateStr}.json`; a.click(); URL.revokeObjectURL(url); }
+    function importData(input) { const file = input.files[0]; if (!file) return; if(!confirm("⚠️ 현재 기기의 기록을 덮어씌웁니다.\n계속하시겠습니까?")) { input.value = ''; return; } const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats); if(data.edits) localStorage.setItem(STORAGE_KEY_EDITS, data.edits); if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress); if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck); alert("✅ 복구 완료!\n페이지를 새로고침합니다."); location.reload(); } catch (err) { alert("❌ 잘못된 백업 파일입니다."); } }; reader.readAsText(file); }
     function deleteDeck(name) { if(confirm("삭제하시겠습니까?")) { delete library[name]; saveLibrary(); renderDeckTree(); if(currentDeckName === name) { currentDeckName=null; activeDeck=[]; showCard(); } } }
     
     function moveCard(delta) { 
         let nextIdx = currentIndex + delta; 
         if(nextIdx >= 0 && nextIdx < activeDeck.length) { currentIndex = nextIdx; saveProgress(); showCard(); } 
     }
+    // 🔥 [핵심] 정답 채점 시 자동 저장
     function grade(score) { 
         const card = activeDeck[currentIndex];
         const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
@@ -859,6 +824,7 @@
         data[card.id] = currentStats;
         localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
         updateStatsUI(currentStats);
+        autoSaveToGitHub(); // 자동 저장
         if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } 
         else { alert("끝!"); currentIndex = 0; saveProgress(); showCard(); } 
     }
