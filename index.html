@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.71 - Fixed)</title>
+<title>나만의 안키 (v10.73 - Public Fix)</title>
 <style>
     /* 디자인 100% 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -143,7 +143,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.71 (Load Fix)
+            My Anki v10.73 (Public Repo Fix)
         </div>
     </div>
 
@@ -226,9 +226,10 @@
         <div class="modal-content">
             <div class="modal-title">☁️ GitHub 안전 연동</div>
             <div style="font-size:0.85rem; color:#aaa; margin-bottom:15px; line-height:1.4;">
-                토큰만 있으면 비공개 저장소도 <b>자동으로 연결</b>됩니다.<br>
-                입력 후 <b>[연동 및 복구 시작]</b>을 눌러주세요.<br>
-                (오류 발생 시 정확한 이유를 알려줍니다)
+                <b>Public(공개)</b> 저장소라면 토큰이 없어도 덱을 불러올 수 있습니다.<br>
+                하지만 <b>자동 저장(백업)</b>을 하려면 토큰이 꼭 필요합니다.<br>
+                <br>
+                (입력 후 <b>[연동 및 복구 시작]</b>을 눌러주세요)
             </div>
             <div>
                 <span class="menu-label">사용자 이름 (ID)</span>
@@ -236,10 +237,10 @@
             </div>
             <div style="margin-top:10px;">
                 <span class="menu-label">저장소 이름 (Repo)</span>
-                <input type="text" id="gh-repo" class="edit-input" placeholder="예: mk (주소 아님)">
+                <input type="text" id="gh-repo" class="edit-input" placeholder="예: mk">
             </div>
             <div style="margin-top:10px;">
-                <span class="menu-label">토큰 (Token)</span>
+                <span class="menu-label">토큰 (Token) - 백업용</span>
                 <input type="password" id="gh-token" class="edit-input" placeholder="ghp_...">
             </div>
             <div class="modal-btns">
@@ -281,25 +282,22 @@
         currentSortMode = localStorage.getItem(STORAGE_KEY_SORT) || 'wrong';
         updateHeaderUI();
         
-        // 1. 로컬 로드 우선 (즉시 화면 표시)
+        // 1. 로컬 로드 우선
         try {
             if(Object.keys(library).length === 0) loadLocalLibrary();
         } catch(e) { console.error(e); }
         
-        // 2. 깃허브 설정이 있으면, 바로 스캔 & 동기화 시작
-        if(ghToken && ghUser && ghRepo) {
+        // 2. 깃허브 스캔 & 동기화
+        if(ghUser && ghRepo) {
              document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨";
              updateCloudIcon('syncing');
-             // 🔥 덱 리스트 먼저 스캔 (Private 지원)
+             // 🔥 Public Repos는 Token 없이도 가능하게 수정
              await autoScanGitHub();
-             // 🔥 데이터 복구
-             await loadFromGitHub(true); 
+             if(ghToken) await loadFromGitHub(true); 
         } else {
-             // 🔥 [수정] 설정 없어도 무조건 기본 스캔 시도 (로컬 파일 등 대비)
-             await autoScanGitHub();
+             if (location.protocol.startsWith('http')) await autoScanGitHub();
         }
 
-        // 로딩 종료 보장
         document.getElementById('loading').style.display = 'none';
         if(!activeDeck || activeDeck.length === 0) {
             document.getElementById('question-section').innerHTML = "<h3 style='color:#aaa; text-align:center;'>메뉴(☰)를 눌러 덱을 선택하세요.</h3>";
@@ -313,45 +311,45 @@
         document.getElementById('gh-modal').style.display = 'flex';
     }
 
-    // 🔥 [핵심] 입력값 정제 & 안전 연동
     async function initGitHubSync() {
-        // 입력값 공백 제거 및 URL 제거 (순수 ID/Repo만 남김)
         let rawUser = document.getElementById('gh-user').value.trim();
         let rawRepo = document.getElementById('gh-repo').value.trim();
         let rawToken = document.getElementById('gh-token').value.trim();
 
-        // Repo 주소에서 이름만 추출 (https://github.com/user/repo -> repo)
         if(rawRepo.includes('/')) rawRepo = rawRepo.split('/').pop();
         if(rawRepo.includes('.git')) rawRepo = rawRepo.replace('.git', '');
 
-        if(!rawUser || !rawRepo || !rawToken) { alert("모든 항목을 입력해주세요."); return; }
+        if(!rawUser || !rawRepo) { alert("ID와 저장소 이름은 필수입니다."); return; }
 
-        // 변수 업데이트
         ghUser = rawUser; ghRepo = rawRepo; ghToken = rawToken;
         localStorage.setItem('gh_user', ghUser);
         localStorage.setItem('gh_repo', ghRepo);
         localStorage.setItem('gh_token', ghToken);
-        
         document.getElementById('gh-modal').style.display = 'none';
         
         updateCloudIcon('syncing');
         
-        // 1. 덱(파일) 목록 스캔 테스트
-        const scanResult = await autoScanGitHub(true); // true = show alert on error
-        if(!scanResult) return; // 스캔 실패하면 중단
+        // 1. 덱 스캔 (진단 메시지 포함)
+        alert("🔍 저장소를 검색합니다...");
+        const scanResult = await autoScanGitHub(true);
+        if(!scanResult) return;
 
-        // 2. 데이터 복구/백업
-        alert("✅ 덱 목록 스캔 성공!\n이제 클라우드 데이터를 확인합니다...");
-        const loaded = await loadFromGitHub(true);
-        if(loaded) {
-            alert("✅ 클라우드에서 이전 학습 데이터를 복구했습니다!");
+        // 2. 데이터 복구 (토큰이 있는 경우만)
+        if(ghToken) {
+            alert("✅ 저장소 연결 성공!\n이제 클라우드 데이터를 확인합니다...");
+            const loaded = await loadFromGitHub(true);
+            if(loaded) {
+                alert("✅ 클라우드에서 이전 학습 데이터를 복구했습니다!");
+            } else {
+                await saveToGitHub(true);
+                alert("✅ 새 데이터를 클라우드에 백업했습니다!");
+            }
         } else {
-            await saveToGitHub(true);
-            alert("✅ 새 데이터를 클라우드에 백업했습니다! (자동 동기화 시작)");
+            alert("✅ 저장소 연결 성공! (읽기 전용 모드)\n토큰이 없어서 '자동 저장'은 되지 않습니다.");
         }
         
         document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨";
-        location.reload(); // 깔끔하게 새로고침
+        location.reload();
     }
 
     function u_btoa(str) { return window.btoa(unescape(encodeURIComponent(str))); }
@@ -362,11 +360,8 @@
         const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/user_data/save.json`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `token ${ghToken}` } });
-            if(res.status === 404) { 
-                updateCloudIcon('done'); 
-                return false; 
-            }
-            if(!res.ok) throw new Error(res.status + " " + res.statusText);
+            if(res.status === 404) { updateCloudIcon('done'); return false; }
+            if(!res.ok) throw new Error(res.status);
             
             const json = await res.json();
             const content = JSON.parse(u_atob(json.content));
@@ -382,7 +377,7 @@
         } catch(e) {
             console.error(e);
             updateCloudIcon('error');
-            if(!silent) alert(`❌ 데이터 로드 실패: ${e.message}\n(ID, Repo, 토큰을 다시 확인해주세요)`);
+            if(!silent) alert(`❌ 데이터 로드 실패: ${e.message}`);
             return false;
         }
     }
@@ -390,7 +385,6 @@
     async function saveToGitHub(force = false) {
         if(!ghToken) return;
         updateCloudIcon('syncing');
-        
         const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/user_data/save.json`;
         const data = {
             stats: localStorage.getItem(STORAGE_KEY_STATS),
@@ -400,7 +394,6 @@
         };
         const content = u_btoa(JSON.stringify(data));
         const sha = localStorage.getItem('gh_sha');
-
         const body = { message: "Auto Sync", content: content };
         if(sha) body.sha = sha;
 
@@ -410,64 +403,55 @@
                 headers: { 'Authorization': `token ${ghToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
-            
-            if(!res.ok) {
-                // 409 Conflict 등은 그냥 무시하거나 다시 로드 시도
-                throw new Error(res.status);
-            }
-
             const json = await res.json();
             if(json.content && json.content.sha) {
                 localStorage.setItem('gh_sha', json.content.sha);
                 updateCloudIcon('done');
-            }
-        } catch(e) {
-            console.error(e);
-            updateCloudIcon('error');
-        }
+            } else { updateCloudIcon('error'); }
+        } catch(e) { console.error(e); updateCloudIcon('error'); }
     }
 
-    // 🔥 [수정] 덱 목록 스캔 (Private Repo 지원 & 에러 알림)
+    // 🔥 [핵심] Public 저장소용 덱 스캔 (download_url 사용)
     async function autoScanGitHub(showAlert = false) {
-        const owner = ghToken ? ghUser : defaultRepoOwner;
-        const repo = ghToken ? ghRepo : defaultRepoName;
+        const owner = ghUser || defaultRepoOwner;
+        const repo = ghRepo || defaultRepoName;
+        // 토큰이 있으면 헤더 추가, 없으면 제거 (Public 접근용)
         const headers = ghToken ? { 'Authorization': `token ${ghToken}` } : {};
 
         try {
-            // Repo 존재 여부 및 Contents 확인
             const listUrl = `https://api.github.com/repos/${owner}/${repo}/contents/`;
             const listResponse = await fetch(listUrl, { headers });
             
-            if (!listResponse.ok) {
-                const err = await listResponse.json();
-                throw new Error(err.message || "Repo Access Failed");
-            }
+            if (!listResponse.ok) throw new Error("Repo Access Failed: " + listResponse.status);
             
             const files = await listResponse.json();
+            if (!Array.isArray(files)) throw new Error("파일 목록을 읽을 수 없습니다.");
+
             const txtFiles = files.filter(f => f.name.endsWith('.txt'));
             
             if(txtFiles.length === 0) {
-                if(showAlert) alert(`⚠️ 연결은 성공했으나, '${repo}' 저장소 최상위에 .txt 파일이 없습니다.`);
-                // 실패는 아니므로 true 리턴 (라이브러리는 비어있음)
+                if(showAlert) alert(`⚠️ 연결 성공! 하지만 '${repo}' 저장소 최상위에 .txt 파일이 없습니다.`);
                 return true; 
             }
 
-            library = {}; // 초기화
+            library = {}; 
             for (const file of txtFiles) {
                 try {
-                    // Private Repo 파일 내용은 download_url이 아니라 API로 가져와야 안전할 수 있음 (raw url은 토큰 필요)
-                    // raw.githubusercontent... 에 토큰 헤더 붙여서 fetch
-                    const contentResponse = await fetch(file.download_url, { headers });
+                    // 🔥 [Public Fix] download_url 사용 (가장 안전)
+                    // 캐시 방지를 위해 timestamp 추가
+                    const contentResponse = await fetch(file.download_url + '?t=' + Date.now());
+                    if(!contentResponse.ok) throw new Error("Fetch failed");
+                    
                     const text = await contentResponse.text();
                     processAnkiText(text, file.name, JSON.parse(localStorage.getItem(STORAGE_KEY_EDITS) || '{}'));
-                } catch (e) {}
+                } catch (e) { console.error("File Load Error:", file.name, e); }
             }
             renderDeckTree();
             return true;
 
         } catch (error) {
             console.error("Scan Error:", error);
-            if(showAlert) alert(`❌ 덱 목록을 가져오지 못했습니다.\n이유: ${error.message}\n\n(ID, 저장소 이름, 토큰 권한을 확인하세요)`);
+            if(showAlert) alert(`❌ 덱 스캔 실패: ${error.message}\n(ID: ${owner}, Repo: ${repo})`);
             return false;
         }
     }
@@ -615,12 +599,8 @@
             if ((!fname || fname === "") && index < allImgMatches.length) { fname = allImgMatches[index]; }
             if (fname) {
                 // 🔥 이미지 로딩 (Private Repo 고려)
-                // Private Repo 이미지는 직접 src에 넣으면 404가 뜹니다. (토큰이 필요해서)
-                // 하지만 여기서는 코드를 단순하게 유지하기 위해, 이미지 파일명만 연결합니다.
-                // *중요: Private Repo 이미지는 브라우저에서 바로 안 보일 수 있습니다.*
-                // (이걸 해결하려면 이미지만 따로 fetch해서 Blob URL로 바꿔야 하는데 코드가 너무 복잡해집니다.)
-                const owner = ghToken ? ghUser : defaultRepoOwner;
-                const repo = ghToken ? ghRepo : defaultRepoName;
+                const owner = ghUser || defaultRepoOwner;
+                const repo = ghRepo || defaultRepoName;
                 const url = `https://raw.githubusercontent.com/${owner}/${repo}/main/images/${encodeURIComponent(fname)}`;
                 
                 img.src = url; 
@@ -867,7 +847,7 @@
         data[card.id] = currentStats;
         localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
         updateStatsUI(currentStats);
-        saveToGitHub(); // 🔥 자동 저장
+        saveToGitHub(); 
         if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } 
         else { alert("끝!"); currentIndex = 0; saveProgress(); showCard(); } 
     }
