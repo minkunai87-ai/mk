@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.67 - Safe Recovery)</title>
+<title>나만의 안키 (v10.68 - Instant Load)</title>
 <style>
     /* 디자인 엔진 100% 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -142,7 +142,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.67 (Safe Recovery)
+            My Anki v10.68 (Instant Load)
         </div>
     </div>
 
@@ -281,20 +281,22 @@
         currentSortMode = localStorage.getItem(STORAGE_KEY_SORT) || 'wrong';
         updateHeaderUI();
         
-        // 🔥 자동 로드 (설정 존재 시)
-        if(ghToken && ghUser && ghRepo) {
-             updateCloudIcon('syncing');
-             await loadFromGitHub(true); 
-        }
-        
+        // 🔥 [1단계] 로컬 데이터부터 무조건 로드 (즉시 표시)
         try {
-            if (location.protocol.startsWith('http')) { await autoScanGitHub(); } else { loadLocalLibrary(); }
-        } catch(e) { console.error(e); } 
+            if (location.protocol.startsWith('http')) { await autoScanGitHub(); } 
+            else { loadLocalLibrary(); }
+        } catch(e) { console.error("Local load error", e); } 
         finally {
             document.getElementById('loading').style.display = 'none';
             if(!activeDeck || activeDeck.length === 0) {
                 document.getElementById('question-section').innerHTML = "<h3 style='color:#aaa; text-align:center;'>메뉴(☰)를 눌러 덱을 선택하세요.</h3>";
             }
+        }
+
+        // 🔥 [2단계] 클라우드 동기화 (백그라운드)
+        if(ghToken && ghUser && ghRepo) {
+             updateCloudIcon('syncing');
+             await loadFromGitHub(true); // 조용히 최신 데이터 가져오기
         }
     };
 
@@ -341,7 +343,7 @@
         try {
             const res = await fetch(url, { headers: { 'Authorization': `token ${ghToken}` } });
             if(res.status === 404) { 
-                updateCloudIcon('done'); // 파일 없으면 완료 처리 (업로드 준비)
+                updateCloudIcon('done'); 
                 return false; 
             }
             if(!res.ok) throw new Error("권한 오류");
