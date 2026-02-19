@@ -2,477 +2,970 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.84 - Fixed)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<title>나만의 안키 (v10.77 - Smart Backup)</title>
 <style>
+    /* 디자인 100% 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; }
-    body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
+    body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
     
-    .header { background: var(--surface); padding: 12px 20px; padding-top: calc(env(safe-area-inset-top) + 12px); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 20; }
-    .header-title { font-weight: bold; font-size: 1.1rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .header-subtitle { font-size: 0.75rem; color: var(--primary); font-weight: bold; margin-top: 2px; }
+    .header { background: var(--surface); padding: 0 20px; padding-top: calc(env(safe-area-inset-top) + 12px); padding-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0; position: relative; }
+    .header-title-area { display: flex; flex-direction: column; max-width: 55%; }
+    .header-title { font-weight: bold; font-size: 1.1rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
     
-    .menu-btn, .filter-toggle-btn { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text); padding: 0; }
-    .filter-toggle-btn { color: var(--text-sub); transition: 0.2s; }
-    .filter-toggle-btn.active { color: var(--primary); }
-    .today-toggle-btn { background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #40c057; }
-    .today-toggle-btn.hidden { color: #fa5252; opacity: 0.7; }
-    
-    #filter-bar { background: var(--surface); max-height: 0; overflow: hidden; transition: 0.3s; border-bottom: 0px solid var(--border); }
-    #filter-bar.show { max-height: 60px; border-bottom: 1px solid var(--border); }
-    .filter-scroll { display: flex; gap: 8px; padding: 10px 15px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
-    .chip { padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; background: var(--input-bg); color: var(--text-sub); border: 1px solid var(--border); cursor: pointer; }
-    .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
-
-    .main-container { flex: 1; position: relative; overflow: hidden; display: flex; flex-direction: column; }
-    .card-scroll-area { flex: 1; overflow-y: auto; padding: 20px; }
-    .card-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px dashed var(--border); padding-bottom: 10px; }
-    .rate-badge { font-size: 0.8rem; padding: 4px 8px; border-radius: 6px; background: var(--input-bg); font-weight: bold; }
-    
-    .icon-row { display: flex; gap: 10px; }
-    .icon-btn { font-size: 1.3rem; opacity: 0.3; filter: grayscale(100%); background: none; border: none; padding: 0; cursor: pointer; }
-    .icon-btn.active { opacity: 1; filter: grayscale(0%); }
-
-    .text-area { font-size: 1.3rem; line-height: 1.6; word-break: keep-all; white-space: pre-wrap; }
-    .text-area img { max-width: 100%; display: block; margin: 10px auto; border-radius: 8px; }
-    
-    .footer { background: var(--surface); padding: 15px 20px; padding-bottom: calc(20px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); }
-    .nav-btns, .grade-btns { display: flex; gap: 10px; }
-    .btn { flex: 1; padding: 14px 0; border-radius: 10px; font-weight: bold; border: none; cursor: pointer; font-size: 1rem; }
-    .bg-x { background: #fa5252; color: white; } .bg-tri { background: #fab005; color: white; } .bg-o { background: #40c057; color: white; }
-    .nav-btn { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); }
-
-    .click-guide { text-align: center; color: var(--text-sub); padding: 40px; border: 2px dashed var(--border); border-radius: 10px; margin-top: 30px; cursor: pointer; }
-    #answer-section, #grade-area { display: none; }
-    
-    .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9998; display: none; }
-    .sidebar { position: fixed; top: 0; left: 0; width: 280px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); z-index: 9999; transform: translateX(-105%); transition: 0.3s; padding: 20px; padding-top: calc(env(safe-area-inset-top) + 20px); display: flex; flex-direction: column; }
-    .sidebar.open { transform: translateX(0); }
-    
-    .deck-list { list-style: none; padding: 0; overflow-y: auto; flex: 1; }
-    .tree-deck { padding: 10px; margin-bottom: 5px; background: var(--input-bg); border-radius: 6px; cursor: pointer; }
-    .tree-deck.active { border: 1px solid #1c7ed6; background: #182836; color: #74c0fc; }
-    
-    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: none; justify-content: center; align-items: center; }
-    .modal-content { background: var(--surface); width: 90%; max-width: 400px; padding: 20px; border-radius: 12px; border: 1px solid var(--border); }
-    .input-field { width: 100%; padding: 10px; margin-bottom: 10px; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; }
-    
-    .cloud-icon { font-size: 0.9rem; margin-left: 5px; }
-    .cloud-icon.syncing { animation: spin 1s infinite linear; }
+    .cloud-icon { font-size: 0.8rem; transition: 0.3s; opacity: 0.5; }
+    .cloud-icon.syncing { opacity: 1; color: #ffd43b; animation: spin 1s infinite linear; }
+    .cloud-icon.done { opacity: 1; color: #40c057; }
+    .cloud-icon.error { opacity: 1; color: #fa5252; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    .header-subtitle { font-size: 0.75rem; color: var(--primary); margin-top: 3px; font-weight: bold; }
+    .header-controls { display: flex; gap: 12px; align-items: center; }
+    
+    .today-toggle-btn { font-size: 1.3rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text-sub); transition: 0.2s; }
+    .today-toggle-btn.active { color: #40c057; } 
+    .today-toggle-btn.hidden { color: #fa5252; opacity: 0.7; } 
+
+    .menu-btn { font-size: 1.5rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); }
+    .filter-toggle-btn { font-size: 1.3rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text-sub); transition: 0.2s; }
+    .filter-toggle-btn.active { color: var(--primary); transform: scale(1.1); }
+    .counter { font-size: 0.8rem; font-weight: bold; color: var(--text-sub); background: var(--input-bg); padding: 4px 10px; border-radius: 12px; }
+
+    #filter-bar-container { background: var(--surface); max-height: 0; overflow: hidden; transition: max-height 0.3s ease-in-out, border-bottom 0.1s; border-bottom: 0px solid var(--border); }
+    #filter-bar-container.show { max-height: 60px; border-bottom: 1px solid var(--border); }
+    .filter-scroll { display: flex; gap: 8px; padding: 10px 15px; overflow-x: auto; white-space: nowrap; align-items: center; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .filter-scroll::-webkit-scrollbar { display: none; }
+    .chip { padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; background: var(--input-bg); color: var(--text-sub); border: 1px solid var(--border); cursor: pointer; transition: 0.2s; flex-shrink: 0; }
+    .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .chip-sort { border-color: #444; color: #a0a0a0; }
+    .chip-sort.active { background: #343a40; color: #ffd43b; border-color: #ffd43b; }
+    .v-divider { width: 1px; height: 20px; background: #444; flex-shrink: 0; margin: 0 5px; }
+
+    .sidebar { position: fixed; top: 0; left: 0; width: 300px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); box-shadow: 2px 0 15px rgba(0,0,0,0.5); transition: transform 0.3s ease; z-index: 9999; padding: 25px; padding-top: calc(env(safe-area-inset-top) + 25px); display: flex; flex-direction: column; overflow-y: auto; transform: translateX(-105%); }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9998; display: none; }
+    .sidebar-overlay.open { display: block; }
+    .menu-section { margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
+    .menu-label { font-weight: bold; color: var(--text-sub); margin-bottom: 10px; display: block; font-size: 0.9rem; }
+    .search-input { width: 100%; padding: 12px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-size: 0.95rem; margin-bottom: 10px; }
+
+    .deck-list, .tree-children { list-style: none; padding: 0; margin: 0; }
+    .tree-folder { margin-bottom: 4px; }
+    
+    .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); margin-bottom: 4px; transition: 0.2s; user-select: none; }
+    .tree-header:hover { background: var(--btn-hover); }
+    .tree-header:active { background: #333; }
+    .tree-header.active-deck { background: #182836; border: 1px solid #1c7ed6; }
+    .tree-deck { padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); margin-bottom: 4px; color: var(--text); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
+    .tree-deck.active { background: #182836; color: #74c0fc; font-weight: bold; border: 1px solid #1c7ed6; }
+
+    .tree-children { display: none; padding-left: 12px; margin-left: 6px; border-left: 2px solid #444; }
+    .tree-children.open { display: block !important; }
+    .folder-title { flex: 1; font-weight: bold; color: #ffd43b; font-size: 0.95rem; display: flex; align-items: center; gap: 6px; }
+    .play-btn { background: var(--primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 8px; flex-shrink: 0; }
+    .del-btn { background: none; border: none; color: #ff6b6b; font-weight: bold; padding: 0 5px; cursor: pointer; font-size: 1rem; }
+
+    .btn-upload { width: 100%; padding: 12px; border-radius: 8px; background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; margin-bottom: 5px; }
+    .btn-sub { width: 100%; padding: 10px; border-radius: 8px; background: var(--input-bg); color: var(--text-sub); border: 1px solid var(--border); margin-top: 5px; cursor: pointer; text-align: left; font-size: 0.85rem; }
+    .btn-cloud { width: 100%; padding: 12px; border-radius: 8px; background: #24292e; color: white; border: 1px solid #444; font-weight: bold; cursor: pointer; margin-top: 15px; text-align: center; }
+    .btn-refresh { width: 100%; padding: 12px; margin-top: 15px; border-radius: 8px; background: #343a40; color: #e9ecef; border: 1px solid var(--border); font-weight: bold; cursor: pointer; }
+
+    .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
+    .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; box-shadow: none; border: none; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+    .card-scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+    .zoom-content { padding: 25px 20px; min-height: 100%; width: 100%; transform-origin: 0 0; will-change: transform; }
+    
+    .card-info { display: flex; justify-content: space-between; width: 100%; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed var(--border); align-items: center; }
+    .rate-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; background: var(--input-bg); color: var(--text-sub); }
+    .rate-badge.high { background: #0b2e13 !important; color: #69db7c !important; } .rate-badge.low { background: #2e0b0b !important; color: #ff8787 !important; }
+    .date-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; margin-left: 6px; background: var(--input-bg); color: var(--text-sub); }
+    .date-badge.today { background: #1971c2; color: #e7f5ff; } .date-badge.recent { background: #1098ad; color: #e3fafc; }
+
+    .icon-wrapper { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
+    .icon-row { display: flex; gap: 12px; }
+    .icon-btn { font-size: 1.4rem; cursor: pointer; background: none; border: none; padding: 0; opacity: 0.4; filter: grayscale(100%); transition: 0.2s; }
+    .icon-btn.active { opacity: 1; filter: grayscale(0%); transform: scale(1.1); }
+    .mem-btn.active { color: #ff8787; } .cmp-btn.active { color: #74c0fc; } .fav-btn.active { color: #ffd43b; } .rev-btn.active { color: #69db7c; }
+    .num-btn.active { color: #66d9e8; } .date-btn.active { color: #b197fc; } .pen-btn.active { color: #ff6b6b; }
+
+    .text-area { font-size: 1.35rem; line-height: 1.6; word-break: keep-all; white-space: pre-wrap; width: 100%; margin-bottom: 20px; position: relative; }
+    .text-area * { max-width: 100% !important; box-sizing: border-box !important; }
+    table { width: 100% !important; table-layout: fixed !important; display: table !important; }
+    td, th { word-wrap: break-word; overflow-wrap: break-word; }
+    .text-area img, .text-area svg { width: auto !important; height: auto !important; max-width: 100% !important; display: block; margin: 10px auto; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+    .img-error { color: #ff6b6b; font-size: 0.8rem; border: 1px dashed #ff6b6b; padding: 5px; border-radius: 6px; text-align: center; margin: 5px 0; display: block; }
+
+    .divider { display: none; border: 0; border-top: 2px dashed var(--border); margin: 30px 0; position: relative; }
+    .divider::after { content: "정답"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--surface); padding: 0 10px; color: var(--text-sub); font-size: 0.8rem; font-weight: bold; }
+    #answer-section { display: none; padding-bottom: 20px; }
+
+    .footer { width: 100%; padding: 10px 20px; padding-bottom: calc(35px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); z-index: 10; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+    .nav-btns, .grade-btns { display: flex; justify-content: space-between; gap: 12px; }
+    .nav-btn, .g-btn { flex: 1; padding: 14px 0; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 1rem; text-align: center; border: none; }
+    .nav-btn { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); }
+    .bg-x { background: #fa5252; color: white; } .bg-tri { background: #fab005; color: white; } .bg-o { background: #40c057; color: white; }
+    .click-guide { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-top: 40px; cursor: pointer; padding: 30px; border: 2px dashed var(--border); border-radius: 12px; background: #181818; pointer-events: auto !important; }
+
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: none; align-items: center; justify-content: center; }
+    .modal-content { background: var(--surface); width: 90%; max-width: 500px; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border); }
+    .edit-input { width: 100%; padding: 10px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-family: inherit; font-size: 1rem; resize: vertical; }
+    .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+    .modal-btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
+    .btn-save { background: var(--primary); color: white; } .btn-cancel { background: var(--input-bg); color: var(--text); }
+    
+    .log-area { 
+        width: 100%; max-height: 150px; overflow-y: auto; 
+        background: #111; color: #ddd; font-size: 0.8rem; 
+        padding: 10px; border-radius: 8px; border: 1px solid #444; 
+        margin-top: 10px; font-family: monospace; white-space: pre-wrap; 
+    }
+    .log-info { color: #74c0fc; }
+    .log-success { color: #40c057; font-weight: bold; }
+    .log-error { color: #fa5252; font-weight: bold; }
+    
+    #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
+    .ox-highlight { font-size: 4rem; font-weight: 900; text-align: center; display: block; margin: 10px 0; }
+    .ox-o { color: #40c057; } .ox-x { color: #fa5252; }
 </style>
 </head>
 <body>
 
-<div class="sidebar-overlay" onclick="toggleMenu(false)"></div>
-<div class="sidebar" id="sidebar">
-    <h2 style="margin-top:0;">⚙️ 메뉴</h2>
-    <input type="text" id="search-input" class="input-field" placeholder="검색..." onkeyup="filterCards('search')">
-    <ul class="deck-list" id="deck-list-ui"></ul>
-    <div style="margin-top:20px; border-top:1px solid #333; padding-top:20px;">
-        <button class="btn nav-btn" onclick="openGitHubSettings()" style="width:100%; margin-bottom:10px;">☁️ 클라우드 설정</button>
-        <button class="btn nav-btn" onclick="location.reload()" style="width:100%;">🔄 새로고침</button>
+    <div class="sidebar-overlay" onclick="toggleMenu()"></div>
+    <div class="sidebar" id="sidebar">
+        <h2 style="margin-top:0; color:var(--text); font-size:1.4rem;">⚙️ 메뉴</h2>
+        <div class="menu-section">
+            <span class="menu-label">🔍 검색</span>
+            <input type="text" id="search-input" class="search-input" placeholder="텍스트, OCR, 타이틀 검색" onkeyup="filterCards('search')">
+        </div>
+        <span class="menu-label">📚 덱 목록</span>
+        <ul class="deck-list" id="deck-list-ui"></ul>
+        <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px; padding-bottom: 30px;">
+            <span class="menu-label">💾 데이터 & 설정</span>
+            <button class="btn-sub" onclick="exportData()">💾 로컬 백업 저장</button>
+            <button class="btn-sub" onclick="document.getElementById('backup-input').click()">📂 로컬 백업 불러오기</button>
+            <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
+            <button class="btn-cloud" onclick="openGitHubSettings()">☁️ 클라우드 설정 (자동)</button>
+            <div id="gh-status-text" style="font-size:0.8rem; color:#aaa; text-align:center; margin-top:5px;"></div>
+            <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
+        </div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
+            My Anki v10.77 (Smart Backup)
+        </div>
     </div>
-</div>
 
-<div class="header">
-    <button class="menu-btn" onclick="toggleMenu(true)">☰</button>
-    <div style="flex:1; margin:0 15px;">
-        <div class="header-title" id="deck-title">나만의 안키 <span id="cloud-icon" class="cloud-icon">☁️</span></div>
-        <div class="header-subtitle" id="header-info">전체</div>
+    <div class="header">
+        <button class="menu-btn" onclick="toggleMenu()">☰</button>
+        <div class="header-title-area">
+            <div class="header-title" id="deck-title">나만의 안키 <span id="cloud-icon" class="cloud-icon">☁️</span></div>
+            <div class="header-subtitle" id="header-info">🔥 틀린 순 & 📁 전체</div>
+        </div>
+        <div class="header-controls">
+            <button class="today-toggle-btn active" id="today-toggle-btn" onclick="toggleTodayView()" title="오늘 완료 보기/숨기기">👁️</button>
+            <button class="filter-toggle-btn" id="filter-toggle-btn" onclick="toggleFilterBar()">🌪️</button>
+            <span class="counter" id="card-counter">0 / 0</span>
+        </div>
     </div>
-    <div style="display:flex; gap:10px; align-items:center;">
-        <button class="today-toggle-btn active" id="today-btn" onclick="toggleToday()">👁️</button>
-        <button class="filter-toggle-btn" id="filter-btn" onclick="toggleFilter()">🌪️</button>
-        <span style="font-size:0.8rem; font-weight:bold; background:#333; padding:4px 8px; border-radius:10px;" id="cnt">0/0</span>
-    </div>
-</div>
 
-<div id="filter-bar">
-    <div class="filter-scroll">
-        <div class="chip" onclick="setSort('wrong')">🔥 틀린순</div>
-        <div class="chip" onclick="setSort('random')">🎲 랜덤</div>
-        <div style="width:1px; background:#444; margin:0 5px;"></div>
-        <div class="chip active" id="chip-default" onclick="setFilter('default')">📁 전체</div>
-        <div class="chip" id="chip-rev" onclick="setFilter('rev')">🔄 복습</div>
-        <div class="chip" id="chip-fav" onclick="setFilter('fav')">⭐ 중요</div>
-        <div class="chip" id="chip-mem" onclick="setFilter('mem')">🧠 암기</div>
-        <div class="chip" id="chip-rate_asc" onclick="setFilter('rate_asc')">🔥 오답</div>
+    <div id="filter-bar-container">
+        <div class="filter-scroll">
+            <div class="chip chip-sort" id="chip-sort-wrong" onclick="setSortMode('wrong')">🔥 틀린순</div>
+            <div class="chip chip-sort" id="chip-sort-normal" onclick="setSortMode('normal')">📋 원래순</div>
+            <div class="chip chip-sort" id="chip-sort-random" onclick="setSortMode('random')">🎲 랜덤</div>
+            <div class="v-divider"></div>
+            <div class="chip active" id="chip-default" onclick="filterCards('default')">📁 전체</div>
+            <div class="chip" id="chip-rev" onclick="filterCards('rev')">🔄 복습</div>
+            <div class="chip" id="chip-fav" onclick="filterCards('fav')">⭐ 중요</div>
+            <div class="chip" id="chip-mem" onclick="filterCards('mem')">🧠 암기</div>
+            <div class="chip" id="chip-cmp" onclick="filterCards('cmp')">🆚 비교</div>
+            <div class="chip" id="chip-num" onclick="filterCards('num')">🔢 숫자</div>
+            <div class="chip" id="chip-date" onclick="filterCards('date')">📅 날짜</div>
+            <div class="chip" id="chip-pen" onclick="filterCards('pen')">🚨 벌칙</div>
+            <div class="chip" style="border-color:#ff6b6b; color:#ff8787;" id="chip-rate_asc" onclick="filterCards('rate_asc')">🔥 오답</div>
+        </div>
     </div>
-</div>
 
-<div class="main-container">
-    <div class="card-scroll-area" id="scroll-area">
-        <div id="loading" style="text-align:center; margin-top:50%;">로딩 중...</div>
-        <div id="card-content" style="display:none;">
-            <div class="card-info">
-                <span class="rate-badge" id="rate-badge">New</span>
-                <div class="icon-row">
-                    <button class="icon-btn" id="btn-fav" onclick="toggleTag('fav')">⭐</button>
-                    <button class="icon-btn" id="btn-mem" onclick="toggleTag('mem')">🧠</button>
-                    <button class="icon-btn" id="btn-rev" onclick="toggleTag('rev')">🔄</button>
+    <div class="main-container">
+        <div class="card">
+            <div class="card-scroll-area" id="scroll-area">
+                <div class="zoom-content" id="zoom-content">
+                    <div id="loading" style="display:none;">데이터 로딩 중...</div>
+                    <div class="card-info" id="card-info">
+                        <div style="display:flex; align-items:center;">
+                            <span class="rate-badge" id="rate-badge">New</span>
+                            <span class="date-badge" id="date-badge" style="display:none;"></span>
+                        </div>
+                        <div class="icon-wrapper">
+                            <div class="icon-row">
+                                <button class="icon-btn rev-btn" id="rev-btn" onclick="toggleTag(event, 'rev')" title="복습">🔄</button>
+                                <button class="icon-btn mem-btn" id="mem-btn" onclick="toggleTag(event, 'mem')" title="암기">🧠</button>
+                                <button class="icon-btn cmp-btn" id="cmp-btn" onclick="toggleTag(event, 'cmp')" title="비교">🆚</button>
+                                <button class="icon-btn fav-btn" id="fav-btn" onclick="toggleTag(event, 'fav')" title="중요">⭐</button>
+                            </div>
+                            <div class="icon-row">
+                                <button class="icon-btn num-btn" id="num-btn" onclick="toggleTag(event, 'num')" title="숫자">🔢</button>
+                                <button class="icon-btn date-btn" id="date-btn" onclick="toggleTag(event, 'date')" title="날짜">📅</button>
+                                <button class="icon-btn pen-btn" id="pen-btn" onclick="toggleTag(event, 'pen')" title="벌칙">🚨</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="question-section" class="content-box"></div>
+                    <div id="click-guide" class="click-guide" onclick="revealAnswer(event)">👇 터치하여 정답 확인</div>
+                    <hr id="divider" class="divider">
+                    <div id="answer-section" class="content-box"></div>
                 </div>
             </div>
-            <div id="q-area" class="text-area"></div>
-            <div id="click-guide" class="click-guide" onclick="reveal()">👇 정답 확인 (터치)</div>
-            <hr id="divider" style="display:none; border:0; border-top:1px dashed #444; margin:30px 0;">
-            <div id="answer-section" class="text-area"></div>
         </div>
     </div>
-</div>
 
-<div class="footer">
-    <div class="grade-btns" id="grade-area">
-        <button class="btn bg-x" onclick="grade(0)">모름</button>
-        <button class="btn bg-tri" onclick="grade(1)">애매</button>
-        <button class="btn bg-o" onclick="grade(2)">맞음</button>
-    </div>
-    <div class="nav-btns" id="nav-area">
-        <button class="btn nav-btn" onclick="move(-1)">◀ 이전</button>
-        <button class="btn nav-btn" onclick="move(1)">다음 ▶</button>
-    </div>
-</div>
-
-<div class="modal-overlay" id="gh-modal">
-    <div class="modal-content">
-        <h3>GitHub 연동</h3>
-        <input type="text" id="gh-id" class="input-field" placeholder="아이디">
-        <input type="text" id="gh-repo" class="input-field" placeholder="저장소 이름 (예: mk)">
-        <input type="password" id="gh-token" class="input-field" placeholder="토큰 (ghp_...)">
-        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px;">
-            <button class="btn bg-o" style="padding:10px;" onclick="saveSettings()">저장 및 연동</button>
-            <button class="btn nav-btn" style="padding:10px;" onclick="closeModal()">닫기</button>
+    <div class="footer">
+        <div class="grade-btns" id="grade-area">
+            <button class="g-btn bg-x" onclick="grade(0)">모름</button>
+            <button class="g-btn bg-tri" onclick="grade(1)">애매</button>
+            <button class="g-btn bg-o" onclick="grade(2)">맞음</button>
+        </div>
+        <div class="nav-btns" id="nav-area">
+            <button class="nav-btn" onclick="moveCard(-1)">◀ 이전</button>
+            <button class="nav-btn" onclick="moveCard(1)">다음 ▶</button>
         </div>
     </div>
-</div>
+
+    <div class="modal-overlay" id="gh-modal">
+        <div class="modal-content">
+            <div class="modal-title">☁️ GitHub 안전 연동</div>
+            <div style="font-size:0.85rem; color:#aaa; margin-bottom:5px;">
+                버튼을 누르면 아래 검은 화면에 로그가 뜹니다.<br>
+                <b>(Public 저장소는 토큰 없어도 덱 불러오기 가능)</b>
+            </div>
+            <div>
+                <span class="menu-label">사용자 이름 (ID)</span>
+                <input type="text" id="gh-user" class="edit-input" placeholder="예: my-id">
+            </div>
+            <div style="margin-top:10px;">
+                <span class="menu-label">저장소 이름 (Repo)</span>
+                <input type="text" id="gh-repo" class="edit-input" placeholder="예: mk">
+            </div>
+            <div style="margin-top:10px;">
+                <span class="menu-label">토큰 (Token) <small>- 저장(백업)하려면 필수</small></span>
+                <input type="password" id="gh-token" class="edit-input" placeholder="ghp_... (없으면 읽기 전용)">
+            </div>
+            <div class="modal-btns">
+                <button class="modal-btn btn-save" onclick="initGitHubSync()">연동 및 복구 시작</button>
+                <button class="modal-btn btn-cancel" onclick="document.getElementById('gh-modal').style.display='none'">닫기</button>
+            </div>
+            <div id="log-area" class="log-area">대기 중...</div>
+        </div>
+    </div>
 
 <script>
-// 핵심 변수 및 함수
-const IDS = { lib: 'anki_lib', stats: 'anki_stats', prog: 'anki_prog', last: 'anki_last' };
-let library = {}, activeDeck = [], currentDeckName = null, currentIndex = 0;
-let ghUser = localStorage.getItem('gh_user') || '', ghRepo = localStorage.getItem('gh_repo') || '', ghToken = localStorage.getItem('gh_token') || '';
-let showToday = localStorage.getItem('anki_show_today') !== 'false';
-let filterType = 'default', sortMode = 'wrong';
+    const defaultRepoOwner = 'minkunai87-ai';
+    const defaultRepoName = 'mk';
+    const githubRawBase = `https://raw.githubusercontent.com/${defaultRepoOwner}/${defaultRepoName}/main/images/`;
 
-// 1. 초기화 (가장 중요)
-window.onload = function() {
-    try {
-        const saved = localStorage.getItem(IDS.lib);
-        if(saved) { library = JSON.parse(saved); renderTree(); restoreSession(); }
-        else { document.getElementById('q-area').innerHTML = "<div style='text-align:center; color:#888'>메뉴에서 덱을 선택하세요.</div>"; }
+    let ghUser = localStorage.getItem('gh_user') || '';
+    let ghRepo = localStorage.getItem('gh_repo') || '';
+    let ghToken = localStorage.getItem('gh_token') || '';
+
+    let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false';
+
+    const scrollContainer = document.getElementById('scroll-area');
+    const zoomContent = document.getElementById('zoom-content');
+    let scale = 1, panning = false, pointX = 0, pointY = 0, startX = 0, startY = 0, lastTap = 0, startDist = 0, startScale = 1;
+    scrollContainer.addEventListener('touchstart', (e) => { if (e.touches.length === 2) { e.preventDefault(); panning = false; startDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY); startScale = scale; } else if (e.touches.length === 1) { const now = new Date().getTime(); if (now - lastTap < 300) { e.preventDefault(); resetZoom(); } else { if (scale > 1) { panning = true; startX = e.touches[0].pageX - pointX; startY = e.touches[0].pageY - pointY; } } lastTap = now; } }, { passive: false });
+    scrollContainer.addEventListener('touchmove', (e) => { if (e.touches.length === 2) { e.preventDefault(); const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY); scale = Math.min(Math.max(1, startScale * (dist / startDist)), 4); updateTransform(); } else if (e.touches.length === 1 && panning && scale > 1) { e.preventDefault(); pointX = e.touches[0].pageX - startX; pointY = e.touches[0].pageY - startY; updateTransform(); } }, { passive: false });
+    scrollContainer.addEventListener('touchend', (e) => { if (e.touches.length < 2) panning = false; if (scale < 1.1) resetZoom(); });
+    function resetZoom() { scale = 1; pointX = 0; pointY = 0; updateTransform(); scrollContainer.style.overflowY = 'auto'; }
+    function updateTransform() { if (scale > 1) scrollContainer.style.overflow = 'hidden'; else scrollContainer.style.overflowY = 'auto'; zoomContent.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`; }
+
+    let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0, imageMap = new Map();
+    let currentFilterType = 'default', currentSortMode = 'wrong';
+    const sortLabels = { 'wrong': '🔥 틀린 순', 'normal': '📋 원래 순', 'random': '🎲 랜덤' };
+    const filterLabels = { 'default': '📁 전체', 'fav': '⭐ 중요', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'rate_asc': '🔥 오답', 'search': '🔍 검색', 'rev': '🔄 복습' };
+    const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_EDITS = 'anki_final_edits';
+    const STORAGE_KEY_PROGRESS = 'anki_final_progress', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck', STORAGE_KEY_IS_GROUP = 'anki_final_is_group', STORAGE_KEY_SORT = 'anki_final_sort_mode';
+
+    function log(msg, type = 'info') {
+        const area = document.getElementById('log-area');
+        const line = document.createElement('div');
+        line.innerText = msg;
+        line.className = `log-${type}`;
+        area.appendChild(line);
+        area.scrollTop = area.scrollHeight;
+    }
+
+    window.onload = async function() {
+        currentSortMode = localStorage.getItem(STORAGE_KEY_SORT) || 'wrong';
+        updateHeaderUI();
+        updateTodayToggleUI();
         
+        try {
+            if(Object.keys(library).length === 0) loadLocalLibrary();
+        } catch(e) {}
+        
+        if(ghUser && ghRepo) {
+             document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨";
+             updateCloudIcon('syncing');
+             await autoScanGitHub(); 
+             if(ghToken) await loadFromGitHub(true); 
+        } else {
+             if (location.protocol.startsWith('http')) await autoScanGitHub();
+        }
+
+        restoreLastSession();
+
         document.getElementById('loading').style.display = 'none';
-        document.getElementById('card-content').style.display = 'block';
-        
-        if(ghUser && ghRepo) scanGitHub();
-        updateHeader();
-    } catch(e) { alert("초기화 오류: " + e); }
-};
-
-// 2. UI 동작 함수 (버튼 연결)
-function toggleMenu(open) {
-    const sb = document.getElementById('sidebar');
-    const ol = document.querySelector('.sidebar-overlay');
-    if(open) { sb.classList.add('open'); ol.style.display = 'block'; }
-    else { sb.classList.remove('open'); ol.style.display = 'none'; }
-}
-
-function toggleFilter() {
-    const bar = document.getElementById('filter-bar');
-    const btn = document.getElementById('filter-btn');
-    bar.classList.toggle('show');
-    btn.classList.toggle('active');
-}
-
-function toggleToday() {
-    showToday = !showToday;
-    localStorage.setItem('anki_show_today', showToday);
-    const btn = document.getElementById('today-btn');
-    btn.innerText = showToday ? "👁️" : "🙈";
-    btn.className = `today-toggle-btn ${showToday?'active':'hidden'}`;
-    applyFilter();
-}
-
-function reveal() {
-    document.getElementById('click-guide').style.display = 'none';
-    document.getElementById('divider').style.display = 'block';
-    document.getElementById('answer-section').style.display = 'block';
-    document.getElementById('grade-area').style.display = 'flex';
-    document.getElementById('nav-area').style.display = 'none';
-    document.getElementById('answer-section').scrollIntoView({behavior:'smooth'});
-}
-
-function grade(score) {
-    if(!activeDeck.length) return;
-    const card = activeDeck[currentIndex];
-    const stats = getStats(card.id);
-    
-    stats.total++;
-    if(score === 2) stats.correct++;
-    else if(score === 1) stats.correct += 0.5;
-    stats.last = Date.now();
-    
-    saveStats(card.id, stats);
-    autoBackup(); // 자동 백업 트리거
-
-    // 다음 카드로 이동 로직
-    if(!showToday) {
-        // 오늘 완료 숨김 모드면 리스트에서 제거
-        activeDeck.splice(currentIndex, 1);
-        if(currentIndex >= activeDeck.length) currentIndex = 0;
-    } else {
-        currentIndex++;
-        if(currentIndex >= activeDeck.length) currentIndex = 0;
-    }
-    
-    showCard();
-}
-
-function move(delta) {
-    if(!activeDeck.length) return;
-    currentIndex = (currentIndex + delta + activeDeck.length) % activeDeck.length;
-    showCard();
-}
-
-// 3. 핵심 로직
-function showCard() {
-    if(!activeDeck.length) {
-        document.getElementById('q-area').innerHTML = "<div style='text-align:center; padding:50px;'>🎉 학습 완료!</div>";
-        document.getElementById('answer-section').style.display = 'none';
-        document.getElementById('click-guide').style.display = 'none';
-        document.getElementById('grade-area').style.display = 'none';
-        document.getElementById('cnt').innerText = "0/0";
-        return;
-    }
-    
-    const card = activeDeck[currentIndex];
-    const stats = getStats(card.id);
-    
-    document.getElementById('cnt').innerText = `${currentIndex+1}/${activeDeck.length}`;
-    document.getElementById('q-area').innerHTML = formatText(card.q);
-    document.getElementById('answer-section').innerHTML = formatText(card.a);
-    
-    // UI 초기화
-    document.getElementById('click-guide').style.display = 'block';
-    document.getElementById('divider').style.display = 'none';
-    document.getElementById('answer-section').style.display = 'none';
-    document.getElementById('grade-area').style.display = 'none';
-    document.getElementById('nav-area').style.display = 'flex';
-    document.getElementById('scroll-area').scrollTop = 0;
-    
-    // 뱃지 및 아이콘 업데이트
-    const rate = stats.total ? Math.round(stats.correct/stats.total*100) : 0;
-    const badge = document.getElementById('rate-badge');
-    badge.innerText = stats.total ? `${rate}% (${stats.total}회)` : "New";
-    badge.style.background = stats.total ? (rate>=80?'#0b2e13':(rate<50?'#2e0b0b':'#1e1e1e')) : '#2c2c2c';
-    badge.style.color = stats.total ? (rate>=80?'#69db7c':(rate<50?'#ff8787':'#aaa')) : '#aaa';
-    
-    ['fav','mem','rev'].forEach(t => {
-        document.getElementById(`btn-${t}`).className = `icon-btn ${stats[t]?'active':''}`;
-    });
-}
-
-function applyFilter() {
-    if(!currentDeckName || !originalDeck) return;
-    let list = [...originalDeck];
-    const allStats = JSON.parse(localStorage.getItem(IDS.stats) || '{}');
-    
-    // 필터 적용
-    if(filterType === 'rate_asc') list = list.filter(c => { const s = allStats[c.id]||{t:0,c:0}; return s.t>0 && (s.c/s.t)<0.8; });
-    else if(filterType !== 'default') list = list.filter(c => (allStats[c.id]||{})[filterType]);
-    
-    // 오늘 완료 숨김
-    if(!showToday) {
-        const today = new Date(); today.setHours(4,0,0,0);
-        list = list.filter(c => (allStats[c.id]?.last || 0) < today.getTime());
-    }
-    
-    // 정렬
-    if(sortMode === 'wrong') {
-        list.sort((a,b) => {
-            const sA = allStats[a.id]||{c:0,t:0}, sB = allStats[b.id]||{c:0,t:0};
-            const rA = sA.t ? sA.c/sA.t : 0, rB = sB.t ? sB.c/sB.t : 0;
-            return rA - rB;
-        });
-    } else if(sortMode === 'random') {
-        list.sort(() => Math.random() - 0.5);
-    }
-    
-    activeDeck = list;
-    currentIndex = 0;
-    showCard();
-    updateHeader();
-}
-
-function setFilter(type) {
-    filterType = type;
-    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-    document.getElementById(`chip-${type}`).classList.add('active');
-    applyFilter();
-}
-
-function setSort(mode) {
-    sortMode = mode;
-    applyFilter();
-}
-
-function updateHeader() {
-    const fName = document.getElementById(`chip-${filterType}`)?.innerText || filterType;
-    document.getElementById('header-info').innerText = `${originalDeck.length}개 중 ${activeDeck.length}개 (${fName})`;
-}
-
-// 4. 데이터 관리
-function getStats(id) { return JSON.parse(localStorage.getItem(IDS.stats) || '{}')[id] || {correct:0, total:0, last:0}; }
-function saveStats(id, stats) {
-    const all = JSON.parse(localStorage.getItem(IDS.stats) || '{}');
-    all[id] = stats;
-    localStorage.setItem(IDS.stats, JSON.stringify(all));
-}
-function toggleTag(tag) {
-    const c = activeDeck[currentIndex];
-    const s = getStats(c.id);
-    s[tag] = !s[tag];
-    saveStats(c.id, s);
-    showCard();
-}
-
-function formatText(txt) {
-    if(!txt) return "";
-    let clean = txt.replace(/""/g, '"').replace(/\{\{c\d+::(.*?)\}\}/g, '<span style="color:#fa5252; font-weight:bold;">$1</span>');
-    if(clean.startsWith('"') && clean.endsWith('"')) clean = clean.slice(1, -1);
-    
-    // 이미지 처리
-    const div = document.createElement('div'); div.innerHTML = clean;
-    div.querySelectorAll('img').forEach(img => {
-        let src = img.getAttribute('src');
-        if(src && !src.startsWith('http') && ghUser) {
-            img.src = `https://raw.githubusercontent.com/${ghUser}/${ghRepo}/main/images/${src.split('/').pop()}`;
+        if(!activeDeck || activeDeck.length === 0) {
+            document.getElementById('question-section').innerHTML = "<h3 style='color:#aaa; text-align:center;'>메뉴(☰)를 눌러 덱을 선택하세요.</h3>";
         }
-    });
-    return div.innerHTML;
-}
+    };
 
-// 5. 깃허브 연동 및 백업
-async function scanGitHub() {
-    if(!ghUser || !ghRepo) return;
-    try {
-        document.getElementById('cloud-icon').classList.add('syncing');
-        const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/`;
-        const headers = ghToken ? {'Authorization': `token ${ghToken}`} : {};
-        const res = await fetch(url, {headers});
-        if(!res.ok) throw new Error();
-        const files = await res.json();
-        const txts = files.filter(f => f.name.endsWith('.txt'));
+    function toggleTodayView() {
+        showTodayCompleted = !showTodayCompleted;
+        localStorage.setItem('anki_show_today', showTodayCompleted);
+        updateTodayToggleUI();
+        if(currentDeckName) { filterCards(currentFilterType); }
+    }
+
+    function updateTodayToggleUI() {
+        const btn = document.getElementById('today-toggle-btn');
+        if(showTodayCompleted) {
+            btn.innerText = "👁️";
+            btn.className = "today-toggle-btn active";
+            btn.title = "오늘 완료된 카드 숨기기";
+        } else {
+            btn.innerText = "🙈";
+            btn.className = "today-toggle-btn hidden";
+            btn.title = "오늘 완료된 카드 보기";
+        }
+    }
+
+    function isCompletedToday(stats) {
+        if (!stats || !stats.last) return false;
+        const now = new Date();
+        const todayStart = new Date(now);
+        if (now.getHours() < 4) todayStart.setDate(todayStart.getDate() - 1);
+        todayStart.setHours(4, 0, 0, 0);
+        return stats.last >= todayStart.getTime();
+    }
+
+    function restoreLastSession() {
+        const lastDeck = localStorage.getItem(STORAGE_KEY_LAST_DECK);
+        if (lastDeck && library[lastDeck.replace('__', '')] || (lastDeck && Object.keys(library).some(k => k.startsWith(lastDeck)))) {
+            const isGroup = localStorage.getItem(STORAGE_KEY_IS_GROUP) === 'true';
+            if (isGroup) {
+                selectDeckGroup(lastDeck.endsWith('__') ? lastDeck : lastDeck + '__');
+            } else {
+                selectDeck(lastDeck);
+            }
+        }
+    }
+
+    function openGitHubSettings() {
+        document.getElementById('gh-user').value = ghUser;
+        document.getElementById('gh-repo').value = ghRepo;
+        document.getElementById('gh-token').value = ghToken;
+        document.getElementById('log-area').innerHTML = "대기 중..."; 
+        document.getElementById('gh-modal').style.display = 'flex';
+    }
+
+    async function initGitHubSync() {
+        document.getElementById('log-area').innerHTML = ""; 
+        let rawUser = document.getElementById('gh-user').value.trim();
+        let rawRepo = document.getElementById('gh-repo').value.trim();
+        let rawToken = document.getElementById('gh-token').value.trim();
+
+        if(rawRepo.includes('/')) rawRepo = rawRepo.split('/').pop();
+        if(rawRepo.includes('.git')) rawRepo = rawRepo.replace('.git', '');
+
+        if(!rawUser || !rawRepo) { log("❌ ID와 저장소 이름은 필수입니다.", "error"); return; }
+
+        ghUser = rawUser; ghRepo = rawRepo; ghToken = rawToken;
+        localStorage.setItem('gh_user', ghUser);
+        localStorage.setItem('gh_repo', ghRepo);
+        localStorage.setItem('gh_token', ghToken);
         
-        if(txts.length === 0) return;
+        updateCloudIcon('syncing');
+        log(`🚀 [1/3] 연결 시도: https://github.com/${ghUser}/${ghRepo}`);
         
-        let newLib = {};
-        for(const f of txts) {
-            const r = await fetch(f.download_url + '?t=' + Date.now());
-            const t = await r.text();
-            processText(t, f.name, newLib);
+        const scanResult = await autoScanGitHub(true); 
+        if(!scanResult) {
+            log("❌ 스캔 실패. 덱 목록을 가져올 수 없습니다.", "error");
+            return;
+        }
+
+        if(ghToken) {
+            log("🔄 [2/3] 학습 기록(백업) 확인 중...");
+            const loaded = await loadFromGitHub(true);
+            if(loaded) {
+                log("✅ [완료] 클라우드 데이터를 성공적으로 복구했습니다!", "success");
+            } else {
+                log("ℹ️ 클라우드에 백업된 데이터가 없습니다. (첫 실행)");
+                await saveToGitHub(true);
+                log("✅ [완료] 현재 기기의 데이터를 클라우드에 올렸습니다.", "success");
+            }
+        } else {
+            log("⚠️ 토큰이 없어서 '읽기 전용'으로 연결되었습니다.", "info");
+            log("✅ 덱은 불러왔지만, 학습 기록은 저장되지 않습니다.", "success");
         }
         
-        library = newLib;
-        localStorage.setItem(IDS.lib, JSON.stringify(library));
-        renderTree();
-        document.getElementById('cloud-icon').classList.remove('syncing');
-        document.getElementById('cloud-icon').classList.add('done');
-    } catch(e) { 
-        document.getElementById('cloud-icon').classList.remove('syncing');
-        document.getElementById('cloud-icon').classList.add('error');
+        document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨";
+        setTimeout(() => {
+            log("🔄 3초 후 앱을 재시작합니다...");
+            setTimeout(() => location.reload(), 3000);
+        }, 1000);
     }
-}
 
-function processText(txt, fname, lib) {
-    const rows = parseCSV(txt);
-    const dName = fname.replace('.txt','');
-    rows.forEach(r => {
-        if(r.length < 2 || r[0].startsWith('#')) return;
-        let q = r[0], a = r[1];
-        if(r.length >= 3) { q = r[1]; a = r.slice(2).join('<br>'); }
-        if(!q) return;
-        if(!lib[dName]) lib[dName] = [];
-        lib[dName].push({id: cyrb53(q), q, a});
-    });
-}
+    function u_btoa(str) { return window.btoa(unescape(encodeURIComponent(str))); }
+    function u_atob(str) { return decodeURIComponent(escape(window.atob(str))); }
 
-function parseCSV(str) {
-    const arr = []; let row = [], col = '', quote = false;
-    for(let c of str) {
-        if(quote) { if(c === '"') quote = false; else col += c; }
-        else { if(c === '"') quote = true; else if(c === '\t') { row.push(col); col = ''; } else if(c === '\n') { row.push(col); arr.push(row); row = []; col = ''; } else col += c; }
+    async function loadFromGitHub(silent = false) {
+        if(!ghToken) return false;
+        const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/user_data/save.json`;
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `token ${ghToken}`, 'Cache-Control': 'no-cache' } });
+            if(res.status === 404) { updateCloudIcon('done'); return false; }
+            if(!res.ok) throw new Error(res.status);
+            
+            const json = await res.json();
+            const content = JSON.parse(u_atob(json.content));
+            
+            if(content.stats) localStorage.setItem(STORAGE_KEY_STATS, content.stats);
+            if(content.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, content.progress);
+            if(content.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, content.lastDeck);
+            localStorage.setItem('gh_sha', json.sha);
+            
+            updateCloudIcon('done');
+            if(currentDeckName) showCard(); 
+            else restoreLastSession(); 
+            
+            return true;
+        } catch(e) {
+            console.error(e);
+            updateCloudIcon('error');
+            if(!silent) log(`❌ 로드 실패: ${e.message}`, "error");
+            return false;
+        }
     }
-    if(col) row.push(col); if(row.length) arr.push(row);
-    return arr;
-}
 
-// 자동 백업 (10분 제한)
-let lastBackup = 0;
-async function autoBackup() {
-    if(!ghToken || Date.now() - lastBackup < 600000) return; // 10분
-    lastBackup = Date.now();
-    
-    const d = new Date();
-    const fname = `mk_${d.getFullYear()}${d.getMonth()+1}${d.getDate()}${d.getHours()}${d.getMinutes()}.json`;
-    const content = btoa(unescape(encodeURIComponent(JSON.stringify({
-        stats: localStorage.getItem(IDS.stats),
-        timestamp: Date.now()
-    }))));
-    
-    try {
-        await fetch(`https://api.github.com/repos/${ghUser}/${ghRepo}/contents/backups/${fname}`, {
-            method: 'PUT',
-            headers: {'Authorization': `token ${ghToken}`, 'Content-Type': 'application/json'},
-            body: JSON.stringify({message:'Auto', content})
-        });
-        // 오래된 백업 삭제 로직은 생략 (코드 길이 안전상)
-    } catch(e) {}
-}
-
-// 설정 관련
-function openGitHubSettings() { document.getElementById('gh-modal').style.display = 'flex'; }
-function closeModal() { document.getElementById('gh-modal').style.display = 'none'; }
-function saveSettings() {
-    ghUser = document.getElementById('gh-id').value;
-    ghRepo = document.getElementById('gh-repo').value;
-    ghToken = document.getElementById('gh-token').value;
-    localStorage.setItem('gh_user', ghUser);
-    localStorage.setItem('gh_repo', ghRepo);
-    localStorage.setItem('gh_token', ghToken);
-    closeModal();
-    scanGitHub();
-    alert("저장되었습니다. 연동을 시작합니다.");
-}
-
-function renderTree() {
-    const list = document.getElementById('deck-list-ui');
-    list.innerHTML = '';
-    Object.keys(library).sort().forEach(k => {
-        const li = document.createElement('li');
-        li.className = `tree-deck ${currentDeckName===k?'active':''}`;
-        li.innerText = `📄 ${k} (${library[k].length})`;
-        li.onclick = () => {
-            currentDeckName = k;
-            originalDeck = library[k];
-            toggleMenu(false);
-            document.getElementById('deck-title').innerText = k;
-            setFilter('default');
-            renderTree();
+    async function saveToGitHub(force = false) {
+        if(!ghToken) return;
+        updateCloudIcon('syncing');
+        const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/user_data/save.json`;
+        const data = {
+            stats: localStorage.getItem(STORAGE_KEY_STATS),
+            progress: localStorage.getItem(STORAGE_KEY_PROGRESS),
+            lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK),
+            timestamp: Date.now()
         };
-        list.appendChild(li);
-    });
-}
+        const content = u_btoa(JSON.stringify(data));
+        const sha = localStorage.getItem('gh_sha');
+        const body = { message: "Auto Sync", content: content };
+        if(sha) body.sha = sha;
 
-function restoreSession() {
-    if(currentDeckName && library[currentDeckName]) {
-        originalDeck = library[currentDeckName];
-        setFilter(filterType);
+        try {
+            const res = await fetch(url, {
+                method: 'PUT',
+                headers: { 'Authorization': `token ${ghToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const json = await res.json();
+            if(json.content && json.content.sha) {
+                localStorage.setItem('gh_sha', json.content.sha);
+                updateCloudIcon('done');
+            } else { updateCloudIcon('error'); }
+        } catch(e) { console.error(e); updateCloudIcon('error'); }
     }
-}
 
-const cyrb53 = (str, seed = 0) => { let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed; for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); return 4294967296 * (2097151 & h2) + (h1 >>> 0); };
+    async function autoScanGitHub(showLog = false) {
+        const owner = ghUser || defaultRepoOwner;
+        const repo = ghRepo || defaultRepoName;
+        const headers = ghToken ? { 'Authorization': `token ${ghToken}` } : {};
+
+        try {
+            const listUrl = `https://api.github.com/repos/${owner}/${repo}/contents/`;
+            const listResponse = await fetch(listUrl, { headers });
+            
+            if (!listResponse.ok) {
+                if(showLog) log(`❌ 접속 실패 (${listResponse.status}). 주소나 토큰 권한을 확인하세요.`, "error");
+                return false;
+            }
+            
+            const files = await listResponse.json();
+            const txtFiles = files.filter(f => f.name.endsWith('.txt'));
+            
+            if(txtFiles.length === 0) {
+                if(showLog) log(`⚠️ 접속은 됐는데 .txt 파일이 0개입니다. (최상위 폴더에 있어야 함)`, "error");
+                return true; 
+            }
+
+            if(showLog) log(`✅ 파일 ${txtFiles.length}개 발견! 다운로드 중...`, "info");
+
+            library = {}; 
+            for (const file of txtFiles) {
+                try {
+                    const contentResponse = await fetch(file.download_url + '?t=' + Date.now());
+                    const text = await contentResponse.text();
+                    processAnkiText(text, file.name, JSON.parse(localStorage.getItem(STORAGE_KEY_EDITS) || '{}'));
+                } catch (e) { console.error("File Load Error:", file.name, e); }
+            }
+            renderDeckTree();
+            
+            restoreLastSession();
+            
+            if(showLog) log("✅ 덱 목록 구성 완료!", "success");
+            return true;
+
+        } catch (error) {
+            console.error("Scan Error:", error);
+            if(showLog) log(`❌ 치명적 오류: ${error.message}`, "error");
+            return false;
+        }
+    }
+
+    function updateCloudIcon(status) {
+        const icon = document.getElementById('cloud-icon');
+        icon.className = `cloud-icon ${status}`;
+        icon.innerText = status === 'syncing' ? '🔄' : (status === 'error' ? '❌' : '☁️');
+    }
+
+    function toggleFilterBar() {
+        const bar = document.getElementById('filter-bar-container');
+        const btn = document.getElementById('filter-toggle-btn');
+        bar.classList.toggle('show'); btn.classList.toggle('active');
+    }
+
+    function updateHeaderUI() {
+        const sortText = sortLabels[currentSortMode];
+        const filterText = filterLabels[currentFilterType] || '🔍 검색';
+        document.getElementById('header-info').innerText = `${sortText} & ${filterText}`;
+        ['wrong', 'normal', 'random'].forEach(m => {
+            const btn = document.getElementById(`chip-sort-${m}`);
+            if(btn) btn.classList.toggle('active', currentSortMode === m);
+        });
+        document.querySelectorAll('.chip:not(.chip-sort)').forEach(c => c.classList.remove('active'));
+        if(currentFilterType !== 'search') {
+            const btn = document.getElementById(`chip-${currentFilterType}`);
+            if(btn) btn.classList.add('active');
+        }
+    }
+
+    function setSortMode(mode) {
+        currentSortMode = mode; localStorage.setItem(STORAGE_KEY_SORT, mode); updateHeaderUI();
+        if(currentDeckName) { applySort(); currentIndex = 0; showCard(); }
+    }
+
+    function applySort() {
+        if (!activeDeck || activeDeck.length === 0) return;
+        const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        if (currentSortMode === 'wrong') {
+            activeDeck.sort((a, b) => {
+                const sA = allStats[a.id] || {correct:0, total:0}; const sB = allStats[b.id] || {correct:0, total:0};
+                const rA = sA.total === 0 ? 0 : sA.correct / sA.total; const rB = sB.total === 0 ? 0 : sB.correct / sB.total;
+                if (rA !== rB) return rA - rB;
+                return sA.total - sB.total;
+            });
+        } else if (currentSortMode === 'random') { activeDeck.sort(() => Math.random() - 0.5); }
+    }
+
+    function getDaysText(stats) {
+        if (!stats || !stats.last) return ""; 
+        const now = new Date(); const todayStart = new Date(now);
+        if (now.getHours() < 4) todayStart.setDate(todayStart.getDate() - 1);
+        todayStart.setHours(4, 0, 0, 0);
+        const diff = todayStart.getTime() - stats.last;
+        if (diff < 0) return "✅ 오늘 완료";
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
+        return `🕒 ${days}일 전`;
+    }
+
+    function saveProgress() {
+        if (!currentDeckName) return;
+        const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
+        progress[`${currentDeckName}__${currentFilterType}`] = currentIndex;
+        localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
+        saveToGitHub(); 
+    }
+
+    function loadLocalLibrary() {
+        const savedLib = localStorage.getItem(STORAGE_KEY_LIBRARY);
+        if (savedLib) {
+            try {
+                library = JSON.parse(savedLib);
+                renderDeckTree();
+                restoreLastSession();
+            } catch(e) {}
+        }
+    }
+
+    function parseAnkiRawData(str) {
+        const rows = []; let currentRow = []; let currentCell = ''; let cursor = 0; let inQuote = false;
+        while (cursor < str.length) {
+            const char = str[cursor]; const nextChar = str[cursor + 1];
+            if (inQuote) { if (char === '"' && nextChar === '"') { currentCell += '"'; cursor += 2; } else if (char === '"') { inQuote = false; cursor++; } else { currentCell += char; cursor++; } }
+            else { if (char === '"') { inQuote = true; cursor++; } else if (char === '\t') { currentRow.push(currentCell); currentCell = ''; cursor++; } else if (char === '\n' || char === '\r') { if (char === '\r' && nextChar === '\n') cursor++; currentRow.push(currentCell); if (currentRow.length > 1 || (currentRow.length === 1 && currentRow[0].trim() !== '')) { rows.push(currentRow); } currentRow = []; currentCell = ''; cursor++; } else { currentCell += char; cursor++; } }
+        }
+        if (currentRow.length > 0 || currentCell !== '') { currentRow.push(currentCell); rows.push(currentRow); }
+        return rows;
+    }
+
+    function processAnkiText(text, filename, edits) {
+        const rows = parseAnkiRawData(text);
+        let currentDeck = filename.replace('.txt', '');
+        rows.forEach(fields => {
+            if (fields.length > 0 && fields[0].startsWith('#')) return;
+            let deckNameInRow = null; let q = "", a = "";
+            if (fields.length >= 3) { deckNameInRow = fields[0].replace(/::/g, '__'); q = fields[1]; a = fields.slice(2).join('<br>'); } 
+            else { deckNameInRow = currentDeck; if (fields.length === 2) { q = fields[0]; a = fields[1]; } else if (fields.length > 0) { q = fields[0]; a = fields.slice(1).join('<br>'); } }
+            if(!q) return;
+            if (!library[deckNameInRow]) library[deckNameInRow] = [];
+            let hiddenText = "";
+            const titleMatch = q.match(/title\s*=\s*"((?:[^"]|"")*)"/i);
+            if (titleMatch) { hiddenText = titleMatch[1].replace(/""/g, '"'); }
+            const id = cyrb53(q);
+            library[deckNameInRow].push({ id, q, a, hiddenText });
+        });
+    }
+
+    function createDOM(rawText, isAnswer, questionText = "", answerText = "") {
+        if (!rawText) rawText = "";
+        let formattedText = rawText.replace(/""/g, '"');
+        if (formattedText.startsWith('"') && formattedText.endsWith('"')) formattedText = formattedText.slice(1, -1);
+        let cleanText = formattedText.replace(/title\s*=\s*"[\s\S]*?"/gi, ''); 
+        cleanText = cleanText.replace(/(\{\{c\d+::.*?\}\})/g, '<span style="display:none">$1</span>');
+        const hasContent = cleanText.replace(/<[^>]*>/g, '').trim().length > 0 || cleanText.includes('<img') || cleanText.includes('<svg');
+        if (isAnswer && !hasContent) {
+            const imgMatch = answerText.match(/<img[^>]+>/);
+            if (imgMatch) cleanText = imgMatch[0];
+            else cleanText = '<div style="color:#666; text-align:center;">(정답 내용 없음)</div>';
+        }
+        if (!isAnswer && cleanText.includes('<span style="display:none">{{') && !cleanText.includes('<img')) {
+            const imgMatch = answerText.match(/<img[^>]+>/);
+            if (imgMatch) cleanText += "<br>" + imgMatch[0];
+        }
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = cleanText;
+        const allImgMatches = rawText.match(/paste-[a-f0-9]{40}\.(jpg|png|gif|jpeg)/gi) || [];
+        const domImgs = tempDiv.querySelectorAll('img');
+        if (allImgMatches.length > domImgs.length) {
+            for (let i = domImgs.length; i < allImgMatches.length; i++) {
+                const missingImg = document.createElement('img');
+                missingImg.src = allImgMatches[i];
+                tempDiv.appendChild(missingImg);
+            }
+        }
+        tempDiv.querySelectorAll('img').forEach((img, index) => {
+            let src = img.getAttribute('src');
+            let fname = "";
+            if (src && !src.startsWith('http') && !src.startsWith('data:')) {
+                fname = src.split('/').pop().split('\\').pop();
+                try { fname = decodeURIComponent(fname).trim(); } catch(e){}
+            } 
+            if ((!fname || fname === "") && index < allImgMatches.length) { fname = allImgMatches[index]; }
+            if (fname) {
+                const owner = ghUser || defaultRepoOwner;
+                const repo = ghRepo || defaultRepoName;
+                const url = `https://raw.githubusercontent.com/${owner}/${repo}/main/images/${encodeURIComponent(fname)}`;
+                img.src = url; 
+                img.style.display = 'block';
+            }
+            img.onerror = function() { 
+                this.style.display = 'none';
+                const errSpan = document.createElement('span');
+                errSpan.className = 'img-error';
+                errSpan.innerText = `❌ ${src} 없음`;
+                this.parentNode.insertBefore(errSpan, this);
+            };
+        });
+        tempDiv.querySelectorAll('*').forEach(el => {
+            el.style.width = ""; el.style.height = ""; el.style.maxWidth = "100%"; el.style.minWidth = "0"; 
+            el.removeAttribute("width"); el.removeAttribute("height");
+            if(el.tagName === 'TABLE' || el.tagName === 'TD' || el.tagName === 'TH') { el.style.tableLayout = "fixed"; el.style.width = "100%"; el.removeAttribute("nowrap"); }
+        });
+        const wrapper = document.createElement('div'); wrapper.className = 'answer-layout';
+        const txtDiv = document.createElement('div'); txtDiv.className = 'text-area';
+        let textContent = tempDiv.textContent.trim();
+        const hasComplexTags = tempDiv.querySelector('div, svg, img'); 
+        if (isAnswer && !hasComplexTags && (textContent.startsWith('O') || textContent.startsWith('X'))) {
+             const firstChar = textContent.charAt(0);
+             const oxSpan = document.createElement('span'); oxSpan.className = `ox-highlight ${firstChar === 'O' ? 'ox-o' : 'ox-x'}`; oxSpan.innerText = firstChar;
+             txtDiv.appendChild(oxSpan); wrapper.appendChild(txtDiv); wrapper.appendChild(tempDiv);
+        } else { wrapper.appendChild(tempDiv); }
+        return wrapper;
+    }
+
+    function showCard() {
+        resetZoom();
+        if (!activeDeck || activeDeck.length === 0) {
+            document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub)'>항목이 없습니다.</h3>";
+            document.getElementById('card-info').style.display='none';
+            return;
+        }
+        if(currentIndex >= activeDeck.length) currentIndex = 0;
+        isRevealed = false;
+        const card = activeDeck[currentIndex];
+        const stats = getStats(card.id);
+        document.getElementById('card-counter').innerText = `${currentIndex + 1} / ${activeDeck.length}`;
+        document.getElementById('card-info').style.display='flex';
+        updateStatsUI(stats); updateIconsUI(stats);
+        const dateBadge = document.getElementById('date-badge');
+        const dateText = getDaysText(stats);
+        if (dateText) { 
+            dateBadge.innerText = dateText; dateBadge.style.display = 'inline-block'; 
+            if(dateText.includes('오늘')) dateBadge.className = 'date-badge today'; else dateBadge.className = 'date-badge recent';
+        } else { dateBadge.style.display = 'none'; }
+        const qSection = document.getElementById('question-section'); qSection.innerHTML = '';
+        qSection.appendChild(createDOM(card.q, false, "", card.a));
+        const aSection = document.getElementById('answer-section'); aSection.innerHTML = '';
+        aSection.appendChild(createDOM(card.a, true, card.q, card.a));
+        aSection.style.display = 'none';
+        document.getElementById('divider').style.display = 'none';
+        document.getElementById('click-guide').style.display = 'block';
+        document.getElementById('nav-area').style.display = 'flex';
+        document.getElementById('grade-area').style.display = 'none';
+        scrollContainer.scrollTop = 0;
+    }
+
+    function revealAnswer(event) {
+        if(event) event.stopPropagation(); 
+        document.getElementById('click-guide').style.display = 'none';
+        document.getElementById('divider').style.display = 'block';
+        document.getElementById('answer-section').style.display = 'block';
+        document.getElementById('grade-area').style.display = 'flex';
+        setTimeout(() => { document.getElementById('answer-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+    }
+
+    function filterCards(type) { 
+        if(!currentDeckName) return;
+        document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        const chip = document.getElementById(`chip-${type}`);
+        if(chip) chip.classList.add('active');
+        if (type === 'search') {
+            const rawQuery = document.getElementById('search-input').value.toLowerCase();
+            if(!rawQuery) { activeDeck = [...originalDeck]; } 
+            else { activeDeck = originalDeck.filter(card => card.q.toLowerCase().includes(rawQuery) || card.a.toLowerCase().includes(rawQuery) || (card.hiddenText && card.hiddenText.toLowerCase().includes(rawQuery))); }
+        } else {
+            currentFilterType = type;
+            const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+            let newDeck = [...originalDeck];
+            if (type === 'rate_asc') { newDeck = newDeck.filter(c => { const s = allStats[c.id] || {correct:0, total:0}; return s.total > 0 && (s.correct/s.total) < 0.8; }); } 
+            else if (type !== 'default') { newDeck = newDeck.filter(c => (allStats[c.id] || {})[type]); }
+            
+            // 🔥 [수정] 오늘 완료된 카드 숨기기 로직 적용 (독립적)
+            if (!showTodayCompleted) {
+                newDeck = newDeck.filter(c => {
+                    const stats = allStats[c.id] || {};
+                    return !isCompletedToday(stats);
+                });
+            }
+
+            if(newDeck.length === 0 && type !== 'default' && showTodayCompleted) { alert("해당하는 카드가 없습니다."); return; }
+            activeDeck = newDeck;
+        }
+        applySort(); updateHeaderUI();
+        const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
+        const key = `${currentDeckName}__${currentFilterType}`;
+        currentIndex = progress[key] || 0;
+        if(currentIndex >= activeDeck.length) currentIndex = 0;
+        showCard();
+    }
+
+    function renderDeckTree() {
+        const list = document.getElementById('deck-list-ui'); list.innerHTML = '';
+        const names = Object.keys(library).sort();
+        if (names.length === 0) { list.innerHTML = '<li class="deck-item" style="justify-content:center;">덱 없음</li>'; return; }
+        const tree = {};
+        names.forEach(path => {
+            const parts = path.split('__'); let currentLevel = tree;
+            parts.forEach((part, index) => {
+                if (!currentLevel[part]) { currentLevel[part] = { _name: part, _fullPath: parts.slice(0, index + 1).join('__'), _children: {}, _isLeaf: false }; }
+                if (index === parts.length - 1 && library[path] && library[path].length > 0) { currentLevel[part]._isLeaf = true; }
+                currentLevel = currentLevel[part]._children;
+            });
+        });
+        function createTreeDOM(node, container) {
+            const keys = Object.keys(node).sort();
+            keys.forEach(key => {
+                const item = node[key];
+                const hasChildren = Object.keys(item._children).length > 0;
+                if (hasChildren) { 
+                    const isOpen = (currentDeckName && currentDeckName.startsWith(item._fullPath)) ? 'open' : '';
+                    const isActive = (currentDeckName === item._fullPath) ? 'active-deck' : ''; 
+                    const countInfo = item._isLeaf ? `(${library[item._fullPath].length})` : '';
+                    const html = `
+                        <li class="tree-folder">
+                            <div class="tree-header ${isActive}" onclick="toggleFolder(this)">
+                                <div class="folder-title"><span class="folder-icon">📂</span> ${item._name} <span class="count-badge">${countInfo}</span></div>
+                                <button class="play-btn" onclick="event.stopPropagation(); selectDeckGroup('${item._fullPath}__')">▶ 전체</button>
+                            </div>
+                            <ul class="tree-children ${isOpen}"></ul>
+                        </li>`;
+                    const li = document.createElement('div'); li.innerHTML = html; const actualLi = li.firstElementChild;
+                    container.appendChild(actualLi);
+                    createTreeDOM(item._children, actualLi.querySelector('ul'));
+                } else { 
+                    const isActive = (item._fullPath === currentDeckName) ? 'active' : '';
+                    const html = `
+                        <li class="tree-item">
+                            <div class="tree-deck ${isActive}" onclick="selectDeck('${item._fullPath}')">
+                                <span>📄 ${item._name} <small>(${library[item._fullPath].length})</small></span>
+                                <button class="del-btn" onclick="event.stopPropagation(); deleteDeck('${item._fullPath}')">x</button>
+                            </div>
+                        </li>`;
+                    const li = document.createElement('div'); li.innerHTML = html;
+                    container.appendChild(li.firstElementChild);
+                }
+            });
+        }
+        createTreeDOM(tree, list);
+    }
+
+    window.toggleFolder = function(element) {
+        const children = element.nextElementSibling;
+        if(children) children.classList.toggle('open');
+    }
+
+    function selectDeckGroup(prefix) {
+        let mergedCards = [];
+        Object.keys(library).forEach(key => { if (key.startsWith(prefix) || key === prefix.replace('__', '')) { mergedCards = mergedCards.concat(library[key]); } });
+        if (mergedCards.length === 0) { const exactKey = prefix.replace(/__$/, ''); if(library[exactKey]) { selectDeck(exactKey); return; } alert("하위 덱이 없습니다."); return; }
+        let displayName = prefix.replace(/__$/, '').split('__').pop();
+        currentDeckName = prefix.replace(/__$/, ''); originalDeck = mergedCards; activeDeck = [...originalDeck];
+        localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName);
+        localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true');
+        filterCards('default');
+        document.getElementById('deck-title').innerText = `📂 ${displayName} (통합 ${activeDeck.length}개)`;
+        renderDeckTree(); toggleMenu(false);
+    }
+
+    function selectDeck(name) {
+        if(!library[name]) return;
+        currentDeckName = name; originalDeck = library[name]; activeDeck = [...originalDeck];
+        localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
+        localStorage.setItem(STORAGE_KEY_IS_GROUP, 'false');
+        filterCards('default');
+        const displayName = name.split('__').pop();
+        document.getElementById('deck-title').innerText = `📄 ${displayName}`;
+        renderDeckTree(); toggleMenu(false);
+    }
+
+    function toggleMenu(force) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        const isOpen = force !== undefined ? force : !sidebar.classList.contains('open');
+        if (isOpen) {
+            sidebar.classList.add('open'); overlay.classList.add('open');
+            setTimeout(() => { const active = document.querySelector('.tree-deck.active'); if(active) active.scrollIntoView({block:'center', behavior:'smooth'}); }, 300);
+        } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
+    }
+
+    function getStats(id) { 
+        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id];
+        const defaults = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 };
+        return { ...defaults, ...stored }; 
+    }
+    
+    function toggleTag(e, type) { 
+        e.stopPropagation(); 
+        const card = activeDeck[currentIndex]; 
+        const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        const defaults = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 };
+        const currentCardStats = { ...defaults, ...(allStats[card.id] || {}) };
+        currentCardStats[type] = !currentCardStats[type];
+        allStats[card.id] = currentCardStats;
+        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(allStats));
+        updateIconsUI(currentCardStats); 
+        saveToGitHub(); 
+    }
+    
+    function updateStatsUI(stats) { 
+        const badge = document.getElementById('rate-badge'); 
+        if(stats.total === 0) { 
+            badge.innerText = "New"; badge.className = "rate-badge"; 
+        } else { 
+            const rate = Math.round((stats.correct/stats.total)*100); 
+            badge.innerText = `${rate}% (${stats.total}회)`; 
+            if (rate >= 80) badge.className = "rate-badge high";
+            else if (rate < 50) badge.className = "rate-badge low";
+            else badge.className = "rate-badge";
+        } 
+    }
+    
+    function updateIconsUI(stats) { 
+        document.getElementById('mem-btn').classList.toggle('active', stats.mem); 
+        document.getElementById('cmp-btn').classList.toggle('active', stats.cmp); 
+        document.getElementById('fav-btn').classList.toggle('active', stats.fav); 
+        document.getElementById('rev-btn').classList.toggle('active', stats.rev); 
+        document.getElementById('num-btn').classList.toggle('active', stats.num); 
+        document.getElementById('date-btn').classList.toggle('active', stats.date); 
+        document.getElementById('pen-btn').classList.toggle('active', stats.pen); 
+    }
+    // 🔥 [수정] 백업 파일명: mk_YYYYMMDDHHMM.json
+    function exportData() {
+        const data = {
+            stats: localStorage.getItem(STORAGE_KEY_STATS),
+            edits: localStorage.getItem(STORAGE_KEY_EDITS),
+            progress: localStorage.getItem(STORAGE_KEY_PROGRESS),
+            lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK),
+            timestamp: new Date().toLocaleString()
+        };
+        const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // 날짜 포맷팅 로직
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        
+        a.download = `mk_${year}${month}${day}${hours}${minutes}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+    function importData(input) { const file = input.files[0]; if (!file) return; if(!confirm("⚠️ 현재 기기의 기록을 덮어씌웁니다.\n계속하시겠습니까?")) { input.value = ''; return; } const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats); if(data.edits) localStorage.setItem(STORAGE_KEY_EDITS, data.edits); if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress); if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck); alert("✅ 복구 완료!\n페이지를 새로고침합니다."); location.reload(); } catch (err) { alert("❌ 잘못된 백업 파일입니다."); } }; reader.readAsText(file); }
+    function deleteDeck(name) { if(confirm("삭제하시겠습니까?")) { delete library[name]; saveLibrary(); renderDeckTree(); if(currentDeckName === name) { currentDeckName=null; activeDeck=[]; showCard(); } } }
+    
+    function moveCard(delta) { 
+        let nextIdx = currentIndex + delta; 
+        if(nextIdx >= 0 && nextIdx < activeDeck.length) { currentIndex = nextIdx; saveProgress(); showCard(); } 
+    }
+    function grade(score) { 
+        const card = activeDeck[currentIndex];
+        const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        const defaults = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 };
+        const currentStats = { ...defaults, ...(data[card.id] || {}) };
+        currentStats.total++;
+        if(score === 2) currentStats.correct++; else if(score === 1) currentStats.correct += 0.5;
+        currentStats.last = Date.now();
+        data[card.id] = currentStats;
+        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
+        updateStatsUI(currentStats);
+        saveToGitHub(); 
+        
+        // 🔥 오늘 완료 숨김이 켜져있으면 다음 카드로 넘어가면서 현재 카드는 필터링됨
+        if (!showTodayCompleted) {
+            // 현재 덱 목록에서 방금 푼 카드를 제외
+            activeDeck = activeDeck.filter(c => c.id !== card.id);
+            // 인덱스 조정 (카드가 빠졌으니 현재 인덱스가 다음 카드를 가리킴)
+            // 하지만 마지막 카드였다면 인덱스 조정 필요
+            if (currentIndex >= activeDeck.length) currentIndex = 0;
+            
+            if (activeDeck.length === 0) {
+                alert("🎉 오늘 학습 분량을 모두 완료했습니다!");
+                showCard();
+                return;
+            }
+            saveProgress();
+            showCard();
+        } else {
+            if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } 
+            else { alert("끝!"); currentIndex = 0; saveProgress(); showCard(); } 
+        }
+    }
+    const cyrb53 = (str, seed = 0) => { let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed; for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); return 4294967296 * (2097151 & h2) + (h1 >>> 0); };
 </script>
 </body>
 </html>
