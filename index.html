@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.80 - Stable Fix)</title>
+<title>나만의 안키 (v10.81 - Instant Load)</title>
 <style>
     /* 디자인 100% 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -150,7 +150,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.80 (Stable Fix)
+            My Anki v10.81 (Instant Load)
         </div>
     </div>
 
@@ -258,7 +258,7 @@
     </div>
 
 <script>
-    // 🔥 [핵심 수정] 전역 함수로 선언하여 오류가 나도 메뉴는 무조건 작동하게 보장
+    // 🔥 [핵심] 메뉴 함수를 최상단에 배치하여 오류 무시하고 작동 보장
     function toggleMenu(force) {
         const sidebar = document.getElementById('sidebar');
         const overlay = document.querySelector('.sidebar-overlay');
@@ -287,7 +287,6 @@
     const BACKUP_INTERVAL = 10 * 60 * 1000;
     let isDataChanged = false;
 
-    // 변수 선언
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterType = 'default', currentSortMode = 'wrong';
     const sortLabels = { 'wrong': '🔥 틀린 순', 'normal': '📋 원래 순', 'random': '🎲 랜덤' };
@@ -316,28 +315,31 @@
         console.log(`[${type.toUpperCase()}] ${msg}`);
     }
 
-    // 초기화
-    window.onload = async function() {
+    // 🔥 [수정] 초기화 로직: 로컬 로딩 후, 백그라운드 동기화 수행
+    window.onload = function() {
         currentSortMode = localStorage.getItem(STORAGE_KEY_SORT) || 'wrong';
         updateHeaderUI();
         updateTodayToggleUI();
         
-        // 1. 무조건 로컬 데이터부터 로드하여 화면에 표시
+        // 1. 로컬 데이터 즉시 로드 (Blocking 없음)
         try { loadLocalLibrary(); } catch(e) { console.error("Local Load Error:", e); }
         
-        // 2. 그 다음 백그라운드에서 GitHub 스캔
-        if(ghUser && ghRepo) {
-             document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨";
-             await autoScanGitHub(); 
-        } else {
-             if (location.protocol.startsWith('http')) await autoScanGitHub();
-        }
-
+        // 2. 마지막 세션 복구
         restoreLastSession();
 
+        // 3. 로딩 제거 (화면 바로 표시)
         document.getElementById('loading').style.display = 'none';
         if((!activeDeck || activeDeck.length === 0) && Object.keys(library).length === 0) {
             document.getElementById('question-section').innerHTML = "<h3 style='color:#aaa; text-align:center;'>메뉴(☰)를 눌러 덱을 선택하세요.</h3>";
+        }
+
+        // 4. 백그라운드에서 GitHub 동기화 시도 (설정된 경우만)
+        if(ghUser && ghRepo) {
+             document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨 (백그라운드 동기화)";
+             // Promise 사용 (await 제거)하여 메인 스레드 차단 방지
+             autoScanGitHub(false).then(() => {
+                 console.log("Background sync complete");
+             });
         }
     };
 
@@ -604,6 +606,8 @@
             library = newLibrary;
             saveLibrary(); 
             renderDeckTree();
+            // 백그라운드 스캔 완료 시 다시한번 세션 복구(폴더 열기 등)
+            restoreLastSession();
             
             if(showLog) log("✅ 덱 목록 구성 완료!", "success");
             return true;
@@ -834,129 +838,6 @@
         currentIndex = progress[key] || 0;
         if(currentIndex >= activeDeck.length) currentIndex = 0;
         showCard();
-    }
-
-    function renderDeckTree() {
-        const list = document.getElementById('deck-list-ui'); list.innerHTML = '';
-        const names = Object.keys(library).sort();
-        if (names.length === 0) { list.innerHTML = '<li class="deck-item" style="justify-content:center;">덱 없음</li>'; return; }
-        const tree = {};
-        names.forEach(path => {
-            const parts = path.split('__'); let currentLevel = tree;
-            parts.forEach((part, index) => {
-                if (!currentLevel[part]) { currentLevel[part] = { _name: part, _fullPath: parts.slice(0, index + 1).join('__'), _children: {}, _isLeaf: false }; }
-                if (index === parts.length - 1 && library[path] && library[path].length > 0) { currentLevel[part]._isLeaf = true; }
-                currentLevel = currentLevel[part]._children;
-            });
-        });
-        function createTreeDOM(node, container) {
-            const keys = Object.keys(node).sort();
-            keys.forEach(key => {
-                const item = node[key];
-                const hasChildren = Object.keys(item._children).length > 0;
-                if (hasChildren) { 
-                    const isOpen = (currentDeckName && currentDeckName.startsWith(item._fullPath)) ? 'open' : '';
-                    const isActive = (currentDeckName === item._fullPath) ? 'active-deck' : ''; 
-                    const countInfo = item._isLeaf ? `(${library[item._fullPath].length})` : '';
-                    const html = `
-                        <li class="tree-folder">
-                            <div class="tree-header ${isActive}" onclick="toggleFolder(this)">
-                                <div class="folder-title"><span class="folder-icon">📂</span> ${item._name} <span class="count-badge">${countInfo}</span></div>
-                                <button class="play-btn" onclick="event.stopPropagation(); selectDeckGroup('${item._fullPath}__')">▶ 전체</button>
-                            </div>
-                            <ul class="tree-children ${isOpen}"></ul>
-                        </li>`;
-                    const li = document.createElement('div'); li.innerHTML = html; const actualLi = li.firstElementChild;
-                    container.appendChild(actualLi);
-                    createTreeDOM(item._children, actualLi.querySelector('ul'));
-                } else { 
-                    const isActive = (item._fullPath === currentDeckName) ? 'active' : '';
-                    const html = `
-                        <li class="tree-item">
-                            <div class="tree-deck ${isActive}" onclick="selectDeck('${item._fullPath}')">
-                                <span>📄 ${item._name} <small>(${library[item._fullPath].length})</small></span>
-                                <button class="del-btn" onclick="event.stopPropagation(); deleteDeck('${item._fullPath}')">x</button>
-                            </div>
-                        </li>`;
-                    const li = document.createElement('div'); li.innerHTML = html;
-                    container.appendChild(li.firstElementChild);
-                }
-            });
-        }
-        createTreeDOM(tree, list);
-    }
-
-    window.toggleFolder = function(element) {
-        const children = element.nextElementSibling;
-        if(children) children.classList.toggle('open');
-    }
-
-    function selectDeckGroup(prefix) {
-        let mergedCards = [];
-        Object.keys(library).forEach(key => { if (key.startsWith(prefix) || key === prefix.replace('__', '')) { mergedCards = mergedCards.concat(library[key]); } });
-        if (mergedCards.length === 0) { const exactKey = prefix.replace(/__$/, ''); if(library[exactKey]) { selectDeck(exactKey); return; } alert("하위 덱이 없습니다."); return; }
-        let displayName = prefix.replace(/__$/, '').split('__').pop();
-        currentDeckName = prefix.replace(/__$/, ''); originalDeck = mergedCards; activeDeck = [...originalDeck];
-        localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName);
-        localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true');
-        filterCards('default');
-        document.getElementById('deck-title').innerText = `📂 ${displayName} (통합 ${activeDeck.length}개)`;
-        renderDeckTree(); toggleMenu(false);
-    }
-
-    function selectDeck(name) {
-        if(!library[name]) return;
-        currentDeckName = name; originalDeck = library[name]; activeDeck = [...originalDeck];
-        localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
-        localStorage.setItem(STORAGE_KEY_IS_GROUP, 'false');
-        filterCards('default');
-        const displayName = name.split('__').pop();
-        document.getElementById('deck-title').innerText = `📄 ${displayName}`;
-        renderDeckTree(); toggleMenu(false);
-    }
-
-    function getStats(id) { 
-        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id];
-        const defaults = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 };
-        return { ...defaults, ...stored }; 
-    }
-    
-    function toggleTag(e, type) { 
-        e.stopPropagation(); 
-        const card = activeDeck[currentIndex]; 
-        const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
-        const defaults = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 };
-        const currentCardStats = { ...defaults, ...(allStats[card.id] || {}) };
-        currentCardStats[type] = !currentCardStats[type];
-        allStats[card.id] = currentCardStats;
-        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(allStats));
-        updateIconsUI(currentCardStats); 
-        
-        isDataChanged = true;
-        checkAutoBackup();
-    }
-    
-    function updateStatsUI(stats) { 
-        const badge = document.getElementById('rate-badge'); 
-        if(stats.total === 0) { 
-            badge.innerText = "New"; badge.className = "rate-badge"; 
-        } else { 
-            const rate = Math.round((stats.correct/stats.total)*100); 
-            badge.innerText = `${rate}% (${stats.total}회)`; 
-            if (rate >= 80) badge.className = "rate-badge high";
-            else if (rate < 50) badge.className = "rate-badge low";
-            else badge.className = "rate-badge";
-        } 
-    }
-    
-    function updateIconsUI(stats) { 
-        document.getElementById('mem-btn').classList.toggle('active', stats.mem); 
-        document.getElementById('cmp-btn').classList.toggle('active', stats.cmp); 
-        document.getElementById('fav-btn').classList.toggle('active', stats.fav); 
-        document.getElementById('rev-btn').classList.toggle('active', stats.rev); 
-        document.getElementById('num-btn').classList.toggle('active', stats.num); 
-        document.getElementById('date-btn').classList.toggle('active', stats.date); 
-        document.getElementById('pen-btn').classList.toggle('active', stats.pen); 
     }
 
     function exportData() {
