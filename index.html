@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.76 - Today Toggle)</title>
+<title>나만의 안키 (v10.77 - Smart Backup)</title>
 <style>
     /* 디자인 100% 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -23,10 +23,9 @@
     .header-subtitle { font-size: 0.75rem; color: var(--primary); margin-top: 3px; font-weight: bold; }
     .header-controls { display: flex; gap: 12px; align-items: center; }
     
-    /* 🔥 [NEW] 오늘 완료 보기/숨기기 토글 버튼 스타일 */
     .today-toggle-btn { font-size: 1.3rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text-sub); transition: 0.2s; }
-    .today-toggle-btn.active { color: #40c057; } /* 켜져있을 때(보일 때) 초록색 */
-    .today-toggle-btn.hidden { color: #fa5252; opacity: 0.7; } /* 꺼져있을 때(숨길 때) 붉은색 */
+    .today-toggle-btn.active { color: #40c057; } 
+    .today-toggle-btn.hidden { color: #fa5252; opacity: 0.7; } 
 
     .menu-btn { font-size: 1.5rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); }
     .filter-toggle-btn { font-size: 1.3rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text-sub); transition: 0.2s; }
@@ -151,7 +150,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.76 (Today Toggle)
+            My Anki v10.77 (Smart Backup)
         </div>
     </div>
 
@@ -163,7 +162,6 @@
         </div>
         <div class="header-controls">
             <button class="today-toggle-btn active" id="today-toggle-btn" onclick="toggleTodayView()" title="오늘 완료 보기/숨기기">👁️</button>
-            
             <button class="filter-toggle-btn" id="filter-toggle-btn" onclick="toggleFilterBar()">🌪️</button>
             <span class="counter" id="card-counter">0 / 0</span>
         </div>
@@ -268,7 +266,6 @@
     let ghRepo = localStorage.getItem('gh_repo') || '';
     let ghToken = localStorage.getItem('gh_token') || '';
 
-    // 🔥 [NEW] 오늘 완료 보기 설정 (기본값: true - 보기)
     let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false';
 
     const scrollContainer = document.getElementById('scroll-area');
@@ -299,7 +296,7 @@
     window.onload = async function() {
         currentSortMode = localStorage.getItem(STORAGE_KEY_SORT) || 'wrong';
         updateHeaderUI();
-        updateTodayToggleUI(); // 초기 UI 설정
+        updateTodayToggleUI();
         
         try {
             if(Object.keys(library).length === 0) loadLocalLibrary();
@@ -322,37 +319,30 @@
         }
     };
 
-    // 🔥 [NEW] 오늘 완료 토글 기능
     function toggleTodayView() {
         showTodayCompleted = !showTodayCompleted;
         localStorage.setItem('anki_show_today', showTodayCompleted);
         updateTodayToggleUI();
-        
-        // 현재 보고 있는 덱이 있다면 필터 다시 적용
-        if(currentDeckName) {
-            filterCards(currentFilterType);
-        }
+        if(currentDeckName) { filterCards(currentFilterType); }
     }
 
     function updateTodayToggleUI() {
         const btn = document.getElementById('today-toggle-btn');
         if(showTodayCompleted) {
-            btn.innerText = "👁️"; // 보임
+            btn.innerText = "👁️";
             btn.className = "today-toggle-btn active";
             btn.title = "오늘 완료된 카드 숨기기";
         } else {
-            btn.innerText = "🙈"; // 숨김
+            btn.innerText = "🙈";
             btn.className = "today-toggle-btn hidden";
             btn.title = "오늘 완료된 카드 보기";
         }
     }
 
-    // 🔥 [NEW] 오늘 완료되었는지 확인하는 함수
     function isCompletedToday(stats) {
         if (!stats || !stats.last) return false;
         const now = new Date();
         const todayStart = new Date(now);
-        // 새벽 4시를 하루의 시작으로 간주 (사용자 패턴 고려)
         if (now.getHours() < 4) todayStart.setDate(todayStart.getDate() - 1);
         todayStart.setHours(4, 0, 0, 0);
         return stats.last >= todayStart.getTime();
@@ -380,7 +370,6 @@
 
     async function initGitHubSync() {
         document.getElementById('log-area').innerHTML = ""; 
-        
         let rawUser = document.getElementById('gh-user').value.trim();
         let rawRepo = document.getElementById('gh-repo').value.trim();
         let rawToken = document.getElementById('gh-token').value.trim();
@@ -420,7 +409,6 @@
         }
         
         document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨";
-        
         setTimeout(() => {
             log("🔄 3초 후 앱을 재시작합니다...");
             setTimeout(() => location.reload(), 3000);
@@ -911,7 +899,32 @@
         document.getElementById('date-btn').classList.toggle('active', stats.date); 
         document.getElementById('pen-btn').classList.toggle('active', stats.pen); 
     }
-    function exportData() { const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), edits: localStorage.getItem(STORAGE_KEY_EDITS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: new Date().toLocaleString() }; const blob = new Blob([JSON.stringify(data)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,""); a.download = `anki_backup_${dateStr}.json`; a.click(); URL.revokeObjectURL(url); }
+    // 🔥 [수정] 백업 파일명: mk_YYYYMMDDHHMM.json
+    function exportData() {
+        const data = {
+            stats: localStorage.getItem(STORAGE_KEY_STATS),
+            edits: localStorage.getItem(STORAGE_KEY_EDITS),
+            progress: localStorage.getItem(STORAGE_KEY_PROGRESS),
+            lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK),
+            timestamp: new Date().toLocaleString()
+        };
+        const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // 날짜 포맷팅 로직
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        
+        a.download = `mk_${year}${month}${day}${hours}${minutes}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
     function importData(input) { const file = input.files[0]; if (!file) return; if(!confirm("⚠️ 현재 기기의 기록을 덮어씌웁니다.\n계속하시겠습니까?")) { input.value = ''; return; } const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats); if(data.edits) localStorage.setItem(STORAGE_KEY_EDITS, data.edits); if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress); if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck); alert("✅ 복구 완료!\n페이지를 새로고침합니다."); location.reload(); } catch (err) { alert("❌ 잘못된 백업 파일입니다."); } }; reader.readAsText(file); }
     function deleteDeck(name) { if(confirm("삭제하시겠습니까?")) { delete library[name]; saveLibrary(); renderDeckTree(); if(currentDeckName === name) { currentDeckName=null; activeDeck=[]; showCard(); } } }
     
