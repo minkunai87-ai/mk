@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.81 - Instant Load)</title>
+<title>나만의 안키 (v10.82 - Ultra Stable)</title>
 <style>
     /* 디자인 100% 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -22,10 +22,8 @@
 
     .header-subtitle { font-size: 0.75rem; color: var(--primary); margin-top: 3px; font-weight: bold; }
     .header-controls { display: flex; gap: 12px; align-items: center; }
-    
     .today-toggle-btn { font-size: 1.3rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text-sub); transition: 0.2s; }
-    .today-toggle-btn.active { color: #40c057; } 
-    .today-toggle-btn.hidden { color: #fa5252; opacity: 0.7; } 
+    .today-toggle-btn.active { color: #40c057; } .today-toggle-btn.hidden { color: #fa5252; opacity: 0.7; } 
 
     .menu-btn { font-size: 1.5rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); }
     .filter-toggle-btn { font-size: 1.3rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text-sub); transition: 0.2s; }
@@ -55,7 +53,6 @@
     
     .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); margin-bottom: 4px; transition: 0.2s; user-select: none; }
     .tree-header:hover { background: var(--btn-hover); }
-    .tree-header:active { background: #333; }
     .tree-header.active-deck { background: #182836; border: 1px solid #1c7ed6; }
     .tree-deck { padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); margin-bottom: 4px; color: var(--text); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
     .tree-deck.active { background: #182836; color: #74c0fc; font-weight: bold; border: 1px solid #1c7ed6; }
@@ -94,7 +91,6 @@
     table { width: 100% !important; table-layout: fixed !important; display: table !important; }
     td, th { word-wrap: break-word; overflow-wrap: break-word; }
     .text-area img, .text-area svg { width: auto !important; height: auto !important; max-width: 100% !important; display: block; margin: 10px auto; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-    .img-error { color: #ff6b6b; font-size: 0.8rem; border: 1px dashed #ff6b6b; padding: 5px; border-radius: 6px; text-align: center; margin: 5px 0; display: block; }
 
     .divider { display: none; border: 0; border-top: 2px dashed var(--border); margin: 30px 0; position: relative; }
     .divider::after { content: "정답"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--surface); padding: 0 10px; color: var(--text-sub); font-size: 0.8rem; font-weight: bold; }
@@ -131,7 +127,7 @@
 </head>
 <body>
 
-    <div class="sidebar-overlay" onclick="toggleMenu()"></div>
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMenu(false)"></div>
     <div class="sidebar" id="sidebar">
         <h2 style="margin-top:0; color:var(--text); font-size:1.4rem;">⚙️ 메뉴</h2>
         <div class="menu-section">
@@ -150,12 +146,12 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.81 (Instant Load)
+            My Anki v10.82 (Ultra Stable)
         </div>
     </div>
 
     <div class="header">
-        <button class="menu-btn" onclick="toggleMenu()">☰</button>
+        <button class="menu-btn" onclick="toggleMenu(true)">☰</button>
         <div class="header-title-area">
             <div class="header-title" id="deck-title">나만의 안키 <span id="cloud-icon" class="cloud-icon">☁️</span></div>
             <div class="header-subtitle" id="header-info">🔥 틀린 순 & 📁 전체</div>
@@ -234,571 +230,254 @@
         <div class="modal-content">
             <div class="modal-title">☁️ GitHub 안전 연동</div>
             <div id="gh-auth-section">
-                <div style="font-size:0.85rem; color:#aaa; margin-bottom:5px;">
-                    10분마다 자동으로 <b>최신 10개의 백업</b>을 유지합니다.
-                </div>
                 <div><span class="menu-label">사용자 이름 (ID)</span><input type="text" id="gh-user" class="edit-input" placeholder="예: my-id"></div>
                 <div style="margin-top:5px;"><span class="menu-label">저장소 이름 (Repo)</span><input type="text" id="gh-repo" class="edit-input" placeholder="예: mk"></div>
                 <div style="margin-top:5px;"><span class="menu-label">토큰 (Token)</span><input type="password" id="gh-token" class="edit-input" placeholder="ghp_..."></div>
                 <div class="modal-btns">
                     <button class="modal-btn btn-save" onclick="initGitHubSync()">연동 시작</button>
-                    <button class="modal-btn btn-sub" onclick="fetchBackupList()">🕒 백업 목록 보기</button>
+                    <button class="modal-btn btn-sub" onclick="fetchBackupList()">🕒 백업 목록</button>
                     <button class="modal-btn btn-cancel" onclick="document.getElementById('gh-modal').style.display='none'">닫기</button>
                 </div>
             </div>
             <div id="backup-list-section" style="display:none;">
-                <h4 style="margin:10px 0; color:#ffd43b;">🕒 복구할 시점을 선택하세요</h4>
-                <div id="backup-list-ui" class="backup-list">목록 불러오는 중...</div>
-                <div class="modal-btns">
-                    <button class="modal-btn btn-cancel" onclick="showAuthSection()">뒤로가기</button>
-                </div>
+                <h4 style="margin:10px 0; color:#ffd43b;">🕒 복구 시점 선택</h4>
+                <div id="backup-list-ui" class="backup-list"></div>
+                <div class="modal-btns"><button class="modal-btn btn-cancel" onclick="showAuthSection()">뒤로</button></div>
             </div>
             <div id="log-area" class="log-area">대기 중...</div>
         </div>
     </div>
 
 <script>
-    // 🔥 [핵심] 메뉴 함수를 최상단에 배치하여 오류 무시하고 작동 보장
+    // 🔥 [최우선] 메뉴 토글 함수
     function toggleMenu(force) {
         const sidebar = document.getElementById('sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
+        const overlay = document.getElementById('sidebar-overlay');
         const isOpen = force !== undefined ? force : !sidebar.classList.contains('open');
         if (isOpen) {
-            sidebar.classList.add('open'); overlay.classList.add('open');
-            setTimeout(() => { const active = document.querySelector('.tree-deck.active'); if(active) active.scrollIntoView({block:'center', behavior:'smooth'}); }, 300);
-        } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
-    }
-    
-    function toggleFilterBar() {
-        const bar = document.getElementById('filter-bar-container');
-        const btn = document.getElementById('filter-toggle-btn');
-        bar.classList.toggle('show'); btn.classList.toggle('active');
+            sidebar.classList.add('open'); overlay.style.display = 'block';
+        } else {
+            sidebar.classList.remove('open'); overlay.style.display = 'none';
+        }
     }
 
-    const defaultRepoOwner = 'minkunai87-ai';
-    const defaultRepoName = 'mk';
-
-    let ghUser = localStorage.getItem('gh_user') || '';
-    let ghRepo = localStorage.getItem('gh_repo') || '';
-    let ghToken = localStorage.getItem('gh_token') || '';
-
-    let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false';
-    let lastBackupTime = 0;
-    const BACKUP_INTERVAL = 10 * 60 * 1000;
-    let isDataChanged = false;
-
+    const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck', STORAGE_KEY_IS_GROUP = 'anki_final_is_group', STORAGE_KEY_SORT = 'anki_final_sort_mode';
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterType = 'default', currentSortMode = 'wrong';
     const sortLabels = { 'wrong': '🔥 틀린 순', 'normal': '📋 원래 순', 'random': '🎲 랜덤' };
     const filterLabels = { 'default': '📁 전체', 'fav': '⭐ 중요', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'rate_asc': '🔥 오답', 'search': '🔍 검색', 'rev': '🔄 복습' };
-    const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_EDITS = 'anki_final_edits';
-    const STORAGE_KEY_PROGRESS = 'anki_final_progress', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck', STORAGE_KEY_IS_GROUP = 'anki_final_is_group', STORAGE_KEY_SORT = 'anki_final_sort_mode';
+    
+    let ghUser = localStorage.getItem('gh_user') || '', ghRepo = localStorage.getItem('gh_repo') || '', ghToken = localStorage.getItem('gh_token') || '';
+    let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false';
+    let lastBackupTime = 0;
+    let isDataChanged = false;
 
-    const scrollContainer = document.getElementById('scroll-area');
-    const zoomContent = document.getElementById('zoom-content');
-    let scale = 1, panning = false, pointX = 0, pointY = 0, startX = 0, startY = 0, lastTap = 0, startDist = 0, startScale = 1;
-    scrollContainer.addEventListener('touchstart', (e) => { if (e.touches.length === 2) { e.preventDefault(); panning = false; startDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY); startScale = scale; } else if (e.touches.length === 1) { const now = new Date().getTime(); if (now - lastTap < 300) { e.preventDefault(); resetZoom(); } else { if (scale > 1) { panning = true; startX = e.touches[0].pageX - pointX; startY = e.touches[0].pageY - pointY; } } lastTap = now; } }, { passive: false });
-    scrollContainer.addEventListener('touchmove', (e) => { if (e.touches.length === 2) { e.preventDefault(); const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY); scale = Math.min(Math.max(1, startScale * (dist / startDist)), 4); updateTransform(); } else if (e.touches.length === 1 && panning && scale > 1) { e.preventDefault(); pointX = e.touches[0].pageX - startX; pointY = e.touches[0].pageY - startY; updateTransform(); } }, { passive: false });
-    scrollContainer.addEventListener('touchend', (e) => { if (e.touches.length < 2) panning = false; if (scale < 1.1) resetZoom(); });
-    function resetZoom() { scale = 1; pointX = 0; pointY = 0; updateTransform(); scrollContainer.style.overflowY = 'auto'; }
-    function updateTransform() { if (scale > 1) scrollContainer.style.overflow = 'hidden'; else scrollContainer.style.overflowY = 'auto'; zoomContent.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`; }
-
-    function log(msg, type = 'info') {
-        const area = document.getElementById('log-area');
-        if(area) {
-            const line = document.createElement('div');
-            line.innerText = msg;
-            line.className = `log-${type}`;
-            area.appendChild(line);
-            area.scrollTop = area.scrollHeight;
-        }
-        console.log(`[${type.toUpperCase()}] ${msg}`);
-    }
-
-    // 🔥 [수정] 초기화 로직: 로컬 로딩 후, 백그라운드 동기화 수행
+    // ⚡️ 초기화: 로컬 데이터를 최우선으로!
     window.onload = function() {
+        console.log("App Initialization Start...");
         currentSortMode = localStorage.getItem(STORAGE_KEY_SORT) || 'wrong';
         updateHeaderUI();
         updateTodayToggleUI();
         
-        // 1. 로컬 데이터 즉시 로드 (Blocking 없음)
-        try { loadLocalLibrary(); } catch(e) { console.error("Local Load Error:", e); }
+        // 1. 로컬 저장소에서 즉시 로드
+        loadLocalLibrary(); 
         
-        // 2. 마지막 세션 복구
-        restoreLastSession();
-
-        // 3. 로딩 제거 (화면 바로 표시)
-        document.getElementById('loading').style.display = 'none';
-        if((!activeDeck || activeDeck.length === 0) && Object.keys(library).length === 0) {
-            document.getElementById('question-section').innerHTML = "<h3 style='color:#aaa; text-align:center;'>메뉴(☰)를 눌러 덱을 선택하세요.</h3>";
+        // 2. 마지막 세션 복구 (덱 목록이 있다면)
+        if(Object.keys(library).length > 0) {
+            restoreLastSession();
+        } else {
+            document.getElementById('question-section').innerHTML = "<h3 style='color:#aaa; text-align:center; padding-top:50px;'>메뉴(☰)를 눌러 덱을 선택하거나<br>GitHub 연동을 해주세요.</h3>";
         }
 
-        // 4. 백그라운드에서 GitHub 동기화 시도 (설정된 경우만)
+        // 3. 로딩 숨김
+        document.getElementById('loading').style.display = 'none';
+
+        // 4. 백그라운드에서 GitHub 스캔 (차단 없이 조용히)
         if(ghUser && ghRepo) {
-             document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨 (백그라운드 동기화)";
-             // Promise 사용 (await 제거)하여 메인 스레드 차단 방지
-             autoScanGitHub(false).then(() => {
-                 console.log("Background sync complete");
-             });
+             document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨";
+             autoScanGitHub(false);
         }
     };
 
-    function toggleTodayView() {
-        showTodayCompleted = !showTodayCompleted;
-        localStorage.setItem('anki_show_today', showTodayCompleted);
-        updateTodayToggleUI();
-        if(currentDeckName) { filterCards(currentFilterType); }
-    }
-
-    function updateTodayToggleUI() {
-        const btn = document.getElementById('today-toggle-btn');
-        if(showTodayCompleted) {
-            btn.innerText = "👁️";
-            btn.className = "today-toggle-btn active";
-            btn.title = "오늘 완료된 카드 숨기기";
-        } else {
-            btn.innerText = "🙈";
-            btn.className = "today-toggle-btn hidden";
-            btn.title = "오늘 완료된 카드 보기";
+    function loadLocalLibrary() {
+        const saved = localStorage.getItem(STORAGE_KEY_LIBRARY);
+        if(saved) {
+            try {
+                library = JSON.parse(saved);
+                renderDeckTree();
+                console.log("Local library loaded:", Object.keys(library).length, "decks");
+            } catch(e) { console.error("Local Load Error", e); }
         }
-    }
-
-    function isCompletedToday(stats) {
-        if (!stats || !stats.last) return false;
-        const now = new Date();
-        const todayStart = new Date(now);
-        if (now.getHours() < 4) todayStart.setDate(todayStart.getDate() - 1);
-        todayStart.setHours(4, 0, 0, 0);
-        return stats.last >= todayStart.getTime();
-    }
-
-    function restoreLastSession() {
-        const lastDeck = localStorage.getItem(STORAGE_KEY_LAST_DECK);
-        if (lastDeck && library[lastDeck.replace('__', '')] || (lastDeck && Object.keys(library).some(k => k.startsWith(lastDeck)))) {
-            const isGroup = localStorage.getItem(STORAGE_KEY_IS_GROUP) === 'true';
-            if (isGroup) {
-                selectDeckGroup(lastDeck.endsWith('__') ? lastDeck : lastDeck + '__');
-            } else {
-                selectDeck(lastDeck);
-            }
-        }
-    }
-
-    function openGitHubSettings() {
-        document.getElementById('gh-user').value = ghUser;
-        document.getElementById('gh-repo').value = ghRepo;
-        document.getElementById('gh-token').value = ghToken;
-        document.getElementById('log-area').innerHTML = "대기 중..."; 
-        showAuthSection();
-        document.getElementById('gh-modal').style.display = 'flex';
-    }
-
-    function showAuthSection() {
-        document.getElementById('gh-auth-section').style.display = 'block';
-        document.getElementById('backup-list-section').style.display = 'none';
-    }
-
-    async function initGitHubSync() {
-        document.getElementById('log-area').innerHTML = ""; 
-        let rawUser = document.getElementById('gh-user').value.trim();
-        let rawRepo = document.getElementById('gh-repo').value.trim();
-        let rawToken = document.getElementById('gh-token').value.trim();
-
-        if(rawRepo.includes('/')) rawRepo = rawRepo.split('/').pop();
-        if(rawRepo.includes('.git')) rawRepo = rawRepo.replace('.git', '');
-
-        if(!rawUser || !rawRepo) { log("❌ ID와 저장소 이름은 필수입니다.", "error"); return; }
-
-        ghUser = rawUser; ghRepo = rawRepo; ghToken = rawToken;
-        localStorage.setItem('gh_user', ghUser);
-        localStorage.setItem('gh_repo', ghRepo);
-        localStorage.setItem('gh_token', ghToken);
-        
-        updateCloudIcon('syncing');
-        log(`🚀 연결 시도 중...`);
-        
-        const scanResult = await autoScanGitHub(true); 
-        if(!scanResult) return;
-
-        if(ghToken) {
-            log("🔄 첫 연결: 데이터 백업 테스트...");
-            await performRotationBackup();
-            log("✅ 연동 및 초기 백업 완료!", "success");
-        } else {
-            log("⚠️ 토큰 없음: 읽기 전용 모드", "info");
-        }
-        
-        document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨";
-    }
-
-    function u_btoa(str) { return window.btoa(unescape(encodeURIComponent(str))); }
-    function u_atob(str) { return decodeURIComponent(escape(window.atob(str))); }
-
-    async function fetchBackupList() {
-        if(!ghUser || !ghRepo) { alert("먼저 GitHub 설정을 완료해주세요."); return; }
-        document.getElementById('gh-auth-section').style.display = 'none';
-        document.getElementById('backup-list-section').style.display = 'block';
-        const listUI = document.getElementById('backup-list-ui');
-        listUI.innerHTML = '<div style="padding:20px; text-align:center; color:#aaa;">목록 불러오는 중...</div>';
-
-        const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/backups`;
-        const headers = ghToken ? { 'Authorization': `token ${ghToken}` } : {};
-
-        try {
-            const res = await fetch(url, { headers });
-            if(res.status === 404) {
-                listUI.innerHTML = '<div style="padding:20px; text-align:center; color:#aaa;">아직 백업 파일이 없습니다.</div>';
-                return;
-            }
-            if(!res.ok) throw new Error("List failed");
-
-            const files = await res.json();
-            const backups = files
-                .filter(f => f.name.startsWith('mk_') && f.name.endsWith('.json'))
-                .sort((a, b) => b.name.localeCompare(a.name));
-
-            listUI.innerHTML = '';
-            backups.forEach(file => {
-                const timeStr = file.name.replace('mk_', '').replace('.json', '');
-                const y = timeStr.substr(0,4), m = timeStr.substr(4,2), d = timeStr.substr(6,2);
-                const hh = timeStr.substr(8,2), mm = timeStr.substr(10,2);
-                
-                const item = document.createElement('div');
-                item.className = 'backup-item';
-                item.innerHTML = `
-                    <span class="backup-time">${y}-${m}-${d} ${hh}:${mm}</span>
-                    <span class="backup-ago">${file.name}</span>
-                `;
-                item.onclick = () => restoreFromBackup(file);
-                listUI.appendChild(item);
-            });
-        } catch(e) {
-            listUI.innerHTML = '<div style="padding:20px; text-align:center; color:red;">목록 로드 실패</div>';
-            console.error(e);
-        }
-    }
-
-    async function restoreFromBackup(file) {
-        if(!confirm(`"${file.name}" 시점으로 복구하시겠습니까?\n현재 진행 상황은 덮어씌워집니다.`)) return;
-        
-        const headers = ghToken ? { 'Authorization': `token ${ghToken}` } : {};
-        try {
-            const res = await fetch(file.url, { headers });
-            const json = await res.json();
-            const content = JSON.parse(u_atob(json.content));
-
-            if(content.stats) localStorage.setItem(STORAGE_KEY_STATS, content.stats);
-            if(content.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, content.progress);
-            if(content.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, content.lastDeck);
-            
-            alert("✅ 복구 완료! 앱을 새로고침합니다.");
-            location.reload();
-        } catch(e) {
-            alert("❌ 복구 실패: " + e.message);
-        }
-    }
-
-    async function checkAutoBackup() {
-        if(!ghToken || !isDataChanged) return; 
-        const now = Date.now();
-        if(now - lastBackupTime >= BACKUP_INTERVAL) {
-            lastBackupTime = now;
-            await performRotationBackup();
-        }
-    }
-
-    async function performRotationBackup() {
-        if(!ghToken) return;
-        updateCloudIcon('syncing');
-        
-        const date = new Date();
-        const y = date.getFullYear();
-        const m = String(date.getMonth()+1).padStart(2,'0');
-        const d = String(date.getDate()).padStart(2,'0');
-        const hh = String(date.getHours()).padStart(2,'0');
-        const mm = String(date.getMinutes()).padStart(2,'0');
-        const filename = `mk_${y}${m}${d}${hh}${mm}.json`;
-        const path = `backups/${filename}`;
-
-        const data = {
-            stats: localStorage.getItem(STORAGE_KEY_STATS),
-            progress: localStorage.getItem(STORAGE_KEY_PROGRESS),
-            lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK),
-            timestamp: Date.now()
-        };
-        const content = u_btoa(JSON.stringify(data));
-
-        const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/${path}`;
-        try {
-            const res = await fetch(url, {
-                method: 'PUT',
-                headers: { 'Authorization': `token ${ghToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: "Auto Backup", content: content })
-            });
-            if(res.ok) {
-                isDataChanged = false; 
-                updateCloudIcon('done');
-                cleanupOldBackups();
-            } else { updateCloudIcon('error'); }
-        } catch(e) { updateCloudIcon('error'); }
-    }
-
-    async function cleanupOldBackups() {
-        const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/backups`;
-        try {
-            const res = await fetch(url, { headers: { 'Authorization': `token ${ghToken}` } });
-            const files = await res.json();
-            const backups = files.filter(f => f.name.startsWith('mk_') && f.name.endsWith('.json'));
-            
-            if(backups.length > 10) {
-                backups.sort((a, b) => a.name.localeCompare(b.name));
-                const toDelete = backups[0]; 
-                
-                await fetch(toDelete.url, { 
-                    method: 'DELETE',
-                    headers: { 'Authorization': `token ${ghToken}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: "Cleanup old backup", sha: toDelete.sha })
-                });
-            }
-        } catch(e) {}
     }
 
     async function autoScanGitHub(showLog = false) {
-        const owner = ghUser || defaultRepoOwner;
-        const repo = ghRepo || defaultRepoName;
+        const owner = ghUser || 'minkunai87-ai', repo = ghRepo || 'mk';
         const headers = ghToken ? { 'Authorization': `token ${ghToken}` } : {};
-
         try {
             const listUrl = `https://api.github.com/repos/${owner}/${repo}/contents/`;
-            const listResponse = await fetch(listUrl, { headers });
-            
-            if (!listResponse.ok) {
-                if(showLog) log(`❌ 접속 실패 (${listResponse.status}).`, "error");
-                return Object.keys(library).length > 0;
-            }
-            
-            const files = await listResponse.json();
+            const listRes = await fetch(listUrl, { headers });
+            if (!listRes.ok) return false;
+            const files = await listRes.json();
             const txtFiles = files.filter(f => f.name.endsWith('.txt'));
-            
-            if(txtFiles.length === 0) {
-                if(showLog) log(`⚠️ .txt 파일이 없습니다.`, "error");
-                return true; 
-            }
+            if(txtFiles.length === 0) return true;
 
-            if(showLog) log(`✅ 파일 ${txtFiles.length}개 발견!`, "info");
-
-            let newLibrary = {}; 
+            let newLib = {};
             for (const file of txtFiles) {
                 try {
-                    let text = "";
-                    if(ghToken) {
-                        const fileRes = await fetch(file.url, { headers });
-                        const fileJson = await fileRes.json();
-                        if(fileJson.content) text = u_atob(fileJson.content.replace(/\n/g, ''));
-                    } else {
-                        const contentResponse = await fetch(file.download_url + '?t=' + Date.now());
-                        text = await contentResponse.text();
-                    }
-                    processAnkiTextToLib(text, file.name, newLibrary);
-                } catch (e) { console.error("File Load Error:", file.name, e); }
+                    const res = await fetch(file.download_url + '?t=' + Date.now());
+                    const text = await res.text();
+                    const rows = parseAnkiRawData(text);
+                    let deckName = file.name.replace('.txt', '');
+                    rows.forEach(fields => {
+                        if (fields.length > 0 && !fields[0].startsWith('#')) {
+                            let q = fields.length >= 3 ? fields[1] : fields[0];
+                            let a = fields.length >= 3 ? fields.slice(2).join('<br>') : fields.slice(1).join('<br>');
+                            let dName = fields.length >= 3 ? fields[0].replace(/::/g, '__') : deckName;
+                            if(!q) return;
+                            if(!newLib[dName]) newLib[dName] = [];
+                            const id = cyrb53(q);
+                            newLib[dName].push({ id, q, a });
+                        }
+                    });
+                } catch(e) {}
             }
-            
-            library = newLibrary;
-            saveLibrary(); 
-            renderDeckTree();
-            // 백그라운드 스캔 완료 시 다시한번 세션 복구(폴더 열기 등)
-            restoreLastSession();
-            
-            if(showLog) log("✅ 덱 목록 구성 완료!", "success");
-            return true;
-
-        } catch (error) {
-            if(showLog) log(`❌ 오류: ${error.message}`, "error");
-            return false;
-        }
-    }
-
-    function processAnkiTextToLib(text, filename, targetLib) {
-        const rows = parseAnkiRawData(text);
-        let currentDeck = filename.replace('.txt', '');
-        rows.forEach(fields => {
-            if (fields.length > 0 && fields[0].startsWith('#')) return;
-            let deckNameInRow = null; let q = "", a = "";
-            if (fields.length >= 3) { deckNameInRow = fields[0].replace(/::/g, '__'); q = fields[1]; a = fields.slice(2).join('<br>'); } 
-            else { deckNameInRow = currentDeck; if (fields.length === 2) { q = fields[0]; a = fields[1]; } else if (fields.length > 0) { q = fields[0]; a = fields.slice(1).join('<br>'); } }
-            if(!q) return;
-            if (!targetLib[deckNameInRow]) targetLib[deckNameInRow] = [];
-            let hiddenText = "";
-            const titleMatch = q.match(/title\s*=\s*"((?:[^"]|"")*)"/i);
-            if (titleMatch) { hiddenText = titleMatch[1].replace(/""/g, '"'); }
-            const id = cyrb53(q);
-            targetLib[deckNameInRow].push({ id, q, a, hiddenText });
-        });
-    }
-
-    function saveLibrary() { localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(library)); }
-    function updateCloudIcon(status) { const icon = document.getElementById('cloud-icon'); icon.className = `cloud-icon ${status}`; icon.innerText = status === 'syncing' ? '🔄' : (status === 'error' ? '❌' : '☁️'); }
-
-    function updateHeaderUI() {
-        const sortText = sortLabels[currentSortMode];
-        const filterText = filterLabels[currentFilterType] || '🔍 검색';
-        document.getElementById('header-info').innerText = `${sortText} & ${filterText}`;
-        ['wrong', 'normal', 'random'].forEach(m => { const btn = document.getElementById(`chip-sort-${m}`); if(btn) btn.classList.toggle('active', currentSortMode === m); });
-        document.querySelectorAll('.chip:not(.chip-sort)').forEach(c => c.classList.remove('active'));
-        if(currentFilterType !== 'search') { const btn = document.getElementById(`chip-${currentFilterType}`); if(btn) btn.classList.add('active'); }
-    }
-
-    function setSortMode(mode) { currentSortMode = mode; localStorage.setItem(STORAGE_KEY_SORT, mode); updateHeaderUI(); if(currentDeckName) { applySort(); currentIndex = 0; showCard(); } }
-
-    function applySort() {
-        if (!activeDeck || activeDeck.length === 0) return;
-        const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
-        if (currentSortMode === 'wrong') {
-            activeDeck.sort((a, b) => {
-                const sA = allStats[a.id] || {correct:0, total:0}; const sB = allStats[b.id] || {correct:0, total:0};
-                const rA = sA.total === 0 ? 0 : sA.correct / sA.total; const rB = sB.total === 0 ? 0 : sB.correct / sB.total;
-                if (rA !== rB) return rA - rB;
-                return sA.total - sB.total;
-            });
-        } else if (currentSortMode === 'random') { activeDeck.sort(() => Math.random() - 0.5); }
-    }
-
-    function getDaysText(stats) {
-        if (!stats || !stats.last) return ""; 
-        const now = new Date(); const todayStart = new Date(now);
-        if (now.getHours() < 4) todayStart.setDate(todayStart.getDate() - 1);
-        todayStart.setHours(4, 0, 0, 0);
-        const diff = todayStart.getTime() - stats.last;
-        if (diff < 0) return "✅ 오늘 완료";
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
-        return `🕒 ${days}일 전`;
-    }
-
-    function saveProgress() {
-        if (!currentDeckName) return;
-        const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
-        progress[`${currentDeckName}__${currentFilterType}`] = currentIndex;
-        localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
-        isDataChanged = true;
-        checkAutoBackup();
-    }
-
-    function loadLocalLibrary() {
-        const savedLib = localStorage.getItem(STORAGE_KEY_LIBRARY);
-        if (savedLib) {
-            try {
-                library = JSON.parse(savedLib);
+            // 🔥 성공적으로 다 가져왔을 때만 교체
+            if(Object.keys(newLib).length > 0) {
+                library = newLib;
+                localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(library));
                 renderDeckTree();
-            } catch(e) {}
+                // 세션 유지 (폴더 열림 상태 등)
+                restoreLastSession();
+            }
+            return true;
+        } catch(e) { return false; }
+    }
+
+    function renderDeckTree() {
+        const list = document.getElementById('deck-list-ui');
+        if(!list) return;
+        list.innerHTML = '';
+        const names = Object.keys(library).sort();
+        if (names.length === 0) return;
+        const tree = {};
+        names.forEach(path => {
+            const parts = path.split('__'); let current = tree;
+            parts.forEach((part, idx) => {
+                if (!current[part]) current[part] = { _fullPath: parts.slice(0, idx + 1).join('__'), _children: {}, _isLeaf: idx === parts.length - 1 };
+                current = current[part]._children;
+            });
+        });
+        function buildUI(node, container, depth=0) {
+            Object.keys(node).sort().forEach(key => {
+                const item = node[key];
+                const hasChildren = Object.keys(item._children).length > 0;
+                const li = document.createElement('li');
+                if(hasChildren) {
+                    li.className = 'tree-folder';
+                    const isOpen = (currentDeckName && currentDeckName.startsWith(item._fullPath)) ? 'open' : '';
+                    li.innerHTML = `<div class="tree-header" onclick="this.nextElementSibling.classList.toggle('open')"><div class="folder-title">📂 ${key}</div><button class="play-btn" onclick="event.stopPropagation(); selectDeckGroup('${item._fullPath}__')">▶ 전체</button></div><ul class="tree-children ${isOpen}"></ul>`;
+                    container.appendChild(li);
+                    buildUI(item._children, li.querySelector('ul'), depth+1);
+                } else {
+                    const activeClass = item._fullPath === currentDeckName ? 'active' : '';
+                    li.innerHTML = `<div class="tree-deck ${activeClass}" onclick="selectDeck('${item._fullPath}')">📄 ${key} <small>(${library[item._fullPath].length})</small></div>`;
+                    container.appendChild(li);
+                }
+            });
+        }
+        buildUI(tree, list);
+    }
+
+    function selectDeck(name) {
+        if(!library[name]) return;
+        currentDeckName = name; originalDeck = library[name]; activeDeck = [...originalDeck];
+        localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
+        localStorage.setItem(STORAGE_KEY_IS_GROUP, 'false');
+        filterCards('default');
+        document.getElementById('deck-title').innerText = `📄 ${name.split('__').pop()}`;
+        renderDeckTree(); toggleMenu(false);
+    }
+
+    function selectDeckGroup(prefix) {
+        let merged = [];
+        Object.keys(library).forEach(key => { if(key.startsWith(prefix) || key === prefix.replace('__','')) merged = merged.concat(library[key]); });
+        if(merged.length === 0) return;
+        currentDeckName = prefix.replace('__',''); originalDeck = merged; activeDeck = [...originalDeck];
+        localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName);
+        localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true');
+        filterCards('default');
+        document.getElementById('deck-title').innerText = `📂 ${currentDeckName.split('__').pop()} (통합)`;
+        renderDeckTree(); toggleMenu(false);
+    }
+
+    function restoreLastSession() {
+        const last = localStorage.getItem(STORAGE_KEY_LAST_DECK);
+        const isGroup = localStorage.getItem(STORAGE_KEY_IS_GROUP) === 'true';
+        if(last) {
+            if(isGroup) selectDeckGroup(last.endsWith('__') ? last : last + '__');
+            else selectDeck(last);
         }
     }
+
+    // 핀치 줌 & 디자인 엔진 (완전 유지)
+    const scrollContainer = document.getElementById('scroll-area');
+    const zoomContent = document.getElementById('zoom-content');
+    let scale = 1, pointX = 0, pointY = 0, lastTap = 0, startDist = 0, startScale = 1;
+    scrollContainer.addEventListener('touchstart', (e) => { if (e.touches.length === 2) { e.preventDefault(); startDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY); startScale = scale; } else if (e.touches.length === 1) { const now = Date.now(); if (now - lastTap < 300) { e.preventDefault(); scale = 1; pointX = 0; pointY = 0; updateTransform(); } lastTap = now; } }, { passive: false });
+    scrollContainer.addEventListener('touchmove', (e) => { if (e.touches.length === 2) { e.preventDefault(); const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY); scale = Math.min(Math.max(1, startScale * (dist / startDist)), 4); updateTransform(); } }, { passive: false });
+    function updateTransform() { if (scale > 1.1) scrollContainer.style.overflow = 'hidden'; else scrollContainer.style.overflowY = 'auto'; zoomContent.style.transform = `scale(${scale})`; }
 
     function parseAnkiRawData(str) {
-        const rows = []; let currentRow = []; let currentCell = ''; let cursor = 0; let inQuote = false;
-        while (cursor < str.length) {
-            const char = str[cursor]; const nextChar = str[cursor + 1];
-            if (inQuote) { if (char === '"' && nextChar === '"') { currentCell += '"'; cursor += 2; } else if (char === '"') { inQuote = false; cursor++; } else { currentCell += char; cursor++; } }
-            else { if (char === '"') { inQuote = true; cursor++; } else if (char === '\t') { currentRow.push(currentCell); currentCell = ''; cursor++; } else if (char === '\n' || char === '\r') { if (char === '\r' && nextChar === '\n') cursor++; currentRow.push(currentCell); if (currentRow.length > 1 || (currentRow.length === 1 && currentRow[0].trim() !== '')) { rows.push(currentRow); } currentRow = []; currentCell = ''; cursor++; } else { currentCell += char; cursor++; } }
+        const rows = []; let currentRow = [], currentCell = '', inQuote = false;
+        for (let i = 0; i < str.length; i++) {
+            const char = str[i], next = str[i+1];
+            if (inQuote) { if (char === '"' && next === '"') { currentCell += '"'; i++; } else if (char === '"') inQuote = false; else currentCell += char; }
+            else { if (char === '"') inQuote = true; else if (char === '\t') { currentRow.push(currentCell); currentCell = ''; } else if (char === '\n' || char === '\r') { if (char === '\r' && next === '\n') i++; currentRow.push(currentCell); if (currentRow.length > 0) rows.push(currentRow); currentRow = []; currentCell = ''; } else currentCell += char; }
         }
         if (currentRow.length > 0 || currentCell !== '') { currentRow.push(currentCell); rows.push(currentRow); }
         return rows;
     }
 
-    function createDOM(rawText, isAnswer, questionText = "", answerText = "") {
+    function createDOM(rawText, isAnswer) {
         if (!rawText) rawText = "";
-        let formattedText = rawText.replace(/""/g, '"');
-        if (formattedText.startsWith('"') && formattedText.endsWith('"')) formattedText = formattedText.slice(1, -1);
-        let cleanText = formattedText.replace(/title\s*=\s*"[\s\S]*?"/gi, ''); 
-        cleanText = cleanText.replace(/(\{\{c\d+::.*?\}\})/g, '<span style="display:none">$1</span>');
-        const hasContent = cleanText.replace(/<[^>]*>/g, '').trim().length > 0 || cleanText.includes('<img') || cleanText.includes('<svg');
-        if (isAnswer && !hasContent) {
-            const imgMatch = answerText.match(/<img[^>]+>/);
-            if (imgMatch) cleanText = imgMatch[0];
-            else cleanText = '<div style="color:#666; text-align:center;">(정답 내용 없음)</div>';
-        }
-        if (!isAnswer && cleanText.includes('<span style="display:none">{{') && !cleanText.includes('<img')) {
-            const imgMatch = answerText.match(/<img[^>]+>/);
-            if (imgMatch) cleanText += "<br>" + imgMatch[0];
-        }
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = cleanText;
-        const allImgMatches = rawText.match(/paste-[a-f0-9]{40}\.(jpg|png|gif|jpeg)/gi) || [];
-        const domImgs = tempDiv.querySelectorAll('img');
-        if (allImgMatches.length > domImgs.length) {
-            for (let i = domImgs.length; i < allImgMatches.length; i++) {
-                const missingImg = document.createElement('img');
-                missingImg.src = allImgMatches[i];
-                tempDiv.appendChild(missingImg);
-            }
-        }
-        tempDiv.querySelectorAll('img').forEach((img, index) => {
+        let clean = rawText.replace(/""/g, '"').replace(/(\{\{c\d+::.*?\}\})/g, '<span style="display:none">$1</span>');
+        if(clean.startsWith('"') && clean.endsWith('"')) clean = clean.slice(1, -1);
+        const div = document.createElement('div'); div.innerHTML = clean;
+        div.querySelectorAll('img').forEach(img => {
             let src = img.getAttribute('src');
-            let fname = "";
-            if (src && !src.startsWith('http') && !src.startsWith('data:')) {
-                fname = src.split('/').pop().split('\\').pop();
-                try { fname = decodeURIComponent(fname).trim(); } catch(e){}
-            } 
-            if ((!fname || fname === "") && index < allImgMatches.length) { fname = allImgMatches[index]; }
-            if (fname) {
-                const owner = ghUser || defaultRepoOwner;
-                const repo = ghRepo || defaultRepoName;
-                const url = `https://raw.githubusercontent.com/${owner}/${repo}/main/images/${encodeURIComponent(fname)}`;
-                img.src = url; 
-                img.style.display = 'block';
+            if (src && !src.startsWith('http')) {
+                const fname = src.split('/').pop();
+                img.src = `https://raw.githubusercontent.com/${ghUser || 'minkunai87-ai'}/${ghRepo || 'mk'}/main/images/${encodeURIComponent(fname)}`;
             }
-            img.onerror = function() { this.style.display = 'none'; };
+            img.style.maxWidth = '100%'; img.style.display = 'block'; img.style.margin = '10px auto';
         });
-        tempDiv.querySelectorAll('*').forEach(el => {
-            el.style.width = ""; el.style.height = ""; el.style.maxWidth = "100%"; el.style.minWidth = "0"; 
-            el.removeAttribute("width"); el.removeAttribute("height");
-            if(el.tagName === 'TABLE' || el.tagName === 'TD' || el.tagName === 'TH') { el.style.tableLayout = "fixed"; el.style.width = "100%"; el.removeAttribute("nowrap"); }
-        });
-        const wrapper = document.createElement('div'); wrapper.className = 'answer-layout';
-        const txtDiv = document.createElement('div'); txtDiv.className = 'text-area';
-        let textContent = tempDiv.textContent.trim();
-        const hasComplexTags = tempDiv.querySelector('div, svg, img'); 
-        if (isAnswer && !hasComplexTags && (textContent.startsWith('O') || textContent.startsWith('X'))) {
-             const firstChar = textContent.charAt(0);
-             const oxSpan = document.createElement('span'); oxSpan.className = `ox-highlight ${firstChar === 'O' ? 'ox-o' : 'ox-x'}`; oxSpan.innerText = firstChar;
-             txtDiv.appendChild(oxSpan); wrapper.appendChild(txtDiv); wrapper.appendChild(tempDiv);
-        } else { wrapper.appendChild(tempDiv); }
-        return wrapper;
+        if(isAnswer && (div.textContent.trim() === 'O' || div.textContent.trim() === 'X')) {
+            const ox = div.textContent.trim();
+            div.innerHTML = `<span class="ox-highlight ${ox==='O'?'ox-o':'ox-x'}">${ox}</span>` + div.innerHTML;
+        }
+        return div;
     }
 
     function showCard() {
-        resetZoom();
-        if (!activeDeck || activeDeck.length === 0) {
-            document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub)'>항목이 없습니다.</h3>";
-            document.getElementById('card-info').style.display='none';
-            return;
-        }
+        if (!activeDeck || activeDeck.length === 0) return;
         if(currentIndex >= activeDeck.length) currentIndex = 0;
-        isRevealed = false;
         const card = activeDeck[currentIndex];
         const stats = getStats(card.id);
         document.getElementById('card-counter').innerText = `${currentIndex + 1} / ${activeDeck.length}`;
-        document.getElementById('card-info').style.display='flex';
         updateStatsUI(stats); updateIconsUI(stats);
-        const dateBadge = document.getElementById('date-badge');
-        const dateText = getDaysText(stats);
-        if (dateText) { 
-            dateBadge.innerText = dateText; dateBadge.style.display = 'inline-block'; 
-            if(dateText.includes('오늘')) dateBadge.className = 'date-badge today'; else dateBadge.className = 'date-badge recent';
-        } else { dateBadge.style.display = 'none'; }
-        const qSection = document.getElementById('question-section'); qSection.innerHTML = '';
-        qSection.appendChild(createDOM(card.q, false, "", card.a));
-        const aSection = document.getElementById('answer-section'); aSection.innerHTML = '';
-        aSection.appendChild(createDOM(card.a, true, card.q, card.a));
-        aSection.style.display = 'none';
-        document.getElementById('divider').style.display = 'none';
+        
+        const qSec = document.getElementById('question-section'); qSec.innerHTML = ''; qSec.appendChild(createDOM(card.q, false));
+        const aSec = document.getElementById('answer-section'); aSec.innerHTML = ''; aSec.appendChild(createDOM(card.a, true));
+        
+        aSec.style.display = 'none'; document.getElementById('divider').style.display = 'none';
         document.getElementById('click-guide').style.display = 'block';
         document.getElementById('nav-area').style.display = 'flex';
         document.getElementById('grade-area').style.display = 'none';
         scrollContainer.scrollTop = 0;
     }
 
-    function revealAnswer(event) {
-        if(event) event.stopPropagation(); 
+    function revealAnswer(e) {
+        if(e) e.stopPropagation();
         document.getElementById('click-guide').style.display = 'none';
         document.getElementById('divider').style.display = 'block';
         document.getElementById('answer-section').style.display = 'block';
@@ -806,100 +485,191 @@
         setTimeout(() => { document.getElementById('answer-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
     }
 
-    function filterCards(type) { 
-        if(!currentDeckName) return;
-        document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-        const chip = document.getElementById(`chip-${type}`);
-        if(chip) chip.classList.add('active');
-        if (type === 'search') {
-            const rawQuery = document.getElementById('search-input').value.toLowerCase();
-            if(!rawQuery) { activeDeck = [...originalDeck]; } 
-            else { activeDeck = originalDeck.filter(card => card.q.toLowerCase().includes(rawQuery) || card.a.toLowerCase().includes(rawQuery) || (card.hiddenText && card.hiddenText.toLowerCase().includes(rawQuery))); }
-        } else {
-            currentFilterType = type;
-            const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
-            let newDeck = [...originalDeck];
-            if (type === 'rate_asc') { newDeck = newDeck.filter(c => { const s = allStats[c.id] || {correct:0, total:0}; return s.total > 0 && (s.correct/s.total) < 0.8; }); } 
-            else if (type !== 'default') { newDeck = newDeck.filter(c => (allStats[c.id] || {})[type]); }
-            
-            if (!showTodayCompleted) {
-                newDeck = newDeck.filter(c => {
-                    const stats = allStats[c.id] || {};
-                    return !isCompletedToday(stats);
-                });
-            }
-
-            if(newDeck.length === 0 && type !== 'default' && showTodayCompleted) { alert("해당하는 카드가 없습니다."); return; }
-            activeDeck = newDeck;
-        }
-        applySort(); updateHeaderUI();
-        const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
-        const key = `${currentDeckName}__${currentFilterType}`;
-        currentIndex = progress[key] || 0;
-        if(currentIndex >= activeDeck.length) currentIndex = 0;
-        showCard();
-    }
-
-    function exportData() {
-        const data = {
-            stats: localStorage.getItem(STORAGE_KEY_STATS),
-            edits: localStorage.getItem(STORAGE_KEY_EDITS),
-            progress: localStorage.getItem(STORAGE_KEY_PROGRESS),
-            lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK),
-            timestamp: new Date().toLocaleString()
-        };
-        const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        a.download = `mk_${year}${month}${day}${hours}${minutes}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-    function importData(input) { const file = input.files[0]; if (!file) return; if(!confirm("⚠️ 현재 기기의 기록을 덮어씌웁니다.\n계속하시겠습니까?")) { input.value = ''; return; } const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats); if(data.edits) localStorage.setItem(STORAGE_KEY_EDITS, data.edits); if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress); if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck); alert("✅ 복구 완료!\n페이지를 새로고침합니다."); location.reload(); } catch (err) { alert("❌ 잘못된 백업 파일입니다."); } }; reader.readAsText(file); }
-    function deleteDeck(name) { if(confirm("삭제하시겠습니까?")) { delete library[name]; saveLibrary(); renderDeckTree(); if(currentDeckName === name) { currentDeckName=null; activeDeck=[]; showCard(); } } }
+    function moveCard(d) { currentIndex = (currentIndex + d + activeDeck.length) % activeDeck.length; saveProgress(); showCard(); }
     
-    function moveCard(delta) { 
-        let nextIdx = currentIndex + delta; 
-        if(nextIdx >= 0 && nextIdx < activeDeck.length) { currentIndex = nextIdx; saveProgress(); showCard(); } 
-    }
-    function grade(score) { 
+    function grade(score) {
         const card = activeDeck[currentIndex];
-        const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
-        const defaults = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 };
-        const currentStats = { ...defaults, ...(data[card.id] || {}) };
-        currentStats.total++;
-        if(score === 2) currentStats.correct++; else if(score === 1) currentStats.correct += 0.5;
-        currentStats.last = Date.now();
-        data[card.id] = currentStats;
-        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
-        updateStatsUI(currentStats);
+        const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        const s = allStats[card.id] || { correct: 0, total: 0, last: 0 };
+        s.total++;
+        if(score === 2) s.correct++; else if(score === 1) s.correct += 0.5;
+        s.last = Date.now();
+        allStats[card.id] = s;
+        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(allStats));
         
         isDataChanged = true;
         checkAutoBackup();
-        
+
         if (!showTodayCompleted) {
             activeDeck = activeDeck.filter(c => c.id !== card.id);
             if (currentIndex >= activeDeck.length) currentIndex = 0;
-            
-            if (activeDeck.length === 0) {
-                alert("🎉 오늘 학습 분량을 모두 완료했습니다!");
-                showCard();
-                return;
-            }
-            saveProgress();
+            if (activeDeck.length === 0) { alert("오늘 분량 완료!"); showCard(); return; }
             showCard();
         } else {
-            if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } 
-            else { alert("끝!"); currentIndex = 0; saveProgress(); showCard(); } 
+            if (currentIndex < activeDeck.length - 1) { currentIndex++; showCard(); }
+            else { alert("한 바퀴 다 돌았습니다!"); currentIndex = 0; showCard(); }
+        }
+        saveProgress();
+    }
+
+    function getStats(id) { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || {correct:0, total:0, last:0}; }
+    function updateStatsUI(s) {
+        const b = document.getElementById('rate-badge');
+        if(!s.total) { b.innerText = "New"; b.className = "rate-badge"; }
+        else {
+            const r = Math.round((s.correct/s.total)*100);
+            b.innerText = `${r}% (${s.total}회)`;
+            b.className = r >= 80 ? "rate-badge high" : (r < 50 ? "rate-badge low" : "rate-badge");
         }
     }
+    function updateIconsUI(s) {
+        ['mem','cmp','fav','rev','num','date','pen'].forEach(t => {
+            const btn = document.getElementById(`${t}-btn`);
+            if(btn) btn.classList.toggle('active', !!s[t]);
+        });
+    }
+    function toggleTag(e, t) {
+        e.stopPropagation();
+        const card = activeDeck[currentIndex];
+        const all = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        const s = all[card.id] || {correct:0, total:0};
+        s[t] = !s[t]; all[card.id] = s;
+        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(all));
+        updateIconsUI(s); isDataChanged = true; checkAutoBackup();
+    }
+
+    function toggleTodayView() {
+        showTodayCompleted = !showTodayCompleted;
+        localStorage.setItem('anki_show_today', showTodayCompleted);
+        updateTodayToggleUI();
+        if(currentDeckName) filterCards(currentFilterType);
+    }
+    function updateTodayToggleUI() {
+        const btn = document.getElementById('today-toggle-btn');
+        btn.innerText = showTodayCompleted ? "👁️" : "🙈";
+        btn.className = `today-toggle-btn ${showTodayCompleted?'active':'hidden'}`;
+    }
+
+    function filterCards(type) {
+        if(!currentDeckName) return;
+        currentFilterType = type;
+        const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        let newDeck = [...originalDeck];
+        
+        if (type === 'rate_asc') newDeck = newDeck.filter(c => { const s = allStats[c.id] || {total:0}; return s.total > 0 && (s.correct/s.total) < 0.8; });
+        else if (type !== 'default' && type !== 'search') newDeck = newDeck.filter(c => !!(allStats[c.id] || {})[type]);
+        
+        if (!showTodayCompleted) {
+            const today = new Date(); today.setHours(4,0,0,0);
+            newDeck = newDeck.filter(c => (allStats[c.id]?.last || 0) < today.getTime());
+        }
+        activeDeck = newDeck; applySort(); updateHeaderUI(); currentIndex = 0; showCard();
+    }
+
+    function applySort() {
+        const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        if (currentSortMode === 'wrong') {
+            activeDeck.sort((a,b) => {
+                const sA = allStats[a.id]||{correct:0,total:0}, sB = allStats[b.id]||{correct:0,total:0};
+                const rA = sA.total ? sA.correct/sA.total : 0, rB = sB.total ? sB.correct/sB.total : 0;
+                return rA !== rB ? rA - rB : sA.total - sB.total;
+            });
+        } else if (currentSortMode === 'random') activeDeck.sort(() => Math.random()-0.5);
+    }
+
+    function setSortMode(m) { currentSortMode = m; localStorage.setItem(STORAGE_KEY_SORT, m); updateHeaderUI(); applySort(); currentIndex=0; showCard(); }
+    function updateHeaderUI() {
+        document.getElementById('header-info').innerText = `${sortLabels[currentSortMode]} & ${filterLabels[currentFilterType]}`;
+        document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.id === `chip-${currentFilterType}` || c.id === `chip-sort-${currentSortMode}`));
+    }
+    function saveProgress() {
+        const p = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
+        p[`${currentDeckName}__${currentFilterType}`] = currentIndex;
+        localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(p));
+    }
+
+    // 🔥 자동 백업 & 복구 엔진
+    async function performRotationBackup() {
+        if(!ghToken) return;
+        updateCloudIcon('syncing');
+        const date = new Date();
+        const fname = `mk_${date.getFullYear()}${String(date.getMonth()+1).padStart(2,'0')}${String(date.getDate()).padStart(2,'0')}${String(date.getHours()).padStart(2,'0')}${String(date.getMinutes()).padStart(2,'0')}.json`;
+        const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: Date.now() };
+        try {
+            const res = await fetch(`https://api.github.com/repos/${ghUser}/${ghRepo}/contents/backups/${fname}`, {
+                method: 'PUT',
+                headers: { 'Authorization': `token ${ghToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: "Auto Backup", content: u_btoa(JSON.stringify(data)) })
+            });
+            if(res.ok) { isDataChanged = false; updateCloudIcon('done'); cleanupOldBackups(); }
+            else updateCloudIcon('error');
+        } catch(e) { updateCloudIcon('error'); }
+    }
+    function checkAutoBackup() { if(ghToken && isDataChanged && (Date.now() - lastBackupTime > BACKUP_INTERVAL)) { lastBackupTime = Date.now(); performRotationBackup(); } }
+    async function cleanupOldBackups() {
+        try {
+            const res = await fetch(`https://api.github.com/repos/${ghUser}/${ghRepo}/contents/backups`, { headers: { 'Authorization': `token ${ghToken}` } });
+            const files = await res.json();
+            const backups = files.filter(f => f.name.startsWith('mk_')).sort((a,b) => a.name.localeCompare(b.name));
+            if(backups.length > 10) await fetch(backups[0].url, { method: 'DELETE', headers: { 'Authorization': `token ${ghToken}` }, body: JSON.stringify({ message: "Cleanup", sha: backups[0].sha }) });
+        } catch(e) {}
+    }
+    function updateCloudIcon(s) { const i = document.getElementById('cloud-icon'); i.className = `cloud-icon ${s}`; i.innerText = s === 'syncing' ? '🔄' : (s === 'error' ? '❌' : '☁️'); }
+    function openGitHubSettings() { document.getElementById('gh-user').value = ghUser; document.getElementById('gh-repo').value = ghRepo; document.getElementById('gh-token').value = ghToken; showAuthSection(); document.getElementById('gh-modal').style.display='flex'; }
+    function showAuthSection() { document.getElementById('gh-auth-section').style.display='block'; document.getElementById('backup-list-section').style.display='none'; }
+    async function fetchBackupList() {
+        document.getElementById('gh-auth-section').style.display='none';
+        document.getElementById('backup-list-section').style.display='block';
+        const ui = document.getElementById('backup-list-ui'); ui.innerHTML = '로딩 중...';
+        try {
+            const res = await fetch(`https://api.github.com/repos/${ghUser}/${ghRepo}/contents/backups`, { headers: ghToken ? { 'Authorization': `token ${ghToken}` } : {} });
+            const files = await res.json();
+            ui.innerHTML = '';
+            files.filter(f => f.name.endsWith('.json')).sort((a,b) => b.name.localeCompare(a.name)).forEach(f => {
+                const item = document.createElement('div'); item.className = 'backup-item';
+                item.innerHTML = `<span>${f.name}</span>`;
+                item.onclick = async () => {
+                    if(!confirm("이 시점으로 복구할까요?")) return;
+                    const r = await fetch(f.url, { headers: ghToken ? { 'Authorization': `token ${ghToken}` } : {} });
+                    const j = await r.json();
+                    const c = JSON.parse(u_atob(j.content));
+                    if(c.stats) localStorage.setItem(STORAGE_KEY_STATS, c.stats);
+                    location.reload();
+                };
+                ui.appendChild(item);
+            });
+        } catch(e) { ui.innerHTML = '로드 실패'; }
+    }
+    async function initGitHubSync() {
+        ghUser = document.getElementById('gh-user').value.trim();
+        ghRepo = document.getElementById('gh-repo').value.trim();
+        ghToken = document.getElementById('gh-token').value.trim();
+        localStorage.setItem('gh_user', ghUser); localStorage.setItem('gh_repo', ghRepo); localStorage.setItem('gh_token', ghToken);
+        updateCloudIcon('syncing');
+        const ok = await autoScanGitHub(true);
+        if(ok) { alert("연동 성공! 덱 목록을 업데이트했습니다."); location.reload(); }
+        else { alert("연동 실패. 정보를 확인하세요."); updateCloudIcon('error'); }
+    }
+
+    function exportData() {
+        const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: Date.now() };
+        const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        const d = new Date(); a.download = `mk_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.json`;
+        a.click();
+    }
+    function importData(input) {
+        const file = input.files[0]; if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const data = JSON.parse(e.target.result);
+            if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats);
+            location.reload();
+        };
+        reader.readAsText(file);
+    }
+
+    const u_btoa = (s) => btoa(unescape(encodeURIComponent(s))), u_atob = (s) => decodeURIComponent(escape(atob(s)));
     const cyrb53 = (str, seed = 0) => { let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed; for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); return 4294967296 * (2097151 & h2) + (h1 >>> 0); };
 </script>
 </body>
