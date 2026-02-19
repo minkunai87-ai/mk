@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.77 - Smart Backup)</title>
+<title>나만의 안키 (v10.78 - Rotation Backup)</title>
 <style>
     /* 디자인 100% 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -114,19 +114,20 @@
     .modal-btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
     .btn-save { background: var(--primary); color: white; } .btn-cancel { background: var(--input-bg); color: var(--text); }
     
-    .log-area { 
-        width: 100%; max-height: 150px; overflow-y: auto; 
-        background: #111; color: #ddd; font-size: 0.8rem; 
-        padding: 10px; border-radius: 8px; border: 1px solid #444; 
-        margin-top: 10px; font-family: monospace; white-space: pre-wrap; 
-    }
-    .log-info { color: #74c0fc; }
-    .log-success { color: #40c057; font-weight: bold; }
-    .log-error { color: #fa5252; font-weight: bold; }
+    .log-area { width: 100%; max-height: 150px; overflow-y: auto; background: #111; color: #ddd; font-size: 0.8rem; padding: 10px; border-radius: 8px; border: 1px solid #444; margin-top: 10px; font-family: monospace; white-space: pre-wrap; }
+    .log-info { color: #74c0fc; } .log-success { color: #40c057; font-weight: bold; } .log-error { color: #fa5252; font-weight: bold; }
     
     #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
     .ox-highlight { font-size: 4rem; font-weight: 900; text-align: center; display: block; margin: 10px 0; }
     .ox-o { color: #40c057; } .ox-x { color: #fa5252; }
+
+    /* 🔥 [NEW] 백업 목록 리스트 스타일 */
+    .backup-list { max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; background: var(--input-bg); }
+    .backup-item { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; font-size: 0.9rem; }
+    .backup-item:last-child { border-bottom: none; }
+    .backup-item:hover { background: var(--btn-hover); }
+    .backup-time { color: #fff; font-weight: bold; }
+    .backup-ago { color: #888; font-size: 0.8rem; }
 </style>
 </head>
 <body>
@@ -145,12 +146,14 @@
             <button class="btn-sub" onclick="exportData()">💾 로컬 백업 저장</button>
             <button class="btn-sub" onclick="document.getElementById('backup-input').click()">📂 로컬 백업 불러오기</button>
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
-            <button class="btn-cloud" onclick="openGitHubSettings()">☁️ 클라우드 설정 (자동)</button>
+            
+            <button class="btn-cloud" onclick="openGitHubSettings()">☁️ 클라우드 설정 / 백업 목록</button>
             <div id="gh-status-text" style="font-size:0.8rem; color:#aaa; text-align:center; margin-top:5px;"></div>
+            
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.77 (Smart Backup)
+            My Anki v10.78 (Rotation Backup)
         </div>
     </div>
 
@@ -233,26 +236,30 @@
     <div class="modal-overlay" id="gh-modal">
         <div class="modal-content">
             <div class="modal-title">☁️ GitHub 안전 연동</div>
-            <div style="font-size:0.85rem; color:#aaa; margin-bottom:5px;">
-                버튼을 누르면 아래 검은 화면에 로그가 뜹니다.<br>
-                <b>(Public 저장소는 토큰 없어도 덱 불러오기 가능)</b>
+            
+            <div id="gh-auth-section">
+                <div style="font-size:0.85rem; color:#aaa; margin-bottom:5px;">
+                    10분마다 자동으로 <b>최신 10개의 백업</b>을 유지합니다.
+                </div>
+                <div><span class="menu-label">사용자 이름 (ID)</span><input type="text" id="gh-user" class="edit-input" placeholder="예: my-id"></div>
+                <div style="margin-top:5px;"><span class="menu-label">저장소 이름 (Repo)</span><input type="text" id="gh-repo" class="edit-input" placeholder="예: mk"></div>
+                <div style="margin-top:5px;"><span class="menu-label">토큰 (Token)</span><input type="password" id="gh-token" class="edit-input" placeholder="ghp_..."></div>
+                
+                <div class="modal-btns">
+                    <button class="modal-btn btn-save" onclick="initGitHubSync()">연동 시작</button>
+                    <button class="modal-btn btn-sub" onclick="fetchBackupList()">🕒 백업 목록 보기</button>
+                    <button class="modal-btn btn-cancel" onclick="document.getElementById('gh-modal').style.display='none'">닫기</button>
+                </div>
             </div>
-            <div>
-                <span class="menu-label">사용자 이름 (ID)</span>
-                <input type="text" id="gh-user" class="edit-input" placeholder="예: my-id">
+
+            <div id="backup-list-section" style="display:none;">
+                <h4 style="margin:10px 0; color:#ffd43b;">🕒 복구할 시점을 선택하세요</h4>
+                <div id="backup-list-ui" class="backup-list">목록 불러오는 중...</div>
+                <div class="modal-btns">
+                    <button class="modal-btn btn-cancel" onclick="showAuthSection()">뒤로가기</button>
+                </div>
             </div>
-            <div style="margin-top:10px;">
-                <span class="menu-label">저장소 이름 (Repo)</span>
-                <input type="text" id="gh-repo" class="edit-input" placeholder="예: mk">
-            </div>
-            <div style="margin-top:10px;">
-                <span class="menu-label">토큰 (Token) <small>- 저장(백업)하려면 필수</small></span>
-                <input type="password" id="gh-token" class="edit-input" placeholder="ghp_... (없으면 읽기 전용)">
-            </div>
-            <div class="modal-btns">
-                <button class="modal-btn btn-save" onclick="initGitHubSync()">연동 및 복구 시작</button>
-                <button class="modal-btn btn-cancel" onclick="document.getElementById('gh-modal').style.display='none'">닫기</button>
-            </div>
+            
             <div id="log-area" class="log-area">대기 중...</div>
         </div>
     </div>
@@ -267,6 +274,11 @@
     let ghToken = localStorage.getItem('gh_token') || '';
 
     let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false';
+    
+    // 🔥 자동 백업 관련 변수
+    let lastBackupTime = 0;
+    const BACKUP_INTERVAL = 10 * 60 * 1000; // 10분
+    let isDataChanged = false;
 
     const scrollContainer = document.getElementById('scroll-area');
     const zoomContent = document.getElementById('zoom-content');
@@ -291,6 +303,7 @@
         line.className = `log-${type}`;
         area.appendChild(line);
         area.scrollTop = area.scrollHeight;
+        console.log(`[${type.toUpperCase()}] ${msg}`);
     }
 
     window.onload = async function() {
@@ -302,11 +315,11 @@
             if(Object.keys(library).length === 0) loadLocalLibrary();
         } catch(e) {}
         
+        // 🚀 평소에는 로컬 로드만 하고 끝냄. (클라우드 접속 X)
         if(ghUser && ghRepo) {
-             document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨";
-             updateCloudIcon('syncing');
-             await autoScanGitHub(); 
-             if(ghToken) await loadFromGitHub(true); 
+             document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨 (자동백업 대기)";
+             // 덱 목록(txt) 스캔만 수행 (Public/Private 모두)
+             await autoScanGitHub();
         } else {
              if (location.protocol.startsWith('http')) await autoScanGitHub();
         }
@@ -365,7 +378,13 @@
         document.getElementById('gh-repo').value = ghRepo;
         document.getElementById('gh-token').value = ghToken;
         document.getElementById('log-area').innerHTML = "대기 중..."; 
+        showAuthSection();
         document.getElementById('gh-modal').style.display = 'flex';
+    }
+
+    function showAuthSection() {
+        document.getElementById('gh-auth-section').style.display = 'block';
+        document.getElementById('backup-list-section').style.display = 'none';
     }
 
     async function initGitHubSync() {
@@ -385,72 +404,119 @@
         localStorage.setItem('gh_token', ghToken);
         
         updateCloudIcon('syncing');
-        log(`🚀 [1/3] 연결 시도: https://github.com/${ghUser}/${ghRepo}`);
+        log(`🚀 연결 시도 중...`);
         
+        // 1. 덱 스캔
         const scanResult = await autoScanGitHub(true); 
-        if(!scanResult) {
-            log("❌ 스캔 실패. 덱 목록을 가져올 수 없습니다.", "error");
-            return;
-        }
+        if(!scanResult) return;
 
         if(ghToken) {
-            log("🔄 [2/3] 학습 기록(백업) 확인 중...");
-            const loaded = await loadFromGitHub(true);
-            if(loaded) {
-                log("✅ [완료] 클라우드 데이터를 성공적으로 복구했습니다!", "success");
-            } else {
-                log("ℹ️ 클라우드에 백업된 데이터가 없습니다. (첫 실행)");
-                await saveToGitHub(true);
-                log("✅ [완료] 현재 기기의 데이터를 클라우드에 올렸습니다.", "success");
-            }
+            // 첫 연결이니 한번 백업 시도
+            log("🔄 첫 연결: 데이터 백업 테스트...");
+            await performRotationBackup();
+            log("✅ 연동 및 초기 백업 완료!", "success");
         } else {
-            log("⚠️ 토큰이 없어서 '읽기 전용'으로 연결되었습니다.", "info");
-            log("✅ 덱은 불러왔지만, 학습 기록은 저장되지 않습니다.", "success");
+            log("⚠️ 토큰 없음: 읽기 전용 모드", "info");
         }
         
         document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨";
-        setTimeout(() => {
-            log("🔄 3초 후 앱을 재시작합니다...");
-            setTimeout(() => location.reload(), 3000);
-        }, 1000);
     }
 
     function u_btoa(str) { return window.btoa(unescape(encodeURIComponent(str))); }
     function u_atob(str) { return decodeURIComponent(escape(window.atob(str))); }
 
-    async function loadFromGitHub(silent = false) {
-        if(!ghToken) return false;
-        const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/user_data/save.json`;
+    // 🔥 [NEW] 백업 목록 가져오기 및 복구
+    async function fetchBackupList() {
+        if(!ghUser || !ghRepo) { alert("먼저 GitHub 설정을 완료해주세요."); return; }
+        document.getElementById('gh-auth-section').style.display = 'none';
+        document.getElementById('backup-list-section').style.display = 'block';
+        const listUI = document.getElementById('backup-list-ui');
+        listUI.innerHTML = '<div style="padding:20px; text-align:center; color:#aaa;">목록 불러오는 중...</div>';
+
+        const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/backups`;
+        const headers = ghToken ? { 'Authorization': `token ${ghToken}` } : {};
+
         try {
-            const res = await fetch(url, { headers: { 'Authorization': `token ${ghToken}`, 'Cache-Control': 'no-cache' } });
-            if(res.status === 404) { updateCloudIcon('done'); return false; }
-            if(!res.ok) throw new Error(res.status);
-            
-            const json = await res.json();
-            const content = JSON.parse(u_atob(json.content));
-            
-            if(content.stats) localStorage.setItem(STORAGE_KEY_STATS, content.stats);
-            if(content.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, content.progress);
-            if(content.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, content.lastDeck);
-            localStorage.setItem('gh_sha', json.sha);
-            
-            updateCloudIcon('done');
-            if(currentDeckName) showCard(); 
-            else restoreLastSession(); 
-            
-            return true;
+            const res = await fetch(url, { headers });
+            if(res.status === 404) {
+                listUI.innerHTML = '<div style="padding:20px; text-align:center; color:#aaa;">아직 백업 파일이 없습니다.</div>';
+                return;
+            }
+            if(!res.ok) throw new Error("List failed");
+
+            const files = await res.json();
+            // mk_YYYYMMDDHHMM.json 파일만 필터링 및 정렬 (최신순)
+            const backups = files
+                .filter(f => f.name.startsWith('mk_') && f.name.endsWith('.json'))
+                .sort((a, b) => b.name.localeCompare(a.name));
+
+            listUI.innerHTML = '';
+            backups.forEach(file => {
+                // 날짜 파싱 mk_202602191140.json
+                const timeStr = file.name.replace('mk_', '').replace('.json', '');
+                const y = timeStr.substr(0,4), m = timeStr.substr(4,2), d = timeStr.substr(6,2);
+                const hh = timeStr.substr(8,2), mm = timeStr.substr(10,2);
+                
+                const item = document.createElement('div');
+                item.className = 'backup-item';
+                item.innerHTML = `
+                    <span class="backup-time">${y}-${m}-${d} ${hh}:${mm}</span>
+                    <span class="backup-ago">${file.name}</span>
+                `;
+                item.onclick = () => restoreFromBackup(file);
+                listUI.appendChild(item);
+            });
         } catch(e) {
+            listUI.innerHTML = '<div style="padding:20px; text-align:center; color:red;">목록 로드 실패</div>';
             console.error(e);
-            updateCloudIcon('error');
-            if(!silent) log(`❌ 로드 실패: ${e.message}`, "error");
-            return false;
         }
     }
 
-    async function saveToGitHub(force = false) {
+    async function restoreFromBackup(file) {
+        if(!confirm(`"${file.name}" 시점으로 복구하시겠습니까?\n현재 진행 상황은 덮어씌워집니다.`)) return;
+        
+        const headers = ghToken ? { 'Authorization': `token ${ghToken}` } : {};
+        try {
+            // Private Repo 지원을 위해 API url 사용 (content base64)
+            const res = await fetch(file.url, { headers });
+            const json = await res.json();
+            const content = JSON.parse(u_atob(json.content));
+
+            if(content.stats) localStorage.setItem(STORAGE_KEY_STATS, content.stats);
+            if(content.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, content.progress);
+            if(content.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, content.lastDeck);
+            
+            alert("✅ 복구 완료! 앱을 새로고침합니다.");
+            location.reload();
+        } catch(e) {
+            alert("❌ 복구 실패: " + e.message);
+        }
+    }
+
+    // 🔥 [NEW] 10분 주기 로테이션 백업 로직
+    async function checkAutoBackup() {
+        if(!ghToken || !isDataChanged) return; // 변경사항 없으면 스킵
+        const now = Date.now();
+        if(now - lastBackupTime >= BACKUP_INTERVAL) {
+            lastBackupTime = now;
+            await performRotationBackup();
+        }
+    }
+
+    async function performRotationBackup() {
         if(!ghToken) return;
         updateCloudIcon('syncing');
-        const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/user_data/save.json`;
+        
+        // 1. 현재 시간 파일명 생성
+        const date = new Date();
+        const y = date.getFullYear();
+        const m = String(date.getMonth()+1).padStart(2,'0');
+        const d = String(date.getDate()).padStart(2,'0');
+        const hh = String(date.getHours()).padStart(2,'0');
+        const mm = String(date.getMinutes()).padStart(2,'0');
+        const filename = `mk_${y}${m}${d}${hh}${mm}.json`;
+        const path = `backups/${filename}`;
+
         const data = {
             stats: localStorage.getItem(STORAGE_KEY_STATS),
             progress: localStorage.getItem(STORAGE_KEY_PROGRESS),
@@ -458,22 +524,45 @@
             timestamp: Date.now()
         };
         const content = u_btoa(JSON.stringify(data));
-        const sha = localStorage.getItem('gh_sha');
-        const body = { message: "Auto Sync", content: content };
-        if(sha) body.sha = sha;
 
+        // 2. 파일 업로드 (PUT)
+        const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/${path}`;
         try {
             const res = await fetch(url, {
                 method: 'PUT',
                 headers: { 'Authorization': `token ${ghToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+                body: JSON.stringify({ message: "Auto Backup", content: content })
             });
-            const json = await res.json();
-            if(json.content && json.content.sha) {
-                localStorage.setItem('gh_sha', json.content.sha);
+            if(res.ok) {
+                isDataChanged = false; // 저장 완료 표시
                 updateCloudIcon('done');
+                // 3. 오래된 파일 정리 (비동기로 조용히 실행)
+                cleanupOldBackups();
             } else { updateCloudIcon('error'); }
-        } catch(e) { console.error(e); updateCloudIcon('error'); }
+        } catch(e) { updateCloudIcon('error'); }
+    }
+
+    async function cleanupOldBackups() {
+        const url = `https://api.github.com/repos/${ghUser}/${ghRepo}/contents/backups`;
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `token ${ghToken}` } });
+            const files = await res.json();
+            const backups = files.filter(f => f.name.startsWith('mk_') && f.name.endsWith('.json'));
+            
+            if(backups.length > 10) {
+                // 이름순 정렬 (오래된 게 앞) -> 삭제
+                backups.sort((a, b) => a.name.localeCompare(b.name));
+                const toDelete = backups[0]; // 가장 오래된 파일
+                
+                await fetch(toDelete.url, { // delete url은 API에서 제공 안하므로 구성해야 함.
+                    // contents API url에 sha 포함하여 DELETE 요청
+                    // url: https://api.github.com/repos/:owner/:repo/contents/:path
+                    method: 'DELETE',
+                    headers: { 'Authorization': `token ${ghToken}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: "Cleanup old backup", sha: toDelete.sha })
+                });
+            }
+        } catch(e) {}
     }
 
     async function autoScanGitHub(showLog = false) {
@@ -486,7 +575,7 @@
             const listResponse = await fetch(listUrl, { headers });
             
             if (!listResponse.ok) {
-                if(showLog) log(`❌ 접속 실패 (${listResponse.status}). 주소나 토큰 권한을 확인하세요.`, "error");
+                if(showLog) log(`❌ 접속 실패 (${listResponse.status}).`, "error");
                 return false;
             }
             
@@ -494,11 +583,11 @@
             const txtFiles = files.filter(f => f.name.endsWith('.txt'));
             
             if(txtFiles.length === 0) {
-                if(showLog) log(`⚠️ 접속은 됐는데 .txt 파일이 0개입니다. (최상위 폴더에 있어야 함)`, "error");
+                if(showLog) log(`⚠️ .txt 파일이 없습니다.`, "error");
                 return true; 
             }
 
-            if(showLog) log(`✅ 파일 ${txtFiles.length}개 발견! 다운로드 중...`, "info");
+            if(showLog) log(`✅ 파일 ${txtFiles.length}개 발견!`, "info");
 
             library = {}; 
             for (const file of txtFiles) {
@@ -509,15 +598,13 @@
                 } catch (e) { console.error("File Load Error:", file.name, e); }
             }
             renderDeckTree();
-            
             restoreLastSession();
             
             if(showLog) log("✅ 덱 목록 구성 완료!", "success");
             return true;
 
         } catch (error) {
-            console.error("Scan Error:", error);
-            if(showLog) log(`❌ 치명적 오류: ${error.message}`, "error");
+            if(showLog) log(`❌ 오류: ${error.message}`, "error");
             return false;
         }
     }
@@ -583,7 +670,10 @@
         const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
         progress[`${currentDeckName}__${currentFilterType}`] = currentIndex;
         localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
-        saveToGitHub(); 
+        
+        // 변경사항 발생 알림 -> 자동 백업 트리거
+        isDataChanged = true;
+        checkAutoBackup();
     }
 
     function loadLocalLibrary() {
@@ -750,7 +840,6 @@
             if (type === 'rate_asc') { newDeck = newDeck.filter(c => { const s = allStats[c.id] || {correct:0, total:0}; return s.total > 0 && (s.correct/s.total) < 0.8; }); } 
             else if (type !== 'default') { newDeck = newDeck.filter(c => (allStats[c.id] || {})[type]); }
             
-            // 🔥 [수정] 오늘 완료된 카드 숨기기 로직 적용 (독립적)
             if (!showTodayCompleted) {
                 newDeck = newDeck.filter(c => {
                     const stats = allStats[c.id] || {};
@@ -874,7 +963,9 @@
         allStats[card.id] = currentCardStats;
         localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(allStats));
         updateIconsUI(currentCardStats); 
-        saveToGitHub(); 
+        
+        isDataChanged = true;
+        checkAutoBackup();
     }
     
     function updateStatsUI(stats) { 
@@ -899,7 +990,6 @@
         document.getElementById('date-btn').classList.toggle('active', stats.date); 
         document.getElementById('pen-btn').classList.toggle('active', stats.pen); 
     }
-    // 🔥 [수정] 백업 파일명: mk_YYYYMMDDHHMM.json
     function exportData() {
         const data = {
             stats: localStorage.getItem(STORAGE_KEY_STATS),
@@ -912,15 +1002,12 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        
-        // 날짜 포맷팅 로직
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
         const hours = String(now.getHours()).padStart(2, '0');
         const minutes = String(now.getMinutes()).padStart(2, '0');
-        
         a.download = `mk_${year}${month}${day}${hours}${minutes}.json`;
         a.click();
         URL.revokeObjectURL(url);
@@ -943,14 +1030,12 @@
         data[card.id] = currentStats;
         localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
         updateStatsUI(currentStats);
-        saveToGitHub(); 
         
-        // 🔥 오늘 완료 숨김이 켜져있으면 다음 카드로 넘어가면서 현재 카드는 필터링됨
+        isDataChanged = true;
+        checkAutoBackup();
+        
         if (!showTodayCompleted) {
-            // 현재 덱 목록에서 방금 푼 카드를 제외
             activeDeck = activeDeck.filter(c => c.id !== card.id);
-            // 인덱스 조정 (카드가 빠졌으니 현재 인덱스가 다음 카드를 가리킴)
-            // 하지만 마지막 카드였다면 인덱스 조정 필요
             if (currentIndex >= activeDeck.length) currentIndex = 0;
             
             if (activeDeck.length === 0) {
