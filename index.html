@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.86 - Pure v10.77 + Backup)</title>
+<title>나만의 안키 (v10.87 - Clean View)</title>
 <style>
     /* 디자인: v10.77 원본 100% 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -101,20 +101,18 @@
     .click-guide { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-top: 40px; cursor: pointer; padding: 30px; border: 2px dashed var(--border); border-radius: 12px; background: #181818; pointer-events: auto !important; }
 
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: none; align-items: center; justify-content: center; }
-    .modal-content { background: var(--surface); width: 90%; max-width: 500px; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border); }
+    .modal-content { background: var(--surface); width: 90%; max-width: 400px; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border); }
     .edit-input { width: 100%; padding: 10px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-family: inherit; font-size: 1rem; resize: vertical; }
     .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
     .modal-btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
     .btn-save { background: var(--primary); color: white; } .btn-cancel { background: var(--input-bg); color: var(--text); }
     
-    #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
-    .ox-highlight { font-size: 4rem; font-weight: 900; text-align: center; display: block; margin: 10px 0; }
-    .ox-o { color: #40c057; } .ox-x { color: #fa5252; }
-
     .backup-list { max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; background: var(--input-bg); }
     .backup-item { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; font-size: 0.9rem; }
     .backup-item:last-child { border-bottom: none; }
     .backup-item:hover { background: var(--btn-hover); }
+    
+    #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
 </style>
 </head>
 <body>
@@ -138,7 +136,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.86 (Pure + Backup)
+            My Anki v10.87 (Clean View)
         </div>
     </div>
 
@@ -517,7 +515,7 @@
         icon.innerText = status === 'active' ? '🔄' : (status === 'error' ? '❌' : '☁️');
     }
 
-    // Core Logic (v10.77)
+    // Core Logic (v10.77 + Clean View Fix)
     function processAnkiTextToLib(text, filename, targetLib) {
         const rows = parseAnkiRawData(text);
         let currentDeck = filename.replace('.txt', '');
@@ -761,6 +759,8 @@
         } else if (currentSortMode === 'random') { activeDeck.sort(() => Math.random() - 0.5); }
     }
     function getDaysText(stats) { if (!stats || !stats.last) return ""; const diff = new Date().setHours(4, 0, 0, 0) - stats.last; return diff < 0 ? "✅ 오늘 완료" : `🕒 ${Math.floor(diff / 86400000) + 1}일 전`; }
+    
+    // 🔥 [수정] 강제 O/X 오버레이 로직 제거 (Pure Content)
     function createDOM(rawText, isAnswer) {
         if (!rawText) rawText = "";
         let clean = rawText.replace(/""/g, '"').replace(/title=".*?"/g, '').replace(/\{\{c\d+::(.*?)\}\}/g, '<span style="display:none">$1</span>');
@@ -772,10 +772,7 @@
             img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto';
             img.onerror = function() { this.style.display = 'none'; };
         });
-        if(isAnswer && (div.textContent.trim() === 'O' || div.textContent.trim() === 'X')) {
-             const ox = div.textContent.trim();
-             div.innerHTML = `<span class="ox-highlight ${ox === 'O' ? 'ox-o' : 'ox-x'}">${ox}</span>` + div.innerHTML;
-        }
+        // ❌ 기존 O/X 강제 표시 로직 삭제됨 (사용자 요청)
         return div;
     }
     const cyrb53 = (str, seed = 0) => { let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed; for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); return 4294967296 * (2097151 & h2) + (h1 >>> 0); };
