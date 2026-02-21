@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v14.00 - Immortal Auto-Save)</title>
+<title>나만의 안키 (v15.00 - Background Worker)</title>
 <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
@@ -113,6 +113,7 @@
     
     #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
 
+    /* 알림창 */
     #toast { position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 24px; border-radius: 25px; font-size: 0.95rem; font-weight: bold; transition: bottom 0.3s ease; z-index: 20000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px; pointer-events: none; }
     #toast.show { bottom: 85px; } 
     #toast.error { background: #fa5252; color: white; }
@@ -139,12 +140,12 @@
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
             
             <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정 (파이어베이스)</button>
-            <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 불사조 유령 모드 가동 중 (1분 저장)</div>
+            <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 로봇 분리 모드 (절대 안 멈춤)</div>
             
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v14.00 (Immortal Stealth)
+            My Anki v15.00 (Worker Architecture)
         </div>
     </div>
 
@@ -230,8 +231,8 @@
             
             <div id="fb-auth-section">
                 <div style="font-size:0.9rem; color:#aaa; margin-bottom:15px; line-height:1.5;">
-                    ✅ <b>불사조 스텔스 자동 백업 작동 중!</b><br>
-                    애플 보안망을 완전히 무력화했습니다. 안심하고 문제만 푸세요. (현재 1분 간격 저장)
+                    ✅ <b>백그라운드 투명 로봇 작동 중!</b><br>
+                    문제 넘기기와 저장이 완벽하게 분리되었습니다. 10초마다 변경사항을 확인하여 몰래 저장합니다.
                 </div>
                 
                 <div style="margin-bottom: 15px;">
@@ -240,7 +241,7 @@
                 </div>
                 
                 <div class="modal-btns">
-                    <button class="modal-btn btn-save" onclick="testFirebaseSync()">🚀 수동 백업 쏘기</button>
+                    <button class="modal-btn btn-save" onclick="manualSync()">🚀 수동 백업 쏘기</button>
                     <button class="modal-btn btn-sub" onclick="fetchFirebaseList()">🕒 과거 내역 보기</button>
                     <button class="modal-btn btn-cancel" onclick="document.getElementById('fb-modal').style.display='none'">닫기</button>
                 </div>
@@ -262,6 +263,9 @@
     const defaultRepoOwner = 'minkunai87-ai';
     const defaultRepoName = 'mk';
 
+    let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false';
+    let isDataChanged = false;
+
     function showToast(msg, type = 'normal') {
         const toast = document.getElementById('toast');
         toast.innerText = msg;
@@ -272,13 +276,76 @@
         setTimeout(() => { toast.classList.remove('show'); }, 3000);
     }
 
-    let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false';
-    let lastBackupTime = 0;
-    
-    // 🔥 확실한 테스트를 위해 대기 시간을 "1분"으로 셋팅! (1 * 60 * 1000)
-    const BACKUP_INTERVAL = 60 * 1000; 
-    let isDataChanged = false;
+    // --------------------------------------------------------
+    // 🔥 [핵심 1] 10초마다 돌아가는 백그라운드 로봇 (버튼과 완전히 독립)
+    // --------------------------------------------------------
+    setInterval(async () => {
+        if (!isDataChanged) return; // 변경된 게 없으면 그냥 쉼
+        
+        try {
+            updateCloudIcon('active');
+            const now = Date.now();
+            const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: now };
+            
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            if (res.ok) {
+                isDataChanged = false; // 성공했으니 초기화
+                updateCloudIcon('done');
+                showToast("🔥 데이터 자동 저장 완료!", "success");
+            } else {
+                updateCloudIcon('error');
+            }
+        } catch(e) {
+            updateCloudIcon('error');
+            // 뒤에서 몰래 실패한 거라 화면에 방해 안 줌
+        }
+    }, 10000); // 10초 주기
 
+    // 수동 백업 버튼
+    async function manualSync() {
+        document.getElementById('fb-modal').style.display = 'none';
+        isDataChanged = true;
+        showToast("🚀 수동 저장 시도 중...", "normal");
+    }
+
+    // --------------------------------------------------------
+    // 🔥 [핵심 2] 문제 넘기기 로직 (여기엔 네트워크 코드 단 1줄도 없습니다. 절대 안 멈춤!)
+    // --------------------------------------------------------
+    function grade(score) { 
+        if (!activeDeck || activeDeck.length === 0) return;
+        const card = activeDeck[currentIndex]; 
+        if (!card) return; // 에러 방지 안전장치
+
+        // 1. 점수 계산
+        const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); 
+        const s = { correct: 0, total: 0, ...data[card.id] }; 
+        s.total++; 
+        if(score === 2) s.correct++; 
+        else if(score === 1) s.correct += 0.5; 
+        s.last = Date.now(); 
+        data[card.id] = s; 
+        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); 
+        updateStatsUI(s); 
+        
+        // 데이터가 변했다고 로봇에게 깃발만 들어서 알려줌 (통신 X)
+        isDataChanged = true; 
+        
+        // 2. 무조건 다음 카드로 이동!
+        if (!showTodayCompleted) { 
+            activeDeck = activeDeck.filter(c => c.id !== card.id); 
+            if (currentIndex >= activeDeck.length) currentIndex = 0; 
+            if (activeDeck.length === 0) { showCard(); } else { saveProgress(); showCard(); }
+        } else { 
+            if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } else { currentIndex = 0; saveProgress(); showCard(); } 
+        } 
+    }
+
+    // --- 이하 기본 안키 기능 코드는 동일 ---
     const scrollContainer = document.getElementById('scroll-area');
     const zoomContent = document.getElementById('zoom-content');
     let scale = 1, panning = false, pointX = 0, pointY = 0, startX = 0, startY = 0, lastTap = 0, startDist = 0, startScale = 1;
@@ -326,72 +393,6 @@
     }
 
     function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
-
-    // 수동 백업
-    function testFirebaseSync() {
-        document.getElementById('fb-modal').style.display = 'none';
-        ghRepoToken = document.getElementById('gh-token-input').value.trim();
-        localStorage.setItem('gh_repo_token', ghRepoToken);
-        isDataChanged = true;
-        performStealthBackup(false);
-    }
-
-    // 🔥 [핵심 1] 유령 택배 작전 (no-cors 모드)
-    function performStealthBackup(isAuto) {
-        updateCloudIcon('active');
-        const now = Date.now();
-        const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: now };
-        
-        // mode: 'no-cors'를 쓰면 애플 브라우저는 이게 위험한 통신인지 확인조차 안 하고 일단 서버로 쏴버립니다. 영수증은 안 받습니다.
-        fetch(`${FIREBASE_DB_URL}/backups/${now}.json?_method=PUT`, {
-            method: 'POST',
-            mode: 'no-cors', 
-            body: JSON.stringify(data)
-        }).then(() => {
-            // 무조건 성공으로 간주함 (서버 도착 완료)
-            isDataChanged = false;
-            updateCloudIcon('done');
-            if(isAuto) {
-                showToast("🔥 1분 자동 저장 완료!", "success");
-            } else {
-                showToast("🚀 수동 저장 완료!", "success");
-            }
-        }).catch(e => {
-            // 인터넷이 완전히 끊긴 경우에만 여기로 옴
-            updateCloudIcon('error');
-            console.error("통신 에러", e);
-        });
-    }
-
-    // 🔥 [핵심 2] 문제 넘기기와 저장을 완벽하게 이혼시킴 (절대 안 멈춤)
-    function grade(score) { 
-        // 1. 점수 계산 (정상 작동)
-        const card = activeDeck[currentIndex]; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); const s = { correct: 0, total: 0, ...data[card.id] }; s.total++; if(score === 2) s.correct++; else if(score === 1) s.correct += 0.5; s.last = Date.now(); data[card.id] = s; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateStatsUI(s); 
-        
-        isDataChanged = true; 
-        
-        // 2. 문제 즉시 다음으로 넘기기 (여기서 무조건 카드가 넘어감. 통신이 터지든 말든 알 바 아님)
-        if (!showTodayCompleted) { 
-            activeDeck = activeDeck.filter(c => c.id !== card.id); 
-            if (currentIndex >= activeDeck.length) currentIndex = 0; 
-            if (activeDeck.length === 0) { showCard(); } else { saveProgress(); showCard(); }
-        } else { 
-            if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } else { currentIndex = 0; saveProgress(); showCard(); } 
-        } 
-
-        // 3. 백그라운드 유령 저장 시작 (화면 넘어간 뒤에 뒤에서 몰래 처리)
-        setTimeout(() => {
-            try {
-                const now = Date.now();
-                if (now - lastBackupTime >= BACKUP_INTERVAL) { // 1분 지났는지 체크
-                    lastBackupTime = now;
-                    performStealthBackup(true); // 유령 택배 쏘기
-                }
-            } catch(e) { /* 통신 터져도 아무도 모르게 무시함 */ }
-        }, 300); // 0.3초 뒤에 몰래 실행
-    }
-
-    // --------------------------------------------------------
 
     function fetchFirebaseList() {
         document.getElementById('fb-auth-section').style.display = 'none';
