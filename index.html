@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v11.01 - History Sync Fix)</title>
+<title>나만의 안키 (v11.02 - Timeout Detector)</title>
 <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
@@ -137,7 +137,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v11.01 (History Fix)
+            My Anki v11.02 (Timeout Detector)
         </div>
     </div>
 
@@ -311,20 +311,44 @@
 
     function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
 
+    // 🔥 [핵심 추가] Timeout 기능 장착! 5초 안에 답 안 오면 강제 에러 출력!
     async function testFirebaseSync() {
         const logArea = document.getElementById('log-area');
         ghRepoToken = document.getElementById('gh-token-input').value.trim();
         localStorage.setItem('gh_repo_token', ghRepoToken); 
         
-        logArea.innerText = "구글 서버로 쏘는 중... 🚀";
+        logArea.innerText = "구글 서버로 쏘는 중... 🚀 (최대 5초 대기)";
         isDataChanged = true;
-        const success = await performFirebaseBackup();
         
-        if(success) {
-            logArea.innerHTML = `<span style="color:#40c057;">✅ 파이어베이스 백업 성공! 속도 최고네요!</span>`;
-            setTimeout(() => { document.getElementById('fb-modal').style.display = 'none'; }, 2000);
-        } else {
-            logArea.innerHTML = `<span style="color:#fa5252;">❌ 실패. 인터넷 연결이나 파이어베이스 '규칙'을 확인해주세요.</span>`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5초 타이머
+        
+        try {
+            const now = Date.now();
+            const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: now };
+            
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, { 
+                method: 'PUT', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify(data),
+                signal: controller.signal // 타이머와 연결
+            });
+            clearTimeout(timeoutId); // 성공하면 타이머 해제
+            
+            if(res.ok) { 
+                isDataChanged = false; updateCloudIcon('done'); cleanupOldBackups(); 
+                logArea.innerHTML = `<span style="color:#40c057;">✅ 파이어베이스 백업 성공! 드디어 뚫렸습니다!</span>`;
+                setTimeout(() => { document.getElementById('fb-modal').style.display = 'none'; }, 2000);
+            } else { 
+                logArea.innerHTML = `<span style="color:#fa5252;">❌ 서버가 거절함 (에러코드: ${res.status}). 파이어베이스 규칙 확인 필요.</span>`;
+            }
+        } catch(e) { 
+            clearTimeout(timeoutId);
+            if (e.name === 'AbortError') {
+                logArea.innerHTML = `<span style="color:#fa5252;">❌ 5초 초과 무한 대기! 폰(광고차단앱/저데이터모드)이 통신을 막고 있습니다.</span>`;
+            } else {
+                logArea.innerHTML = `<span style="color:#fa5252;">❌ 인터넷 끊김 또는 차단됨: ${e.message}</span>`;
+            }
         }
     }
 
@@ -341,21 +365,26 @@
         updateCloudIcon('active');
         const now = Date.now();
         const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: now };
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
         try {
-            const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), signal: controller.signal });
+            clearTimeout(timeoutId);
             if(res.ok) { isDataChanged = false; updateCloudIcon('done'); cleanupOldBackups(); return true; } else { updateCloudIcon('error'); return false; }
-        } catch(e) { updateCloudIcon('error'); return false; }
+        } catch(e) { clearTimeout(timeoutId); updateCloudIcon('error'); return false; }
     }
 
-    // 🔥 [핵심 수정] 캐시(Cache) 강제 무시 코드 추가! 무조건 최신 리스트 가져옴!
     async function fetchFirebaseList() {
         document.getElementById('fb-auth-section').style.display = 'none';
         document.getElementById('fb-list-section').style.display = 'block';
         const listUI = document.getElementById('fb-list-ui');
         listUI.innerHTML = '<div style="padding:20px; text-align:center;">구글 서버에서 가져오는 중...</div>';
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
         try {
-            const cacheBuster = Date.now(); // 브라우저를 속이는 캐시 무시용 시간표시
-            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${cacheBuster}`, { cache: 'no-store' });
+            const cacheBuster = Date.now(); 
+            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${cacheBuster}`, { cache: 'no-store', signal: controller.signal });
+            clearTimeout(timeoutId);
             if(!res.ok) throw new Error();
             const data = await res.json();
             if(!data) { listUI.innerHTML = '<div style="padding:20px; text-align:center;">아직 저장된 백업이 없습니다.</div>'; return; }
@@ -369,7 +398,11 @@
                 item.onclick = async () => { listUI.innerHTML = '<div style="padding:20px; text-align:center;">복구 중... 1초면 됩니다!</div>'; await restoreFromFirebase(ts); };
                 listUI.appendChild(item);
             });
-        } catch(e) { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">불러오기 실패. 설정이나 인터넷을 확인하세요.</div>`; }
+        } catch(e) { 
+            clearTimeout(timeoutId);
+            if(e.name === 'AbortError') listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">5초 초과! 기기에서 통신을 차단 중입니다.</div>`;
+            else listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">불러오기 실패. 설정이나 인터넷을 확인하세요.</div>`; 
+        }
     }
 
     async function restoreFromFirebase(ts) {
