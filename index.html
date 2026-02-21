@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v12.00 - Firebase SDK Edition)</title>
+<title>나만의 안키 (v12.01 - Blackbox Edition)</title>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -116,9 +116,17 @@
     .backup-date { color: #fab005; font-weight: bold; }
     
     #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
+
+    /* 🔥 블랙박스 알림창 (Toast) 디자인 */
+    #toast { position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 24px; border-radius: 25px; font-size: 0.95rem; font-weight: bold; transition: bottom 0.3s ease; z-index: 20000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px; pointer-events: none; }
+    #toast.show { bottom: 85px; } /* 버튼 위쪽에 뜨게 설정 */
+    #toast.error { background: #fa5252; color: white; }
+    #toast.success { background: #40c057; color: white; }
 </style>
 </head>
 <body>
+
+    <div id="toast">알림 메시지</div>
 
     <div class="sidebar-overlay" onclick="toggleMenu()"></div>
     <div class="sidebar" id="sidebar">
@@ -136,12 +144,12 @@
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
             
             <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정 (파이어베이스)</button>
-            <div id="fb-status-text" style="font-size:0.8rem; color:#fab005; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 전용 서버 탑재 완료</div>
+            <div id="fb-status-text" style="font-size:0.8rem; color:#fab005; text-align:center; margin-top:5px; font-weight:bold;">⏳ 연결 상태 확인 중...</div>
             
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v12.00 (Firebase SDK)
+            My Anki v12.01 (Blackbox Edition)
         </div>
     </div>
 
@@ -227,8 +235,8 @@
             
             <div id="fb-auth-section">
                 <div style="font-size:0.9rem; color:#aaa; margin-bottom:15px; line-height:1.5;">
-                    ✅ <b>민건님 전용 서버 연결 완료! (SDK 모드)</b><br>
-                    가장 안전한 구글 공식 연결망을 사용합니다. 10분마다 자동으로 시간별 백업이 완벽하게 쌓입니다.
+                    ✅ <b>블랙박스 테스트 모드 작동 중!</b><br>
+                    문제를 채점할 때마다 무조건 100% 실시간으로 저장되며 화면에 결과창이 뜹니다.
                 </div>
                 
                 <div style="margin-bottom: 15px;">
@@ -256,7 +264,7 @@
     </div>
 
 <script>
-    // 🔥 1. 파이어베이스 공식 초기화 (민건님 주소 용접 완료)
+    // 🔥 파이어베이스 공식 초기화
     const firebaseConfig = {
       apiKey: "AIzaSyC1kPBQofa6AsIlWyw7X156PxIIsGbyLjk",
       authDomain: "mkapp-87823.firebaseapp.com",
@@ -269,7 +277,32 @@
     };
 
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
-    const database = firebase.database(); // 전용선 개통!
+    const database = firebase.database(); 
+
+    // 🔥 블랙박스 알림 띄우기 함수
+    function showToast(msg, type = 'normal') {
+        const toast = document.getElementById('toast');
+        toast.innerText = msg;
+        toast.className = '';
+        if(type === 'error') toast.classList.add('error');
+        if(type === 'success') toast.classList.add('success');
+        toast.classList.add('show');
+        setTimeout(() => { toast.classList.remove('show'); }, 3000);
+    }
+
+    // 🔥 실시간 연결 상태 추적기
+    database.ref('.info/connected').on('value', function(snap) {
+        const statusEl = document.getElementById('fb-status-text');
+        if (snap.val() === true) {
+            statusEl.innerText = "⚡️ 구글 서버 실시간 연결됨 (온라인)";
+            statusEl.style.color = "#40c057";
+            updateCloudIcon('done');
+        } else {
+            statusEl.innerText = "⏳ 연결 끊김 / 대기 중...";
+            statusEl.style.color = "#fab005";
+            updateCloudIcon('active');
+        }
+    });
 
     let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
     const defaultRepoOwner = 'minkunai87-ai';
@@ -277,7 +310,9 @@
 
     let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false';
     let lastBackupTime = 0;
-    const BACKUP_INTERVAL = 10 * 60 * 1000; // 10분
+    
+    // 🔥 [핵심] 테스트를 위해 대기시간 0초로 설정! (누를 때마다 무조건 저장)
+    const BACKUP_INTERVAL = 0; 
     let isDataChanged = false;
 
     const scrollContainer = document.getElementById('scroll-area');
@@ -329,57 +364,46 @@
 
     function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
 
-    // 🔥 2. SDK를 이용한 완벽한 데이터 저장 (CORS 차단 절대 안 걸림)
+    // 🔥 수동 백업 버튼
     async function testFirebaseSync() {
-        const logArea = document.getElementById('log-area');
-        ghRepoToken = document.getElementById('gh-token-input').value.trim();
-        localStorage.setItem('gh_repo_token', ghRepoToken); 
-        
-        logArea.innerText = "구글 서버로 전송 중... 🚀 (공식 SDK 통신망)";
+        document.getElementById('fb-modal').style.display = 'none';
         isDataChanged = true;
-        
-        try {
-            const now = Date.now();
-            const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: now };
-            
-            // fetch() 따위는 버리고 Firebase 전용 통신 사용!
-            await database.ref('backups/' + now).set(data);
-            
-            isDataChanged = false; 
-            updateCloudIcon('done'); 
-            cleanupOldBackups(); 
-            
-            logArea.innerHTML = `<span style="color:#40c057;">✅ 파이어베이스 백업 완벽 성공! (애플 브라우저 우회 완료)</span>`;
-            setTimeout(() => { document.getElementById('fb-modal').style.display = 'none'; }, 2000);
-            
-        } catch(e) { 
-            logArea.innerHTML = `<span style="color:#fa5252;">❌ 전송 실패: ${e.message}</span>`;
-        }
+        await performFirebaseBackup(false);
     }
 
+    // 🔥 자동 백업 발동 확인기
     async function checkAutoBackup() { 
         if(!isDataChanged) return; 
         const now = Date.now(); 
         if(now - lastBackupTime >= BACKUP_INTERVAL) { 
             lastBackupTime = now; 
-            await performFirebaseBackup(); 
+            await performFirebaseBackup(true); 
         } 
     }
 
-    async function performFirebaseBackup() {
+    // 🔥 실제 데이터 쏘고 팝업 띄워주는 함수
+    async function performFirebaseBackup(isAuto = false) {
         updateCloudIcon('active');
         const now = Date.now();
         const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: now };
         
         try {
-            // 뒤에서 조용히 전용선으로 데이터 쏘기
-            await database.ref('backups/' + now).set(data);
+            await database.ref('backups/' + now).set(data); // 데이터베이스 전송
             isDataChanged = false; 
             updateCloudIcon('done'); 
             cleanupOldBackups(); 
+            
+            // 성공하면 무조건 화면에 띄움!
+            showToast(isAuto ? "🔥 자동 저장 완료!" : "🚀 수동 저장 완료!", "success");
             return true; 
         } catch(e) { 
             updateCloudIcon('error'); 
+            
+            // 실패하면 에러 사유를 대문짝만하게 띄움! (PERMISSION_DENIED 등)
+            let errorMsg = e.message;
+            if(errorMsg.includes("PERMISSION_DENIED")) errorMsg = "규칙(자물쇠)이 안 열렸습니다!";
+            showToast("❌ 저장 실패: " + errorMsg, "error");
+            
             return false; 
         }
     }
@@ -391,7 +415,6 @@
         listUI.innerHTML = '<div style="padding:20px; text-align:center;">구글 서버에서 가져오는 중...</div>';
         
         try {
-            // SDK를 통해 최근 30개 내역 싹 가져오기
             const snapshot = await database.ref('backups').orderByKey().limitToLast(30).once('value');
             const data = snapshot.val();
             
@@ -435,13 +458,12 @@
             if(timestamps.length > 30) { 
                 const toDelete = timestamps.slice(0, timestamps.length - 30); 
                 for(const ts of toDelete) { 
-                    database.ref('backups/' + ts).remove(); // SDK로 깔끔하게 삭제
+                    database.ref('backups/' + ts).remove(); 
                 } 
             }
         } catch(e) {}
     }
 
-    // --- 깃허브 코드 및 나머지 안키 코드는 그대로 유지 ---
     async function autoScanGitHub() {
         const owner = defaultRepoOwner; const repo = defaultRepoName;
         const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
