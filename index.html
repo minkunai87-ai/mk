@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.99 - Firebase Edition)</title>
+<title>나만의 안키 (v11.00 - Full Deck Fix)</title>
 <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
@@ -137,7 +137,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.99 (Firebase)
+            My Anki v11.00 (Firebase)
         </div>
     </div>
 
@@ -252,10 +252,7 @@
     </div>
 
 <script>
-    // 🔥 [파이어베이스 심장 이식 완료]
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    
-    // 깃허브 토큰 (이건 오직 '문제 파일(txt)'을 가져올 때 비공개 방일 경우에만 씁니다)
     let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
     const defaultRepoOwner = 'minkunai87-ai';
     const defaultRepoName = 'mk';
@@ -314,11 +311,10 @@
 
     function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
 
-    // 🔥 파이어베이스 수동 백업 테스트
     async function testFirebaseSync() {
         const logArea = document.getElementById('log-area');
         ghRepoToken = document.getElementById('gh-token-input').value.trim();
-        localStorage.setItem('gh_repo_token', ghRepoToken); // 깃허브 토큰 저장
+        localStorage.setItem('gh_repo_token', ghRepoToken); 
         
         logArea.innerText = "구글 서버로 쏘는 중... 🚀";
         isDataChanged = true;
@@ -332,7 +328,6 @@
         }
     }
 
-    // 🔥 파이어베이스 자동 백업 발동 조건
     async function checkAutoBackup() { 
         if(!isDataChanged) return; 
         const now = Date.now(); 
@@ -342,102 +337,58 @@
         } 
     }
 
-    // 🔥 파이어베이스에 폴더(시간)별로 데이터 밀어넣기
     async function performFirebaseBackup() {
         updateCloudIcon('active');
         const now = Date.now();
-        const data = { 
-            stats: localStorage.getItem(STORAGE_KEY_STATS), 
-            progress: localStorage.getItem(STORAGE_KEY_PROGRESS), 
-            lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), 
-            timestamp: now 
-        };
-
+        const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: now };
         try {
-            // 시간(now) 이름으로 폴더를 만들어서 쏙 저장합니다!
-            const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            
-            if(res.ok) { 
-                isDataChanged = false; 
-                updateCloudIcon('done'); 
-                cleanupOldBackups(); // 몰래 예전 데이터 청소
-                return true; 
-            } else { updateCloudIcon('error'); return false; }
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+            if(res.ok) { isDataChanged = false; updateCloudIcon('done'); cleanupOldBackups(); return true; } else { updateCloudIcon('error'); return false; }
         } catch(e) { updateCloudIcon('error'); return false; }
     }
 
-    // 🔥 파이어베이스에서 과거 내역 쫙 가져오기
     async function fetchFirebaseList() {
         document.getElementById('fb-auth-section').style.display = 'none';
         document.getElementById('fb-list-section').style.display = 'block';
         const listUI = document.getElementById('fb-list-ui');
         listUI.innerHTML = '<div style="padding:20px; text-align:center;">구글 서버에서 가져오는 중...</div>';
-
         try {
-            // shallow=true 쓰면 데이터 빼고 폴더 이름(시간)만 엄청 빠르게 가져옵니다.
             const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true`);
             if(!res.ok) throw new Error();
             const data = await res.json();
-            
-            if(!data) {
-                listUI.innerHTML = '<div style="padding:20px; text-align:center;">아직 저장된 백업이 없습니다.</div>';
-                return;
-            }
-
-            // 최신 시간이 맨 위로 오게 정렬
+            if(!data) { listUI.innerHTML = '<div style="padding:20px; text-align:center;">아직 저장된 백업이 없습니다.</div>'; return; }
             const timestamps = Object.keys(data).sort((a, b) => b - a);
             listUI.innerHTML = '';
-            
             timestamps.slice(0, 30).forEach(ts => {
                 const item = document.createElement('div'); item.className = 'backup-item';
                 const d = new Date(parseInt(ts));
                 const timeStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
                 item.innerHTML = `<span><span class="backup-date">🕒 ${timeStr}</span> 에 저장됨</span>`;
-                
-                item.onclick = async () => {
-                    listUI.innerHTML = '<div style="padding:20px; text-align:center;">복구 중... 1초면 됩니다!</div>';
-                    await restoreFromFirebase(ts);
-                };
+                item.onclick = async () => { listUI.innerHTML = '<div style="padding:20px; text-align:center;">복구 중... 1초면 됩니다!</div>'; await restoreFromFirebase(ts); };
                 listUI.appendChild(item);
             });
         } catch(e) { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">불러오기 실패. 설정이나 인터넷을 확인하세요.</div>`; }
     }
 
-    // 🔥 선택한 시간으로 안키 복구하기
     async function restoreFromFirebase(ts) {
         try {
             const res = await fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`);
             const data = await res.json();
-            
             if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats);
             if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress);
             if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck);
-            
             location.reload();
-        } catch(e) { 
-            document.getElementById('fb-list-ui').innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">복구 중 에러가 발생했습니다.</div>`;
-        }
+        } catch(e) { document.getElementById('fb-list-ui').innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">복구 중 에러가 발생했습니다.</div>`; }
     }
 
-    // (선택) 데이터가 너무 많이 쌓이지 않게 30개 넘어가면 옛날 거 자동 삭제
     async function cleanupOldBackups() {
         try {
-            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true`);
-            const data = await res.json();
-            if(!data) return;
-            const timestamps = Object.keys(data).sort((a, b) => a - b); // 오래된 순
-            if(timestamps.length > 30) {
-                const toDelete = timestamps.slice(0, timestamps.length - 30);
-                for(const ts of toDelete) { fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`, { method: 'DELETE' }); }
-            }
+            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true`); const data = await res.json(); if(!data) return;
+            const timestamps = Object.keys(data).sort((a, b) => a - b); 
+            if(timestamps.length > 30) { const toDelete = timestamps.slice(0, timestamps.length - 30); for(const ts of toDelete) { fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`, { method: 'DELETE' }); } }
         } catch(e) {}
     }
 
-    // 깃허브에서 문제 읽어오는 건 그대로 냅둡니다. (토큰이 있으면 비공개도 읽음)
     async function autoScanGitHub() {
         const owner = defaultRepoOwner; const repo = defaultRepoName;
         const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
@@ -536,7 +487,29 @@
         createTreeDOM(tree, list);
     }
 
-    function selectDeckGroup(prefix) { let mergedCards = []; Object.keys(library).forEach(key => { if (key.startsWith(prefix) || key === prefix.replace('__', '')) { mergedCards = mergedCards.concat(library[key]); } }); if (mergedCards.length === 0) return; currentDeckName = prefix.replace(/__$/, ''); originalDeck = mergedCards; activeDeck = [...originalDeck]; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true'); filterCards('default'); document.getElementById('deck-title').innerText = `📂 ${currentDeckName.split('__').pop()}`; renderDeckTree(); toggleMenu(false); }
+    // 🔥 [수정된 부분] 상위 덱 이름만 정확하게 추출해서 필터링합니다!
+    function selectDeckGroup(prefix) { 
+        let mergedCards = []; 
+        const targetParent = prefix.replace(/__$/, ''); // 정규식으로 끝부분 꼬리표만 정확하게 제거!
+        
+        Object.keys(library).forEach(key => { 
+            if (key.startsWith(prefix) || key === targetParent) { 
+                mergedCards = mergedCards.concat(library[key]); 
+            } 
+        }); 
+        
+        if (mergedCards.length === 0) return; 
+        currentDeckName = targetParent; 
+        originalDeck = mergedCards; 
+        activeDeck = [...originalDeck]; 
+        localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName); 
+        localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true'); 
+        filterCards('default'); 
+        document.getElementById('deck-title').innerText = `📂 ${currentDeckName.split('__').pop()}`; 
+        renderDeckTree(); 
+        toggleMenu(false); 
+    }
+
     function selectDeck(name) { if(!library[name]) return; currentDeckName = name; originalDeck = library[name]; activeDeck = [...originalDeck]; localStorage.setItem(STORAGE_KEY_LAST_DECK, name); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'false'); filterCards('default'); document.getElementById('deck-title').innerText = `📄 ${name.split('__').pop()}`; renderDeckTree(); toggleMenu(false); }
     function restoreLastSession() { const lastDeck = localStorage.getItem(STORAGE_KEY_LAST_DECK); if (lastDeck && (library[lastDeck] || Object.keys(library).some(k => k.startsWith(lastDeck)))) { const isGroup = localStorage.getItem(STORAGE_KEY_IS_GROUP) === 'true'; if (isGroup) selectDeckGroup(lastDeck.endsWith('__') ? lastDeck : lastDeck + '__'); else selectDeck(lastDeck); } }
     function getStats(id) { const stored = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id]; return { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0, ...stored }; }
