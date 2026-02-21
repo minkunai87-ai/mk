@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.89 - Backup Name Fixed)</title>
+<title>나만의 안키 (v10.90 - Gist Backup)</title>
 <style>
+    /* 디자인: v10.77 원본 100% 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
@@ -85,7 +86,6 @@
     table { width: 100% !important; table-layout: fixed !important; display: table !important; }
     td, th { word-wrap: break-word; overflow-wrap: break-word; }
     .text-area img, .text-area svg { width: auto !important; height: auto !important; max-width: 100% !important; display: block; margin: 10px auto; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-    .img-error { color: #ff6b6b; font-size: 0.8rem; border: 1px dashed #ff6b6b; padding: 5px; border-radius: 6px; text-align: center; margin: 5px 0; display: block; }
 
     .divider { display: none; border: 0; border-top: 2px dashed var(--border); margin: 30px 0; position: relative; }
     .divider::after { content: "정답"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--surface); padding: 0 10px; color: var(--text-sub); font-size: 0.8rem; font-weight: bold; }
@@ -109,6 +109,7 @@
     .backup-item { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; font-size: 0.9rem; }
     .backup-item:last-child { border-bottom: none; }
     .backup-item:hover { background: var(--btn-hover); }
+    .backup-date { color: #74c0fc; font-weight: bold; }
     
     #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
 </style>
@@ -129,12 +130,12 @@
             <button class="btn-sub" onclick="exportData()">💾 로컬 백업 저장</button>
             <button class="btn-sub" onclick="document.getElementById('backup-input').click()">📂 로컬 백업 불러오기</button>
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
-            <button class="btn-cloud" onclick="openGitHubSettings()">☁️ GitHub 자동백업 설정</button>
+            <button class="btn-cloud" onclick="openGitHubSettings()">☁️ Gist 10분 자동백업 설정</button>
             <div id="gh-status-text" style="font-size:0.8rem; color:#aaa; text-align:center; margin-top:5px;"></div>
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.89 (Backup Name Fixed)
+            My Anki v10.90 (Gist Sync)
         </div>
     </div>
 
@@ -216,25 +217,25 @@
 
     <div class="modal-overlay" id="gh-modal">
         <div class="modal-content">
-            <div class="modal-title">☁️ GitHub 자동 백업</div>
+            <div class="modal-title">☁️ Gist 자동 백업</div>
             
             <div id="gh-auth-section">
-                <div style="font-size:0.85rem; color:#aaa; margin-bottom:5px;">
-                    10분마다 자동으로 <b>최신 10개</b>를 저장합니다.
+                <div style="font-size:0.85rem; color:#aaa; margin-bottom:10px; line-height:1.4;">
+                    복잡한 통신 없이 <b>가장 빠르고 안정적으로</b> Gist 메모장에 10분마다 덮어씌웁니다.<br>
+                    (과거 내역은 Gist 서버가 알아서 무제한 보관합니다.)
                 </div>
-                <div><span class="menu-label">사용자 이름 (ID)</span><input type="text" id="gh-user" class="edit-input" placeholder="예: my-id"></div>
-                <div style="margin-top:5px;"><span class="menu-label">저장소 이름 (Repo)</span><input type="text" id="gh-repo" class="edit-input" placeholder="예: mk"></div>
-                <div style="margin-top:5px;"><span class="menu-label">토큰 (Token)</span><input type="text" id="gh-token" class="edit-input" placeholder="ghp_..."></div>
+                <div><span class="menu-label">Gist ID (주소창 맨 끝 영어+숫자)</span><input type="text" id="gh-gist-id" class="edit-input" placeholder="예: 3a8b9c1d..."></div>
+                <div style="margin-top:10px;"><span class="menu-label">토큰 (Token - gist 권한 필수!)</span><input type="text" id="gh-token" class="edit-input" placeholder="ghp_..."></div>
                 
                 <div class="modal-btns">
-                    <button class="modal-btn btn-save" onclick="initGitHubSync()">연동 및 저장</button>
-                    <button class="modal-btn btn-sub" onclick="fetchBackupList()">🕒 백업 목록 보기</button>
+                    <button class="modal-btn btn-save" onclick="initGitHubSync()">연동 및 덮어쓰기</button>
+                    <button class="modal-btn btn-sub" onclick="fetchBackupList()">🕒 과거 내역 보기</button>
                     <button class="modal-btn btn-cancel" onclick="document.getElementById('gh-modal').style.display='none'">닫기</button>
                 </div>
             </div>
 
             <div id="backup-list-section" style="display:none;">
-                <h4 style="margin:10px 0; color:#ffd43b;">🕒 복구할 시점을 선택하세요</h4>
+                <h4 style="margin:10px 0; color:#ffd43b;">🕒 복구할 시간을 선택하세요 (최근 50개)</h4>
                 <div id="backup-list-ui" class="backup-list">목록 불러오는 중...</div>
                 <div class="modal-btns">
                     <button class="modal-btn btn-cancel" onclick="showAuthSection()">뒤로가기</button>
@@ -246,12 +247,13 @@
     </div>
 
 <script>
+    // 🔥 [수정됨] 저장소 방식 ➔ Gist(메모장) 방식으로 완벽 교체
+    let ghGistId = localStorage.getItem('gh_gist_id') || '';
+    let ghToken = localStorage.getItem('gh_token') || '';
+    
+    // (Deck 스캔용 기존 정보 - 이미지는 기존 repo에서 불러와야 하므로 유지)
     const defaultRepoOwner = 'minkunai87-ai';
     const defaultRepoName = 'mk';
-
-    let ghUser = localStorage.getItem('gh_user') || '';
-    let ghRepo = localStorage.getItem('gh_repo') || '';
-    let ghToken = localStorage.getItem('gh_token') || '';
 
     let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false';
     
@@ -272,25 +274,20 @@
     let currentFilterType = 'default', currentSortMode = 'wrong';
     const sortLabels = { 'wrong': '🔥 틀린 순', 'normal': '📋 원래 순', 'random': '🎲 랜덤' };
     const filterLabels = { 'default': '📁 전체', 'fav': '⭐ 중요', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'rate_asc': '🔥 오답', 'search': '🔍 검색', 'rev': '🔄 복습' };
-    const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_EDITS = 'anki_final_edits';
-    const STORAGE_KEY_PROGRESS = 'anki_final_progress', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck', STORAGE_KEY_IS_GROUP = 'anki_final_is_group', STORAGE_KEY_SORT = 'anki_final_sort_mode';
+    const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck', STORAGE_KEY_IS_GROUP = 'anki_final_is_group', STORAGE_KEY_SORT = 'anki_final_sort_mode';
 
     window.onload = function() {
         currentSortMode = localStorage.getItem(STORAGE_KEY_SORT) || 'wrong';
         updateHeaderUI();
         updateTodayToggleUI();
-        
         loadLocalLibrary(); 
         
-        if(ghUser && ghRepo) {
-             document.getElementById('gh-status-text').innerText = "✅ GitHub 연동됨";
-             autoScanGitHub(false); 
-        } else {
-             if (location.protocol.startsWith('http')) autoScanGitHub(false);
-        }
+        if (location.protocol.startsWith('http')) autoScanGitHub(false); // 문제 덱 스캔
 
         restoreLastSession();
         document.getElementById('loading').style.display = 'none';
+        
+        if(ghGistId && ghToken) { document.getElementById('gh-status-text').innerText = "✅ Gist 연동됨"; }
         
         if((!activeDeck || activeDeck.length === 0) && Object.keys(library).length === 0) {
             document.getElementById('question-section').innerHTML = "<h3 style='color:#aaa; text-align:center;'>메뉴(☰)를 눌러 덱을 선택하세요.</h3>";
@@ -307,31 +304,13 @@
         } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
     }
 
-    function toggleFilterBar() {
-        const bar = document.getElementById('filter-bar-container');
-        const btn = document.getElementById('filter-toggle-btn');
-        bar.classList.toggle('show'); btn.classList.toggle('active');
-    }
+    function toggleFilterBar() { document.getElementById('filter-bar-container').classList.toggle('show'); document.getElementById('filter-toggle-btn').classList.toggle('active'); }
+    function toggleTodayView() { showTodayCompleted = !showTodayCompleted; localStorage.setItem('anki_show_today', showTodayCompleted); updateTodayToggleUI(); if(currentDeckName) filterCards(currentFilterType); }
+    function updateTodayToggleUI() { const btn = document.getElementById('today-toggle-btn'); if(showTodayCompleted) { btn.innerText = "👁️"; btn.className = "today-toggle-btn active"; } else { btn.innerText = "🙈"; btn.className = "today-toggle-btn hidden"; } }
 
-    function toggleTodayView() {
-        showTodayCompleted = !showTodayCompleted;
-        localStorage.setItem('anki_show_today', showTodayCompleted);
-        updateTodayToggleUI();
-        if(currentDeckName) { filterCards(currentFilterType); }
-    }
-
-    function updateTodayToggleUI() {
-        const btn = document.getElementById('today-toggle-btn');
-        if(showTodayCompleted) {
-            btn.innerText = "👁️"; btn.className = "today-toggle-btn active"; btn.title = "오늘 완료된 카드 숨기기";
-        } else {
-            btn.innerText = "🙈"; btn.className = "today-toggle-btn hidden"; btn.title = "오늘 완료된 카드 보기";
-        }
-    }
-
+    // 🔥 [핵심] Gist 기반 동기화 함수들
     function openGitHubSettings() {
-        document.getElementById('gh-user').value = ghUser;
-        document.getElementById('gh-repo').value = ghRepo;
+        document.getElementById('gh-gist-id').value = ghGistId;
         document.getElementById('gh-token').value = ghToken;
         document.getElementById('log-area').innerText = "대기 중..."; 
         showAuthSection();
@@ -344,33 +323,31 @@
     }
 
     async function initGitHubSync() {
-        let rawUser = document.getElementById('gh-user').value.trim();
-        let rawRepo = document.getElementById('gh-repo').value.trim();
+        let rawId = document.getElementById('gh-gist-id').value.trim();
         let rawToken = document.getElementById('gh-token').value.trim();
+        if(!rawId || !rawToken) { alert("Gist ID와 토큰은 필수입니다."); return; }
 
-        if(!rawUser || !rawRepo) { alert("ID와 저장소 이름은 필수입니다."); return; }
-
-        ghUser = rawUser; ghRepo = rawRepo; ghToken = rawToken;
-        localStorage.setItem('gh_user', ghUser);
-        localStorage.setItem('gh_repo', ghRepo);
+        ghGistId = rawId; ghToken = rawToken;
+        localStorage.setItem('gh_gist_id', ghGistId);
         localStorage.setItem('gh_token', ghToken);
         
-        document.getElementById('log-area').innerText = "연결 시도 중...";
+        document.getElementById('log-area').innerText = "Gist 덮어쓰기 시도 중...";
         updateCloudIcon('active');
         
-        const scanResult = await autoScanGitHub(true); 
-        if(scanResult && ghToken) {
-            await performRotationBackup(); 
-            alert("연동 및 백업 완료!");
-            location.reload();
+        // 바로 백업(PATCH) 날려보기
+        isDataChanged = true;
+        const success = await performRotationBackup();
+        if(success) {
+            alert("Gist 연동 및 덮어쓰기 완료! (히스토리는 Gist에 자동 저장됩니다)");
+            document.getElementById('gh-status-text').innerText = "✅ Gist 연동됨";
+            document.getElementById('gh-modal').style.display = 'none';
         } else {
-            alert("연결 실패. 정보를 확인하세요.");
-            updateCloudIcon('error');
+            alert("연결 실패. Gist ID나 토큰 권한(gist 체크여부)을 확인하세요.");
         }
     }
 
     async function checkAutoBackup() {
-        if(!ghToken || !isDataChanged) return; 
+        if(!ghToken || !ghGistId || !isDataChanged) return; 
         const now = Date.now();
         if(now - lastBackupTime >= BACKUP_INTERVAL) {
             lastBackupTime = now;
@@ -379,79 +356,80 @@
     }
 
     async function performRotationBackup() {
-        if(!ghToken) return;
+        if(!ghToken || !ghGistId) return false;
         updateCloudIcon('active');
         
-        const date = new Date();
-        const fname = `mk_${date.getFullYear()}${String(date.getMonth()+1).padStart(2,'0')}${String(date.getDate()).padStart(2,'0')}${String(date.getHours()).padStart(2,'0')}${String(date.getMinutes()).padStart(2,'0')}.json`;
         const data = {
             stats: localStorage.getItem(STORAGE_KEY_STATS),
             progress: localStorage.getItem(STORAGE_KEY_PROGRESS),
             lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK),
             timestamp: Date.now()
         };
-        const content = u_btoa(JSON.stringify(data));
+        // Gist는 아주 단순하게 JSON 형태 그대로 날립니다.
+        const payload = {
+            "files": {
+                "anki_backup.json": {
+                    "content": u_btoa(JSON.stringify(data))
+                }
+            }
+        };
 
         try {
-            const res = await fetch(`https://api.github.com/repos/${ghUser}/${ghRepo}/contents/backups/${fname}`, {
-                method: 'PUT',
-                headers: { 'Authorization': `token ${ghToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: "Auto Backup", content: content })
+            const res = await fetch(`https://api.github.com/gists/${ghGistId}`, {
+                method: 'PATCH',
+                headers: { 
+                    'Authorization': `token ${ghToken}`, 
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify(payload)
             });
             if(res.ok) {
                 isDataChanged = false; 
                 updateCloudIcon('done');
-                cleanupOldBackups();
-            } else { updateCloudIcon('error'); }
-        } catch(e) { updateCloudIcon('error'); }
-    }
-
-    async function cleanupOldBackups() {
-        try {
-            const res = await fetch(`https://api.github.com/repos/${ghUser}/${ghRepo}/contents/backups`, { headers: { 'Authorization': `token ${ghToken}` } });
-            const files = await res.json();
-            const backups = files.filter(f => f.name.startsWith('mk_') && f.name.endsWith('.json'));
-            
-            if(backups.length > 10) {
-                backups.sort((a, b) => a.name.localeCompare(b.name));
-                const toDelete = backups[0]; 
-                await fetch(toDelete.url, { 
-                    method: 'DELETE',
-                    headers: { 'Authorization': `token ${ghToken}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: "Cleanup", sha: toDelete.sha })
-                });
-            }
-        } catch(e) {}
+                return true;
+            } else { updateCloudIcon('error'); return false; }
+        } catch(e) { updateCloudIcon('error'); return false; }
     }
 
     async function fetchBackupList() {
         document.getElementById('gh-auth-section').style.display = 'none';
         document.getElementById('backup-list-section').style.display = 'block';
         const listUI = document.getElementById('backup-list-ui');
-        listUI.innerHTML = '<div style="padding:20px; text-align:center;">로딩 중...</div>';
+        listUI.innerHTML = '<div style="padding:20px; text-align:center;">Gist 내역을 가져오는 중... (빠름 ⚡️)</div>';
+
+        if(!ghToken || !ghGistId) { listUI.innerHTML = '<div style="padding:20px; text-align:center;">먼저 ID와 토큰을 입력해주세요.</div>'; return; }
 
         try {
-            const res = await fetch(`https://api.github.com/repos/${ghUser}/${ghRepo}/contents/backups`, { headers: ghToken ? { 'Authorization': `token ${ghToken}` } : {} });
-            const files = await res.json();
-            const backups = files.filter(f => f.name.startsWith('mk_') && f.name.endsWith('.json')).sort((a, b) => b.name.localeCompare(a.name));
+            const res = await fetch(`https://api.github.com/gists/${ghGistId}`, { headers: { 'Authorization': `token ${ghToken}` } });
+            if(!res.ok) throw new Error();
+            const gistData = await res.json();
+            const history = gistData.history; // 깃허브가 알아서 쌓아둔 과거 기록 배열!
 
             listUI.innerHTML = '';
-            backups.forEach(file => {
+            history.forEach(hist => {
                 const item = document.createElement('div');
                 item.className = 'backup-item';
-                item.innerText = file.name;
-                item.onclick = () => restoreFromBackup(file);
+                
+                // 시간 예쁘게 표시
+                const d = new Date(hist.committed_at);
+                const timeStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                
+                item.innerHTML = `<span><span class="backup-date">🕒 ${timeStr}</span> 버전</span>`;
+                item.onclick = () => restoreFromGistVersion(hist.version);
                 listUI.appendChild(item);
             });
-        } catch(e) { listUI.innerHTML = '<div style="padding:20px; text-align:center;">목록 실패</div>'; }
+        } catch(e) { listUI.innerHTML = '<div style="padding:20px; text-align:center; color:#fa5252;">불러오기 실패 (토큰/ID 확인)</div>'; }
     }
 
-    async function restoreFromBackup(file) {
-        if(!confirm("이 시점으로 복구하시겠습니까?")) return;
+    async function restoreFromGistVersion(versionSha) {
+        if(!confirm("이 시간대의 데이터로 완벽하게 덮어씌웁니다. 진행할까요?")) return;
         try {
-            const res = await fetch(file.url, { headers: ghToken ? { 'Authorization': `token ${ghToken}` } : {} });
-            const json = await res.json();
-            const content = JSON.parse(u_atob(json.content));
+            // 특정 시점의 버전을 콕 집어서 가져옴
+            const res = await fetch(`https://api.github.com/gists/${ghGistId}/${versionSha}`, { headers: { 'Authorization': `token ${ghToken}` } });
+            const gistData = await res.json();
+            const rawContent = gistData.files["anki_backup.json"].content;
+            const content = JSON.parse(u_atob(rawContent));
 
             if(content.stats) localStorage.setItem(STORAGE_KEY_STATS, content.stats);
             if(content.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, content.progress);
@@ -459,23 +437,23 @@
             
             alert("복구 완료!");
             location.reload();
-        } catch(e) { alert("복구 실패"); }
+        } catch(e) { alert("데이터 형식이 맞지 않거나 복구에 실패했습니다."); }
     }
 
-    async function autoScanGitHub(force = false) {
-        const owner = ghUser || defaultRepoOwner;
-        const repo = ghRepo || defaultRepoName;
+    // 덱 파일 스캔은 여전히 minkanai87-ai/mk 에서 가져옵니다 (문제 목록)
+    async function autoScanGitHub() {
+        const owner = defaultRepoOwner;
+        const repo = defaultRepoName;
+        // 문제 덱은 퍼블릭이면 토큰 없이도 가져올 수 있게 함
         const headers = ghToken ? { 'Authorization': `token ${ghToken}` } : {};
 
         try {
             const listUrl = `https://api.github.com/repos/${owner}/${repo}/contents/`;
             const listResponse = await fetch(listUrl, { headers });
-            
-            if (!listResponse.ok) return Object.keys(library).length > 0;
-            
+            if (!listResponse.ok) return;
             const files = await listResponse.json();
             const txtFiles = files.filter(f => f.name.endsWith('.txt'));
-            if(txtFiles.length === 0) return true;
+            if(txtFiles.length === 0) return;
 
             let newLibrary = {}; 
             for (const file of txtFiles) {
@@ -492,23 +470,16 @@
                     processAnkiTextToLib(text, file.name, newLibrary);
                 } catch (e) {}
             }
-            
             library = newLibrary;
-            saveLibrary(); 
-            renderDeckTree();
-            restoreLastSession();
-            return true;
-        } catch (error) { return false; }
+            saveLibrary(); renderDeckTree(); restoreLastSession();
+        } catch (error) {}
     }
 
     function u_btoa(str) { return window.btoa(unescape(encodeURIComponent(str))); }
     function u_atob(str) { return decodeURIComponent(escape(window.atob(str))); }
-    function updateCloudIcon(status) {
-        const icon = document.getElementById('cloud-icon');
-        icon.className = `cloud-icon ${status}`;
-        icon.innerText = status === 'active' ? '🔄' : (status === 'error' ? '❌' : '☁️');
-    }
+    function updateCloudIcon(status) { const icon = document.getElementById('cloud-icon'); icon.className = `cloud-icon ${status}`; icon.innerText = status === 'active' ? '🔄' : (status === 'error' ? '❌' : '☁️'); }
 
+    // Core 안키 로직
     function processAnkiTextToLib(text, filename, targetLib) {
         const rows = parseAnkiRawData(text);
         let currentDeck = filename.replace('.txt', '');
@@ -647,8 +618,7 @@
         if (mergedCards.length === 0) return;
         currentDeckName = prefix.replace(/__$/, ''); originalDeck = mergedCards; activeDeck = [...originalDeck];
         localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true');
-        filterCards('default');
-        document.getElementById('deck-title').innerText = `📂 ${currentDeckName.split('__').pop()}`;
+        filterCards('default'); document.getElementById('deck-title').innerText = `📂 ${currentDeckName.split('__').pop()}`;
         renderDeckTree(); toggleMenu(false);
     }
 
@@ -656,8 +626,7 @@
         if(!library[name]) return;
         currentDeckName = name; originalDeck = library[name]; activeDeck = [...originalDeck];
         localStorage.setItem(STORAGE_KEY_LAST_DECK, name); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'false');
-        filterCards('default');
-        document.getElementById('deck-title').innerText = `📄 ${name.split('__').pop()}`;
+        filterCards('default'); document.getElementById('deck-title').innerText = `📄 ${name.split('__').pop()}`;
         renderDeckTree(); toggleMenu(false);
     }
 
@@ -675,63 +644,45 @@
     }
     
     function toggleTag(e, type) { 
-        e.stopPropagation(); 
-        const card = activeDeck[currentIndex]; 
+        e.stopPropagation(); const card = activeDeck[currentIndex]; 
         const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
         const defaults = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 };
         const s = { ...defaults, ...(allStats[card.id] || {}) };
         
         s[type] = !s[type]; 
-        allStats[card.id] = s;
-        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(allStats));
-        
-        updateIconsUI(s); 
-        isDataChanged = true; 
-        checkAutoBackup();
+        allStats[card.id] = s; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(allStats));
+        updateIconsUI(s); isDataChanged = true; checkAutoBackup();
     }
     
     function updateStatsUI(stats) { 
         const badge = document.getElementById('rate-badge'); 
         if(stats.total === 0) { badge.innerText = "New"; badge.className = "rate-badge"; } 
         else { 
-            const rate = Math.round((stats.correct/stats.total)*100); 
-            badge.innerText = `${rate}% (${stats.total}회)`; 
-            if (rate >= 80) badge.className = "rate-badge high";
-            else if (rate < 50) badge.className = "rate-badge low";
-            else badge.className = "rate-badge";
+            const rate = Math.round((stats.correct/stats.total)*100); badge.innerText = `${rate}% (${stats.total}회)`; 
+            if (rate >= 80) badge.className = "rate-badge high"; else if (rate < 50) badge.className = "rate-badge low"; else badge.className = "rate-badge";
         } 
     }
     
-    function updateIconsUI(stats) { 
-        ['mem','cmp','fav','rev','num','date','pen'].forEach(k => {
-            const el = document.getElementById(k+'-btn');
-            if(el) el.classList.toggle('active', !!stats[k]);
-        });
-    }
+    function updateIconsUI(stats) { ['mem','cmp','fav','rev','num','date','pen'].forEach(k => { const el = document.getElementById(k+'-btn'); if(el) el.classList.toggle('active', !!stats[k]); }); }
 
-    // 🔥 [요청사항 반영] 파일 저장 이름 형식만 변경
     function exportData() {
         const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK) };
         const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
-        const d = new Date();
-        const fname = `${d.getFullYear()}_${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.json`;
+        const d = new Date(); const fname = `${d.getFullYear()}_${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.json`;
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; a.click();
     }
 
     function importData(input) { const file = input.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats); if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress); if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck); location.reload(); } catch (err) {} }; reader.readAsText(file); }
     function deleteDeck(name) { if(confirm("삭제?")) { delete library[name]; saveLibrary(); renderDeckTree(); if(currentDeckName === name) { currentDeckName=null; activeDeck=[]; showCard(); } } }
-    function moveCard(delta) { 
-        let nextIdx = currentIndex + delta; 
-        if(nextIdx >= 0 && nextIdx < activeDeck.length) { currentIndex = nextIdx; saveProgress(); showCard(); } 
-    }
+    function moveCard(delta) { let nextIdx = currentIndex + delta; if(nextIdx >= 0 && nextIdx < activeDeck.length) { currentIndex = nextIdx; saveProgress(); showCard(); } }
+    
     function grade(score) { 
         const card = activeDeck[currentIndex];
         const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
         const s = { correct: 0, total: 0, ...data[card.id] };
         s.total++; if(score === 2) s.correct++; else if(score === 1) s.correct += 0.5;
         s.last = Date.now();
-        data[card.id] = s;
-        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
+        data[card.id] = s; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
         updateStatsUI(s);
         
         isDataChanged = true;
@@ -747,15 +698,9 @@
             else { alert("끝!"); currentIndex = 0; saveProgress(); showCard(); } 
         }
     }
-    function saveProgress() {
-        const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
-        progress[`${currentDeckName}__${currentFilterType}`] = currentIndex;
-        localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
-    }
-    function updateHeaderUI() {
-        document.getElementById('header-info').innerText = `${sortLabels[currentSortMode]} & ${filterLabels[currentFilterType]}`;
-        ['wrong', 'normal', 'random'].forEach(m => document.getElementById(`chip-sort-${m}`).classList.toggle('active', currentSortMode === m));
-    }
+    
+    function saveProgress() { const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'); progress[`${currentDeckName}__${currentFilterType}`] = currentIndex; localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress)); }
+    function updateHeaderUI() { document.getElementById('header-info').innerText = `${sortLabels[currentSortMode]} & ${filterLabels[currentFilterType]}`; ['wrong', 'normal', 'random'].forEach(m => document.getElementById(`chip-sort-${m}`).classList.toggle('active', currentSortMode === m)); }
     function setSortMode(mode) { currentSortMode = mode; localStorage.setItem(STORAGE_KEY_SORT, mode); updateHeaderUI(); if(currentDeckName) { applySort(); currentIndex = 0; showCard(); } }
     function applySort() {
         if (!activeDeck || activeDeck.length === 0) return;
@@ -777,9 +722,9 @@
         const div = document.createElement('div'); div.innerHTML = clean;
         div.querySelectorAll('img').forEach(img => {
             let src = img.getAttribute('src');
-            if (src && !src.startsWith('http') && ghUser) img.src = `https://raw.githubusercontent.com/${ghUser}/${ghRepo}/main/images/${encodeURIComponent(src.split('/').pop())}`;
-            img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto';
-            img.onerror = function() { this.style.display = 'none'; };
+            // 이미지는 원래 repo 주소 유지
+            if (src && !src.startsWith('http') && defaultRepoOwner) img.src = `https://raw.githubusercontent.com/${defaultRepoOwner}/${defaultRepoName}/main/images/${encodeURIComponent(src.split('/').pop())}`;
+            img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto'; img.onerror = function() { this.style.display = 'none'; };
         });
         return div;
     }
