@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v13.00 - XHR Bypass Edition)</title>
+<title>나만의 안키 (v13.01 - Non-Blocking Edition)</title>
 <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
@@ -113,7 +113,7 @@
     
     #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
 
-    /* 🔥 블랙박스 알림창 */
+    /* 🔥 알림창 */
     #toast { position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 24px; border-radius: 25px; font-size: 0.95rem; font-weight: bold; transition: bottom 0.3s ease; z-index: 20000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px; pointer-events: none; }
     #toast.show { bottom: 85px; } 
     #toast.error { background: #fa5252; color: white; }
@@ -140,12 +140,12 @@
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
             
             <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정 (파이어베이스)</button>
-            <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 고대 통신망 탑재 (XHR)</div>
+            <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 앱 안정화 모드 가동 중</div>
             
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v13.00 (XHR Bypass)
+            My Anki v13.01 (Safe Mode)
         </div>
     </div>
 
@@ -231,8 +231,8 @@
             
             <div id="fb-auth-section">
                 <div style="font-size:0.9rem; color:#aaa; margin-bottom:15px; line-height:1.5;">
-                    ✅ <b>강제 전송 XHR 통신망 연결!</b><br>
-                    문제를 풀 때마다 무조건 100% 저장 시도합니다. (블랙박스 가동)
+                    ✅ <b>안정화 모드 가동 중!</b><br>
+                    공부 흐름이 끊기지 않도록, 백업은 뒤에서 조용히 실행됩니다.
                 </div>
                 
                 <div style="margin-bottom: 15px;">
@@ -263,7 +263,6 @@
     const defaultRepoOwner = 'minkunai87-ai';
     const defaultRepoName = 'mk';
 
-    // 🔥 블랙박스 알림 함수
     function showToast(msg, type = 'normal') {
         const toast = document.getElementById('toast');
         toast.innerText = msg;
@@ -276,7 +275,9 @@
 
     let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false';
     let lastBackupTime = 0;
-    const BACKUP_INTERVAL = 0; // 테스트를 위해 0초로 강제 고정!
+    
+    // 🔥 백업 간격 다시 10분으로 정상화!
+    const BACKUP_INTERVAL = 10 * 60 * 1000; 
     let isDataChanged = false;
 
     const scrollContainer = document.getElementById('scroll-area');
@@ -327,7 +328,6 @@
 
     function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
 
-    // 🔥 수동 저장 버튼 연결
     function testFirebaseSync() {
         document.getElementById('fb-modal').style.display = 'none';
         ghRepoToken = document.getElementById('gh-token-input').value.trim();
@@ -336,7 +336,6 @@
         performXHRBackup(false);
     }
 
-    // 🔥 자동 저장 대기 확인
     function checkAutoBackup() { 
         if(!isDataChanged) return; 
         const now = Date.now(); 
@@ -346,94 +345,101 @@
         } 
     }
 
-    // 🚀 [가장 핵심] 애플 보안을 바보로 만드는 고대 XHR 통신 작전
     function performXHRBackup(isAuto) {
         updateCloudIcon('active');
         const now = Date.now();
         const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: now };
         
-        const xhr = new XMLHttpRequest();
-        xhr.open("PUT", `${FIREBASE_DB_URL}/backups/${now}.json`, true);
-        
-        // 꼼수: 일반 텍스트인 척 위장해서 애플의 사전 검열 통과!
-        xhr.setRequestHeader("Content-Type", "text/plain");
-        xhr.timeout = 5000; 
-        
-        xhr.onload = function () {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                isDataChanged = false;
-                updateCloudIcon('done');
-                showToast(isAuto ? "🔥 자동 저장 완료!" : "🚀 수동 저장 완료!", "success");
-            } else {
+        try {
+            const xhr = new XMLHttpRequest();
+            xhr.open("PUT", `${FIREBASE_DB_URL}/backups/${now}.json`, true);
+            xhr.setRequestHeader("Content-Type", "text/plain");
+            xhr.timeout = 5000; 
+            
+            xhr.onload = function () {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    isDataChanged = false;
+                    updateCloudIcon('done');
+                    if(!isAuto) showToast("🚀 수동 저장 완료!", "success"); // 수동일때만 성공 알림
+                } else {
+                    updateCloudIcon('error');
+                    if(!isAuto) showToast("❌ 거절됨 (에러: " + xhr.status + ")", "error"); // 수동일때만 에러 알림
+                }
+            };
+            
+            xhr.onerror = function () {
                 updateCloudIcon('error');
-                showToast("❌ 거절됨 (에러: " + xhr.status + ")", "error");
-            }
-        };
-        
-        xhr.onerror = function () {
+                if(!isAuto) showToast("❌ 통신 아예 차단됨 (애플 보안)", "error");
+            };
+            
+            xhr.ontimeout = function () {
+                updateCloudIcon('error');
+                if(!isAuto) showToast("❌ 5초 무한로딩 (응답 없음)", "error");
+            };
+            
+            xhr.send(JSON.stringify(data));
+        } catch(e) {
             updateCloudIcon('error');
-            showToast("❌ 통신 아예 차단됨 (애플 보안)", "error");
-        };
-        
-        xhr.ontimeout = function () {
-            updateCloudIcon('error');
-            showToast("❌ 5초 무한로딩 (응답 없음)", "error");
-        };
-        
-        xhr.send(JSON.stringify(data));
+            console.error(e);
+        }
     }
 
-    // 🔥 [과거 내역 보기]도 XHR로 교체
     function fetchFirebaseList() {
         document.getElementById('fb-auth-section').style.display = 'none';
         document.getElementById('fb-list-section').style.display = 'block';
         const listUI = document.getElementById('fb-list-ui');
         listUI.innerHTML = '<div style="padding:20px; text-align:center;">구글 서버에서 가져오는 중...</div>';
         
-        const xhr = new XMLHttpRequest();
-        const cacheBuster = Date.now();
-        xhr.open("GET", `${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${cacheBuster}`, true);
-        xhr.timeout = 5000;
-        
-        xhr.onload = function () {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                try {
-                    const data = JSON.parse(xhr.responseText);
-                    if(!data) { listUI.innerHTML = '<div style="padding:20px; text-align:center;">아직 저장된 백업이 없습니다.</div>'; return; }
-                    const timestamps = Object.keys(data).sort((a, b) => b - a);
-                    listUI.innerHTML = '';
-                    timestamps.slice(0, 30).forEach(ts => {
-                        const item = document.createElement('div'); item.className = 'backup-item';
-                        const d = new Date(parseInt(ts));
-                        const timeStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-                        item.innerHTML = `<span><span class="backup-date">🕒 ${timeStr}</span> 에 저장됨</span>`;
-                        item.onclick = async () => { listUI.innerHTML = '<div style="padding:20px; text-align:center;">복구 중... 1초면 됩니다!</div>'; restoreFromFirebase(ts); };
-                        listUI.appendChild(item);
-                    });
-                } catch(e) { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">데이터 분석 실패</div>`; }
-            } else {
-                listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">❌ 불러오기 실패 (${xhr.status})</div>`;
-            }
-        };
-        
-        xhr.onerror = function() { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">❌ 통신 차단됨</div>`; };
-        xhr.ontimeout = function() { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">❌ 시간 초과</div>`; };
-        xhr.send();
+        try {
+            const xhr = new XMLHttpRequest();
+            const cacheBuster = Date.now();
+            xhr.open("GET", `${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${cacheBuster}`, true);
+            xhr.timeout = 5000;
+            
+            xhr.onload = function () {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        if(!data) { listUI.innerHTML = '<div style="padding:20px; text-align:center;">아직 저장된 백업이 없습니다.</div>'; return; }
+                        const timestamps = Object.keys(data).sort((a, b) => b - a);
+                        listUI.innerHTML = '';
+                        timestamps.slice(0, 30).forEach(ts => {
+                            const item = document.createElement('div'); item.className = 'backup-item';
+                            const d = new Date(parseInt(ts));
+                            const timeStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                            item.innerHTML = `<span><span class="backup-date">🕒 ${timeStr}</span> 에 저장됨</span>`;
+                            item.onclick = async () => { listUI.innerHTML = '<div style="padding:20px; text-align:center;">복구 중... 1초면 됩니다!</div>'; restoreFromFirebase(ts); };
+                            listUI.appendChild(item);
+                        });
+                    } catch(e) { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">데이터 분석 실패</div>`; }
+                } else {
+                    listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">❌ 불러오기 실패 (${xhr.status})</div>`;
+                }
+            };
+            
+            xhr.onerror = function() { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">❌ 통신 차단됨</div>`; };
+            xhr.ontimeout = function() { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">❌ 시간 초과</div>`; };
+            xhr.send();
+        } catch(e) {
+            listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">❌ 불러오기 에러 발생</div>`;
+        }
     }
 
     function restoreFromFirebase(ts) {
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", `${FIREBASE_DB_URL}/backups/${ts}.json`, true);
-        xhr.onload = function() {
-            if(xhr.status >= 200 && xhr.status < 300) {
-                const data = JSON.parse(xhr.responseText);
-                if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats);
-                if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress);
-                if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck);
-                location.reload();
+        try {
+            const xhr = new XMLHttpRequest();
+            xhr.open("GET", `${FIREBASE_DB_URL}/backups/${ts}.json`, true);
+            xhr.onload = function() {
+                if(xhr.status >= 200 && xhr.status < 300) {
+                    const data = JSON.parse(xhr.responseText);
+                    if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats);
+                    if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress);
+                    if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck);
+                    location.reload();
+                }
             }
-        }
-        xhr.send();
+            xhr.send();
+        } catch(e) { console.error(e); }
     }
 
     async function autoScanGitHub() {
@@ -555,13 +561,35 @@
     function deleteDeck(name) { if(confirm("삭제?")) { delete library[name]; saveLibrary(); renderDeckTree(); if(currentDeckName === name) { currentDeckName=null; activeDeck=[]; showCard(); } } }
     function moveCard(delta) { let nextIdx = currentIndex + delta; if(nextIdx >= 0 && nextIdx < activeDeck.length) { currentIndex = nextIdx; saveProgress(); showCard(); } }
     
+    // 🔥 [핵심 해결] 백업 기능과 문제 넘기기 기능을 완벽하게 격리!!
     function grade(score) { 
         const card = activeDeck[currentIndex]; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); const s = { correct: 0, total: 0, ...data[card.id] }; s.total++; if(score === 2) s.correct++; else if(score === 1) s.correct += 0.5; s.last = Date.now(); data[card.id] = s; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateStatsUI(s); 
         
         isDataChanged = true; 
-        checkAutoBackup(); // 버튼 누를 때마다 무조건 저장 시도!
         
-        if (!showTodayCompleted) { activeDeck = activeDeck.filter(c => c.id !== card.id); if (currentIndex >= activeDeck.length) currentIndex = 0; if (activeDeck.length === 0) { showCard(); return; } saveProgress(); showCard(); } else { if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } else { currentIndex = 0; saveProgress(); showCard(); } } 
+        // 애플 보안이 통신을 터트리더라도 앱은 멈추지 않도록 백그라운드로 도망치게 만듦
+        setTimeout(() => {
+            try { checkAutoBackup(); } catch(e) {}
+        }, 50);
+        
+        // 여기부터는 무조건, 절대적으로 실행됨 (문제 넘어가기)
+        if (!showTodayCompleted) { 
+            activeDeck = activeDeck.filter(c => c.id !== card.id); 
+            if (currentIndex >= activeDeck.length) currentIndex = 0; 
+            if (activeDeck.length === 0) { showCard(); return; } 
+            saveProgress(); 
+            showCard(); 
+        } else { 
+            if (currentIndex < activeDeck.length - 1) { 
+                currentIndex++; 
+                saveProgress(); 
+                showCard(); 
+            } else { 
+                currentIndex = 0; 
+                saveProgress(); 
+                showCard(); 
+            } 
+        } 
     }
     
     function saveProgress() { const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'); progress[`${currentDeckName}__${currentFilterType}`] = currentIndex; localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress)); }
