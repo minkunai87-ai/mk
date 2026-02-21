@@ -3,41 +3,33 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v17.00 - The Real Fix)</title>
+<title>나만의 안키 (v18.01 - 짤림 방지 완벽판)</title>
 <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
-    
     .header { background: var(--surface); padding: 0 20px; padding-top: calc(env(safe-area-inset-top) + 12px); padding-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 10; flex-shrink: 0; position: relative; }
     .header-title-area { display: flex; flex-direction: column; max-width: 55%; }
     .header-title { font-weight: bold; font-size: 1.1rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
     .header-subtitle { font-size: 0.75rem; color: var(--primary); margin-top: 3px; font-weight: bold; }
     .header-controls { display: flex; gap: 12px; align-items: center; }
-    
     .cloud-icon { font-size: 0.8rem; opacity: 0.5; transition: 0.3s; }
     .cloud-icon.active { color: #ffd43b; opacity: 1; animation: spin 1s infinite linear; }
     .cloud-icon.done { color: #40c057; opacity: 1; }
     .cloud-icon.error { color: #fa5252; opacity: 1; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
-
     .menu-btn { font-size: 1.5rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); }
-    .filter-toggle-btn { font-size: 1.3rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text-sub); transition: 0.2s; }
-    .filter-toggle-btn.active { color: var(--primary); transform: scale(1.1); }
-    .today-toggle-btn { font-size: 1.3rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text-sub); transition: 0.2s; }
-    .today-toggle-btn.active { color: #40c057; } 
-    .today-toggle-btn.hidden { color: #fa5252; opacity: 0.7; }
+    .filter-toggle-btn, .today-toggle-btn { font-size: 1.3rem; cursor: pointer; background: none; border: none; padding: 0; transition: 0.2s; }
+    .filter-toggle-btn { color: var(--text-sub); } .filter-toggle-btn.active { color: var(--primary); transform: scale(1.1); }
+    .today-toggle-btn { color: var(--text-sub); } .today-toggle-btn.active { color: #40c057; } .today-toggle-btn.hidden { color: #fa5252; opacity: 0.7; }
     .counter { font-size: 0.8rem; font-weight: bold; color: var(--text-sub); background: var(--input-bg); padding: 4px 10px; border-radius: 12px; }
-
     #filter-bar-container { background: var(--surface); max-height: 0; overflow: hidden; transition: max-height 0.3s ease-in-out, border-bottom 0.1s; border-bottom: 0px solid var(--border); }
     #filter-bar-container.show { max-height: 60px; border-bottom: 1px solid var(--border); }
     .filter-scroll { display: flex; gap: 8px; padding: 10px 15px; overflow-x: auto; white-space: nowrap; align-items: center; scrollbar-width: none; }
     .chip { padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; background: var(--input-bg); color: var(--text-sub); border: 1px solid var(--border); cursor: pointer; transition: 0.2s; flex-shrink: 0; }
     .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
-    .chip-sort { border-color: #444; color: #a0a0a0; }
-    .chip-sort.active { background: #343a40; color: #ffd43b; border-color: #ffd43b; }
+    .chip-sort { border-color: #444; color: #a0a0a0; } .chip-sort.active { background: #343a40; color: #ffd43b; border-color: #ffd43b; }
     .v-divider { width: 1px; height: 20px; background: #444; flex-shrink: 0; margin: 0 5px; }
-
     .sidebar { position: fixed; top: 0; left: 0; width: 300px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); box-shadow: 2px 0 15px rgba(0,0,0,0.5); transition: transform 0.3s ease; z-index: 9999; padding: 25px; padding-top: calc(env(safe-area-inset-top) + 25px); display: flex; flex-direction: column; overflow-y: auto; transform: translateX(-105%); }
     .sidebar.open { transform: translateX(0); }
     .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9998; display: none; }
@@ -45,107 +37,72 @@
     .menu-section { margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
     .menu-label { font-weight: bold; color: var(--text-sub); margin-bottom: 10px; display: block; font-size: 0.9rem; }
     .search-input { width: 100%; padding: 12px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-size: 0.95rem; margin-bottom: 10px; }
-
     .deck-list, .tree-children { list-style: none; padding: 0; margin: 0; }
     .tree-folder { margin-bottom: 4px; }
     .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); margin-bottom: 4px; transition: 0.2s; user-select: none; }
-    .tree-header:hover { background: var(--btn-hover); }
-    .tree-header.active-deck { background: #182836; border: 1px solid #1c7ed6; }
+    .tree-header:hover { background: var(--btn-hover); } .tree-header.active-deck { background: #182836; border: 1px solid #1c7ed6; }
     .tree-deck { padding: 12px; border-radius: 8px; cursor: pointer; background: var(--input-bg); margin-bottom: 4px; color: var(--text); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
     .tree-deck.active { background: #182836; color: #74c0fc; font-weight: bold; border: 1px solid #1c7ed6; }
-    .tree-children { display: none; padding-left: 12px; margin-left: 6px; border-left: 2px solid #444; }
-    .tree-children.open { display: block !important; }
+    .tree-children { display: none; padding-left: 12px; margin-left: 6px; border-left: 2px solid #444; } .tree-children.open { display: block !important; }
     .folder-title { flex: 1; font-weight: bold; color: #ffd43b; font-size: 0.95rem; display: flex; align-items: center; gap: 6px; }
     .play-btn { background: var(--primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 8px; flex-shrink: 0; }
     .del-btn { background: none; border: none; color: #ff6b6b; font-weight: bold; padding: 0 5px; cursor: pointer; font-size: 1rem; }
-
     .btn-sub { width: 100%; padding: 10px; border-radius: 8px; background: var(--input-bg); color: var(--text-sub); border: 1px solid var(--border); margin-top: 5px; cursor: pointer; text-align: left; font-size: 0.85rem; }
     .btn-cloud { width: 100%; padding: 12px; border-radius: 8px; background: #2b1f11; color: #fab005; border: 1px solid #fab005; font-weight: bold; cursor: pointer; margin-top: 15px; text-align: center; }
     .btn-refresh { width: 100%; padding: 12px; margin-top: 15px; border-radius: 8px; background: #343a40; color: #e9ecef; border: 1px solid var(--border); font-weight: bold; cursor: pointer; }
-
     .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
     .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; box-shadow: none; border: none; display: flex; flex-direction: column; position: relative; overflow: hidden; }
     .card-scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
     .zoom-content { padding: 25px 20px; min-height: 100%; width: 100%; transform-origin: 0 0; will-change: transform; }
-    
     .card-info { display: flex; justify-content: space-between; width: 100%; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed var(--border); align-items: center; }
     .rate-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; background: var(--input-bg); color: var(--text-sub); }
     .rate-badge.high { background: #0b2e13 !important; color: #69db7c !important; } .rate-badge.low { background: #2e0b0b !important; color: #ff8787 !important; }
     .date-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; margin-left: 6px; background: var(--input-bg); color: var(--text-sub); }
     .date-badge.today { background: #1971c2; color: #e7f5ff; } .date-badge.recent { background: #1098ad; color: #e3fafc; }
-
-    .icon-wrapper { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
-    .icon-row { display: flex; gap: 12px; }
+    .icon-wrapper { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; } .icon-row { display: flex; gap: 12px; }
     .icon-btn { font-size: 1.4rem; cursor: pointer; background: none; border: none; padding: 0; opacity: 0.4; filter: grayscale(100%); transition: 0.2s; }
     .icon-btn.active { opacity: 1; filter: grayscale(0%); transform: scale(1.1); }
     .mem-btn.active { color: #ff8787; } .cmp-btn.active { color: #74c0fc; } .fav-btn.active { color: #ffd43b; } .rev-btn.active { color: #69db7c; }
     .num-btn.active { color: #66d9e8; } .date-btn.active { color: #b197fc; } .pen-btn.active { color: #ff6b6b; }
-
     .text-area { font-size: 1.35rem; line-height: 1.6; word-break: keep-all; white-space: pre-wrap; width: 100%; margin-bottom: 20px; position: relative; }
-    .text-area * { max-width: 100% !important; box-sizing: border-box !important; }
-    table { width: 100% !important; table-layout: fixed !important; display: table !important; }
-    td, th { word-wrap: break-word; overflow-wrap: break-word; }
-    .text-area img, .text-area svg { width: auto !important; height: auto !important; max-width: 100% !important; display: block; margin: 10px auto; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-
+    .text-area * { max-width: 100% !important; box-sizing: border-box !important; } table { width: 100% !important; table-layout: fixed !important; display: table !important; }
+    td, th { word-wrap: break-word; overflow-wrap: break-word; } .text-area img, .text-area svg { width: auto !important; height: auto !important; max-width: 100% !important; display: block; margin: 10px auto; border-radius: 8px; }
     .divider { display: none; border: 0; border-top: 2px dashed var(--border); margin: 30px 0; position: relative; }
     .divider::after { content: "정답"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--surface); padding: 0 10px; color: var(--text-sub); font-size: 0.8rem; font-weight: bold; }
     #answer-section { display: none; padding-bottom: 20px; }
-
     .footer { width: 100%; padding: 10px 20px; padding-bottom: calc(35px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); z-index: 10; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
     .nav-btns, .grade-btns { display: flex; justify-content: space-between; gap: 12px; }
     .nav-btn, .g-btn { flex: 1; padding: 14px 0; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 1rem; text-align: center; border: none; }
     .nav-btn { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); }
     .bg-x { background: #fa5252; color: white; } .bg-tri { background: #fab005; color: white; } .bg-o { background: #40c057; color: white; }
-    .click-guide { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-top: 40px; cursor: pointer; padding: 30px; border: 2px dashed var(--border); border-radius: 12px; background: #181818; pointer-events: auto !important; }
-
+    .click-guide { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-top: 40px; cursor: pointer; padding: 30px; border: 2px dashed var(--border); border-radius: 12px; background: #181818; }
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: none; align-items: center; justify-content: center; }
-    .modal-content { background: var(--surface); width: 90%; max-width: 500px; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border); }
-    .edit-input { width: 100%; padding: 10px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-family: inherit; font-size: 1rem; resize: vertical; }
-    .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
-    .modal-btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
+    .modal-content { background: var(--surface); width: 90%; max-width: 500px; padding: 25px; border-radius: 15px; display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border); }
+    .edit-input { width: 100%; padding: 10px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-size: 1rem; }
+    .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; } .modal-btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
     .btn-save { background: #fab005; color: #121212; } .btn-cancel { background: var(--input-bg); color: var(--text); }
-    
     .backup-list { max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; background: var(--input-bg); }
-    .backup-item { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; font-size: 0.9rem; }
-    .backup-item:last-child { border-bottom: none; }
-    .backup-item:hover { background: var(--btn-hover); }
-    .backup-date { color: #fab005; font-weight: bold; }
-    
-    #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
-
-    /* 알림창 */
+    .backup-item { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; font-size: 0.9rem; } .backup-item:hover { background: var(--btn-hover); } .backup-date { color: #fab005; font-weight: bold; }
     #toast { position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 24px; border-radius: 25px; font-size: 0.95rem; font-weight: bold; transition: bottom 0.3s ease; z-index: 20000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px; pointer-events: none; }
-    #toast.show { bottom: 85px; } 
-    #toast.error { background: #fa5252; color: white; }
-    #toast.success { background: #40c057; color: white; }
+    #toast.show { bottom: 85px; } #toast.error { background: #fa5252; color: white; } #toast.success { background: #40c057; color: white; }
 </style>
 </head>
 <body>
-
     <div id="toast">알림 메시지</div>
-
     <div class="sidebar-overlay" onclick="toggleMenu()"></div>
     <div class="sidebar" id="sidebar">
         <h2 style="margin-top:0; color:var(--text); font-size:1.4rem;">⚙️ 메뉴</h2>
         <div class="menu-section">
-            <span class="menu-label">🔍 검색</span>
             <input type="text" id="search-input" class="search-input" placeholder="텍스트, OCR, 타이틀 검색" onkeyup="filterCards('search')">
         </div>
         <span class="menu-label">📚 덱 목록</span>
         <ul class="deck-list" id="deck-list-ui"></ul>
         <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px; padding-bottom: 30px;">
-            <span class="menu-label">💾 데이터 & 설정</span>
             <button class="btn-sub" onclick="exportData()">💾 로컬 백업 저장</button>
             <button class="btn-sub" onclick="document.getElementById('backup-input').click()">📂 로컬 백업 불러오기</button>
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
-            
-            <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정 (파이어베이스)</button>
-            <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 클라우드 동기화 켜짐</div>
-            
+            <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정</button>
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
-        </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v17.00 (The Real Fix)
         </div>
     </div>
 
@@ -159,7 +116,7 @@
             <div class="header-subtitle" id="header-info">🔥 틀린 순 & 📁 전체</div>
         </div>
         <div class="header-controls">
-            <button class="today-toggle-btn active" id="today-toggle-btn" onclick="toggleTodayView()" title="오늘 완료 보기/숨기기">👁️</button>
+            <button class="today-toggle-btn active" id="today-toggle-btn" onclick="toggleTodayView()">👁️</button>
             <button class="filter-toggle-btn" id="filter-toggle-btn" onclick="toggleFilterBar()">🌪️</button>
             <span class="counter" id="card-counter">0 / 0</span>
         </div>
@@ -167,19 +124,13 @@
 
     <div id="filter-bar-container">
         <div class="filter-scroll">
-            <div class="chip chip-sort" id="chip-sort-wrong" onclick="setSortMode('wrong')">🔥 틀린순</div>
+            <div class="chip chip-sort active" id="chip-sort-wrong" onclick="setSortMode('wrong')">🔥 틀린순</div>
             <div class="chip chip-sort" id="chip-sort-normal" onclick="setSortMode('normal')">📋 원래순</div>
             <div class="chip chip-sort" id="chip-sort-random" onclick="setSortMode('random')">🎲 랜덤</div>
             <div class="v-divider"></div>
             <div class="chip active" id="chip-default" onclick="filterCards('default')">📁 전체</div>
             <div class="chip" id="chip-rev" onclick="filterCards('rev')">🔄 복습</div>
             <div class="chip" id="chip-fav" onclick="filterCards('fav')">⭐ 중요</div>
-            <div class="chip" id="chip-mem" onclick="filterCards('mem')">🧠 암기</div>
-            <div class="chip" id="chip-cmp" onclick="filterCards('cmp')">🆚 비교</div>
-            <div class="chip" id="chip-num" onclick="filterCards('num')">🔢 숫자</div>
-            <div class="chip" id="chip-date" onclick="filterCards('date')">📅 날짜</div>
-            <div class="chip" id="chip-pen" onclick="filterCards('pen')">🚨 벌칙</div>
-            <div class="chip" style="border-color:#ff6b6b; color:#ff8787;" id="chip-rate_asc" onclick="filterCards('rate_asc')">🔥 오답</div>
         </div>
     </div>
 
@@ -187,23 +138,18 @@
         <div class="card">
             <div class="card-scroll-area" id="scroll-area">
                 <div class="zoom-content" id="zoom-content">
-                    <div id="loading" style="display:none;">데이터 로딩 중...</div>
-                    <div class="card-info" id="card-info">
-                        <div style="display:flex; align-items:center;">
+                    <div id="loading" style="text-align:center; padding: 20px;">로딩 중...</div>
+                    <div class="card-info" id="card-info" style="display:none;">
+                        <div>
                             <span class="rate-badge" id="rate-badge">New</span>
                             <span class="date-badge" id="date-badge" style="display:none;"></span>
                         </div>
                         <div class="icon-wrapper">
                             <div class="icon-row">
-                                <button class="icon-btn rev-btn" id="rev-btn" onclick="toggleTag(event, 'rev')" title="복습">🔄</button>
-                                <button class="icon-btn mem-btn" id="mem-btn" onclick="toggleTag(event, 'mem')" title="암기">🧠</button>
-                                <button class="icon-btn cmp-btn" id="cmp-btn" onclick="toggleTag(event, 'cmp')" title="비교">🆚</button>
-                                <button class="icon-btn fav-btn" id="fav-btn" onclick="toggleTag(event, 'fav')" title="중요">⭐</button>
-                            </div>
-                            <div class="icon-row">
-                                <button class="icon-btn num-btn" id="num-btn" onclick="toggleTag(event, 'num')" title="숫자">🔢</button>
-                                <button class="icon-btn date-btn" id="date-btn" onclick="toggleTag(event, 'date')" title="날짜">📅</button>
-                                <button class="icon-btn pen-btn" id="pen-btn" onclick="toggleTag(event, 'pen')" title="벌칙">🚨</button>
+                                <button class="icon-btn rev-btn" id="rev-btn" onclick="toggleTag(event, 'rev')">🔄</button>
+                                <button class="icon-btn mem-btn" id="mem-btn" onclick="toggleTag(event, 'mem')">🧠</button>
+                                <button class="icon-btn cmp-btn" id="cmp-btn" onclick="toggleTag(event, 'cmp')">🆚</button>
+                                <button class="icon-btn fav-btn" id="fav-btn" onclick="toggleTag(event, 'fav')">⭐</button>
                             </div>
                         </div>
                     </div>
@@ -217,7 +163,7 @@
     </div>
 
     <div class="footer">
-        <div class="grade-btns" id="grade-area">
+        <div class="grade-btns" id="grade-area" style="display:none;">
             <button class="g-btn bg-x" onclick="grade(0)">모름</button>
             <button class="g-btn bg-tri" onclick="grade(1)">애매</button>
             <button class="g-btn bg-o" onclick="grade(2)">맞음</button>
@@ -230,32 +176,18 @@
 
     <div class="modal-overlay" id="fb-modal">
         <div class="modal-content">
-            <div class="modal-title">🔥 파이어베이스 백업 센터</div>
-            
+            <div class="modal-title">🔥 파이어베이스 연동</div>
             <div id="fb-auth-section">
-                <div style="font-size:0.9rem; color:#aaa; margin-bottom:15px; line-height:1.5;">
-                    ✅ <b>안정화 완료! 자동 저장 작동 중!</b><br>
-                    더 이상 앱이 멈추거나 에러가 나지 않습니다. 10분마다 완벽하게 자동 저장됩니다.
-                </div>
-                
-                <div style="margin-bottom: 15px;">
-                    <span class="menu-label">🔒 비공개 문제 가져오기 (GitHub Token)</span>
-                    <input type="text" id="gh-token-input" class="edit-input" placeholder="ghp_... (비공개 덱이 아니면 비워두세요)">
-                </div>
-                
+                <input type="text" id="gh-token-input" class="edit-input" placeholder="ghp_... (비공개 덱 토큰)">
                 <div class="modal-btns">
-                    <button class="modal-btn btn-save" onclick="manualSync()">🚀 수동 백업 쏘기</button>
-                    <button class="modal-btn btn-sub" onclick="fetchFirebaseList()">🕒 과거 내역 보기</button>
+                    <button class="modal-btn btn-save" onclick="manualSync()">수동 백업</button>
+                    <button class="modal-btn btn-sub" onclick="fetchFirebaseList()">내역 보기</button>
                     <button class="modal-btn btn-cancel" onclick="document.getElementById('fb-modal').style.display='none'">닫기</button>
                 </div>
             </div>
-
             <div id="fb-list-section" style="display:none;">
-                <h4 style="margin:10px 0; color:#fab005;">🕒 복구할 시간을 선택하세요 (최대 30개 보관)</h4>
-                <div id="fb-list-ui" class="backup-list">서버에서 내역을 빛의 속도로 불러오는 중...⚡️</div>
-                <div class="modal-btns">
-                    <button class="modal-btn btn-cancel" onclick="showAuthSection()">뒤로가기</button>
-                </div>
+                <div id="fb-list-ui" class="backup-list"></div>
+                <div class="modal-btns"><button class="modal-btn btn-cancel" onclick="document.getElementById('fb-auth-section').style.display='block'; document.getElementById('fb-list-section').style.display='none';">뒤로</button></div>
             </div>
         </div>
     </div>
@@ -265,323 +197,129 @@
     let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
     const defaultRepoOwner = 'minkunai87-ai';
     const defaultRepoName = 'mk';
+    let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false';
+    let lastBackupTime = 0;
+    const BACKUP_INTERVAL = 10 * 60 * 1000; 
+    let isDataChanged = false;
 
     function showToast(msg, type = 'normal') {
         const toast = document.getElementById('toast');
-        toast.innerText = msg;
-        toast.className = '';
-        if(type === 'error') toast.classList.add('error');
-        if(type === 'success') toast.classList.add('success');
-        toast.classList.add('show');
-        setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        toast.innerText = msg; toast.className = '';
+        if(type === 'error') toast.classList.add('error'); if(type === 'success') toast.classList.add('success');
+        toast.classList.add('show'); setTimeout(() => { toast.classList.remove('show'); }, 3000);
     }
 
-    let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false';
-    let lastBackupTime = 0;
-    const BACKUP_INTERVAL = 10 * 60 * 1000; // 정상적인 10분 타이머
-    let isDataChanged = false;
-
-    const scrollContainer = document.getElementById('scroll-area');
-    const zoomContent = document.getElementById('zoom-content');
-    let scale = 1, panning = false, pointX = 0, pointY = 0, startX = 0, startY = 0, lastTap = 0, startDist = 0, startScale = 1;
-    scrollContainer.addEventListener('touchstart', (e) => { if (e.touches.length === 2) { e.preventDefault(); panning = false; startDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY); startScale = scale; } else if (e.touches.length === 1) { const now = new Date().getTime(); if (now - lastTap < 300) { e.preventDefault(); resetZoom(); } else { if (scale > 1) { panning = true; startX = e.touches[0].pageX - pointX; startY = e.touches[0].pageY - pointY; } } lastTap = now; } }, { passive: false });
-    scrollContainer.addEventListener('touchmove', (e) => { if (e.touches.length === 2) { e.preventDefault(); const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY); scale = Math.min(Math.max(1, startScale * (dist / startDist)), 4); updateTransform(); } else if (e.touches.length === 1 && panning && scale > 1) { e.preventDefault(); pointX = e.touches[0].pageX - startX; pointY = e.touches[0].pageY - startY; updateTransform(); } }, { passive: false });
-    scrollContainer.addEventListener('touchend', (e) => { if (e.touches.length < 2) panning = false; if (scale < 1.1) resetZoom(); });
-    function resetZoom() { scale = 1; pointX = 0; pointY = 0; updateTransform(); scrollContainer.style.overflowY = 'auto'; }
-    function updateTransform() { if (scale > 1) scrollContainer.style.overflow = 'hidden'; else scrollContainer.style.overflowY = 'auto'; zoomContent.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`; }
-
-    let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
-    let currentFilterType = 'default', currentSortMode = 'wrong';
-    const sortLabels = { 'wrong': '🔥 틀린 순', 'normal': '📋 원래 순', 'random': '🎲 랜덤' };
-    const filterLabels = { 'default': '📁 전체', 'fav': '⭐ 중요', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'rate_asc': '🔥 오답', 'search': '🔍 검색', 'rev': '🔄 복습' };
+    let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0, currentFilterType = 'default', currentSortMode = 'wrong';
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck', STORAGE_KEY_IS_GROUP = 'anki_final_is_group', STORAGE_KEY_SORT = 'anki_final_sort_mode';
 
     window.onload = function() {
         currentSortMode = localStorage.getItem(STORAGE_KEY_SORT) || 'wrong';
-        updateHeaderUI();
-        updateTodayToggleUI();
-        loadLocalLibrary(); 
+        updateHeaderUI(); updateTodayToggleUI(); loadLocalLibrary(); 
         if (location.protocol.startsWith('http')) autoScanGitHub(); 
-        restoreLastSession();
-        document.getElementById('loading').style.display = 'none';
-        if((!activeDeck || activeDeck.length === 0) && Object.keys(library).length === 0) { document.getElementById('question-section').innerHTML = "<h3 style='color:#aaa; text-align:center;'>메뉴(☰)를 눌러 덱을 선택하세요.</h3>"; }
+        restoreLastSession(); document.getElementById('loading').style.display = 'none';
+        if((!activeDeck || activeDeck.length === 0) && Object.keys(library).length === 0) { document.getElementById('question-section').innerHTML = "<h3 style='color:#aaa; text-align:center;'>메뉴를 열어주세요.</h3>"; }
     };
 
     function toggleMenu(force) {
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
+        const sidebar = document.getElementById('sidebar'); const overlay = document.querySelector('.sidebar-overlay');
         const isOpen = force !== undefined ? force : !sidebar.classList.contains('open');
-        if (isOpen) {
-            sidebar.classList.add('open'); overlay.classList.add('open');
-            setTimeout(() => { const active = document.querySelector('.tree-deck.active'); if(active) active.scrollIntoView({block:'center', behavior:'smooth'}); }, 300);
-        } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
+        if (isOpen) { sidebar.classList.add('open'); overlay.classList.add('open'); } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
     }
-
     function toggleFilterBar() { document.getElementById('filter-bar-container').classList.toggle('show'); document.getElementById('filter-toggle-btn').classList.toggle('active'); }
     function toggleTodayView() { showTodayCompleted = !showTodayCompleted; localStorage.setItem('anki_show_today', showTodayCompleted); updateTodayToggleUI(); if(currentDeckName) filterCards(currentFilterType); }
     function updateTodayToggleUI() { const btn = document.getElementById('today-toggle-btn'); if(showTodayCompleted) { btn.innerText = "👁️"; btn.className = "today-toggle-btn active"; } else { btn.innerText = "🙈"; btn.className = "today-toggle-btn hidden"; } }
 
-    function openFirebaseSettings() {
-        document.getElementById('gh-token-input').value = ghRepoToken;
-        showAuthSection();
-        document.getElementById('fb-modal').style.display = 'flex';
-    }
+    function openFirebaseSettings() { document.getElementById('gh-token-input').value = ghRepoToken; document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; document.getElementById('fb-modal').style.display = 'flex'; }
+    function updateCloudIcon(status) { const icon = document.getElementById('cloud-icon'); if(!icon) return; icon.className = `cloud-icon ${status}`; icon.innerText = status === 'active' ? '🔄' : (status === 'error' ? '❌' : '🔥'); }
 
-    function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
-
-    function manualSync() {
-        document.getElementById('fb-modal').style.display = 'none';
-        ghRepoToken = document.getElementById('gh-token-input').value.trim();
-        localStorage.setItem('gh_repo_token', ghRepoToken);
-        isDataChanged = true;
-        performBackup(false);
-    }
-
-    function checkAutoBackup() { 
-        if(!isDataChanged) return; 
-        const now = Date.now(); 
-        if(now - lastBackupTime >= BACKUP_INTERVAL) { 
-            lastBackupTime = now; 
-            performBackup(true); 
-        } 
-    }
-
+    function manualSync() { document.getElementById('fb-modal').style.display = 'none'; ghRepoToken = document.getElementById('gh-token-input').value.trim(); localStorage.setItem('gh_repo_token', ghRepoToken); isDataChanged = true; performBackup(false); }
+    function checkAutoBackup() { if(!isDataChanged) return; const now = Date.now(); if(now - lastBackupTime >= BACKUP_INTERVAL) { lastBackupTime = now; performBackup(true); } }
     function performBackup(isAuto) {
-        updateCloudIcon('active');
-        const now = Date.now();
+        updateCloudIcon('active'); const now = Date.now();
         const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: now };
-        
-        fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        }).then(res => {
-            if(res.ok) {
-                isDataChanged = false;
-                updateCloudIcon('done');
-                if(isAuto) showToast("🔥 10분 자동 저장 완료!", "success");
-                else showToast("🚀 수동 저장 완료!", "success");
-                cleanupOldBackups();
-            } else {
-                updateCloudIcon('error');
-                if(!isAuto) showToast("❌ 저장 거절됨", "error");
-            }
-        }).catch(e => {
-            updateCloudIcon('error');
-            if(!isAuto) showToast("❌ 인터넷 차단/끊김", "error");
-        });
+        fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+        .then(res => { if(res.ok) { isDataChanged = false; updateCloudIcon('done'); if(isAuto) showToast("🔥 10분 자동 저장 완료!", "success"); else showToast("🚀 저장 완료!", "success"); } else updateCloudIcon('error'); })
+        .catch(e => updateCloudIcon('error'));
     }
 
     function grade(score) { 
-        if (!activeDeck || activeDeck.length === 0) return;
-        const card = activeDeck[currentIndex]; 
-        if (!card) return; 
-
-        const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); 
-        const s = { correct: 0, total: 0, ...data[card.id] }; 
-        s.total++; 
-        if(score === 2) s.correct++; 
-        else if(score === 1) s.correct += 0.5; 
-        s.last = Date.now(); 
-        data[card.id] = s; 
-        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); 
-        updateStatsUI(s); 
-        
+        if (!activeDeck || activeDeck.length === 0) return; const card = activeDeck[currentIndex]; if (!card) return; 
+        const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); const s = { correct: 0, total: 0, ...data[card.id] }; s.total++; 
+        if(score === 2) s.correct++; else if(score === 1) s.correct += 0.5; s.last = Date.now(); data[card.id] = s; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateStatsUI(s); 
         isDataChanged = true; 
-
-        if (!showTodayCompleted) { 
-            activeDeck = activeDeck.filter(c => c.id !== card.id); 
-            if (currentIndex >= activeDeck.length) currentIndex = 0; 
-            if (activeDeck.length === 0) { showCard(); } else { saveProgress(); showCard(); }
-        } else { 
-            if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } else { currentIndex = 0; saveProgress(); showCard(); } 
-        } 
-
-        // 10분이 지났는지 몰래 확인하고 알아서 저장
-        setTimeout(() => { checkAutoBackup(); }, 100);
+        if (!showTodayCompleted) { activeDeck = activeDeck.filter(c => c.id !== card.id); if (currentIndex >= activeDeck.length) currentIndex = 0; if (activeDeck.length === 0) showCard(); else { saveProgress(); showCard(); } } 
+        else { if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } else { currentIndex = 0; saveProgress(); showCard(); } } 
+        setTimeout(() => { checkAutoBackup(); }, 50);
     }
 
     function fetchFirebaseList() {
-        document.getElementById('fb-auth-section').style.display = 'none';
-        document.getElementById('fb-list-section').style.display = 'block';
-        const listUI = document.getElementById('fb-list-ui');
-        listUI.innerHTML = '<div style="padding:20px; text-align:center;">구글 서버에서 가져오는 중...</div>';
-        
-        const cacheBuster = Date.now();
-        fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${cacheBuster}`)
-        .then(res => res.json())
-        .then(data => {
-            if(!data) { listUI.innerHTML = '<div style="padding:20px; text-align:center;">아직 저장된 백업이 없습니다.</div>'; return; }
-            const timestamps = Object.keys(data).sort((a, b) => b - a);
-            listUI.innerHTML = '';
+        document.getElementById('fb-auth-section').style.display = 'none'; document.getElementById('fb-list-section').style.display = 'block'; const listUI = document.getElementById('fb-list-ui'); listUI.innerHTML = '<div style="padding:20px; text-align:center;">가져오는 중...</div>';
+        fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${Date.now()}`).then(res => res.json()).then(data => {
+            if(!data) { listUI.innerHTML = '<div style="padding:20px; text-align:center;">백업 없음</div>'; return; }
+            const timestamps = Object.keys(data).sort((a, b) => b - a); listUI.innerHTML = '';
             timestamps.slice(0, 30).forEach(ts => {
-                const item = document.createElement('div'); item.className = 'backup-item';
-                const d = new Date(parseInt(ts));
-                const timeStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-                item.innerHTML = `<span><span class="backup-date">🕒 ${timeStr}</span> 에 저장됨</span>`;
-                item.onclick = async () => { listUI.innerHTML = '<div style="padding:20px; text-align:center;">복구 중... 1초면 됩니다!</div>'; restoreFromFirebase(ts); };
-                listUI.appendChild(item);
+                const item = document.createElement('div'); item.className = 'backup-item'; const d = new Date(parseInt(ts)); const timeStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                item.innerHTML = `<span><span class="backup-date">🕒 ${timeStr}</span> 에 저장됨</span>`; item.onclick = () => { restoreFromFirebase(ts); }; listUI.appendChild(item);
             });
-        })
-        .catch(e => {
-            listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">❌ 불러오기 실패</div>`;
-        });
+        }).catch(e => { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">실패</div>`; });
     }
-
-    function restoreFromFirebase(ts) {
-        fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`)
-        .then(res => res.json())
-        .then(data => {
-            if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats);
-            if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress);
-            if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck);
-            location.reload();
-        }).catch(e => console.error(e));
-    }
-
-    function cleanupOldBackups() {
-        fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${Date.now()}`)
-        .then(res => res.json())
-        .then(data => {
-            if(!data) return;
-            const timestamps = Object.keys(data).sort((a, b) => a - b);
-            if(timestamps.length > 30) {
-                const toDelete = timestamps.slice(0, timestamps.length - 30);
-                for(const ts of toDelete) {
-                    fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`, { method: 'DELETE' });
-                }
-            }
-        }).catch(e => {});
-    }
+    function restoreFromFirebase(ts) { fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`).then(res => res.json()).then(data => { if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats); if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress); if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck); location.reload(); }); }
 
     async function autoScanGitHub() {
-        const owner = defaultRepoOwner; const repo = defaultRepoName;
-        const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
+        const owner = defaultRepoOwner; const repo = defaultRepoName; const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
         try {
-            const listUrl = `https://api.github.com/repos/${owner}/${repo}/contents/`;
-            const listResponse = await fetch(listUrl, { headers });
-            if (!listResponse.ok) return;
-            const files = await listResponse.json();
-            const txtFiles = files.filter(f => f.name.endsWith('.txt'));
-            if(txtFiles.length === 0) return;
-
-            let newLibrary = {}; 
+            const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/`, { headers }); if (!res.ok) return; const files = await res.json(); const txtFiles = files.filter(f => f.name.endsWith('.txt')); if(txtFiles.length === 0) return;
+            let newLib = {}; 
             for (const file of txtFiles) {
-                try {
-                    let text = "";
-                    if(ghRepoToken) {
-                        const fileRes = await fetch(file.url, { headers });
-                        const fileJson = await fileRes.json();
-                        if(fileJson.content) text = u_atob(fileJson.content.replace(/\n/g, ''));
-                    } else {
-                        const contentResponse = await fetch(file.download_url + '?t=' + Date.now()); text = await contentResponse.text();
-                    }
-                    processAnkiTextToLib(text, file.name, newLibrary);
-                } catch (e) {}
+                let text = ""; if(ghRepoToken) { const fRes = await fetch(file.url, { headers }); const fJson = await fRes.json(); if(fJson.content) text = u_atob(fJson.content.replace(/\n/g, '')); } else { const cRes = await fetch(file.download_url + '?t=' + Date.now()); text = await cRes.text(); }
+                const rows = parseAnkiRawData(text); const curDeck = file.name.replace('.txt', '');
+                rows.forEach(fields => { if (fields.length > 0 && fields[0].startsWith('#')) return; let dName = null, q = "", a = ""; if (fields.length >= 3) { dName = fields[0].replace(/::/g, '__'); q = fields[1]; a = fields.slice(2).join('<br>'); } else { dName = curDeck; if (fields.length === 2) { q = fields[0]; a = fields[1]; } else if (fields.length > 0) { q = fields[0]; a = fields.slice(1).join('<br>'); } } if(!q) return; if (!newLib[dName]) newLib[dName] = []; newLib[dName].push({ id: cyrb53(q), q, a }); });
             }
-            library = newLibrary; saveLibrary(); renderDeckTree(); restoreLastSession();
-        } catch (error) {}
+            library = newLib; saveLibrary(); renderDeckTree(); restoreLastSession();
+        } catch (e) {}
     }
 
-    function u_btoa(str) { return window.btoa(unescape(encodeURIComponent(str))); }
-    function u_atob(str) { return decodeURIComponent(escape(window.atob(str))); }
-    
-    // 🔥 [버그가 있었던 곳! 완벽 수정 완료]
-    function updateCloudIcon(status) { 
-        const icon = document.getElementById('cloud-icon'); 
-        if(!icon) return; // 아이콘이 없어도 앱이 터지지 않게 방어막 설치
-        icon.className = `cloud-icon ${status}`; 
-        icon.innerText = status === 'active' ? '🔄' : (status === 'error' ? '❌' : '🔥'); 
-    }
-
-    function processAnkiTextToLib(text, filename, targetLib) {
-        const rows = parseAnkiRawData(text); let currentDeck = filename.replace('.txt', '');
-        rows.forEach(fields => {
-            if (fields.length > 0 && fields[0].startsWith('#')) return; let deckNameInRow = null; let q = "", a = "";
-            if (fields.length >= 3) { deckNameInRow = fields[0].replace(/::/g, '__'); q = fields[1]; a = fields.slice(2).join('<br>'); } 
-            else { deckNameInRow = currentDeck; if (fields.length === 2) { q = fields[0]; a = fields[1]; } else if (fields.length > 0) { q = fields[0]; a = fields.slice(1).join('<br>'); } }
-            if(!q) return;
-            if (!targetLib[deckNameInRow]) targetLib[deckNameInRow] = [];
-            targetLib[deckNameInRow].push({ id: cyrb53(q), q, a });
-        });
-    }
-
-    function parseAnkiRawData(str) {
-        const rows = []; let currentRow = []; let currentCell = ''; let cursor = 0; let inQuote = false;
-        while (cursor < str.length) {
-            const char = str[cursor]; const nextChar = str[cursor + 1];
-            if (inQuote) { if (char === '"' && nextChar === '"') { currentCell += '"'; cursor += 2; } else if (char === '"') { inQuote = false; cursor++; } else { currentCell += char; cursor++; } }
-            else { if (char === '"') { inQuote = true; cursor++; } else if (char === '\t') { currentRow.push(currentCell); currentCell = ''; cursor++; } else if (char === '\n' || char === '\r') { if (char === '\r' && nextChar === '\n') cursor++; currentRow.push(currentCell); if (currentRow.length > 1 || (currentRow.length === 1 && currentRow[0].trim() !== '')) { rows.push(currentRow); } currentRow = []; currentCell = ''; cursor++; } else { currentCell += char; cursor++; } }
-        }
-        if (currentRow.length > 0 || currentCell !== '') { currentRow.push(currentCell); rows.push(currentRow); }
-        return rows;
-    }
-
-    function saveLibrary() { localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(library)); }
-    function loadLocalLibrary() { const s = localStorage.getItem(STORAGE_KEY_LIBRARY); if(s) { try{library=JSON.parse(s); renderDeckTree();}catch(e){} } }
+    function u_btoa(str) { return window.btoa(unescape(encodeURIComponent(str))); } function u_atob(str) { return decodeURIComponent(escape(window.atob(str))); }
+    function parseAnkiRawData(str) { const rows = []; let row = [], cell = '', cursor = 0, inQuote = false; while (cursor < str.length) { const char = str[cursor], nextChar = str[cursor + 1]; if (inQuote) { if (char === '"' && nextChar === '"') { cell += '"'; cursor += 2; } else if (char === '"') { inQuote = false; cursor++; } else { cell += char; cursor++; } } else { if (char === '"') { inQuote = true; cursor++; } else if (char === '\t') { row.push(cell); cell = ''; cursor++; } else if (char === '\n' || char === '\r') { if (char === '\r' && nextChar === '\n') cursor++; row.push(cell); if (row.length > 1 || (row.length === 1 && row[0].trim() !== '')) { rows.push(row); } row = []; cell = ''; cursor++; } else { cell += char; cursor++; } } } if (row.length > 0 || cell !== '') { row.push(cell); rows.push(row); } return rows; }
+    function saveLibrary() { localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(library)); } function loadLocalLibrary() { const s = localStorage.getItem(STORAGE_KEY_LIBRARY); if(s) { try{library=JSON.parse(s); renderDeckTree();}catch(e){} } }
 
     function showCard() {
-        resetZoom();
-        if (!activeDeck || activeDeck.length === 0) { document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub)'>항목이 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
-        if(currentIndex >= activeDeck.length) currentIndex = 0;
-        const card = activeDeck[currentIndex]; const stats = getStats(card.id);
-        document.getElementById('card-counter').innerText = `${currentIndex + 1} / ${activeDeck.length}`;
-        document.getElementById('card-info').style.display='flex';
-        updateStatsUI(stats); updateIconsUI(stats);
-        const dateBadge = document.getElementById('date-badge'); const dateText = getDaysText(stats);
-        if (dateText) { dateBadge.innerText = dateText; dateBadge.style.display = 'inline-block'; dateBadge.className = dateText.includes('오늘') ? 'date-badge today' : 'date-badge recent'; } else { dateBadge.style.display = 'none'; }
-        
-        const qSection = document.getElementById('question-section'); qSection.innerHTML = ''; qSection.appendChild(createDOM(card.q, false));
-        const aSection = document.getElementById('answer-section'); aSection.innerHTML = ''; aSection.appendChild(createDOM(card.a, true));
-        aSection.style.display = 'none'; document.getElementById('divider').style.display = 'none'; document.getElementById('click-guide').style.display = 'block'; document.getElementById('nav-area').style.display = 'flex'; document.getElementById('grade-area').style.display = 'none'; scrollContainer.scrollTop = 0;
+        if (!activeDeck || activeDeck.length === 0) { document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub)'>항목이 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; document.getElementById('nav-area').style.display = 'none'; document.getElementById('grade-area').style.display = 'none'; document.getElementById('click-guide').style.display = 'none'; document.getElementById('answer-section').style.display = 'none'; return; }
+        if(currentIndex >= activeDeck.length) currentIndex = 0; const card = activeDeck[currentIndex]; const stats = getStats(card.id);
+        document.getElementById('card-counter').innerText = `${currentIndex + 1} / ${activeDeck.length}`; document.getElementById('card-info').style.display='flex'; updateStatsUI(stats); updateIconsUI(stats);
+        const dBadge = document.getElementById('date-badge'), dText = getDaysText(stats); if (dText) { dBadge.innerText = dText; dBadge.style.display = 'inline-block'; dBadge.className = dText.includes('오늘') ? 'date-badge today' : 'date-badge recent'; } else { dBadge.style.display = 'none'; }
+        const qSec = document.getElementById('question-section'); qSec.innerHTML = ''; qSec.appendChild(createDOM(card.q));
+        const aSec = document.getElementById('answer-section'); aSec.innerHTML = ''; aSec.appendChild(createDOM(card.a));
+        aSec.style.display = 'none'; document.getElementById('divider').style.display = 'none'; document.getElementById('click-guide').style.display = 'block'; document.getElementById('nav-area').style.display = 'flex'; document.getElementById('grade-area').style.display = 'none'; scrollContainer.scrollTop = 0;
     }
 
-    function revealAnswer(event) { if(event) event.stopPropagation(); document.getElementById('click-guide').style.display = 'none'; document.getElementById('divider').style.display = 'block'; document.getElementById('answer-section').style.display = 'block'; document.getElementById('grade-area').style.display = 'flex'; setTimeout(() => { document.getElementById('answer-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); }
-
+    function revealAnswer(e) { if(e) e.stopPropagation(); document.getElementById('click-guide').style.display = 'none'; document.getElementById('divider').style.display = 'block'; document.getElementById('answer-section').style.display = 'block'; document.getElementById('grade-area').style.display = 'flex'; setTimeout(() => { document.getElementById('answer-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); }
+    function filterCards(type) { if(!currentDeckName) return; document.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); const chip = document.getElementById(`chip-${type}`); if(chip) chip.classList.add('active'); if (type === 'search') { const rawQuery = document.getElementById('search-input').value.toLowerCase(); if(!rawQuery) { activeDeck = [...originalDeck]; } else { activeDeck = originalDeck.filter(card => card.q.toLowerCase().includes(rawQuery) || card.a.toLowerCase().includes(rawQuery)); } } else { currentFilterType = type; const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); let newDeck = [...originalDeck]; if (type === 'rate_asc') { newDeck = newDeck.filter(c => { const s = allStats[c.id] || {correct:0, total:0}; return s.total > 0 && (s.correct/s.total) < 0.8; }); } else if (type !== 'default') { newDeck = newDeck.filter(c => (allStats[c.id] || {})[type]); } if (!showTodayCompleted) { const today = new Date(); today.setHours(4,0,0,0); newDeck = newDeck.filter(c => (allStats[c.id] || {}).last < today.getTime()); } activeDeck = newDeck; } applySort(); updateHeaderUI(); const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'); currentIndex = progress[`${currentDeckName}__${currentFilterType}`] || 0; showCard(); }
+    
+    // [UI 업데이트 핵심 버그 수정] 아이콘 지워지지 않게 텍스트만 교체
     function renderDeckTree() {
-        const list = document.getElementById('deck-list-ui'); list.innerHTML = ''; const names = Object.keys(library).sort();
-        if (names.length === 0) { list.innerHTML = '<li style="text-align:center;">덱 없음</li>'; return; }
-        const tree = {};
-        names.forEach(path => { const parts = splitPath(path); let currentLevel = tree; parts.forEach((part, index) => { if (!currentLevel[part]) { currentLevel[part] = { _name: part, _fullPath: parts.slice(0, index + 1).join('__'), _children: {}, _isLeaf: false }; } if (index === parts.length - 1 && library[path] && library[path].length > 0) { currentLevel[part]._isLeaf = true; } currentLevel = currentLevel[part]._children; }); });
-        function createTreeDOM(node, container) { const keys = Object.keys(node).sort(); keys.forEach(key => { const item = node[key]; const hasChildren = Object.keys(item._children).length > 0; if (hasChildren) { const isOpen = (currentDeckName && currentDeckName.startsWith(item._fullPath)) ? 'open' : ''; const isActive = (currentDeckName === item._fullPath) ? 'active-deck' : ''; const html = `<li class="tree-folder"><div class="tree-header ${isActive}" onclick="this.nextElementSibling.classList.toggle('open')"><div class="folder-title">📂 ${item._name}</div><button class="play-btn" onclick="event.stopPropagation(); selectDeckGroup('${item._fullPath}__')">▶ 전체</button></div><ul class="tree-children ${isOpen}"></ul></li>`; const li = document.createElement('div'); li.innerHTML = html; container.appendChild(li.firstElementChild); createTreeDOM(item._children, container.lastElementChild.querySelector('ul')); } else { const isActive = (item._fullPath === currentDeckName) ? 'active' : ''; const html = `<li class="tree-item"><div class="tree-deck ${isActive}" onclick="selectDeck('${item._fullPath}')"><span>📄 ${item._name} <small>(${library[item._fullPath].length})</small></span><button class="del-btn" onclick="event.stopPropagation(); deleteDeck('${item._fullPath}')">x</button></div></li>`; const li = document.createElement('div'); li.innerHTML = html; container.appendChild(li.firstElementChild); } }); }
+        const list = document.getElementById('deck-list-ui'); list.innerHTML = ''; const names = Object.keys(library).sort(); if (names.length === 0) return; const tree = {}; names.forEach(path => { const parts = path.split('__'); let currentLevel = tree; parts.forEach((part, index) => { if (!currentLevel[part]) { currentLevel[part] = { _name: part, _fullPath: parts.slice(0, index + 1).join('__'), _children: {}, _isLeaf: false }; } if (index === parts.length - 1 && library[path] && library[path].length > 0) { currentLevel[part]._isLeaf = true; } currentLevel = currentLevel[part]._children; }); });
+        function createTreeDOM(node, container) { Object.keys(node).sort().forEach(key => { const item = node[key]; const hasChildren = Object.keys(item._children).length > 0; if (hasChildren) { const isOpen = (currentDeckName && currentDeckName.startsWith(item._fullPath)) ? 'open' : ''; const isActive = (currentDeckName === item._fullPath) ? 'active-deck' : ''; const html = `<li class="tree-folder"><div class="tree-header ${isActive}" onclick="this.nextElementSibling.classList.toggle('open')"><div class="folder-title">📂 ${item._name}</div><button class="play-btn" onclick="event.stopPropagation(); selectDeckGroup('${item._fullPath}__')">▶ 전체</button></div><ul class="tree-children ${isOpen}"></ul></li>`; const li = document.createElement('div'); li.innerHTML = html; container.appendChild(li.firstElementChild); createTreeDOM(item._children, container.lastElementChild.querySelector('ul')); } else { const isActive = (item._fullPath === currentDeckName) ? 'active' : ''; const html = `<li class="tree-item"><div class="tree-deck ${isActive}" onclick="selectDeck('${item._fullPath}')"><span>📄 ${item._name} <small>(${library[item._fullPath].length})</small></span><button class="del-btn" onclick="event.stopPropagation(); deleteDeck('${item._fullPath}')">x</button></div></li>`; const li = document.createElement('div'); li.innerHTML = html; container.appendChild(li.firstElementChild); } }); }
         createTreeDOM(tree, list);
     }
     
-    function splitPath(path) { return path.split('__'); }
-
-    // 🔥 [버그 원인 해결] 제목 글씨만 싹 바꾸고, 아이콘은 살려둡니다!
-    function selectDeckGroup(prefix) { 
-        let mergedCards = []; 
-        const targetParent = prefix.replace(/__$/, '');
-        Object.keys(library).forEach(key => { if (key.startsWith(prefix) || key === targetParent) { mergedCards = mergedCards.concat(library[key]); } }); 
-        if (mergedCards.length === 0) return; 
-        currentDeckName = targetParent; originalDeck = mergedCards; activeDeck = [...originalDeck]; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true'); filterCards('default'); 
-        document.getElementById('deck-title-text').innerText = `📂 ${currentDeckName.split('__').pop()}`; 
-        renderDeckTree(); toggleMenu(false); 
-    }
-
-    function selectDeck(name) { 
-        if(!library[name]) return; currentDeckName = name; originalDeck = library[name]; activeDeck = [...originalDeck]; localStorage.setItem(STORAGE_KEY_LAST_DECK, name); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'false'); filterCards('default'); 
-        document.getElementById('deck-title-text').innerText = `📄 ${name.split('__').pop()}`; 
-        renderDeckTree(); toggleMenu(false); 
-    }
-
+    function selectDeckGroup(prefix) { let merged = []; const target = prefix.replace(/__$/, ''); Object.keys(library).forEach(k => { if (k.startsWith(prefix) || k === target) merged = merged.concat(library[k]); }); if (merged.length === 0) return; currentDeckName = target; originalDeck = merged; activeDeck = [...originalDeck]; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true'); filterCards('default'); const titleEl = document.getElementById('deck-title-text'); if(titleEl) titleEl.innerText = `📂 ${currentDeckName.split('__').pop()}`; renderDeckTree(); toggleMenu(false); }
+    function selectDeck(name) { if(!library[name]) return; currentDeckName = name; originalDeck = library[name]; activeDeck = [...originalDeck]; localStorage.setItem(STORAGE_KEY_LAST_DECK, name); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'false'); filterCards('default'); const titleEl = document.getElementById('deck-title-text'); if(titleEl) titleEl.innerText = `📄 ${name.split('__').pop()}`; renderDeckTree(); toggleMenu(false); }
     function restoreLastSession() { const lastDeck = localStorage.getItem(STORAGE_KEY_LAST_DECK); if (lastDeck && (library[lastDeck] || Object.keys(library).some(k => k.startsWith(lastDeck)))) { const isGroup = localStorage.getItem(STORAGE_KEY_IS_GROUP) === 'true'; if (isGroup) selectDeckGroup(lastDeck.endsWith('__') ? lastDeck : lastDeck + '__'); else selectDeck(lastDeck); } }
-    function getStats(id) { const stored = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id]; return { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0, ...stored }; }
-    function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); const defaults = { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0 }; const s = { ...defaults, ...(allStats[card.id] || {}) }; s[type] = !s[type]; allStats[card.id] = s; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(allStats)); updateIconsUI(s); isDataChanged = true; }
-    function updateStatsUI(stats) { const badge = document.getElementById('rate-badge'); if(stats.total === 0) { badge.innerText = "New"; badge.className = "rate-badge"; } else { const rate = Math.round((stats.correct/stats.total)*100); badge.innerText = `${rate}% (${stats.total}회)`; if (rate >= 80) badge.className = "rate-badge high"; else if (rate < 50) badge.className = "rate-badge low"; else badge.className = "rate-badge"; } }
+    function getStats(id) { return { correct: 0, total: 0, fav: false, mem: false, cmp: false, num: false, date: false, pen: false, rev: false, last: 0, ...(JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || {}) }; }
+    function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); const s = getStats(card.id); s[type] = !s[type]; allStats[card.id] = s; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(allStats)); updateIconsUI(s); isDataChanged = true; }
+    function updateStatsUI(stats) { const badge = document.getElementById('rate-badge'); if(!badge) return; if(stats.total === 0) { badge.innerText = "New"; badge.className = "rate-badge"; } else { const rate = Math.round((stats.correct/stats.total)*100); badge.innerText = `${rate}% (${stats.total}회)`; if (rate >= 80) badge.className = "rate-badge high"; else if (rate < 50) badge.className = "rate-badge low"; else badge.className = "rate-badge"; } }
     function updateIconsUI(stats) { ['mem','cmp','fav','rev','num','date','pen'].forEach(k => { const el = document.getElementById(k+'-btn'); if(el) el.classList.toggle('active', !!stats[k]); }); }
-    function exportData() { const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK) }; const blob = new Blob([JSON.stringify(data)], { type: "application/json" }); const d = new Date(); const fname = `${d.getFullYear()}_${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.json`; const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; a.click(); }
+    function exportData() { const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK) }; const blob = new Blob([JSON.stringify(data)], { type: "application/json" }); const d = new Date(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${d.getFullYear()}_${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.json`; a.click(); }
     function importData(input) { const file = input.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats); if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress); if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck); location.reload(); } catch (err) {} }; reader.readAsText(file); }
     function deleteDeck(name) { if(confirm("삭제?")) { delete library[name]; saveLibrary(); renderDeckTree(); if(currentDeckName === name) { currentDeckName=null; activeDeck=[]; showCard(); } } }
     function moveCard(delta) { let nextIdx = currentIndex + delta; if(nextIdx >= 0 && nextIdx < activeDeck.length) { currentIndex = nextIdx; saveProgress(); showCard(); } }
-    
     function saveProgress() { const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'); progress[`${currentDeckName}__${currentFilterType}`] = currentIndex; localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress)); }
-    function updateHeaderUI() { document.getElementById('header-info').innerText = `${sortLabels[currentSortMode]} & ${filterLabels[currentFilterType]}`; ['wrong', 'normal', 'random'].forEach(m => document.getElementById(`chip-sort-${m}`).classList.toggle('active', currentSortMode === m)); }
+    function updateHeaderUI() { const hInfo = document.getElementById('header-info'); if(hInfo) hInfo.innerText = `${sortLabels[currentSortMode]} & ${filterLabels[currentFilterType]}`; ['wrong', 'normal', 'random'].forEach(m => { const el = document.getElementById(`chip-sort-${m}`); if(el) el.classList.toggle('active', currentSortMode === m); }); }
     function setSortMode(mode) { currentSortMode = mode; localStorage.setItem(STORAGE_KEY_SORT, mode); updateHeaderUI(); if(currentDeckName) { applySort(); currentIndex = 0; showCard(); } }
     function applySort() { if (!activeDeck || activeDeck.length === 0) return; const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if (currentSortMode === 'wrong') { activeDeck.sort((a, b) => { const sA = allStats[a.id] || {correct:0, total:0}; const sB = allStats[b.id] || {correct:0, total:0}; const rA = sA.total === 0 ? 0 : sA.correct / sA.total; const rB = sB.total === 0 ? 0 : sB.correct / sB.total; return (rA - rB) || (sA.total - sB.total); }); } else if (currentSortMode === 'random') { activeDeck.sort(() => Math.random() - 0.5); } }
     function getDaysText(stats) { if (!stats || !stats.last) return ""; const diff = new Date().setHours(4, 0, 0, 0) - stats.last; return diff < 0 ? "✅ 오늘 완료" : `🕒 ${Math.floor(diff / 86400000) + 1}일 전`; }
-    function createDOM(rawText, isAnswer) { if (!rawText) rawText = ""; let clean = rawText.replace(/""/g, '"').replace(/title=".*?"/g, '').replace(/\{\{c\d+::(.*?)\}\}/g, '<span style="display:none">$1</span>'); if(clean.startsWith('"') && clean.endsWith('"')) clean = clean.slice(1, -1); const div = document.createElement('div'); div.innerHTML = clean; div.querySelectorAll('img').forEach(img => { let src = img.getAttribute('src'); if (src && !src.startsWith('http') && defaultRepoOwner) img.src = `https://raw.githubusercontent.com/${defaultRepoOwner}/${defaultRepoName}/main/images/${encodeURIComponent(src.split('/').pop())}`; img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto'; img.onerror = function() { this.style.display = 'none'; }; }); return div; }
+    function createDOM(rawText) { let clean = rawText.replace(/""/g, '"').replace(/title=".*?"/g, '').replace(/\{\{c\d+::(.*?)\}\}/g, '<span style="display:none">$1</span>'); if(clean.startsWith('"') && clean.endsWith('"')) clean = clean.slice(1, -1); const div = document.createElement('div'); div.innerHTML = clean; div.querySelectorAll('img').forEach(img => { let src = img.getAttribute('src'); if (src && !src.startsWith('http') && defaultRepoOwner) img.src = `https://raw.githubusercontent.com/${defaultRepoOwner}/${defaultRepoName}/main/images/${encodeURIComponent(src.split('/').pop())}`; img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto'; img.onerror = function() { this.style.display = 'none'; }; }); return div; }
     const cyrb53 = (str, seed = 0) => { let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed; for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); return 4294967296 * (2097151 & h2) + (h1 >>> 0); };
 </script>
 </body>
