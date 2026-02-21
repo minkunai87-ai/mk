@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v11.00 - Full Deck Fix)</title>
+<title>나만의 안키 (v11.01 - History Sync Fix)</title>
 <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
@@ -137,7 +137,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v11.00 (Firebase)
+            My Anki v11.01 (History Fix)
         </div>
     </div>
 
@@ -347,13 +347,15 @@
         } catch(e) { updateCloudIcon('error'); return false; }
     }
 
+    // 🔥 [핵심 수정] 캐시(Cache) 강제 무시 코드 추가! 무조건 최신 리스트 가져옴!
     async function fetchFirebaseList() {
         document.getElementById('fb-auth-section').style.display = 'none';
         document.getElementById('fb-list-section').style.display = 'block';
         const listUI = document.getElementById('fb-list-ui');
         listUI.innerHTML = '<div style="padding:20px; text-align:center;">구글 서버에서 가져오는 중...</div>';
         try {
-            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true`);
+            const cacheBuster = Date.now(); // 브라우저를 속이는 캐시 무시용 시간표시
+            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${cacheBuster}`, { cache: 'no-store' });
             if(!res.ok) throw new Error();
             const data = await res.json();
             if(!data) { listUI.innerHTML = '<div style="padding:20px; text-align:center;">아직 저장된 백업이 없습니다.</div>'; return; }
@@ -383,7 +385,7 @@
 
     async function cleanupOldBackups() {
         try {
-            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true`); const data = await res.json(); if(!data) return;
+            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${Date.now()}`); const data = await res.json(); if(!data) return;
             const timestamps = Object.keys(data).sort((a, b) => a - b); 
             if(timestamps.length > 30) { const toDelete = timestamps.slice(0, timestamps.length - 30); for(const ts of toDelete) { fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`, { method: 'DELETE' }); } }
         } catch(e) {}
@@ -482,32 +484,19 @@
         const list = document.getElementById('deck-list-ui'); list.innerHTML = ''; const names = Object.keys(library).sort();
         if (names.length === 0) { list.innerHTML = '<li style="text-align:center;">덱 없음</li>'; return; }
         const tree = {};
-        names.forEach(path => { const parts = path.split('__'); let currentLevel = tree; parts.forEach((part, index) => { if (!currentLevel[part]) { currentLevel[part] = { _name: part, _fullPath: parts.slice(0, index + 1).join('__'), _children: {}, _isLeaf: false }; } if (index === parts.length - 1 && library[path] && library[path].length > 0) { currentLevel[part]._isLeaf = true; } currentLevel = currentLevel[part]._children; }); });
+        names.forEach(path => { const parts = splitPath(path); let currentLevel = tree; parts.forEach((part, index) => { if (!currentLevel[part]) { currentLevel[part] = { _name: part, _fullPath: parts.slice(0, index + 1).join('__'), _children: {}, _isLeaf: false }; } if (index === parts.length - 1 && library[path] && library[path].length > 0) { currentLevel[part]._isLeaf = true; } currentLevel = currentLevel[part]._children; }); });
         function createTreeDOM(node, container) { const keys = Object.keys(node).sort(); keys.forEach(key => { const item = node[key]; const hasChildren = Object.keys(item._children).length > 0; if (hasChildren) { const isOpen = (currentDeckName && currentDeckName.startsWith(item._fullPath)) ? 'open' : ''; const isActive = (currentDeckName === item._fullPath) ? 'active-deck' : ''; const html = `<li class="tree-folder"><div class="tree-header ${isActive}" onclick="this.nextElementSibling.classList.toggle('open')"><div class="folder-title">📂 ${item._name}</div><button class="play-btn" onclick="event.stopPropagation(); selectDeckGroup('${item._fullPath}__')">▶ 전체</button></div><ul class="tree-children ${isOpen}"></ul></li>`; const li = document.createElement('div'); li.innerHTML = html; container.appendChild(li.firstElementChild); createTreeDOM(item._children, container.lastElementChild.querySelector('ul')); } else { const isActive = (item._fullPath === currentDeckName) ? 'active' : ''; const html = `<li class="tree-item"><div class="tree-deck ${isActive}" onclick="selectDeck('${item._fullPath}')"><span>📄 ${item._name} <small>(${library[item._fullPath].length})</small></span><button class="del-btn" onclick="event.stopPropagation(); deleteDeck('${item._fullPath}')">x</button></div></li>`; const li = document.createElement('div'); li.innerHTML = html; container.appendChild(li.firstElementChild); } }); }
         createTreeDOM(tree, list);
     }
+    
+    function splitPath(path) { return path.split('__'); }
 
-    // 🔥 [수정된 부분] 상위 덱 이름만 정확하게 추출해서 필터링합니다!
     function selectDeckGroup(prefix) { 
         let mergedCards = []; 
-        const targetParent = prefix.replace(/__$/, ''); // 정규식으로 끝부분 꼬리표만 정확하게 제거!
-        
-        Object.keys(library).forEach(key => { 
-            if (key.startsWith(prefix) || key === targetParent) { 
-                mergedCards = mergedCards.concat(library[key]); 
-            } 
-        }); 
-        
+        const targetParent = prefix.replace(/__$/, '');
+        Object.keys(library).forEach(key => { if (key.startsWith(prefix) || key === targetParent) { mergedCards = mergedCards.concat(library[key]); } }); 
         if (mergedCards.length === 0) return; 
-        currentDeckName = targetParent; 
-        originalDeck = mergedCards; 
-        activeDeck = [...originalDeck]; 
-        localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName); 
-        localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true'); 
-        filterCards('default'); 
-        document.getElementById('deck-title').innerText = `📂 ${currentDeckName.split('__').pop()}`; 
-        renderDeckTree(); 
-        toggleMenu(false); 
+        currentDeckName = targetParent; originalDeck = mergedCards; activeDeck = [...originalDeck]; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true'); filterCards('default'); document.getElementById('deck-title').innerText = `📂 ${currentDeckName.split('__').pop()}`; renderDeckTree(); toggleMenu(false); 
     }
 
     function selectDeck(name) { if(!library[name]) return; currentDeckName = name; originalDeck = library[name]; activeDeck = [...originalDeck]; localStorage.setItem(STORAGE_KEY_LAST_DECK, name); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'false'); filterCards('default'); document.getElementById('deck-title').innerText = `📄 ${name.split('__').pop()}`; renderDeckTree(); toggleMenu(false); }
