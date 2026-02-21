@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v11.03 - CORS Bypass)</title>
+<title>나만의 안키 (v11.04 - Apple Stealth Fix)</title>
 <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
@@ -137,7 +137,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v11.03 (CORS Bypass)
+            My Anki v11.04 (Stealth Mode)
         </div>
     </div>
 
@@ -311,13 +311,13 @@
 
     function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
 
-    // 🔥 [이름표 제거] Content-Type 헤더를 지워서 애플의 스니핑 통과!
+    // 🔥 [스텔스 모드 작동] POST로 위장하고 Firebase에게만 몰래 _method=PUT 전달!
     async function testFirebaseSync() {
         const logArea = document.getElementById('log-area');
         ghRepoToken = document.getElementById('gh-token-input').value.trim();
         localStorage.setItem('gh_repo_token', ghRepoToken); 
         
-        logArea.innerText = "구글 서버로 쏘는 중... 🚀 (스텔스 모드)";
+        logArea.innerText = "구글 서버로 쏘는 중... 🚀 (스텔스 우회 모드)";
         isDataChanged = true;
         
         const controller = new AbortController();
@@ -327,9 +327,9 @@
             const now = Date.now();
             const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: now };
             
-            // 🔥 헤더 삭제됨 (Simple Request로 변경)
-            const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, { 
-                method: 'PUT', 
+            // 🔥 마법의 URL 파라미터 `?_method=PUT` 추가, 통신 방식은 `POST`로 변경!
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json?_method=PUT`, { 
+                method: 'POST', 
                 body: JSON.stringify(data),
                 signal: controller.signal 
             });
@@ -337,10 +337,10 @@
             
             if(res.ok) { 
                 isDataChanged = false; updateCloudIcon('done'); cleanupOldBackups(); 
-                logArea.innerHTML = `<span style="color:#40c057;">✅ 파이어베이스 백업 성공! 드디어 뚫렸습니다!</span>`;
+                logArea.innerHTML = `<span style="color:#40c057;">✅ 파이어베이스 백업 완벽 성공! 애플 방화벽 뚫었습니다!</span>`;
                 setTimeout(() => { document.getElementById('fb-modal').style.display = 'none'; }, 2000);
             } else { 
-                logArea.innerHTML = `<span style="color:#fa5252;">❌ 서버가 거절함 (에러코드: ${res.status}). 파이어베이스 규칙 확인 필요.</span>`;
+                logArea.innerHTML = `<span style="color:#fa5252;">❌ 서버가 거절함 (에러코드: ${res.status}).</span>`;
             }
         } catch(e) { 
             clearTimeout(timeoutId);
@@ -368,8 +368,12 @@
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         try {
-            // 🔥 여기도 헤더 삭제
-            const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, { method: 'PUT', body: JSON.stringify(data), signal: controller.signal });
+            // 🔥 마법의 URL 파라미터 `?_method=PUT` 추가, POST 변경!
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json?_method=PUT`, { 
+                method: 'POST', 
+                body: JSON.stringify(data), 
+                signal: controller.signal 
+            });
             clearTimeout(timeoutId);
             if(res.ok) { isDataChanged = false; updateCloudIcon('done'); cleanupOldBackups(); return true; } else { updateCloudIcon('error'); return false; }
         } catch(e) { clearTimeout(timeoutId); updateCloudIcon('error'); return false; }
@@ -421,7 +425,13 @@
         try {
             const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${Date.now()}`); const data = await res.json(); if(!data) return;
             const timestamps = Object.keys(data).sort((a, b) => a - b); 
-            if(timestamps.length > 30) { const toDelete = timestamps.slice(0, timestamps.length - 30); for(const ts of toDelete) { fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`, { method: 'DELETE' }); } }
+            if(timestamps.length > 30) { 
+                const toDelete = timestamps.slice(0, timestamps.length - 30); 
+                for(const ts of toDelete) { 
+                    // 🔥 삭제도 스텔스 모드로 변경
+                    fetch(`${FIREBASE_DB_URL}/backups/${ts}.json?_method=DELETE`, { method: 'POST' }); 
+                } 
+            }
         } catch(e) {}
     }
 
