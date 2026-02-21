@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.91 - Error Detector)</title>
+<title>나만의 안키 (v10.92 - No Popups)</title>
 <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
@@ -135,7 +135,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.91 (Error Detector)
+            My Anki v10.92 (No Popups)
         </div>
     </div>
 
@@ -217,7 +217,7 @@
 
     <div class="modal-overlay" id="gh-modal">
         <div class="modal-content">
-            <div class="modal-title">☁️ Gist 자동 백업 (오류 탐지용)</div>
+            <div class="modal-title">☁️ Gist 자동 백업 (팝업 없는 버전)</div>
             
             <div id="gh-auth-section">
                 <div><span class="menu-label">Gist ID</span><input type="text" id="gh-gist-id" class="edit-input" placeholder="32자리 영문숫자"></div>
@@ -225,7 +225,7 @@
                 
                 <div class="modal-btns">
                     <button class="modal-btn btn-save" onclick="initGitHubSync()">연동 테스트</button>
-                    <button class="modal-btn btn-sub" onclick="fetchBackupList()">🕒 과거 내역 보기</button>
+                    <button class="modal-btn btn-sub" onclick="fetchBackupList()">🕒 과거 내역</button>
                     <button class="modal-btn btn-cancel" onclick="document.getElementById('gh-modal').style.display='none'">닫기</button>
                 </div>
             </div>
@@ -238,7 +238,7 @@
                 </div>
             </div>
             
-            <div id="log-area" style="font-size:0.8rem; color:#74c0fc; margin-top:10px; text-align:center; font-weight:bold;">대기 중...</div>
+            <div id="log-area" style="font-size:0.9rem; color:#74c0fc; margin-top:15px; text-align:center; font-weight:bold; padding: 10px; background: #222; border-radius: 8px;">대기 중...</div>
         </div>
     </div>
 
@@ -304,55 +304,55 @@
 
     function showAuthSection() { document.getElementById('gh-auth-section').style.display = 'block'; document.getElementById('backup-list-section').style.display = 'none'; }
 
-    // 🔥 [핵심 수정] 에러 코드를 강제로 띄워주는 로직
+    // 🔥 [핵심 수정] 팝업창(alert) 완전 제거! 글씨로만 출력
     async function initGitHubSync() {
         let rawId = document.getElementById('gh-gist-id').value.trim();
         let rawToken = document.getElementById('gh-token').value.trim();
-        if(!rawId || !rawToken) { alert("Gist ID와 토큰은 필수입니다."); return; }
+        const logArea = document.getElementById('log-area');
+
+        if(!rawId || !rawToken) { 
+            logArea.innerHTML = "<span style='color:#fa5252;'>❌ ID와 토큰을 모두 적어주세요!</span>"; 
+            return; 
+        }
 
         ghGistId = rawId; ghToken = rawToken;
         localStorage.setItem('gh_gist_id', ghGistId);
         localStorage.setItem('gh_token', ghToken);
         
-        document.getElementById('log-area').innerText = "깃허브에 노크 중... ✊";
+        logArea.innerText = "깃허브에 노크 중... ✊";
         updateCloudIcon('active');
         
         try {
-            // 1. 순수 GET 테스트로 원인 파악
+            // 1. 상태 테스트
             const testRes = await fetch(`https://api.github.com/gists/${ghGistId}`, {
                 headers: { 'Authorization': `token ${ghToken}` }
             });
             
             if(!testRes.ok) {
                 let reason = "";
-                if(testRes.status === 401) reason = "토큰이 만료/삭제되었습니다! (새 토큰 발급 요망)";
-                else if(testRes.status === 404) reason = "Gist ID가 틀렸거나 토큰에 gist 권한이 없습니다!";
-                else reason = "알 수 없는 에러입니다.";
+                if(testRes.status === 401) reason = "토큰이 만료/삭제됨 (새로 발급 요망)";
+                else if(testRes.status === 404) reason = "ID가 틀렸거나 토큰에 gist 체크가 안 됨";
+                else reason = "알 수 없는 에러";
                 
-                alert(`🚨 깃허브 연결 거부\n\n- 에러 코드: ${testRes.status}\n- 이유: ${reason}`);
-                document.getElementById('log-area').innerText = `연결 실패 (코드: ${testRes.status})`;
+                logArea.innerHTML = `<span style="color:#fa5252;">❌ 에러 ${testRes.status}: ${reason}</span>`;
                 updateCloudIcon('error');
-                return; // 에러 났으니 중지
+                return; 
             }
             
-            // 2. 테스트 통과 시 진짜 덮어쓰기 시도
-            document.getElementById('log-area').innerText = "데이터 덮어쓰는 중...";
+            // 2. 덮어쓰기 시도
+            logArea.innerText = "✅ 접속 성공! 데이터 덮어쓰는 중...";
             isDataChanged = true;
             const success = await performRotationBackup();
             
             if(success) {
-                alert("🎉 완벽하게 연결 및 덮어쓰기 성공!");
+                logArea.innerHTML = `<span style="color:#40c057;">🎉 연동 및 덮어쓰기 완료! (창을 닫으셔도 됩니다)</span>`;
                 document.getElementById('gh-status-text').innerText = "✅ Gist 연동됨";
-                document.getElementById('gh-modal').style.display = 'none';
-                document.getElementById('log-area').innerText = "대기 중...";
             } else {
-                alert("🚨 연결은 됐으나 파일 덮어쓰기에 실패했습니다.");
-                document.getElementById('log-area').innerText = "덮어쓰기 에러 발생";
+                logArea.innerHTML = `<span style="color:#fa5252;">❌ 접속은 됐으나 덮어쓰기에 실패했습니다.</span>`;
                 updateCloudIcon('error');
             }
         } catch(e) {
-            alert("🚨 인터넷 연결 문제이거나 브라우저 보안 차단입니다.\n" + e.message);
-            document.getElementById('log-area').innerText = "통신 에러 발생";
+            logArea.innerHTML = `<span style="color:#fa5252;">❌ 인터넷 끊김 또는 보안 차단: ${e.message}</span>`;
             updateCloudIcon('error');
         }
     }
@@ -381,7 +381,7 @@
         document.getElementById('backup-list-section').style.display = 'block';
         const listUI = document.getElementById('backup-list-ui');
         listUI.innerHTML = '<div style="padding:20px; text-align:center;">Gist 내역을 가져오는 중...</div>';
-        if(!ghToken || !ghGistId) { listUI.innerHTML = '<div style="padding:20px; text-align:center;">먼저 ID와 토큰을 입력해주세요.</div>'; return; }
+        if(!ghToken || !ghGistId) { listUI.innerHTML = '<div style="padding:20px; text-align:center; color:#fa5252;">먼저 ID와 토큰을 입력해주세요.</div>'; return; }
 
         try {
             const res = await fetch(`https://api.github.com/gists/${ghGistId}`, { headers: { 'Authorization': `token ${ghToken}` } });
@@ -394,14 +394,18 @@
                 const d = new Date(hist.committed_at);
                 const timeStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
                 item.innerHTML = `<span><span class="backup-date">🕒 ${timeStr}</span> 버전</span>`;
-                item.onclick = () => restoreFromGistVersion(hist.version);
+                
+                // 팝업 제거 (직접 클릭으로 바로 복구)
+                item.onclick = async () => {
+                    document.getElementById('backup-list-ui').innerHTML = '<div style="padding:20px; text-align:center;">복구 중... 잠시만 기다려주세요.</div>';
+                    await restoreFromGistVersion(hist.version);
+                };
                 listUI.appendChild(item);
             });
         } catch(e) { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">불러오기 실패 (${e.message})</div>`; }
     }
 
     async function restoreFromGistVersion(versionSha) {
-        if(!confirm("이 시간대의 데이터로 덮어씌웁니다. 진행할까요?")) return;
         try {
             const res = await fetch(`https://api.github.com/gists/${ghGistId}/${versionSha}`, { headers: { 'Authorization': `token ${ghToken}` } });
             const gistData = await res.json();
@@ -410,8 +414,11 @@
             if(content.stats) localStorage.setItem(STORAGE_KEY_STATS, content.stats);
             if(content.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, content.progress);
             if(content.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, content.lastDeck);
-            alert("복구 완료!"); location.reload();
-        } catch(e) { alert("복구 실패: 데이터 형식이 맞지 않습니다."); }
+            // 복구 완료 시 그냥 새로고침
+            location.reload();
+        } catch(e) { 
+            document.getElementById('backup-list-ui').innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">복구 실패: 데이터 형식이 맞지 않습니다.</div>`;
+        }
     }
 
     async function autoScanGitHub() {
@@ -523,7 +530,7 @@
     function importData(input) { const file = input.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats); if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress); if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck); location.reload(); } catch (err) {} }; reader.readAsText(file); }
     function deleteDeck(name) { if(confirm("삭제?")) { delete library[name]; saveLibrary(); renderDeckTree(); if(currentDeckName === name) { currentDeckName=null; activeDeck=[]; showCard(); } } }
     function moveCard(delta) { let nextIdx = currentIndex + delta; if(nextIdx >= 0 && nextIdx < activeDeck.length) { currentIndex = nextIdx; saveProgress(); showCard(); } }
-    function grade(score) { const card = activeDeck[currentIndex]; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); const s = { correct: 0, total: 0, ...data[card.id] }; s.total++; if(score === 2) s.correct++; else if(score === 1) s.correct += 0.5; s.last = Date.now(); data[card.id] = s; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateStatsUI(s); isDataChanged = true; checkAutoBackup(); if (!showTodayCompleted) { activeDeck = activeDeck.filter(c => c.id !== card.id); if (currentIndex >= activeDeck.length) currentIndex = 0; if (activeDeck.length === 0) { alert("완료!"); showCard(); return; } saveProgress(); showCard(); } else { if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } else { alert("끝!"); currentIndex = 0; saveProgress(); showCard(); } } }
+    function grade(score) { const card = activeDeck[currentIndex]; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); const s = { correct: 0, total: 0, ...data[card.id] }; s.total++; if(score === 2) s.correct++; else if(score === 1) s.correct += 0.5; s.last = Date.now(); data[card.id] = s; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateStatsUI(s); isDataChanged = true; checkAutoBackup(); if (!showTodayCompleted) { activeDeck = activeDeck.filter(c => c.id !== card.id); if (currentIndex >= activeDeck.length) currentIndex = 0; if (activeDeck.length === 0) { showCard(); return; } saveProgress(); showCard(); } else { if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } else { currentIndex = 0; saveProgress(); showCard(); } } }
     function saveProgress() { const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'); progress[`${currentDeckName}__${currentFilterType}`] = currentIndex; localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress)); }
     function updateHeaderUI() { document.getElementById('header-info').innerText = `${sortLabels[currentSortMode]} & ${filterLabels[currentFilterType]}`; ['wrong', 'normal', 'random'].forEach(m => document.getElementById(`chip-sort-${m}`).classList.toggle('active', currentSortMode === m)); }
     function setSortMode(mode) { currentSortMode = mode; localStorage.setItem(STORAGE_KEY_SORT, mode); updateHeaderUI(); if(currentDeckName) { applySort(); currentIndex = 0; showCard(); } }
