@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v10.92 - No Popups)</title>
+<title>나만의 안키 (v10.99 - Firebase Edition)</title>
 <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
@@ -60,7 +60,7 @@
     .del-btn { background: none; border: none; color: #ff6b6b; font-weight: bold; padding: 0 5px; cursor: pointer; font-size: 1rem; }
 
     .btn-sub { width: 100%; padding: 10px; border-radius: 8px; background: var(--input-bg); color: var(--text-sub); border: 1px solid var(--border); margin-top: 5px; cursor: pointer; text-align: left; font-size: 0.85rem; }
-    .btn-cloud { width: 100%; padding: 12px; border-radius: 8px; background: #24292e; color: white; border: 1px solid #444; font-weight: bold; cursor: pointer; margin-top: 15px; text-align: center; }
+    .btn-cloud { width: 100%; padding: 12px; border-radius: 8px; background: #2b1f11; color: #fab005; border: 1px solid #fab005; font-weight: bold; cursor: pointer; margin-top: 15px; text-align: center; }
     .btn-refresh { width: 100%; padding: 12px; margin-top: 15px; border-radius: 8px; background: #343a40; color: #e9ecef; border: 1px solid var(--border); font-weight: bold; cursor: pointer; }
 
     .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
@@ -103,13 +103,13 @@
     .edit-input { width: 100%; padding: 10px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-family: inherit; font-size: 1rem; resize: vertical; }
     .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
     .modal-btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
-    .btn-save { background: var(--primary); color: white; } .btn-cancel { background: var(--input-bg); color: var(--text); }
+    .btn-save { background: #fab005; color: #121212; } .btn-cancel { background: var(--input-bg); color: var(--text); }
     
     .backup-list { max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; background: var(--input-bg); }
     .backup-item { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; font-size: 0.9rem; }
     .backup-item:last-child { border-bottom: none; }
     .backup-item:hover { background: var(--btn-hover); }
-    .backup-date { color: #74c0fc; font-weight: bold; }
+    .backup-date { color: #fab005; font-weight: bold; }
     
     #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
 </style>
@@ -130,19 +130,21 @@
             <button class="btn-sub" onclick="exportData()">💾 로컬 백업 저장</button>
             <button class="btn-sub" onclick="document.getElementById('backup-input').click()">📂 로컬 백업 불러오기</button>
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
-            <button class="btn-cloud" onclick="openGitHubSettings()">☁️ Gist 10분 자동백업 설정</button>
-            <div id="gh-status-text" style="font-size:0.8rem; color:#aaa; text-align:center; margin-top:5px;"></div>
+            
+            <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정 (파이어베이스)</button>
+            <div id="fb-status-text" style="font-size:0.8rem; color:#fab005; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 서버 연결됨</div>
+            
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v10.92 (No Popups)
+            My Anki v10.99 (Firebase)
         </div>
     </div>
 
     <div class="header">
         <button class="menu-btn" onclick="toggleMenu()">☰</button>
         <div class="header-title-area">
-            <div class="header-title" id="deck-title">나만의 안키 <span id="cloud-icon" class="cloud-icon">☁️</span></div>
+            <div class="header-title" id="deck-title">나만의 안키 <span id="cloud-icon" class="cloud-icon">🔥</span></div>
             <div class="header-subtitle" id="header-info">🔥 틀린 순 & 📁 전체</div>
         </div>
         <div class="header-controls">
@@ -215,36 +217,46 @@
         </div>
     </div>
 
-    <div class="modal-overlay" id="gh-modal">
+    <div class="modal-overlay" id="fb-modal">
         <div class="modal-content">
-            <div class="modal-title">☁️ Gist 자동 백업 (팝업 없는 버전)</div>
+            <div class="modal-title">🔥 파이어베이스 백업 센터</div>
             
-            <div id="gh-auth-section">
-                <div><span class="menu-label">Gist ID</span><input type="text" id="gh-gist-id" class="edit-input" placeholder="32자리 영문숫자"></div>
-                <div style="margin-top:10px;"><span class="menu-label">토큰 (Token)</span><input type="text" id="gh-token" class="edit-input" placeholder="ghp_..."></div>
+            <div id="fb-auth-section">
+                <div style="font-size:0.9rem; color:#aaa; margin-bottom:15px; line-height:1.5;">
+                    ✅ <b>민건님 전용 서버 연결 완료!</b><br>
+                    더 이상 복잡한 ID나 토큰을 입력할 필요가 없습니다. 10분마다 자동으로 시간별 백업이 척척 쌓입니다.
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <span class="menu-label">🔒 비공개 문제 가져오기 (GitHub Token)</span>
+                    <input type="text" id="gh-token-input" class="edit-input" placeholder="ghp_... (비공개 덱이 아니면 비워두세요)">
+                </div>
                 
                 <div class="modal-btns">
-                    <button class="modal-btn btn-save" onclick="initGitHubSync()">연동 테스트</button>
-                    <button class="modal-btn btn-sub" onclick="fetchBackupList()">🕒 과거 내역</button>
-                    <button class="modal-btn btn-cancel" onclick="document.getElementById('gh-modal').style.display='none'">닫기</button>
+                    <button class="modal-btn btn-save" onclick="testFirebaseSync()">🚀 백업 테스트</button>
+                    <button class="modal-btn btn-sub" onclick="fetchFirebaseList()">🕒 과거 내역 보기</button>
+                    <button class="modal-btn btn-cancel" onclick="document.getElementById('fb-modal').style.display='none'">닫기</button>
                 </div>
             </div>
 
-            <div id="backup-list-section" style="display:none;">
-                <h4 style="margin:10px 0; color:#ffd43b;">🕒 복구할 시간을 선택하세요</h4>
-                <div id="backup-list-ui" class="backup-list">목록 불러오는 중...</div>
+            <div id="fb-list-section" style="display:none;">
+                <h4 style="margin:10px 0; color:#fab005;">🕒 복구할 시간을 선택하세요 (최대 30개 보관)</h4>
+                <div id="fb-list-ui" class="backup-list">서버에서 내역을 빛의 속도로 불러오는 중...⚡️</div>
                 <div class="modal-btns">
                     <button class="modal-btn btn-cancel" onclick="showAuthSection()">뒤로가기</button>
                 </div>
             </div>
             
-            <div id="log-area" style="font-size:0.9rem; color:#74c0fc; margin-top:15px; text-align:center; font-weight:bold; padding: 10px; background: #222; border-radius: 8px;">대기 중...</div>
+            <div id="log-area" style="font-size:0.9rem; color:#fab005; margin-top:15px; text-align:center; font-weight:bold; padding: 10px; background: #222; border-radius: 8px;">준비 완료!</div>
         </div>
     </div>
 
 <script>
-    let ghGistId = localStorage.getItem('gh_gist_id') || '';
-    let ghToken = localStorage.getItem('gh_token') || '';
+    // 🔥 [파이어베이스 심장 이식 완료]
+    const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
+    
+    // 깃허브 토큰 (이건 오직 '문제 파일(txt)'을 가져올 때 비공개 방일 경우에만 씁니다)
+    let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
     const defaultRepoOwner = 'minkunai87-ai';
     const defaultRepoName = 'mk';
 
@@ -273,10 +285,9 @@
         updateHeaderUI();
         updateTodayToggleUI();
         loadLocalLibrary(); 
-        if (location.protocol.startsWith('http')) autoScanGitHub(false); 
+        if (location.protocol.startsWith('http')) autoScanGitHub(); 
         restoreLastSession();
         document.getElementById('loading').style.display = 'none';
-        if(ghGistId && ghToken) { document.getElementById('gh-status-text').innerText = "✅ Gist 연동됨"; }
         if((!activeDeck || activeDeck.length === 0) && Object.keys(library).length === 0) { document.getElementById('question-section').innerHTML = "<h3 style='color:#aaa; text-align:center;'>메뉴(☰)를 눌러 덱을 선택하세요.</h3>"; }
     };
 
@@ -294,136 +305,142 @@
     function toggleTodayView() { showTodayCompleted = !showTodayCompleted; localStorage.setItem('anki_show_today', showTodayCompleted); updateTodayToggleUI(); if(currentDeckName) filterCards(currentFilterType); }
     function updateTodayToggleUI() { const btn = document.getElementById('today-toggle-btn'); if(showTodayCompleted) { btn.innerText = "👁️"; btn.className = "today-toggle-btn active"; } else { btn.innerText = "🙈"; btn.className = "today-toggle-btn hidden"; } }
 
-    function openGitHubSettings() {
-        document.getElementById('gh-gist-id').value = ghGistId;
-        document.getElementById('gh-token').value = ghToken;
-        document.getElementById('log-area').innerText = "대기 중..."; 
+    function openFirebaseSettings() {
+        document.getElementById('gh-token-input').value = ghRepoToken;
+        document.getElementById('log-area').innerText = "준비 완료!"; 
         showAuthSection();
-        document.getElementById('gh-modal').style.display = 'flex';
+        document.getElementById('fb-modal').style.display = 'flex';
     }
 
-    function showAuthSection() { document.getElementById('gh-auth-section').style.display = 'block'; document.getElementById('backup-list-section').style.display = 'none'; }
+    function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
 
-    // 🔥 [핵심 수정] 팝업창(alert) 완전 제거! 글씨로만 출력
-    async function initGitHubSync() {
-        let rawId = document.getElementById('gh-gist-id').value.trim();
-        let rawToken = document.getElementById('gh-token').value.trim();
+    // 🔥 파이어베이스 수동 백업 테스트
+    async function testFirebaseSync() {
         const logArea = document.getElementById('log-area');
-
-        if(!rawId || !rawToken) { 
-            logArea.innerHTML = "<span style='color:#fa5252;'>❌ ID와 토큰을 모두 적어주세요!</span>"; 
-            return; 
-        }
-
-        ghGistId = rawId; ghToken = rawToken;
-        localStorage.setItem('gh_gist_id', ghGistId);
-        localStorage.setItem('gh_token', ghToken);
+        ghRepoToken = document.getElementById('gh-token-input').value.trim();
+        localStorage.setItem('gh_repo_token', ghRepoToken); // 깃허브 토큰 저장
         
-        logArea.innerText = "깃허브에 노크 중... ✊";
-        updateCloudIcon('active');
+        logArea.innerText = "구글 서버로 쏘는 중... 🚀";
+        isDataChanged = true;
+        const success = await performFirebaseBackup();
         
-        try {
-            // 1. 상태 테스트
-            const testRes = await fetch(`https://api.github.com/gists/${ghGistId}`, {
-                headers: { 'Authorization': `token ${ghToken}` }
-            });
-            
-            if(!testRes.ok) {
-                let reason = "";
-                if(testRes.status === 401) reason = "토큰이 만료/삭제됨 (새로 발급 요망)";
-                else if(testRes.status === 404) reason = "ID가 틀렸거나 토큰에 gist 체크가 안 됨";
-                else reason = "알 수 없는 에러";
-                
-                logArea.innerHTML = `<span style="color:#fa5252;">❌ 에러 ${testRes.status}: ${reason}</span>`;
-                updateCloudIcon('error');
-                return; 
-            }
-            
-            // 2. 덮어쓰기 시도
-            logArea.innerText = "✅ 접속 성공! 데이터 덮어쓰는 중...";
-            isDataChanged = true;
-            const success = await performRotationBackup();
-            
-            if(success) {
-                logArea.innerHTML = `<span style="color:#40c057;">🎉 연동 및 덮어쓰기 완료! (창을 닫으셔도 됩니다)</span>`;
-                document.getElementById('gh-status-text').innerText = "✅ Gist 연동됨";
-            } else {
-                logArea.innerHTML = `<span style="color:#fa5252;">❌ 접속은 됐으나 덮어쓰기에 실패했습니다.</span>`;
-                updateCloudIcon('error');
-            }
-        } catch(e) {
-            logArea.innerHTML = `<span style="color:#fa5252;">❌ 인터넷 끊김 또는 보안 차단: ${e.message}</span>`;
-            updateCloudIcon('error');
+        if(success) {
+            logArea.innerHTML = `<span style="color:#40c057;">✅ 파이어베이스 백업 성공! 속도 최고네요!</span>`;
+            setTimeout(() => { document.getElementById('fb-modal').style.display = 'none'; }, 2000);
+        } else {
+            logArea.innerHTML = `<span style="color:#fa5252;">❌ 실패. 인터넷 연결이나 파이어베이스 '규칙'을 확인해주세요.</span>`;
         }
     }
 
-    async function checkAutoBackup() { if(!ghToken || !ghGistId || !isDataChanged) return; const now = Date.now(); if(now - lastBackupTime >= BACKUP_INTERVAL) { lastBackupTime = now; await performRotationBackup(); } }
+    // 🔥 파이어베이스 자동 백업 발동 조건
+    async function checkAutoBackup() { 
+        if(!isDataChanged) return; 
+        const now = Date.now(); 
+        if(now - lastBackupTime >= BACKUP_INTERVAL) { 
+            lastBackupTime = now; 
+            await performFirebaseBackup(); 
+        } 
+    }
 
-    async function performRotationBackup() {
-        if(!ghToken || !ghGistId) return false;
+    // 🔥 파이어베이스에 폴더(시간)별로 데이터 밀어넣기
+    async function performFirebaseBackup() {
         updateCloudIcon('active');
-        const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: Date.now() };
-        const payload = { "files": { "anki_backup.json": { "content": u_btoa(JSON.stringify(data)) } } };
+        const now = Date.now();
+        const data = { 
+            stats: localStorage.getItem(STORAGE_KEY_STATS), 
+            progress: localStorage.getItem(STORAGE_KEY_PROGRESS), 
+            lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), 
+            timestamp: now 
+        };
 
         try {
-            const res = await fetch(`https://api.github.com/gists/${ghGistId}`, {
-                method: 'PATCH',
-                headers: { 'Authorization': `token ${ghToken}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+            // 시간(now) 이름으로 폴더를 만들어서 쏙 저장합니다!
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
             });
-            if(res.ok) { isDataChanged = false; updateCloudIcon('done'); return true; } 
-            else { updateCloudIcon('error'); return false; }
+            
+            if(res.ok) { 
+                isDataChanged = false; 
+                updateCloudIcon('done'); 
+                cleanupOldBackups(); // 몰래 예전 데이터 청소
+                return true; 
+            } else { updateCloudIcon('error'); return false; }
         } catch(e) { updateCloudIcon('error'); return false; }
     }
 
-    async function fetchBackupList() {
-        document.getElementById('gh-auth-section').style.display = 'none';
-        document.getElementById('backup-list-section').style.display = 'block';
-        const listUI = document.getElementById('backup-list-ui');
-        listUI.innerHTML = '<div style="padding:20px; text-align:center;">Gist 내역을 가져오는 중...</div>';
-        if(!ghToken || !ghGistId) { listUI.innerHTML = '<div style="padding:20px; text-align:center; color:#fa5252;">먼저 ID와 토큰을 입력해주세요.</div>'; return; }
+    // 🔥 파이어베이스에서 과거 내역 쫙 가져오기
+    async function fetchFirebaseList() {
+        document.getElementById('fb-auth-section').style.display = 'none';
+        document.getElementById('fb-list-section').style.display = 'block';
+        const listUI = document.getElementById('fb-list-ui');
+        listUI.innerHTML = '<div style="padding:20px; text-align:center;">구글 서버에서 가져오는 중...</div>';
 
         try {
-            const res = await fetch(`https://api.github.com/gists/${ghGistId}`, { headers: { 'Authorization': `token ${ghToken}` } });
-            if(!res.ok) throw new Error("API 거부 (에러코드: " + res.status + ")");
-            const gistData = await res.json();
-            const history = gistData.history;
+            // shallow=true 쓰면 데이터 빼고 폴더 이름(시간)만 엄청 빠르게 가져옵니다.
+            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true`);
+            if(!res.ok) throw new Error();
+            const data = await res.json();
+            
+            if(!data) {
+                listUI.innerHTML = '<div style="padding:20px; text-align:center;">아직 저장된 백업이 없습니다.</div>';
+                return;
+            }
+
+            // 최신 시간이 맨 위로 오게 정렬
+            const timestamps = Object.keys(data).sort((a, b) => b - a);
             listUI.innerHTML = '';
-            history.forEach(hist => {
+            
+            timestamps.slice(0, 30).forEach(ts => {
                 const item = document.createElement('div'); item.className = 'backup-item';
-                const d = new Date(hist.committed_at);
+                const d = new Date(parseInt(ts));
                 const timeStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-                item.innerHTML = `<span><span class="backup-date">🕒 ${timeStr}</span> 버전</span>`;
+                item.innerHTML = `<span><span class="backup-date">🕒 ${timeStr}</span> 에 저장됨</span>`;
                 
-                // 팝업 제거 (직접 클릭으로 바로 복구)
                 item.onclick = async () => {
-                    document.getElementById('backup-list-ui').innerHTML = '<div style="padding:20px; text-align:center;">복구 중... 잠시만 기다려주세요.</div>';
-                    await restoreFromGistVersion(hist.version);
+                    listUI.innerHTML = '<div style="padding:20px; text-align:center;">복구 중... 1초면 됩니다!</div>';
+                    await restoreFromFirebase(ts);
                 };
                 listUI.appendChild(item);
             });
-        } catch(e) { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">불러오기 실패 (${e.message})</div>`; }
+        } catch(e) { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">불러오기 실패. 설정이나 인터넷을 확인하세요.</div>`; }
     }
 
-    async function restoreFromGistVersion(versionSha) {
+    // 🔥 선택한 시간으로 안키 복구하기
+    async function restoreFromFirebase(ts) {
         try {
-            const res = await fetch(`https://api.github.com/gists/${ghGistId}/${versionSha}`, { headers: { 'Authorization': `token ${ghToken}` } });
-            const gistData = await res.json();
-            const rawContent = gistData.files["anki_backup.json"].content;
-            const content = JSON.parse(u_atob(rawContent));
-            if(content.stats) localStorage.setItem(STORAGE_KEY_STATS, content.stats);
-            if(content.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, content.progress);
-            if(content.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, content.lastDeck);
-            // 복구 완료 시 그냥 새로고침
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`);
+            const data = await res.json();
+            
+            if(data.stats) localStorage.setItem(STORAGE_KEY_STATS, data.stats);
+            if(data.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, data.progress);
+            if(data.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, data.lastDeck);
+            
             location.reload();
         } catch(e) { 
-            document.getElementById('backup-list-ui').innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">복구 실패: 데이터 형식이 맞지 않습니다.</div>`;
+            document.getElementById('fb-list-ui').innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">복구 중 에러가 발생했습니다.</div>`;
         }
     }
 
+    // (선택) 데이터가 너무 많이 쌓이지 않게 30개 넘어가면 옛날 거 자동 삭제
+    async function cleanupOldBackups() {
+        try {
+            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true`);
+            const data = await res.json();
+            if(!data) return;
+            const timestamps = Object.keys(data).sort((a, b) => a - b); // 오래된 순
+            if(timestamps.length > 30) {
+                const toDelete = timestamps.slice(0, timestamps.length - 30);
+                for(const ts of toDelete) { fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`, { method: 'DELETE' }); }
+            }
+        } catch(e) {}
+    }
+
+    // 깃허브에서 문제 읽어오는 건 그대로 냅둡니다. (토큰이 있으면 비공개도 읽음)
     async function autoScanGitHub() {
         const owner = defaultRepoOwner; const repo = defaultRepoName;
-        const headers = ghToken ? { 'Authorization': `token ${ghToken}` } : {};
+        const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
         try {
             const listUrl = `https://api.github.com/repos/${owner}/${repo}/contents/`;
             const listResponse = await fetch(listUrl, { headers });
@@ -436,7 +453,7 @@
             for (const file of txtFiles) {
                 try {
                     let text = "";
-                    if(ghToken) {
+                    if(ghRepoToken) {
                         const fileRes = await fetch(file.url, { headers });
                         const fileJson = await fileRes.json();
                         if(fileJson.content) text = u_atob(fileJson.content.replace(/\n/g, ''));
@@ -452,7 +469,7 @@
 
     function u_btoa(str) { return window.btoa(unescape(encodeURIComponent(str))); }
     function u_atob(str) { return decodeURIComponent(escape(window.atob(str))); }
-    function updateCloudIcon(status) { const icon = document.getElementById('cloud-icon'); icon.className = `cloud-icon ${status}`; icon.innerText = status === 'active' ? '🔄' : (status === 'error' ? '❌' : '☁️'); }
+    function updateCloudIcon(status) { const icon = document.getElementById('cloud-icon'); icon.className = `cloud-icon ${status}`; icon.innerText = status === 'active' ? '🔄' : (status === 'error' ? '❌' : '🔥'); }
 
     function processAnkiTextToLib(text, filename, targetLib) {
         const rows = parseAnkiRawData(text); let currentDeck = filename.replace('.txt', '');
