@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v11.02 - Timeout Detector)</title>
+<title>나만의 안키 (v11.03 - CORS Bypass)</title>
 <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
@@ -137,7 +137,7 @@
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v11.02 (Timeout Detector)
+            My Anki v11.03 (CORS Bypass)
         </div>
     </div>
 
@@ -311,29 +311,29 @@
 
     function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
 
-    // 🔥 [핵심 추가] Timeout 기능 장착! 5초 안에 답 안 오면 강제 에러 출력!
+    // 🔥 [이름표 제거] Content-Type 헤더를 지워서 애플의 스니핑 통과!
     async function testFirebaseSync() {
         const logArea = document.getElementById('log-area');
         ghRepoToken = document.getElementById('gh-token-input').value.trim();
         localStorage.setItem('gh_repo_token', ghRepoToken); 
         
-        logArea.innerText = "구글 서버로 쏘는 중... 🚀 (최대 5초 대기)";
+        logArea.innerText = "구글 서버로 쏘는 중... 🚀 (스텔스 모드)";
         isDataChanged = true;
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5초 타이머
+        const timeoutId = setTimeout(() => controller.abort(), 5000); 
         
         try {
             const now = Date.now();
             const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), timestamp: now };
             
+            // 🔥 헤더 삭제됨 (Simple Request로 변경)
             const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, { 
                 method: 'PUT', 
-                headers: { 'Content-Type': 'application/json' }, 
                 body: JSON.stringify(data),
-                signal: controller.signal // 타이머와 연결
+                signal: controller.signal 
             });
-            clearTimeout(timeoutId); // 성공하면 타이머 해제
+            clearTimeout(timeoutId); 
             
             if(res.ok) { 
                 isDataChanged = false; updateCloudIcon('done'); cleanupOldBackups(); 
@@ -345,7 +345,7 @@
         } catch(e) { 
             clearTimeout(timeoutId);
             if (e.name === 'AbortError') {
-                logArea.innerHTML = `<span style="color:#fa5252;">❌ 5초 초과 무한 대기! 폰(광고차단앱/저데이터모드)이 통신을 막고 있습니다.</span>`;
+                logArea.innerHTML = `<span style="color:#fa5252;">❌ 5초 초과 무한 대기! 폰에서 통신을 막고 있습니다.</span>`;
             } else {
                 logArea.innerHTML = `<span style="color:#fa5252;">❌ 인터넷 끊김 또는 차단됨: ${e.message}</span>`;
             }
@@ -368,7 +368,8 @@
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         try {
-            const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), signal: controller.signal });
+            // 🔥 여기도 헤더 삭제
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, { method: 'PUT', body: JSON.stringify(data), signal: controller.signal });
             clearTimeout(timeoutId);
             if(res.ok) { isDataChanged = false; updateCloudIcon('done'); cleanupOldBackups(); return true; } else { updateCloudIcon('error'); return false; }
         } catch(e) { clearTimeout(timeoutId); updateCloudIcon('error'); return false; }
