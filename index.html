@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-<title>나만의 안키 (v11.08 - Final Cloud Fix)</title>
+<title>나만의 안키 (v11.09 - Perfect State Restore)</title>
 <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
@@ -96,7 +96,6 @@
     .backup-item:hover { background: var(--btn-hover); }
     .backup-date { color: #fab005; font-weight: bold; }
     #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
-    
     #toast { position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 24px; border-radius: 25px; font-size: 0.95rem; font-weight: bold; transition: bottom 0.3s ease; z-index: 20000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px; pointer-events: none; }
     #toast.show { bottom: 85px; } 
     #toast.error { background: #fa5252; color: white; }
@@ -122,13 +121,13 @@
             <button class="btn-sub" onclick="document.getElementById('backup-input').click()">📂 로컬 백업 불러오기</button>
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
             
-            <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정 (파이어베이스)</button>
+            <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정</button>
             <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 서버 연결 안정화됨</div>
             
             <button class="btn-refresh" onclick="location.reload()">🔄 새로고침</button>
         </div>
         <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center; padding-bottom: 20px;">
-            My Anki v11.08 (Final Sync & Image)
+            My Anki v11.09 (State Restore)
         </div>
     </div>
 
@@ -277,10 +276,17 @@
     let currentFilterType = 'default', currentSortMode = 'wrong';
     const sortLabels = { 'wrong': '🔥 틀린 순', 'normal': '📋 원래 순', 'random': '🎲 랜덤' };
     const filterLabels = { 'default': '📁 전체', 'fav': '⭐ 중요', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'rate_asc': '🔥 오답', 'search': '🔍 검색', 'rev': '🔄 복습' };
+    
+    // 🔥 [핵심 추가 1] 필터와 랜덤 순서 기억을 위한 키 추가!
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck', STORAGE_KEY_IS_GROUP = 'anki_final_is_group', STORAGE_KEY_SORT = 'anki_final_sort_mode';
+    const STORAGE_KEY_LAST_FILTER = 'anki_final_last_filter';
+    const STORAGE_KEY_RANDOM_ORDER = 'anki_final_random_order';
 
     window.onload = function() {
         currentSortMode = localStorage.getItem(STORAGE_KEY_SORT) || 'wrong';
+        currentFilterType = localStorage.getItem(STORAGE_KEY_LAST_FILTER) || 'default';
+        if (currentFilterType === 'search') currentFilterType = 'default'; // 검색어는 초기화
+        
         updateHeaderUI();
         updateTodayToggleUI();
         loadLocalLibrary(); 
@@ -312,7 +318,6 @@
 
     function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
 
-    // 🔥 앱 튕김 방지 (아이콘 분리 완벽 적용)
     function updateCloudIcon(status) { 
         const icon = document.getElementById('cloud-icon'); 
         if(!icon) return; 
@@ -320,7 +325,6 @@
         icon.innerText = status === 'active' ? '🔄' : (status === 'error' ? '❌' : '🔥'); 
     }
 
-    // 수동 백업 
     async function testFirebaseSync() {
         document.getElementById('fb-modal').style.display = 'none';
         ghRepoToken = document.getElementById('gh-token-input').value.trim();
@@ -329,7 +333,6 @@
         await performFirebaseBackup(false);
     }
 
-    // 자동 백업 체크
     async function checkAutoBackup() { 
         if(!isDataChanged) return; 
         const now = Date.now(); 
@@ -339,7 +342,6 @@
         } 
     }
 
-    // 🔥 [핵심 1] 꼼수 제거! 가장 정직한 PUT 방식으로 덮어쓰기 (포장지 버그 해결!)
     async function performFirebaseBackup(isAuto) {
         updateCloudIcon('active');
         const now = Date.now();
@@ -347,7 +349,7 @@
         
         try {
             const res = await fetch(`${FIREBASE_DB_URL}/backups/${now}.json`, { 
-                method: 'PUT',  // 절대 POST 아님. 무조건 PUT!
+                method: 'PUT',  
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
@@ -369,7 +371,6 @@
         }
     }
 
-    // 과거 내역 보기
     async function fetchFirebaseList() {
         document.getElementById('fb-auth-section').style.display = 'none';
         document.getElementById('fb-list-section').style.display = 'block';
@@ -393,26 +394,21 @@
         } catch(e) { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">불러오기 실패. 앱을 새로고침 해주세요.</div>`; }
     }
 
-    // 🔥 [핵심 2] 포장지 찢기 기능! (과거에 잘못 저장된 데이터 끄집어내기)
     async function restoreFromFirebase(ts) {
         try {
             const res = await fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`);
             const data = await res.json();
             
             let targetData = data;
-            
-            // 만약 데이터가 또 다른 랜덤 폴더(포장지) 안에 갇혀있다면? 찢고 꺼냄!
             if(data && !data.stats) {
                 const keys = Object.keys(data);
                 if(keys.length === 1 && data[keys[0]].stats) {
-                    targetData = data[keys[0]]; // 알맹이 획득!
+                    targetData = data[keys[0]]; 
                 }
             }
-            
             if(targetData.stats) localStorage.setItem(STORAGE_KEY_STATS, targetData.stats);
             if(targetData.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, targetData.progress);
             if(targetData.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, targetData.lastDeck);
-            
             location.reload();
         } catch(e) { document.getElementById('fb-list-ui').innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">복구 중 에러가 발생했습니다.</div>`; }
     }
@@ -494,23 +490,36 @@
         const dateBadge = document.getElementById('date-badge'); const dateText = getDaysText(stats);
         if (dateText) { dateBadge.innerText = dateText; dateBadge.style.display = 'inline-block'; dateBadge.className = dateText.includes('오늘') ? 'date-badge today' : 'date-badge recent'; } else { dateBadge.style.display = 'none'; }
         
-        const qSection = document.getElementById('question-section'); qSection.innerHTML = ''; qSection.appendChild(createDOM(card.q, false));
-        const aSection = document.getElementById('answer-section'); aSection.innerHTML = ''; aSection.appendChild(createDOM(card.a, true));
+        const qSection = document.getElementById('question-section'); qSection.innerHTML = ''; qSection.appendChild(createDOM(card.q));
+        const aSection = document.getElementById('answer-section'); aSection.innerHTML = ''; aSection.appendChild(createDOM(card.a));
         aSection.style.display = 'none'; document.getElementById('divider').style.display = 'none'; document.getElementById('click-guide').style.display = 'block'; document.getElementById('nav-area').style.display = 'flex'; document.getElementById('grade-area').style.display = 'none'; scrollContainer.scrollTop = 0;
     }
 
     function revealAnswer(event) { if(event) event.stopPropagation(); document.getElementById('click-guide').style.display = 'none'; document.getElementById('divider').style.display = 'block'; document.getElementById('answer-section').style.display = 'block'; document.getElementById('grade-area').style.display = 'flex'; setTimeout(() => { document.getElementById('answer-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); }
 
+    // 🔥 [핵심 추가 2] 필터 선택 시 저장!
     function filterCards(type) { 
-        if(!currentDeckName) return; document.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); const chip = document.getElementById(`chip-${type}`); if(chip) chip.classList.add('active');
-        if (type === 'search') { const rawQuery = document.getElementById('search-input').value.toLowerCase(); if(!rawQuery) { activeDeck = [...originalDeck]; } else { activeDeck = originalDeck.filter(card => card.q.toLowerCase().includes(rawQuery) || card.a.toLowerCase().includes(rawQuery)); } } 
-        else {
-            currentFilterType = type; const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); let newDeck = [...originalDeck];
+        if(!currentDeckName) return; 
+        document.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); const chip = document.getElementById(`chip-${type}`); if(chip) chip.classList.add('active');
+        
+        if (type === 'search') { 
+            const rawQuery = document.getElementById('search-input').value.toLowerCase(); 
+            if(!rawQuery) activeDeck = [...originalDeck]; 
+            else activeDeck = originalDeck.filter(card => card.q.toLowerCase().includes(rawQuery) || card.a.toLowerCase().includes(rawQuery)); 
+        } else {
+            currentFilterType = type; 
+            localStorage.setItem(STORAGE_KEY_LAST_FILTER, type); // 여기서 필터를 영구 기억합니다!
+            
+            const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); let newDeck = [...originalDeck];
             if (type === 'rate_asc') { newDeck = newDeck.filter(c => { const s = allStats[c.id] || {correct:0, total:0}; return s.total > 0 && (s.correct/s.total) < 0.8; }); } else if (type !== 'default') { newDeck = newDeck.filter(c => (allStats[c.id] || {})[type]); }
             if (!showTodayCompleted) { const today = new Date(); today.setHours(4,0,0,0); newDeck = newDeck.filter(c => (allStats[c.id] || {}).last < today.getTime()); }
             activeDeck = newDeck;
         }
-        applySort(); updateHeaderUI(); const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'); currentIndex = progress[`${currentDeckName}__${currentFilterType}`] || 0; showCard();
+        applySort(); 
+        updateHeaderUI(); 
+        const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'); 
+        currentIndex = progress[`${currentDeckName}__${currentFilterType}`] || 0; 
+        showCard();
     }
 
     function renderDeckTree() {
@@ -524,21 +533,23 @@
     
     function splitPath(path) { return path.split('__'); }
 
-    // 덱 선택시 제목만 변경
+    // 🔥 [핵심 추가 3] 덱을 누를 때 'default'로 초기화하지 않고 기억된 필터(currentFilterType)를 그대로 유지!
     function selectDeckGroup(prefix) { 
         let mergedCards = []; 
         const targetParent = prefix.replace(/__$/, '');
         Object.keys(library).forEach(key => { if (key.startsWith(prefix) || key === targetParent) { mergedCards = mergedCards.concat(library[key]); } }); 
         if (mergedCards.length === 0) return; 
-        currentDeckName = targetParent; originalDeck = mergedCards; activeDeck = [...originalDeck]; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true'); filterCards('default'); 
+        currentDeckName = targetParent; originalDeck = mergedCards; activeDeck = [...originalDeck]; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'true'); 
         document.getElementById('deck-title-text').innerText = `📂 ${currentDeckName.split('__').pop()}`; 
         renderDeckTree(); toggleMenu(false); 
+        filterCards(currentFilterType); 
     }
 
     function selectDeck(name) { 
-        if(!library[name]) return; currentDeckName = name; originalDeck = library[name]; activeDeck = [...originalDeck]; localStorage.setItem(STORAGE_KEY_LAST_DECK, name); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'false'); filterCards('default'); 
+        if(!library[name]) return; currentDeckName = name; originalDeck = library[name]; activeDeck = [...originalDeck]; localStorage.setItem(STORAGE_KEY_LAST_DECK, name); localStorage.setItem(STORAGE_KEY_IS_GROUP, 'false'); 
         document.getElementById('deck-title-text').innerText = `📄 ${name.split('__').pop()}`; 
         renderDeckTree(); toggleMenu(false); 
+        filterCards(currentFilterType); 
     }
 
     function restoreLastSession() { const lastDeck = localStorage.getItem(STORAGE_KEY_LAST_DECK); if (lastDeck && (library[lastDeck] || Object.keys(library).some(k => k.startsWith(lastDeck)))) { const isGroup = localStorage.getItem(STORAGE_KEY_IS_GROUP) === 'true'; if (isGroup) selectDeckGroup(lastDeck.endsWith('__') ? lastDeck : lastDeck + '__'); else selectDeck(lastDeck); } }
@@ -553,15 +564,53 @@
     function grade(score) { const card = activeDeck[currentIndex]; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); const s = { correct: 0, total: 0, ...data[card.id] }; s.total++; if(score === 2) s.correct++; else if(score === 1) s.correct += 0.5; s.last = Date.now(); data[card.id] = s; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateStatsUI(s); isDataChanged = true; checkAutoBackup(); if (!showTodayCompleted) { activeDeck = activeDeck.filter(c => c.id !== card.id); if (currentIndex >= activeDeck.length) currentIndex = 0; if (activeDeck.length === 0) { showCard(); return; } saveProgress(); showCard(); } else { if (currentIndex < activeDeck.length - 1) { currentIndex++; saveProgress(); showCard(); } else { currentIndex = 0; saveProgress(); showCard(); } } }
     function saveProgress() { const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'); progress[`${currentDeckName}__${currentFilterType}`] = currentIndex; localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress)); }
     function updateHeaderUI() { document.getElementById('header-info').innerText = `${sortLabels[currentSortMode]} & ${filterLabels[currentFilterType]}`; ['wrong', 'normal', 'random'].forEach(m => document.getElementById(`chip-sort-${m}`).classList.toggle('active', currentSortMode === m)); }
-    function setSortMode(mode) { currentSortMode = mode; localStorage.setItem(STORAGE_KEY_SORT, mode); updateHeaderUI(); if(currentDeckName) { applySort(); currentIndex = 0; showCard(); } }
-    function applySort() { if (!activeDeck || activeDeck.length === 0) return; const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if (currentSortMode === 'wrong') { activeDeck.sort((a, b) => { const sA = allStats[a.id] || {correct:0, total:0}; const sB = allStats[b.id] || {correct:0, total:0}; const rA = sA.total === 0 ? 0 : sA.correct / sA.total; const rB = sB.total === 0 ? 0 : sB.correct / sB.total; return (rA - rB) || (sA.total - sB.total); }); } else if (currentSortMode === 'random') { activeDeck.sort(() => Math.random() - 0.5); } }
+    
+    // 🔥 [핵심 추가 4] 랜덤 정렬 버튼을 직접 눌렀을 때만 새로 섞기!
+    function setSortMode(mode) { 
+        if (mode === 'random') {
+            localStorage.removeItem(STORAGE_KEY_RANDOM_ORDER); // 직접 누르면 섞은 순서 날리고 새로 생성
+        }
+        currentSortMode = mode; 
+        localStorage.setItem(STORAGE_KEY_SORT, mode); 
+        updateHeaderUI(); 
+        if(currentDeckName) { applySort(); currentIndex = 0; saveProgress(); showCard(); } 
+    }
+    
+    // 🔥 [핵심 추가 5] 동점자 순서 고정 & 랜덤 순서 보존 로직 추가
+    function applySort() { 
+        if (!activeDeck || activeDeck.length === 0) return; 
+        const allStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); 
+        
+        if (currentSortMode === 'wrong') { 
+            activeDeck.sort((a, b) => { 
+                const sA = allStats[a.id] || {correct:0, total:0}; const sB = allStats[b.id] || {correct:0, total:0}; 
+                const rA = sA.total === 0 ? 0 : sA.correct / sA.total; const rB = sB.total === 0 ? 0 : sB.correct / sB.total; 
+                return (rA - rB) || (sA.total - sB.total) || (a.id - b.id); // 점수가 같으면 고유ID로 줄 세우기 (절대 안섞임)
+            }); 
+        } else if (currentSortMode === 'random') { 
+            // 섞은 순서를 저장해서, 새로고침해도 똑같은 순서 유지!
+            let randomOrder = JSON.parse(localStorage.getItem(STORAGE_KEY_RANDOM_ORDER) || '[]');
+            if (randomOrder.length === 0) {
+                randomOrder = originalDeck.map(c => c.id).sort(() => Math.random() - 0.5);
+                localStorage.setItem(STORAGE_KEY_RANDOM_ORDER, JSON.stringify(randomOrder));
+            }
+            activeDeck.sort((a, b) => {
+                let idxA = randomOrder.indexOf(a.id); let idxB = randomOrder.indexOf(b.id);
+                if(idxA === -1) idxA = 999999; if(idxB === -1) idxB = 999999;
+                return idxA - idxB;
+            });
+        } else {
+            // 원래 순 (원본 파일의 순서 고정)
+            const origOrder = originalDeck.map(c => c.id);
+            activeDeck.sort((a, b) => origOrder.indexOf(a.id) - origOrder.indexOf(b.id));
+        }
+    }
+
     function getDaysText(stats) { if (!stats || !stats.last) return ""; const diff = new Date().setHours(4, 0, 0, 0) - stats.last; return diff < 0 ? "✅ 오늘 완료" : `🕒 ${Math.floor(diff / 86400000) + 1}일 전`; }
     
-    // 🔥 [핵심 3] 이미지 태그 안 부수고 깔끔하게 처리!
+    // 이미지 박살 방지 로직 (완전 정상)
     function createDOM(rawText) { 
         if (!rawText) rawText = ""; 
-        // 오타의 주범이었던 .replace(/""/g, '"') 완전 삭제! 
-        // 지저분한 title 속성만 안전하게 제거
         let clean = rawText.replace(/title="[\s\S]*?"/g, '').replace(/\{\{c\d+::(.*?)\}\}/g, '<span style="display:none">$1</span>'); 
         if(clean.startsWith('"') && clean.endsWith('"')) clean = clean.slice(1, -1); 
         
@@ -578,7 +627,6 @@
                 img.src = `https://raw.githubusercontent.com/${defaultRepoOwner}/${defaultRepoName}/main/images/${encodeURIComponent(fname)}`;
                 img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto';
                 
-                // 사진이 진짜 없으면 투명하게 숨기기
                 img.onerror = function() { this.style.display = 'none'; };
             } else if (src && src.startsWith('http')) {
                 img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto';
