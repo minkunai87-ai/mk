@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (v10.81 FSRS & Migration - Menu Fix)</title>
+<title>나만의 안키 (v10.81 FSRS & Migration - MK Repo)</title>
 <style>
+    /* 기본 테마 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; --sub-group-bg: #252525; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
@@ -172,7 +173,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">My Anki v10.81 (FSRS & Migration)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">My Anki v10.81 (FSRS & Migration - MK Repo)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -292,6 +293,7 @@
                 <button class="g-btn bg-x" onclick="grade(0)">모름</button>
                 <button class="g-btn bg-tri" onclick="grade(1)">애매</button>
                 <button class="g-btn bg-o" onclick="grade(2)">맞음</button>
+                <button class="g-btn bg-chk" onclick="grade(3)">확인</button>
             </div>
             <div class="nav-btns" id="nav-area">
                 <button class="nav-btn" onclick="moveCard(-1)">◀ 이전</button>
@@ -340,7 +342,8 @@
     </div>
 
 <script>
-    const repoOwner = 'minkunai87-ai', repoName = 'yoki'; 
+    // 🔥 MK 디렉토리 및 MK 파이어베이스 주소로 완벽 복구
+    const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', imageMap = new Map();
@@ -349,7 +352,7 @@
     const STORAGE_KEY_FILTER_STATE = 'anki_final_filter_state', STORAGE_KEY_ACTIVE_IDS = 'anki_final_active_ids'; 
     const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'original': '🔄 원래순', 'wrong': '🔥 오답순', 'number': '🔢 번호순' };
 
-    const FIREBASE_DB_URL = "https://yoki-33b0d-default-rtdb.firebaseio.com";
+    const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
     let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
     let lastBackupTime = 0;
     const BACKUP_INTERVAL = 10 * 60 * 1000; 
@@ -369,16 +372,18 @@
         setTimeout(() => { toast.classList.remove('show'); }, 3000);
     }
 
+    // 🔥 [신규 UI 연동] 모달 열기 및 버튼 텍스트 업데이트
     function openTRModal() {
         document.getElementById('tr-input').value = Math.round(targetRetention * 100);
         document.getElementById('tr-modal').style.display = 'flex';
-        toggleMenu(); 
+        toggleMenu(); // 사이드바 닫기
     }
     
     function updateTRButton() {
         document.getElementById('current-tr-display').innerText = Math.round(targetRetention * 100);
     }
 
+    // 🔥 [마이그레이션 적용] 목표 기억률 변경 및 전면 재계산
     function saveTR() {
         let val = parseInt(document.getElementById('tr-input').value, 10);
         let applyMode = document.querySelector('input[name="tr-mode"]:checked').value;
@@ -395,12 +400,22 @@
                 
                 for (let id in stats) {
                     let cardStat = stats[id];
+                    
+                    // 💡 마이그레이션(역산): 예전에 풀어서 interval은 있는데 FSRS 데이터가 없는 카드 구제
                     if (cardStat.interval > 0 && (!cardStat.fsrs || cardStat.fsrs.S === 0)) {
-                        cardStat.fsrs = { D: 5.0, S: cardStat.interval, reps: 1 };
+                        cardStat.fsrs = {
+                            D: 5.0, // 기본 난이도 할당
+                            S: cardStat.interval, // 예전 interval을 그대로 안정성 점수로 역산하여 대입
+                            reps: 1
+                        };
                     }
+                    
+                    // 💡 전면 재계산 로직
                     if (cardStat.fsrs && cardStat.fsrs.S > 0 && cardStat.interval > 0) {
                         let S = cardStat.fsrs.S;
                         let interval = Math.max(1, Math.round(S * intervalFactor));
+                        
+                        // 스마트 분산 유지
                         if (interval > 3) {
                             let fuzz = 0;
                             if (interval >= 4 && interval <= 7) fuzz = 1;
@@ -409,6 +424,7 @@
                             const randomFuzz = Math.floor(Math.random() * (2 * fuzz + 1)) - fuzz;
                             interval = Math.max(1, interval + randomFuzz);
                         }
+                        
                         cardStat.interval = interval;
                         let baseDate = new Date(cardStat.lastDate || Date.now());
                         baseDate.setHours(0,0,0,0);
@@ -416,11 +432,16 @@
                         recalcCount++;
                     }
                 }
+                
                 localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(stats));
-                isDataChanged = true; checkAutoBackup();
+                isDataChanged = true;
+                checkAutoBackup();
                 showToast(`전면 재계산 완료! (${recalcCount}개 업데이트됨)`, "success");
                 applyFilterAndSort(false); 
-            } else { showToast("안전 모드로 기억률이 변경되었습니다.", "success"); }
+            } else {
+                showToast("안전 모드로 기억률이 변경되었습니다.", "success");
+            }
+            
             document.getElementById('tr-modal').style.display = 'none';
         } else {
             alert("70에서 99 사이의 숫자를 입력해주세요.");
@@ -443,6 +464,7 @@
     }, { passive: false });
     
     scrollContainer.addEventListener('touchend', (e) => { if (e.touches.length < 2) panning = false; if (scale < 1.1) resetZoom(); });
+    
     function resetZoom() { scale = 1; pointX = 0; pointY = 0; updateTransform(); scrollContainer.style.overflowY = 'auto'; }
     function updateTransform() { if (scale > 1) scrollContainer.style.overflow = 'hidden'; else scrollContainer.style.overflowY = 'auto'; zoomContent.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`; }
 
@@ -563,8 +585,15 @@
         const fnameMatch = q.match(/src\s*=\s*["']?([^"'>\s]+)["']?/i);
         if(fnameMatch) {
             let fname = fnameMatch[1];
-            let tests = [ `<img src="${fname}">`, `"<img src=""${fname}"">"`, fname, `"${fname}"` ];
-            for (let t of tests) { if(stats[cyrb53(t)]) return cyrb53(t); }
+            let tests = [
+                `<img src="${fname}">`,
+                `"<img src=""${fname}"">"`,
+                fname,
+                `"${fname}"`
+            ];
+            for (let t of tests) {
+                if(stats[cyrb53(t)]) return cyrb53(t);
+            }
         }
         return currentId;
     }
@@ -578,7 +607,9 @@
             if (fields.length >= 3) { deckNameInRow = fields[0].replace(/::/g, '__'); q = fields[1]; a = fields.slice(2).join('<br>'); } 
             else { deckNameInRow = deck; if (fields.length === 2) { q = fields[0]; a = fields[1]; } else if (fields.length > 0) { q = fields[0]; a = fields.slice(1).join('<br>'); } }
             if(!q) return;
+            
             const finalId = resolveCardId(q, stats);
+            
             if(!library[deckNameInRow]) library[deckNameInRow] = [];
             library[deckNameInRow].push({ id: finalId, q, a });
         });
@@ -617,6 +648,7 @@
     function extractNumber(card) {
         const plainText = card.a.replace(/<[^>]*>?/gm, ' ').trim();
         const matches = [...plainText.matchAll(/(N)?\s*(\d+)/gi)];
+        
         if (matches.length > 0) {
             const lastMatch = matches[matches.length - 1];
             const isN = !!lastMatch[1];
@@ -647,7 +679,8 @@
         
         if(currentFilterMode !== 'default') {
             if (currentFilterMode === 'due') {
-                const today = new Date(); today.setHours(0,0,0,0);
+                const today = new Date(); 
+                today.setHours(0,0,0,0);
                 filtered = filtered.filter(c => stats[c.id] && stats[c.id].dueDate && stats[c.id].dueDate <= today.getTime());
             } else {
                 filtered = filtered.filter(c => (stats[c.id] || {})[currentFilterMode]);
@@ -662,7 +695,8 @@
             });
         } else if (currentSortMode === 'number') {
             filtered.sort((a,b) => {
-                const numA = extractNumber(a); const numB = extractNumber(b);
+                const numA = extractNumber(a);
+                const numB = extractNumber(b);
                 if (numA === numB) return a.id - b.id;
                 return numA - numB;
             });
@@ -679,24 +713,6 @@
     function saveFilterState() { localStorage.setItem(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: currentFilterMode, sort: currentSortMode })); isDataChanged = true; checkAutoBackup(); }
     function highlightFilter() { document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active')); document.getElementById(`filter-${currentFilterMode}`).classList.add('active'); document.getElementById(`sort-${currentSortMode}`).classList.add('active'); }
     function toggleFilterBar() { document.getElementById('filter-bar').classList.toggle('open'); }
-
-    // 🔥 [오류 수정] 가장 안전한 스크롤 함수 적용 (메뉴 버튼 먹통 완벽 해결)
-    function toggleMenu() { 
-        const sidebar = document.getElementById('sidebar'); 
-        const overlay = document.querySelector('.sidebar-overlay');
-        
-        sidebar.classList.toggle('open'); 
-        overlay.classList.toggle('open');
-        
-        if (sidebar.classList.contains('open')) { 
-            setTimeout(() => { 
-                const activeEl = sidebar.querySelector('.tree-deck.active') || sidebar.querySelector('.tree-header.active'); 
-                if (activeEl && activeEl.scrollIntoView) { 
-                    activeEl.scrollIntoView({block:'center', behavior:'smooth'}); 
-                } 
-            }, 100); 
-        } 
-    }
 
     function selectDeck(name, isRestore = false) { 
         currentDeckName = name; originalDeck = library[name]; localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
@@ -731,6 +747,7 @@
         const id = activeDeck[currentIndex].id; 
         const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
         if(!data[id]) data[id] = { correct: 0, total: 0, lastDate: 0 };
+        
         if(!data[id].fsrs) data[id].fsrs = { D: 5.0, S: 0, reps: 0 };
         let fsrs = data[id].fsrs;
 
@@ -745,6 +762,7 @@
         
         if (score !== 3) {
             fsrs.reps++;
+            
             if (fsrs.reps === 1) {
                 if (score === 0) { fsrs.D = 7.0; fsrs.S = 1.0; }
                 else if (score === 1) { fsrs.D = 6.0; fsrs.S = 2.0; }
@@ -754,8 +772,12 @@
                 else if (score === 1) fsrs.D = Math.min(10, fsrs.D + 0.5);
                 else if (score === 2) fsrs.D = Math.max(1, fsrs.D - 0.5);
 
-                if (score === 0) { fsrs.S = Math.max(1, fsrs.S * 0.2); } 
-                else { let factor = score === 1 ? 1.2 : (1 + 0.5 * (11 - fsrs.D)); fsrs.S = fsrs.S * factor; }
+                if (score === 0) {
+                    fsrs.S = Math.max(1, fsrs.S * 0.2);
+                } else {
+                    let factor = score === 1 ? 1.2 : (1 + 0.5 * (11 - fsrs.D));
+                    fsrs.S = fsrs.S * factor;
+                }
             }
 
             let intervalFactor = Math.log(targetRetention) / Math.log(0.90);
@@ -766,15 +788,20 @@
                 if (interval >= 4 && interval <= 7) fuzz = 1;
                 else if (interval >= 8 && interval <= 15) fuzz = 2;
                 else if (interval >= 16) fuzz = 3;
+                
                 const randomFuzz = Math.floor(Math.random() * (2 * fuzz + 1)) - fuzz;
                 interval = Math.max(1, interval + randomFuzz);
             }
+            
             data[id].interval = interval;
-            const now = new Date(); now.setHours(0,0,0,0);
+            
+            const now = new Date(); 
+            now.setHours(0,0,0,0);
             data[id].dueDate = now.getTime() + (interval * 86400000);
         }
         
         data[id].lastDate = Date.now(); 
+        
         localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
         isDataChanged = true; checkAutoBackup();
         
@@ -799,15 +826,27 @@
 
         const dueBadge = document.getElementById('due-badge');
         if(s.dueDate) {
-            const today = new Date(); today.setHours(0,0,0,0);
+            const today = new Date(); 
+            today.setHours(0,0,0,0);
             const diff = Math.ceil((s.dueDate - today.getTime()) / 86400000);
+            
             dueBadge.style.display = 'inline-block';
             if(diff <= 0) {
-                dueBadge.innerText = "🚨 오늘 복습 필요"; dueBadge.className = 'date-badge badge-1d'; dueBadge.style.background = '#491010'; dueBadge.style.color = '#ff8787'; dueBadge.style.border = '1px solid #ff8787';
+                dueBadge.innerText = "🚨 오늘 복습 필요";
+                dueBadge.className = 'date-badge badge-1d'; 
+                dueBadge.style.background = '#491010'; 
+                dueBadge.style.color = '#ff8787'; 
+                dueBadge.style.border = '1px solid #ff8787';
             } else {
-                dueBadge.innerText = `📅 ${diff}일 후 복습 추천`; dueBadge.className = 'date-badge badge-old'; dueBadge.style.background = '#182836'; dueBadge.style.color = '#74c0fc'; dueBadge.style.border = '1px solid #1c7ed6';
+                dueBadge.innerText = `📅 ${diff}일 후 복습 추천`;
+                dueBadge.className = 'date-badge badge-old';
+                dueBadge.style.background = '#182836'; 
+                dueBadge.style.color = '#74c0fc'; 
+                dueBadge.style.border = '1px solid #1c7ed6';
             }
-        } else { dueBadge.style.display = 'none'; }
+        } else {
+            dueBadge.style.display = 'none';
+        }
     }
 
     function renderDeckTree() {
@@ -849,7 +888,7 @@
     function openEditModal(e) { e.stopPropagation(); const c = activeDeck[currentIndex]; document.getElementById('edit-q').value=c.q; document.getElementById('edit-a').value=c.a; document.getElementById('edit-modal').style.display='flex'; }
     function closeEditModal() { document.getElementById('edit-modal').style.display='none'; }
     function saveEdit() { const c = activeDeck[currentIndex]; c.q = document.getElementById('edit-q').value; c.a = document.getElementById('edit-a').value; closeEditModal(); showCard(); isDataChanged = true; checkAutoBackup(); }
-    function exportData() { const d = new Date(); const fileName = `yoki_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`; const a = document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(localStorage)], {type:'application/json'})); a.download=fileName; a.click(); }
+    function exportData() { const d = new Date(); const fileName = `mk_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`; const a = document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(localStorage)], {type:'application/json'})); a.download=fileName; a.click(); }
     function importData(input) { const reader = new FileReader(); reader.onload = e => { const data = JSON.parse(e.target.result); Object.keys(data).forEach(k => localStorage.setItem(k, data[k])); location.reload(); }; reader.readAsText(input.files[0]); }
 </script>
 </body>
