@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (v12.17 - Ultimate Spacing Fix)</title>
+<title>나만의 안키 (v12.16 - Indent Fixed)</title>
 <style>
     /* 기본 테마 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -106,21 +106,21 @@
     table { table-layout: fixed !important; width: 100% !important; max-width: 100% !important; display: table !important; }
     img { border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); max-width: 100% !important; height: auto !important; display: block; margin: 10px auto; }
     
-    /* 🔥 로그시크 세로 가이드라인 및 불릿 스타일 (간격 초밀착) */
-    .children-list { list-style: none; padding-left: 16px !important; border-left: 1px solid #444; margin: 0 0 0 6px !important; }
+    /* 🔥 [핵심 디자인 픽스] 로그시크 세로 가이드라인 및 불릿 스타일 (들여쓰기 간격 완벽 복원) */
+    .children-list { list-style: none; padding-left: 24px !important; border-left: 1px solid #444 !important; margin: 2px 0 2px 6px !important; }
     .children { margin: 0 !important; padding: 0 !important; position: relative; }
-    .children > span { display: block; position: relative; padding: 1px 0 !important; line-height: 1.4 !important; }
-    .children:not(.numbered) > span::before { content: "•"; position: absolute; left: -16px; color: #888; font-size: 1.1rem; top: 0px; line-height: 1.4; }
+    .children > span { display: block; position: relative; padding: 2px 0 !important; line-height: 1.4 !important; }
+    .children:not(.numbered) > span::before { content: "•"; position: absolute; left: -18px; color: #888; font-size: 1.2rem; top: -1px; line-height: 1.4; }
     .block-ref { cursor: pointer; border-bottom: 1px solid #74c0fc; color: #e0e0e0 !important; text-decoration: none; padding-bottom: 1px; display: inline-block; }
 
-    /* 🔥 [핵심 2] 좌측 상단 빵부스러기 배지 + 우측 화살표 완벽 고정 */
+    /* 🔥 좌측 상단 빵부스러기 배지 + 우측 화살표 완벽 고정 */
     .ls-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; padding: 0; background: transparent; border: none; }
     .ls-breadcrumb { display: inline-flex; align-items: center; background: #333; padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; color: #a0a0a0; }
     .ls-breadcrumb a { color: #a0a0a0 !important; text-decoration: none; }
     .ls-arrows { display: flex; gap: 6px; align-items: center; }
     .ls-btn { background: #333; border: none; color: #4dabf7 !important; font-size: 0.9rem; border-radius: 6px; padding: 4px 10px; cursor: pointer; text-decoration: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-weight: bold; }
 
-    /* 🔥 [핵심 3] 인라인 Cloze (답 볼 때 ... 없어지고 답 나오기) */
+    /* 🔥 인라인 Cloze (답 볼 때 ... 없어지고 답 나오기) */
     .cloze-wrapper { display: inline; }
     .cloze-q { color: #ff6b6b !important; font-weight: bold; background: rgba(255,107,107,0.15); padding: 0 4px; border-radius: 4px; cursor: pointer; }
     .cloze-a { color: #4dabf7 !important; font-weight: bold; background: #182836; padding: 0 4px; border-radius: 4px; }
@@ -366,7 +366,7 @@
     </div>
 
 <script>
-    // 🔥 데이터 로딩 엔진은 가장 안정적이었던 v12.01 완벽 복원
+    // 🔥 데이터 로딩 엔진은 가장 안정적이었던 v12.01 기반 100% 유지!
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
@@ -421,6 +421,7 @@
                 
                 for (let id in stats) {
                     let cardStat = stats[id];
+                    
                     if (cardStat.interval > 0 && (!cardStat.fsrs || cardStat.fsrs.S === 0)) {
                         cardStat.fsrs = { D: 5.0, S: cardStat.interval, reps: 1 };
                     }
@@ -542,7 +543,6 @@
         } catch(e) {}
     }
 
-    // 🔥 v12.01 원본 깃허브 스캔
     async function autoScanGitHub() {
         document.getElementById('loading').style.display = 'block';
         const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
@@ -610,7 +610,7 @@
         return currentId;
     }
 
-    // 🔥 [핵심 기능] v12.01 원본 파서 코드 100% 유지 (카드가 사라지지 않음)
+    // 🔥 v12.01 원본 파서 코드 100% 유지 (카드가 사라지지 않음)
     function processAnkiText(text, filename, stats) {
         const rows = parseAnkiRawData(text);
         let deck = filename.replace('.txt', '');
@@ -851,7 +851,7 @@
         const aSection = document.getElementById('answer-section');
         aSection.innerHTML = '';
         // Cloze 카드가 아니고 정답이 따로 있는 경우만 추가 출력 (두 번 출력 방지)
-        if (!card.isLogseq && card.a && card.a !== card.q) {
+        if (!card.q.includes('cloze-wrapper') && card.a && card.a !== card.q) {
             aSection.appendChild(createDOM(card, true));
         }
 
@@ -896,7 +896,7 @@
         data[id].total++; 
         if(score === 2) data[id].correct++; 
         else if(score === 1) data[id].correct += 0.5; 
-        else if(score === 3) { if(oldTotal > 0) data[id].correct += (oldCorrect / oldTotal); }
+        else if(score === 3) { if(oldTotal > 0) data[id].correct += (oldCorrect / oldTotal); } // 확인 버튼
 
         if (score !== 3) {
             fsrs.reps++;
