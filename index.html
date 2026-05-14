@@ -5,55 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (v12.00 Logseq Cloze Parser)</title>
+<title>나만의 안키 (v12.00 Logseq Master)</title>
 <style>
-    /* 기본 테마 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; --sub-group-bg: #252525; }
+    :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
-    
-    .header-container { background: var(--surface); border-bottom: 1px solid var(--border); z-index: 20; flex-shrink: 0; transition: all 0.3s ease; position: relative; }
+    .header-container { background: var(--surface); border-bottom: 1px solid var(--border); z-index: 20; flex-shrink: 0; position: relative; }
     .header { padding: 0 15px; padding-top: calc(env(safe-area-inset-top) + 15px); padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
     .header-left { display: flex; gap: 15px; align-items: center; }
-    
     .header-center { display: flex; flex-direction: column; align-items: center; max-width: 50vw; }
     .header-title { font-weight: bold; font-size: 1.1rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
     .filter-status-text { font-size: 0.75rem; color: var(--primary); margin-top: 2px; opacity: 0.9; white-space: nowrap; font-weight: bold; }
-
     .cloud-icon { font-size: 0.8rem; opacity: 0.5; transition: 0.3s; }
     .cloud-icon.active { color: #ffd43b; opacity: 1; animation: spin 1s infinite linear; }
     .cloud-icon.done { color: #40c057; opacity: 1; }
     .cloud-icon.error { color: #fa5252; opacity: 1; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
-
     .header-controls { display: flex; gap: 10px; align-items: center; }
     .menu-btn, .filter-toggle-btn { font-size: 1.5rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); display: flex; align-items: center; justify-content: center; }
     .filter-toggle-btn { color: var(--primary); } 
     .counter { font-size: 0.85rem; font-weight: bold; color: var(--text-sub); background: var(--input-bg); padding: 5px 12px; border-radius: 15px; }
-
     .filter-bar { width: 100%; background: var(--surface); display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; max-height: 0; opacity: 0; overflow-y: hidden; transition: all 0.3s ease-in-out; padding: 0 15px; border-bottom: 0px solid var(--border); }
     .filter-bar.open { max-height: 65px; opacity: 1; padding: 12px 15px; border-bottom: 1px solid var(--border); }
     .filter-bar::-webkit-scrollbar { display: none; }
-
     .filter-chip { background: var(--input-bg); border: 1px solid var(--border); padding: 8px 14px; border-radius: 20px; color: var(--text-sub); font-size: 0.85rem; font-weight: bold; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
     .filter-chip.active { background: var(--primary); color: white; border-color: var(--primary); }
     .filter-chip.sort-chip { border-color: #5c5c5c; color: #e0e0e0; background: #333; }
     .filter-chip.sort-chip.active { background: #fcc419; color: #000; border-color: #fcc419; }
     .filter-chip.reset-chip { color: #ff8787; border-color: #ff8787; }
     .filter-chip.reset-chip:active { background: #fa5252; color: white; }
-
     .sidebar { position: fixed; top: 0; left: 0; width: 300px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); box-shadow: 2px 0 15px rgba(0,0,0,0.5); transition: transform 0.3s ease; z-index: 9999; padding: 25px; padding-top: calc(env(safe-area-inset-top) + 25px); display: flex; flex-direction: column; overflow-y: auto; transform: translateX(-105%); }
     .sidebar.open { transform: translateX(0); }
     .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9998; display: none; }
     .sidebar-overlay.open { display: block; }
-    
     .menu-section { margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
     .menu-label { font-weight: bold; color: var(--text-sub); margin-bottom: 10px; display: block; font-size: 0.95rem; }
     .search-box { position: relative; margin-bottom: 15px; }
     .search-input { width: 100%; padding: 12px 10px 12px 35px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); border-radius: 8px; font-size: 0.95rem; }
     .search-input:focus { border-color: var(--primary); outline: none; }
     .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-sub); }
-
     ul, li { list-style: none; padding: 0; margin: 0; }
     .deck-list { list-style: none; padding: 0; margin: 0; }
     .tree-folder { margin-bottom: 4px; }
@@ -67,17 +57,13 @@
     .tree-deck.active { background: #182836; color: #74c0fc; font-weight: bold; border: 2px solid #1c7ed6; }
     .play-btn { background: var(--primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 8px; flex-shrink: 0; }
     .del-btn { background: none; border: none; color: var(--text-sub); font-weight: bold; padding: 0 5px; cursor: pointer; font-size: 1rem; }
-
     .btn-sub { width: 100%; padding: 10px; border-radius: 8px; background: var(--input-bg); color: var(--text-sub); border: 1px solid var(--border); margin-top: 5px; cursor: pointer; text-align: left; font-size: 0.85rem; font-weight: bold; }
     .btn-cloud { width: 100%; padding: 12px; border-radius: 8px; background: #2b1f11; color: #fab005; border: 1px solid #fab005; font-weight: bold; cursor: pointer; margin-top: 15px; text-align: center; }
     .btn-refresh { width: 100%; padding: 12px; margin-top: 15px; border-radius: 8px; background: #343a40; color: #e9ecef; border: 1px solid var(--border); font-weight: bold; cursor: pointer; }
-
     .main-container { flex: 1; display: flex; flex-direction: column; padding: 0; width: 100%; position: relative; overflow: hidden; background: var(--bg); }
     .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; display: flex; flex-direction: column; position: relative; overflow: hidden; }
-    
     .card-scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
     .zoom-content { padding: 25px 20px; min-height: 100%; width: 100%; transform-origin: 0 0; will-change: transform; }
-    
     .card-info { display: flex; justify-content: space-between; width: 100%; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px dashed var(--border); align-items: center; flex-wrap: wrap; gap: 8px; }
     .info-left { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .rate-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; background: var(--input-bg); color: var(--text-sub); }
@@ -86,7 +72,6 @@
     .badge-today { background: #0b2e13; color: #40c057; border: 1px solid #40c057; } 
     .badge-1d { background: #3f2e05; color: #ffd43b; border: 1px solid #ffd43b; } 
     .badge-old { background: #212529; color: #868e96; border: 1px solid #495057; } 
-
     .icon-wrapper { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
     .icon-row { display: flex; gap: 12px; }
     .icon-btn { font-size: 1.4rem; cursor: pointer; background: none; border: none; padding: 0; line-height: 1; color: var(--text-sub); transition: 0.2s; opacity: 0.4; filter: grayscale(100%); }
@@ -95,10 +80,32 @@
     .num-btn.active { color: #66d9e8; } .date-btn.active { color: #b197fc; } .pen-btn.active { color: #ff6b6b; }
     .edit-btn { font-size: 1.2rem; margin-right: 5px; opacity: 1; color: var(--text-sub); }
 
-    .text-area { font-size: 1.35rem; line-height: 1.6; word-break: keep-all; white-space: pre-wrap; width: 100%; margin-bottom: 20px; color: var(--text) !important; font-weight: 500; position: relative; overflow-x: hidden; }
+    /* 🔥 로그시크 UI & 텍스트 영역 마스터 설정 */
+    .text-area { font-size: 1.05rem; line-height: 1.6; word-break: keep-all; white-space: pre-wrap; width: 100%; margin-bottom: 20px; color: var(--text) !important; position: relative; overflow-x: hidden; }
     .text-area * { color: inherit !important; max-width: 100% !important; box-sizing: border-box !important; }
     table { table-layout: fixed !important; width: 100% !important; max-width: 100% !important; display: table !important; }
     img { border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); max-width: 100% !important; height: auto !important; display: block; margin: 10px auto; }
+    
+    /* 🔥 로그시크 빵부스러기 및 헤더 스타일 */
+    .ls-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #252525; padding: 8px 12px; border-radius: 8px; }
+    .ls-breadcrumb a { color: #a0a0a0 !important; text-decoration: none; font-size: 0.9rem; font-weight: bold; }
+    .ls-arrows { display: flex; gap: 8px; }
+    .ls-btn { background: #1c7ed6; border: none; color: white !important; font-size: 0.9rem; border-radius: 4px; padding: 4px 10px; cursor: pointer; text-decoration: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+    
+    /* 🔥 로그시크 내부 블록 및 링크 스타일 */
+    .block-ref { cursor: pointer; border-bottom: 1px solid #74c0fc; color: #e0e0e0 !important; text-decoration: none; padding-bottom: 1px; }
+    .children-list { list-style: none; padding-left: 20px; border-left: 2px solid #444; margin: 6px 0 6px 8px; }
+    .children { position: relative; margin-top: 6px; }
+    .children > span { display: block; position: relative; }
+    .children:not(.numbered) > span::before { content: "•"; position: absolute; left: -22px; color: #888; font-size: 1.2rem; line-height: 1; top: -1px; }
+    .numbered { list-style-type: decimal; padding-left: 5px; }
+
+    /* 🔥 인라인 Cloze (빈칸 뚫기) 로직 */
+    .cloze-wrapper { display: inline; }
+    .mode-question .cloze-a { display: none; }
+    .mode-question .cloze-q { display: inline; color: #4dabf7; font-weight: bold; cursor: pointer; }
+    .mode-answer .cloze-q { display: none; }
+    .mode-answer .cloze-a { display: inline; color: #e0e0e0; font-weight: bold; }
 
     .divider { display: none; border: 0; border-top: 2px dashed var(--border); margin: 15px 0; position: relative; }
     .divider::after { content: "정답"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--surface); padding: 0 10px; color: var(--text-sub); font-size: 0.8rem; font-weight: bold; }
@@ -107,18 +114,12 @@
 
     .footer { width: 100%; padding: 10px 20px; padding-bottom: calc(35px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); z-index: 10; display: flex; flex-direction: column; gap: 10px; justify-content: center; flex-shrink: 0; }
     .footer-content { display: flex; flex-direction: column; gap: 10px; }
-    
-    /* 🔥 4버튼 간격 조절 */
     .nav-btns, .grade-btns { display: flex; justify-content: space-between; width: 100%; margin: 0; gap: 8px; }
-    
     .nav-btn { flex: 1; background: var(--input-bg); border: 1px solid var(--border); padding: 14px 0; border-radius: 12px; cursor: pointer; font-weight: bold; color: var(--text); font-size: 1rem; text-align: center; transition: 0.2s; }
     .nav-btn:active { background: var(--btn-hover); }
     .g-btn { flex: 1; padding: 16px 0; border: none; border-radius: 12px; font-weight: bold; color: white; cursor: pointer; font-size: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin: 0; text-align: center; }
     .g-btn:active { transform: scale(0.98); opacity: 0.9; }
-    
-    .bg-x { background: #fa5252; } .bg-tri { background: #fab005; } .bg-o { background: #40c057; } 
-    /* 🔥 확인 버튼 색상 */
-    .bg-chk { background: #339af0; }
+    .bg-x { background: #fa5252; } .bg-tri { background: #fab005; } .bg-o { background: #40c057; } .bg-chk { background: #339af0; }
 
     .click-guide { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-top: 40px; cursor: pointer; padding: 30px; border: 2px dashed var(--border); border-radius: 12px; background: #181818; }
     
@@ -130,14 +131,12 @@
     .btn-save { background: #fab005; color: #121212; } .btn-cancel { background: var(--input-bg); color: var(--text); }
     .backup-list { max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; background: var(--input-bg); }
     .backup-item { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text); }
-    .backup-item:last-child { border-bottom: none; }
     .backup-item:hover { background: var(--btn-hover); }
     .backup-date { color: #fab005; font-weight: bold; }
+    #loading { margin-top: 50%; color: var(--text-sub); text-align: center; }
     
     #toast { position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 24px; border-radius: 25px; font-size: 0.95rem; font-weight: bold; transition: bottom 0.3s ease; z-index: 20000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px; pointer-events: none; }
-    #toast.show { bottom: 85px; } 
-    #toast.error { background: #fa5252; color: white; }
-    #toast.success { background: #40c057; color: white; }
+    #toast.show { bottom: 85px; } #toast.error { background: #fa5252; color: white; } #toast.success { background: #40c057; color: white; }
 </style>
 </head>
 <body>
@@ -147,13 +146,11 @@
     <div class="sidebar-overlay" onclick="toggleMenu()"></div>
     <div class="sidebar" id="sidebar">
         <h2 style="margin-top:0; color:var(--text); font-size:1.4rem;">⚙️ 메뉴</h2>
-        
         <div class="menu-section">
             <button class="btn-sub" style="background:#1a1a1a; border:1px solid #fab005; color:#fab005; text-align:center; padding:12px; font-size:0.95rem;" onclick="openTRModal()">
-                🎯 목표 기억률: <span id="current-tr-display">90</span>% (설정 변경)
+                🎯 목표 기억률: <span id="current-tr-display">90</span>%
             </button>
         </div>
-
         <div class="menu-section">
             <span class="menu-label">🔍 카드 검색</span>
             <div class="search-box">
@@ -171,45 +168,31 @@
             <button class="btn-sub" onclick="exportData()">💾 로컬 백업 저장</button>
             <button class="btn-sub" onclick="document.getElementById('backup-input').click()">📂 로컬 백업 불러오기</button>
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
-            
             <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정 (파이어베이스)</button>
             <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 서버 연결 안정화됨</div>
-            
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">My Anki v12.00 (Logseq Cloze Parser)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">My Anki v12.00 (Logseq Cloze)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
         <div class="modal-content" style="border: 1px solid #fab005;">
             <h3 style="margin-top:0; color:#ffd43b; margin-bottom: 5px;">🎯 FSRS 목표 기억률 설정</h3>
-            <p style="font-size:0.85rem; color:var(--text-sub); margin-top:0; margin-bottom:15px; line-height:1.4;">
-                숫자가 높을수록 복습을 자주 하고, 낮을수록 간격이 쑥쑥 늘어납니다. (권장: 85~95%)
-            </p>
-            
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px;">
                 <input type="number" id="tr-input" class="search-input" value="90" min="70" max="99" style="width: 100px; font-size: 1.1rem; text-align:center;">
                 <span style="font-size:1.2rem; font-weight:bold;">%</span>
             </div>
-            
             <div style="font-size:0.9rem; color:var(--text); margin-bottom: 15px; line-height: 1.5; background:var(--input-bg); padding:15px; border-radius:8px;">
                 <label style="display:flex; align-items:flex-start; gap:10px; margin-bottom:15px; cursor:pointer;">
                     <input type="radio" name="tr-mode" value="safe" checked style="margin-top:3px; transform: scale(1.2);">
-                    <div>
-                        <b>🔘 안전 모드 (권장)</b><br>
-                        <span style="color:#aaa; font-size:0.8rem;">기존 스케줄은 유지하고, 이후 복습 시부터 새 기억률을 부드럽게 적용합니다.</span>
-                    </div>
+                    <div><b>🔘 안전 모드 (권장)</b><br><span style="color:#aaa; font-size:0.8rem;">기존 스케줄은 유지하고 새 기억률 부드럽게 적용</span></div>
                 </label>
                 <hr style="border: 0; border-top: 1px dashed var(--border); margin: 10px 0;">
                 <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
                     <input type="radio" name="tr-mode" value="recalc" style="margin-top:3px; transform: scale(1.2);">
-                    <div>
-                        <b>⚪ 전면 재계산 (벼락치기용)</b><br>
-                        <span style="color:#fa5252; font-size:0.8rem;">과거 기록까지 역산하여, 지금 즉시 덱 전체의 스케줄을 갈아엎습니다.</span>
-                    </div>
+                    <div><b>⚪ 전면 재계산 (벼락치기용)</b><br><span style="color:#fa5252; font-size:0.8rem;">과거 기록 역산하여 덱 전체 스케줄 갈아엎기</span></div>
                 </label>
             </div>
-            
             <div class="modal-btns">
                 <button class="modal-btn btn-save" onclick="saveTR()">적용하기</button>
                 <button class="modal-btn btn-cancel" onclick="document.getElementById('tr-modal').style.display='none'">닫기</button>
@@ -223,7 +206,6 @@
                 <button class="menu-btn" onclick="toggleMenu()">☰</button>
                 <button class="filter-toggle-btn" onclick="toggleFilterBar()">🌪️</button>
             </div>
-            
             <div class="header-center">
                 <div class="header-title" id="deck-title">
                     <span id="deck-title-text">나만의 안키</span>
@@ -231,12 +213,8 @@
                 </div>
                 <div class="filter-status-text" id="filter-status-text">🔄 원래순 & 📋 전체</div>
             </div>
-
-            <div class="header-controls">
-                <span class="counter" id="card-counter">0 / 0</span>
-            </div>
+            <div class="header-controls"><span class="counter" id="card-counter">0 / 0</span></div>
         </div>
-        
         <div class="filter-bar" id="filter-bar">
             <div class="filter-chip reset-chip" onclick="resetFilters()">🔄 초기화</div>
             <div style="width:1px; height:20px; background:var(--border); flex-shrink:0;"></div>
@@ -260,7 +238,6 @@
             <div class="card-scroll-area" id="scroll-area">
                 <div class="zoom-content" id="zoom-content">
                     <div id="loading" style="display:none; text-align:center; padding-top:50px;">데이터 로딩 중...</div>
-                    
                     <div class="card-info" id="card-info">
                         <div class="info-left">
                             <span class="rate-badge" id="rate-badge">New</span>
@@ -281,8 +258,8 @@
                             </div>
                         </div>
                     </div>
-
-                    <div id="question-section" class="text-area"></div>
+                    
+                    <div id="question-section" class="text-area mode-question"></div>
                     <div id="click-guide" class="click-guide" onclick="revealAnswer()">👇 터치하여 정답 확인</div>
                     <hr id="divider" class="divider">
                     <div id="answer-section" class="text-area"></div>
@@ -322,8 +299,7 @@
             <div style="font-weight:bold; font-size:1.2rem; color:var(--text);">🔥 파이어베이스 백업 센터</div>
             <div id="fb-auth-section">
                 <div style="font-size:0.9rem; color:#aaa; margin-bottom:15px; line-height:1.5;">
-                    ✅ <b>모바일-PC 완벽 동기화 완료!</b><br>
-                    더 이상 데이터가 누락되지 않습니다. 10분마다 자동으로 덮어쓰기 저장됩니다.
+                    ✅ <b>모바일-PC 완벽 동기화 완료!</b>
                 </div>
                 <div style="margin-bottom: 15px;">
                     <span class="menu-label">🔒 비공개 문제 가져오기 (GitHub Token)</span>
@@ -336,150 +312,83 @@
                 </div>
             </div>
             <div id="fb-list-section" style="display:none;">
-                <h4 style="margin:10px 0; color:#fab005;">🕒 복구할 시간을 선택하세요 (최대 10개 보관)</h4>
-                <div id="fb-list-ui" class="backup-list">서버에서 내역을 불러오는 중...</div>
-                <div class="modal-btns">
-                    <button class="modal-btn btn-cancel" onclick="showAuthSection()">뒤로가기</button>
-                </div>
+                <h4 style="margin:10px 0; color:#fab005;">🕒 복구할 시간을 선택하세요 (최대 10개)</h4>
+                <div id="fb-list-ui" class="backup-list"></div>
+                <div class="modal-btns"><button class="modal-btn btn-cancel" onclick="showAuthSection()">뒤로가기</button></div>
             </div>
         </div>
     </div>
 
 <script>
-    // 🔥 저장소 MK 설정 유지
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', imageMap = new Map();
     
-    // 🔥 동결 마법을 위한 키 추가 (state 보존)
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress_v2', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck';
     const STORAGE_KEY_FILTER_STATE = 'anki_final_filter_state', STORAGE_KEY_ACTIVE_IDS = 'anki_final_active_ids'; 
     const S_ORDER = 'anki_v12_order', S_INDEX = 'anki_v12_index';
-
     const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'original': '🔄 원래순', 'wrong': '🔥 오답순', 'number': '🔢 번호순' };
 
-    // 🔥 파이어베이스 MKAPP 주소 유지
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
     let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
-    let lastBackupTime = 0;
-    const BACKUP_INTERVAL = 10 * 60 * 1000; 
-    let isDataChanged = false;
-
+    let lastBackupTime = 0; const BACKUP_INTERVAL = 10 * 60 * 1000; let isDataChanged = false;
     let targetRetention = parseFloat(localStorage.getItem('anki_target_retention')) || 0.90;
 
     const cyrb53 = (str, seed = 0) => { let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed; for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); return 4294967296 * (2097151 & h2) + (h1 >>> 0); };
 
     function showToast(msg, type = 'normal') {
-        const toast = document.getElementById('toast');
-        toast.innerText = msg; toast.className = '';
-        if(type === 'error') toast.classList.add('error');
-        if(type === 'success') toast.classList.add('success');
-        toast.classList.add('show');
-        setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        const toast = document.getElementById('toast'); toast.innerText = msg; toast.className = '';
+        if(type === 'error') toast.classList.add('error'); if(type === 'success') toast.classList.add('success');
+        toast.classList.add('show'); setTimeout(() => { toast.classList.remove('show'); }, 3000);
     }
 
-    // 🔥 메뉴 버튼 열기 (에러 방지 적용)
     function toggleMenu(force) {
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
+        const sidebar = document.getElementById('sidebar'); const overlay = document.querySelector('.sidebar-overlay');
         const isOpen = force !== undefined ? force : !sidebar.classList.contains('open');
-        
-        if (isOpen) {
-            sidebar.classList.add('open'); overlay.classList.add('open');
-            setTimeout(() => { 
-                try {
-                    const activeEl = document.querySelector('.tree-deck.active') || document.querySelector('.tree-header.active'); 
-                    if (activeEl) { 
-                        const top = activeEl.getBoundingClientRect().top + sidebar.scrollTop - sidebar.getBoundingClientRect().top; 
-                        sidebar.scrollTo({ top: top - sidebar.clientHeight/2 + 20, behavior: 'auto' }); 
-                    } 
-                } catch(e) {}
-            }, 100);
-        } else { 
-            sidebar.classList.remove('open'); overlay.classList.remove('open'); 
-        }
+        if (isOpen) { sidebar.classList.add('open'); overlay.classList.add('open');
+            setTimeout(() => { try { const activeEl = document.querySelector('.tree-deck.active') || document.querySelector('.tree-header.active'); if (activeEl) { const top = activeEl.getBoundingClientRect().top + sidebar.scrollTop - sidebar.getBoundingClientRect().top; sidebar.scrollTo({ top: top - sidebar.clientHeight/2 + 20, behavior: 'auto' }); } } catch(e) {} }, 100);
+        } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
     }
 
     function toggleFilterBar() { document.getElementById('filter-bar').classList.toggle('open'); }
-
-    function openTRModal() {
-        document.getElementById('tr-input').value = Math.round(targetRetention * 100);
-        document.getElementById('tr-modal').style.display = 'flex';
-        toggleMenu(false); 
-    }
-    
+    function openTRModal() { document.getElementById('tr-input').value = Math.round(targetRetention * 100); document.getElementById('tr-modal').style.display = 'flex'; toggleMenu(false); }
     function updateTRButton() { document.getElementById('current-tr-display').innerText = Math.round(targetRetention * 100); }
 
     function saveTR() {
         let val = parseInt(document.getElementById('tr-input').value, 10);
         let applyMode = document.querySelector('input[name="tr-mode"]:checked').value;
-
         if(val >= 70 && val <= 99) {
-            targetRetention = val / 100;
-            localStorage.setItem('anki_target_retention', targetRetention);
-            updateTRButton();
-            
+            targetRetention = val / 100; localStorage.setItem('anki_target_retention', targetRetention); updateTRButton();
             if (applyMode === 'recalc') {
                 const stats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
-                let intervalFactor = Math.log(targetRetention) / Math.log(0.90);
-                let recalcCount = 0;
-                
+                let intervalFactor = Math.log(targetRetention) / Math.log(0.90); let recalcCount = 0;
                 for (let id in stats) {
                     let cardStat = stats[id];
-                    if (cardStat.interval > 0 && (!cardStat.fsrs || cardStat.fsrs.S === 0)) {
-                        cardStat.fsrs = { D: 5.0, S: cardStat.interval, reps: 1 };
-                    }
+                    if (cardStat.interval > 0 && (!cardStat.fsrs || cardStat.fsrs.S === 0)) cardStat.fsrs = { D: 5.0, S: cardStat.interval, reps: 1 };
                     if (cardStat.fsrs && cardStat.fsrs.S > 0 && cardStat.interval > 0) {
-                        let S = cardStat.fsrs.S;
-                        let interval = Math.max(1, Math.round(S * intervalFactor));
-                        if (interval > 3) {
-                            let fuzz = 0;
-                            if (interval >= 4 && interval <= 7) fuzz = 1;
-                            else if (interval >= 8 && interval <= 15) fuzz = 2;
-                            else if (interval >= 16) fuzz = 3;
-                            const randomFuzz = Math.floor(Math.random() * (2 * fuzz + 1)) - fuzz;
-                            interval = Math.max(1, interval + randomFuzz);
-                        }
+                        let interval = Math.max(1, Math.round(cardStat.fsrs.S * intervalFactor));
+                        if (interval > 3) { let fuzz = interval >= 16 ? 3 : (interval >= 8 ? 2 : 1); interval = Math.max(1, interval + Math.floor(Math.random() * (2 * fuzz + 1)) - fuzz); }
                         cardStat.interval = interval;
-                        let baseDate = new Date(cardStat.lastDate || Date.now());
-                        baseDate.setHours(0,0,0,0);
-                        cardStat.dueDate = baseDate.getTime() + (interval * 86400000);
-                        recalcCount++;
+                        let baseDate = new Date(cardStat.lastDate || Date.now()); baseDate.setHours(0,0,0,0);
+                        cardStat.dueDate = baseDate.getTime() + (interval * 86400000); recalcCount++;
                     }
                 }
-                localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(stats));
-                isDataChanged = true; checkAutoBackup();
-                showToast(`전면 재계산 완료! (${recalcCount}개 업데이트됨)`, "success");
-                applyFilterAndSort(false); 
+                localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(stats)); isDataChanged = true; checkAutoBackup(); showToast(`전면 재계산 완료! (${recalcCount}개 업데이트됨)`, "success"); applyFilterAndSort(false); 
             } else { showToast("안전 모드로 기억률이 변경되었습니다.", "success"); }
             document.getElementById('tr-modal').style.display = 'none';
         } else { alert("70에서 99 사이의 숫자를 입력해주세요."); document.getElementById('tr-input').value = Math.round(targetRetention * 100); }
     }
 
-    const scrollContainer = document.getElementById('scroll-area');
-    const zoomContent = document.getElementById('zoom-content');
+    const scrollContainer = document.getElementById('scroll-area'); const zoomContent = document.getElementById('zoom-content');
     let scale = 1, panning = false, pointX = 0, pointY = 0, startX = 0, startY = 0, lastTap = 0, startDist = 0, startScale = 1;
-    
-    scrollContainer.addEventListener('touchstart', (e) => { 
-        if (e.touches.length === 2) { e.preventDefault(); panning = false; startDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY); startScale = scale; } 
-        else if (e.touches.length === 1) { const now = new Date().getTime(); if (now - lastTap < 300) { e.preventDefault(); resetZoom(); } else { if (scale > 1) { panning = true; startX = e.touches[0].pageX - pointX; startY = e.touches[0].pageY - pointY; } } lastTap = now; } 
-    }, { passive: false });
-    
-    scrollContainer.addEventListener('touchmove', (e) => { 
-        if (e.touches.length === 2) { e.preventDefault(); const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY); scale = Math.min(Math.max(1, startScale * (dist / startDist)), 4); updateTransform(); } 
-        else if (e.touches.length === 1 && panning && scale > 1) { e.preventDefault(); pointX = e.touches[0].pageX - startX; pointY = e.touches[0].pageY - startY; updateTransform(); } 
-    }, { passive: false });
-    
+    scrollContainer.addEventListener('touchstart', (e) => { if (e.touches.length === 2) { e.preventDefault(); panning = false; startDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY); startScale = scale; } else if (e.touches.length === 1) { const now = new Date().getTime(); if (now - lastTap < 300) { e.preventDefault(); resetZoom(); } else { if (scale > 1) { panning = true; startX = e.touches[0].pageX - pointX; startY = e.touches[0].pageY - pointY; } } lastTap = now; } }, { passive: false });
+    scrollContainer.addEventListener('touchmove', (e) => { if (e.touches.length === 2) { e.preventDefault(); const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY); scale = Math.min(Math.max(1, startScale * (dist / startDist)), 4); updateTransform(); } else if (e.touches.length === 1 && panning && scale > 1) { e.preventDefault(); pointX = e.touches[0].pageX - startX; pointY = e.touches[0].pageY - startY; updateTransform(); } }, { passive: false });
     scrollContainer.addEventListener('touchend', (e) => { if (e.touches.length < 2) panning = false; if (scale < 1.1) resetZoom(); });
     function resetZoom() { scale = 1; pointX = 0; pointY = 0; updateTransform(); scrollContainer.style.overflowY = 'auto'; }
     function updateTransform() { if (scale > 1) scrollContainer.style.overflow = 'hidden'; else scrollContainer.style.overflowY = 'auto'; zoomContent.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`; }
 
-    window.onload = async function() { 
-        updateTRButton();
-        await autoScanGitHub(); 
-        initApp(); 
-    };
+    window.onload = async function() { updateTRButton(); await autoScanGitHub(); initApp(); };
 
     function openFirebaseSettings() { document.getElementById('gh-token-input').value = ghRepoToken; showAuthSection(); document.getElementById('fb-modal').style.display = 'flex'; }
     function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
@@ -489,15 +398,8 @@
 
     async function performFirebaseBackup(isAuto) {
         updateCloudIcon('active');
-        const data = { 
-            stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), 
-            lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), filter: localStorage.getItem(STORAGE_KEY_FILTER_STATE),
-            activeIds: localStorage.getItem(STORAGE_KEY_ACTIVE_IDS), 
-            order: localStorage.getItem(S_ORDER), index: localStorage.getItem(S_INDEX), // 동결 상태 서버 저장
-            timestamp: Date.now() 
-        };
+        const data = { stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), filter: localStorage.getItem(STORAGE_KEY_FILTER_STATE), activeIds: localStorage.getItem(STORAGE_KEY_ACTIVE_IDS), order: localStorage.getItem(S_ORDER), index: localStorage.getItem(S_INDEX), timestamp: Date.now() };
         try {
-            // PUT 방식 유지
             const res = await fetch(`${FIREBASE_DB_URL}/backups/${data.timestamp}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
             if(res.ok) { isDataChanged = false; updateCloudIcon('done'); cleanupOldBackups(); if(!isAuto) showToast("🚀 수동 백업 100% 성공!", "success"); return true; } 
             else { updateCloudIcon('error'); if(!isAuto) showToast("❌ 백업 실패", "error"); return false; }
@@ -523,18 +425,11 @@
 
     async function restoreFromFirebase(ts) {
         try {
-            const res = await fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`); 
-            let targetData = await res.json();
-            // 포장지 버그 해결 로직 유지
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`); let targetData = await res.json();
             if(targetData && !targetData.stats) { const keys = Object.keys(targetData); if(keys.length === 1 && targetData[keys[0]].stats) { targetData = targetData[keys[0]]; } }
-            
-            if(targetData.stats) localStorage.setItem(STORAGE_KEY_STATS, targetData.stats);
-            if(targetData.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, targetData.progress);
-            if(targetData.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, targetData.lastDeck);
-            if(targetData.filter) localStorage.setItem(STORAGE_KEY_FILTER_STATE, targetData.filter);
-            if(targetData.activeIds) localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, targetData.activeIds); 
-            if(targetData.order) localStorage.setItem(S_ORDER, targetData.order);
-            if(targetData.index) localStorage.setItem(S_INDEX, targetData.index);
+            if(targetData.stats) localStorage.setItem(STORAGE_KEY_STATS, targetData.stats); if(targetData.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, targetData.progress);
+            if(targetData.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, targetData.lastDeck); if(targetData.filter) localStorage.setItem(STORAGE_KEY_FILTER_STATE, targetData.filter);
+            if(targetData.activeIds) localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, targetData.activeIds); if(targetData.order) localStorage.setItem(S_ORDER, targetData.order); if(targetData.index) localStorage.setItem(S_INDEX, targetData.index);
             location.reload();
         } catch(e) { document.getElementById('fb-list-ui').innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">복구 중 에러가 발생했습니다.</div>`; }
     }
@@ -552,18 +447,14 @@
         const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
         try {
             const listUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/`;
-            const res = await fetch(listUrl, { headers });
-            const files = (await res.json()).filter(f => f.name.endsWith('.txt'));
+            const res = await fetch(listUrl, { headers }); const files = (await res.json()).filter(f => f.name.endsWith('.txt'));
             const savedStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
-            
             for (const file of files) {
                 let text = "";
                 if(ghRepoToken) {
                     const fileRes = await fetch(file.url, { headers }); const fileJson = await fileRes.json();
                     if(fileJson.content) text = decodeURIComponent(escape(window.atob(fileJson.content.replace(/\n/g, ''))));
-                } else {
-                    const textRes = await fetch(file.download_url + '?t=' + Date.now()); text = await textRes.text();
-                }
+                } else { const textRes = await fetch(file.download_url + '?t=' + Date.now()); text = await textRes.text(); }
                 processAnkiText(text, file.name, savedStats);
             }
         } catch (e) { console.log(e); }
@@ -582,79 +473,52 @@
     }
 
     function resolveCardId(idString, stats) {
-        const currentId = cyrb53(idString);
-        if (stats[currentId]) return currentId;
-        const strippedQ = idString.replace(/\s*title\s*=\s*["'][^"']*["']/gi, '');
-        const strippedId = cyrb53(strippedQ);
-        if (stats[strippedId]) return strippedId;
-        const naiveFormat = '"' + idString.replace(/"/g, '""') + '"';
-        const naiveId = cyrb53(naiveFormat);
-        if (stats[naiveId]) return naiveId;
-        const strippedNaive = '"' + strippedQ.replace(/"/g, '""') + '"';
-        const strippedNaiveId = cyrb53(strippedNaive);
-        if (stats[strippedNaiveId]) return strippedNaiveId;
-        const fnameMatch = idString.match(/src\s*=\s*["']?([^"'>\s]+)["']?/i);
-        if(fnameMatch) {
-            let fname = fnameMatch[1];
-            let tests = [ `<img src="${fname}">`, `"<img src=""${fname}"">"`, fname, `"${fname}"` ];
-            for (let t of tests) { if(stats[cyrb53(t)]) return cyrb53(t); }
-        }
+        const currentId = cyrb53(idString); if (stats[currentId]) return currentId;
+        const strippedQ = idString.replace(/\s*title\s*=\s*["'][^"']*["']/gi, ''); const strippedId = cyrb53(strippedQ); if (stats[strippedId]) return strippedId;
+        const naiveFormat = '"' + idString.replace(/"/g, '""') + '"'; const naiveId = cyrb53(naiveFormat); if (stats[naiveId]) return naiveId;
+        const strippedNaive = '"' + strippedQ.replace(/"/g, '""') + '"'; const strippedNaiveId = cyrb53(strippedNaive); if (stats[strippedNaiveId]) return strippedNaiveId;
         return currentId;
     }
 
-    // 🔥 [핵심 업데이트] 로그시크 빈칸뚫기 전용 파서
+    // 🔥 [핵심 1] 로그시크 스마트 파서 (빈칸 뚫기, 경로, 블록ID 추출)
     function processAnkiText(text, filename, stats) {
         const rows = parseAnkiRawData(text);
         let defaultDeck = filename.replace('.txt', '');
         
         rows.forEach(fields => {
-            if (fields.length > 0 && fields[0].startsWith('#')) return; 
-            if (fields.length === 0 || !fields[0]) return;
+            if (fields.length === 0 || !fields[0] || fields[0].startsWith('#')) return; 
             
             let deckNameInRow = defaultDeck;
-            let q = "", a = "";
-            let idString = ""; 
+            let q = "", a = "", idString = "", blockId = "", breadcrumb = "";
+            let isLogseq = false;
             
-            // 덱 이름 지정 (로그시크 템플릿 포함)
-            if (fields[0].includes('::') || fields.length >= 6) {
-                deckNameInRow = fields[0].replace(/::/g, '__');
-            }
+            // 덱 이름 매핑
+            if (fields[0].includes('::')) deckNameInRow = fields[0].replace(/::/g, '__');
+            else if (fields.length >= 5) deckNameInRow = fields[0];
             
-            // Logseq 식별 (보통 2번째 칸(index 1)이 uuid)
-            const isLogseq = fields.length >= 4 && /^[0-9a-fA-F]{8}-/.test(fields[1] || fields[2] || "");
-            
-            if (isLogseq) {
-                idString = fields[1]; // 🔥 예전 점수를 유지하기 위해 반드시 uuid-type으로 해시 생성
+            // 로그시크 7열 포맷 감지
+            if (fields.length >= 5 && /^[0-9a-fA-F]{8}-/.test(fields[1] || fields[2] || "")) {
+                isLogseq = true;
+                idString = fields[1]; 
+                blockId = fields[2];
                 let mainText = fields[3] || "";
+                breadcrumb = fields[4] || "";
                 
-                // 빈칸(Cloze) 파싱
-                if (mainText.includes('{{c')) {
-                    q = mainText.replace(/\{\{c\d+::(.*?)\}\}/g, '<span style="color:#fa5252; font-weight:bold;">[...]</span>');
-                    a = mainText.replace(/\{\{c\d+::(.*?)\}\}/g, '<span style="color:#4dabf7; font-weight:bold; background:#182836; padding:0 4px; border-radius:4px;">$1</span>');
-                } else {
-                    q = mainText;
-                    a = fields[4] || "";
-                }
-            } else {
-                // 일반 안키 카드 파싱
-                if (fields.length >= 3) { 
-                    q = fields[1]; 
-                    a = fields.slice(2).join('<br>'); 
-                } else if (fields.length === 2) { 
-                    q = fields[0]; 
-                    a = fields[1]; 
-                } else { 
-                    q = fields[0]; 
-                    a = ""; 
-                }
+                // 빈칸(Cloze) 분리 마법
+                q = mainText.replace(/\{\{c\d+::(.*?)\}\}/g, '<span class="cloze-wrapper"><span class="cloze-q">[...]</span><span class="cloze-a">$1</span></span>');
+                a = q; // 본문 자체가 곧 정답 화면
+                
+            } else { // 일반 안키 포맷
+                if (fields.length >= 3) { deckNameInRow = fields[0].replace(/::/g, '__'); q = fields[1]; a = fields.slice(2).join('<br>'); } 
+                else if (fields.length === 2) { q = fields[0]; a = fields[1]; } 
+                else { q = fields[0]; a = ""; }
                 idString = q;
             }
             
             if(!q) return;
-            
-            const finalId = resolveCardId(idString, stats); // 예전 점수 보존
+            const finalId = resolveCardId(idString, stats); // 예전 점수 100% 보존
             if(!library[deckNameInRow]) library[deckNameInRow] = [];
-            library[deckNameInRow].push({ id: finalId, q, a });
+            library[deckNameInRow].push({ id: finalId, q, a, isLogseq, blockId, breadcrumb });
         });
     }
 
@@ -665,17 +529,44 @@
         if(savedFilter.filter) currentFilterMode = savedFilter.filter;
         if(savedFilter.sort) currentSortMode = savedFilter.sort;
         updateFilterStatusUI(); highlightFilter();
-        
-        // 동결 복원 로직 연결
         restoreSessionFreeze();
     }
 
-    // 🔥 이미지 렌더링 최적화
-    function createDOM(rawText, isAnswer) {
-        let txt = rawText.trim();
+    // 🔥 [핵심 2] 로그시크 전용 UI 그리기 (경로, 화살표버튼, 이미지 복구)
+    function createDOM(card, isAnswer) {
+        let txt = isAnswer ? card.a.trim() : card.q.trim();
+        
+        // 쓸데없는 큰따옴표 정리
+        if(txt.startsWith('"') && txt.endsWith('"')) txt = txt.slice(1, -1).replace(/""/g, '"');
+        
+        const wrap = document.createElement('div');
+        
+        // 로그시크 헤더(빵부스러기 + 화살표) 삽입
+        if (!isAnswer && card.isLogseq && (card.breadcrumb || card.blockId)) {
+            const lsHeader = document.createElement('div'); lsHeader.className = 'ls-header';
+            
+            // 빵부스러기
+            const bcDiv = document.createElement('div'); bcDiv.className = 'ls-breadcrumb';
+            let bcHtml = card.breadcrumb;
+            if(bcHtml.startsWith('"') && bcHtml.endsWith('"')) bcHtml = bcHtml.slice(1, -1).replace(/""/g, '"');
+            bcDiv.innerHTML = bcHtml;
+            
+            // 화살표 2개 (logseq:// 딥링크)
+            const arrowDiv = document.createElement('div'); arrowDiv.className = 'ls-arrows';
+            if (card.blockId) {
+                let graphName = 'Loqseq'; 
+                if (bcHtml.includes('graph/')) { const match = bcHtml.match(/graph\/([^?&"]+)/); if (match) graphName = match[1]; }
+                arrowDiv.innerHTML = `
+                    <a href="logseq://graph/${graphName}?block-id=${card.blockId}" class="ls-btn">➡</a>
+                    <a href="logseq://graph/${graphName}?block-id=${card.blockId}" class="ls-btn">⤵</a>
+                `;
+            }
+            lsHeader.appendChild(bcDiv); lsHeader.appendChild(arrowDiv); wrap.appendChild(lsHeader);
+        }
+        
         const temp = document.createElement('div'); temp.innerHTML = txt;
         
-        // 이미지 주소 자동 복구 및 NFC 한글 쪼개짐 해결
+        // 이미지 경로 자동 복구
         temp.querySelectorAll('img').forEach(img => { 
             let src = img.getAttribute('src'); 
             if (src && !src.startsWith('http') && repoOwner) {
@@ -683,20 +574,12 @@
                 try { fname = decodeURIComponent(fname); } catch(e) {}
                 if(fname.normalize) fname = fname.normalize('NFC');
                 img.src = githubRawBase + encodeURIComponent(fname);
-                img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto';
-                img.onerror = function() { this.style.display = 'none'; }; // 없는 이미지는 숨김
+                img.onerror = function() { this.style.display = 'none'; }; // 엑스박스 방지
             } else if (src && src.startsWith('http')) {
-                img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto';
                 img.onerror = function() { this.style.display = 'none'; };
             }
         });
         
-        const wrap = document.createElement('div'); wrap.className = 'text-area';
-        let plainTxt = temp.textContent.trim();
-        if(isAnswer && (plainTxt.startsWith('O') || plainTxt.startsWith('X'))) {
-            const ox = document.createElement('span'); ox.className = `ox-highlight ${plainTxt[0]==='O'?'ox-o':'ox-x'}`;
-            ox.innerText = plainTxt[0]; wrap.appendChild(ox);
-        }
         wrap.appendChild(temp); return wrap;
     }
 
@@ -731,7 +614,7 @@
             filtered.sort((a,b) => {
                 const sA = stats[a.id] || {correct:0, total:0}, sB = stats[b.id] || {correct:0, total:0};
                 const rA = sA.total === 0 ? 1 : (sA.correct / sA.total), rB = sB.total === 0 ? 1 : (sB.correct / sB.total);
-                return (rA - rB) || (sA.total - sB.total) || (a.id - b.id); // 🔥 동점자 순위 섞임 방지
+                return (rA - rB) || (sA.total - sB.total) || (a.id - b.id); 
             });
         } else if (currentSortMode === 'number') {
             filtered.sort((a,b) => {
@@ -757,7 +640,8 @@
     function resetFilters() { currentFilterMode = 'default'; currentSortMode = 'original'; saveFilterState(); highlightFilter(); applyFilterAndSort(false); }
     function saveFilterState() { localStorage.setItem(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: currentFilterMode, sort: currentSortMode })); isDataChanged = true; checkAutoBackup(); }
     function highlightFilter() { document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active')); document.getElementById(`filter-${currentFilterMode}`).classList.add('active'); document.getElementById(`sort-${currentSortMode}`).classList.add('active'); }
-    function toggleTodayView() { showTodayCompleted = !showTodayCompleted; localStorage.setItem('anki_show_today', showTodayCompleted); updateTodayToggleUI(); if(currentDeckName) applyFilterAndSort(false); }
+    function toggleTodayView() { let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false'; showTodayCompleted = !showTodayCompleted; localStorage.setItem('anki_show_today', showTodayCompleted); updateTodayToggleUI(); if(currentDeckName) applyFilterAndSort(false); }
+    function updateTodayToggleUI() { let showTodayCompleted = localStorage.getItem('anki_show_today') !== 'false'; const btn = document.getElementById('today-toggle-btn'); if(showTodayCompleted) { btn.innerText = "👁️"; btn.className = "today-toggle-btn active"; } else { btn.innerText = "🙈"; btn.className = "today-toggle-btn hidden"; } }
     
     function selectDeck(name) { 
         currentDeckName = name; originalDeck = library[name]; localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
@@ -773,7 +657,6 @@
         applyFilterAndSort(false); toggleMenu(false); isDataChanged = true; checkAutoBackup();
     }
 
-    // 🔥 [동결 로직 추가]
     function saveStateFreeze() {
         if(!activeDeck.length) return;
         localStorage.setItem(S_ORDER, JSON.stringify(activeDeck.map(c => c.id)));
@@ -782,14 +665,13 @@
     
     function restoreSessionFreeze() {
         const lastDeck = localStorage.getItem(STORAGE_KEY_LAST_DECK);
-        if(!lastDeck) return;
+        if(!lastDeck) { if (Object.keys(library).length) selectDeck(Object.keys(library)[0]); return; }
         
         let merged = [];
         Object.keys(library).forEach(key => { if (key.startsWith(lastDeck + '__') || key === lastDeck) merged = merged.concat(library[key]); });
         if(!merged.length) return;
         
-        currentDeckName = lastDeck;
-        originalDeck = merged;
+        currentDeckName = lastDeck; originalDeck = merged;
         document.getElementById('deck-title-text').innerText = lastDeck.split('__').pop();
         
         const savedOrderStr = localStorage.getItem(S_ORDER);
@@ -805,33 +687,51 @@
                 
                 updateFilterStatusUI(); renderDeckTree(); showCard();
             } catch(e) { applyFilterAndSort(false); }
-        } else {
-            applyFilterAndSort(false);
-        }
+        } else { applyFilterAndSort(false); }
     }
 
+    // 🔥 [핵심 3] 인라인 정답 모드로 전환 로직
     function showCard() {
-        resetZoom(); if(!activeDeck.length) { document.getElementById('question-section').innerHTML="<h3>카드가 없습니다.</h3>"; return; }
+        resetZoom(); if(!activeDeck.length) { document.getElementById('question-section').innerHTML="<h3 style='color:#a0a0a0; text-align:center;'>카드가 없습니다.</h3>"; return; }
         const card = activeDeck[currentIndex]; const s = getStats(card.id);
         document.getElementById('card-counter').innerText = `${currentIndex + 1} / ${activeDeck.length}`;
         updateStatsUI(s); updateIconsUI(s);
-        const qDiv = document.getElementById('question-section'); qDiv.innerHTML = ''; qDiv.appendChild(createDOM(card.q, false));
-        const aDiv = document.getElementById('answer-section'); aDiv.innerHTML = ''; aDiv.appendChild(createDOM(card.a, true));
+        
+        const qDiv = document.getElementById('question-section'); 
+        qDiv.innerHTML = ''; 
+        qDiv.className = 'text-area mode-question'; // 모드 초기화
+        qDiv.appendChild(createDOM(card, false));
+        
+        const aDiv = document.getElementById('answer-section'); 
+        aDiv.innerHTML = ''; 
+        // 만약 일반 안키 카드라서 정답이 따로 존재하면
+        if (!card.isLogseq && card.a && card.a !== card.q) {
+            aDiv.appendChild(createDOM(card, true));
+        }
+        
         aDiv.style.display = 'none'; document.getElementById('divider').style.display = 'none';
         document.getElementById('click-guide').style.display = 'block'; document.getElementById('grade-area').style.display = 'none';
         document.getElementById('nav-area').style.display = 'flex'; scrollContainer.scrollTop = 0;
     }
 
-    function revealAnswer() { document.getElementById('click-guide').style.display = 'none'; document.getElementById('divider').style.display = 'block'; document.getElementById('answer-section').style.display = 'block'; document.getElementById('grade-area').style.display = 'flex'; }
-    
-    function moveCard(d) { 
-        let n = currentIndex + d; 
-        if(n >= 0 && n < activeDeck.length) { 
-            currentIndex = n; 
-            saveStateFreeze(); 
-            showCard(); 
-        } 
+    // 🔥 [핵심 4] 빈칸 뚫기 인라인 오픈 로직
+    function revealAnswer() { 
+        document.getElementById('click-guide').style.display = 'none'; 
+        
+        const qDiv = document.getElementById('question-section');
+        qDiv.classList.remove('mode-question');
+        qDiv.classList.add('mode-answer'); // CSS 마법으로 [..]가 정답으로 바뀜!
+        
+        const aDiv = document.getElementById('answer-section');
+        if (aDiv.innerHTML.trim() !== '') {
+            document.getElementById('divider').style.display = 'block'; 
+            aDiv.style.display = 'block'; 
+        }
+        
+        document.getElementById('grade-area').style.display = 'flex'; 
     }
+    
+    function moveCard(d) { let n = currentIndex + d; if(n >= 0 && n < activeDeck.length) { currentIndex = n; saveStateFreeze(); showCard(); } }
 
     function grade(score) {
         const id = activeDeck[currentIndex].id; 
@@ -840,7 +740,6 @@
         if(!data[id].fsrs) data[id].fsrs = { D: 5.0, S: 0, reps: 0 };
         let fsrs = data[id].fsrs;
 
-        // 🔥 [확인 버튼 비율 유지 로직]
         if (score === 3) { 
             let r = data[id].total === 0 ? 0 : data[id].correct / data[id].total; 
             data[id].total++; data[id].correct += r; 
@@ -860,21 +759,15 @@
                 if (score === 0) fsrs.D = Math.min(10, fsrs.D + 1.5);
                 else if (score === 1) fsrs.D = Math.min(10, fsrs.D + 0.5);
                 else if (score === 2) fsrs.D = Math.max(1, fsrs.D - 0.5);
-
                 if (score === 0) { fsrs.S = Math.max(1, fsrs.S * 0.2); } 
                 else { let factor = score === 1 ? 1.2 : (1 + 0.5 * (11 - fsrs.D)); fsrs.S = fsrs.S * factor; }
             }
-
             let intervalFactor = Math.log(targetRetention) / Math.log(0.90);
             let interval = Math.max(1, Math.round(fsrs.S * intervalFactor));
-            
             if (interval > 3) {
                 let fuzz = 0;
-                if (interval >= 4 && interval <= 7) fuzz = 1;
-                else if (interval >= 8 && interval <= 15) fuzz = 2;
-                else if (interval >= 16) fuzz = 3;
-                const randomFuzz = Math.floor(Math.random() * (2 * fuzz + 1)) - fuzz;
-                interval = Math.max(1, interval + randomFuzz);
+                if (interval >= 4 && interval <= 7) fuzz = 1; else if (interval >= 8 && interval <= 15) fuzz = 2; else if (interval >= 16) fuzz = 3;
+                const randomFuzz = Math.floor(Math.random() * (2 * fuzz + 1)) - fuzz; interval = Math.max(1, interval + randomFuzz);
             }
             data[id].interval = interval;
             const now = new Date(); now.setHours(0,0,0,0);
@@ -885,13 +778,7 @@
         localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
         isDataChanged = true; checkAutoBackup();
         
-        if(currentIndex < activeDeck.length - 1) {
-            moveCard(1);
-        } else { 
-            alert("학습 완료!"); 
-            saveStateFreeze();
-            showCard();
-        }
+        if(currentIndex < activeDeck.length - 1) { moveCard(1); } else { alert("학습 완료!"); saveStateFreeze(); showCard(); }
     }
 
     function getVirtualDate(ts) { const d = new Date(ts); if(d.getHours() < 4) d.setDate(d.getDate()-1); d.setHours(0,0,0,0); return d; }
@@ -915,11 +802,8 @@
             const today = new Date(); today.setHours(0,0,0,0);
             const diff = Math.ceil((s.dueDate - today.getTime()) / 86400000);
             dueBadge.style.display = 'inline-block';
-            if(diff <= 0) {
-                dueBadge.innerText = "🚨 오늘 복습 필요"; dueBadge.className = 'date-badge badge-1d'; dueBadge.style.background = '#491010'; dueBadge.style.color = '#ff8787'; dueBadge.style.border = '1px solid #ff8787';
-            } else {
-                dueBadge.innerText = `📅 ${diff}일 후 복습 추천`; dueBadge.className = 'date-badge badge-old'; dueBadge.style.background = '#182836'; dueBadge.style.color = '#74c0fc'; dueBadge.style.border = '1px solid #1c7ed6';
-            }
+            if(diff <= 0) { dueBadge.innerText = "🚨 오늘 복습 필요"; dueBadge.className = 'date-badge badge-1d'; dueBadge.style.background = '#491010'; dueBadge.style.color = '#ff8787'; dueBadge.style.border = '1px solid #ff8787';
+            } else { dueBadge.innerText = `📅 ${diff}일 후 복습 추천`; dueBadge.className = 'date-badge badge-old'; dueBadge.style.background = '#182836'; dueBadge.style.color = '#74c0fc'; dueBadge.style.border = '1px solid #1c7ed6'; }
         } else { dueBadge.style.display = 'none'; }
     }
 
