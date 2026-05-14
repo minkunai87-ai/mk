@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>나만의 안키 (v10.81 FSRS & Migration - MK Repo)</title>
+<title>나만의 안키 (v12.00 Logseq Cloze Parser)</title>
 <style>
     /* 기본 테마 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -107,14 +107,18 @@
 
     .footer { width: 100%; padding: 10px 20px; padding-bottom: calc(35px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); z-index: 10; display: flex; flex-direction: column; gap: 10px; justify-content: center; flex-shrink: 0; }
     .footer-content { display: flex; flex-direction: column; gap: 10px; }
-    .nav-btns, .grade-btns { display: flex; justify-content: space-between; width: 100%; margin: 0; gap: 12px; }
+    
+    /* 🔥 4버튼 간격 조절 */
+    .nav-btns, .grade-btns { display: flex; justify-content: space-between; width: 100%; margin: 0; gap: 8px; }
+    
     .nav-btn { flex: 1; background: var(--input-bg); border: 1px solid var(--border); padding: 14px 0; border-radius: 12px; cursor: pointer; font-weight: bold; color: var(--text); font-size: 1rem; text-align: center; transition: 0.2s; }
     .nav-btn:active { background: var(--btn-hover); }
     .g-btn { flex: 1; padding: 16px 0; border: none; border-radius: 12px; font-weight: bold; color: white; cursor: pointer; font-size: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin: 0; text-align: center; }
     .g-btn:active { transform: scale(0.98); opacity: 0.9; }
     
     .bg-x { background: #fa5252; } .bg-tri { background: #fab005; } .bg-o { background: #40c057; } 
-    .bg-chk { background: #4dabf7; }
+    /* 🔥 확인 버튼 색상 */
+    .bg-chk { background: #339af0; }
 
     .click-guide { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-top: 40px; cursor: pointer; padding: 30px; border: 2px dashed var(--border); border-radius: 12px; background: #181818; }
     
@@ -173,7 +177,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">My Anki v10.81 (FSRS & Migration - MK Repo)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">My Anki v12.00 (Logseq Cloze Parser)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -293,6 +297,7 @@
                 <button class="g-btn bg-x" onclick="grade(0)">모름</button>
                 <button class="g-btn bg-tri" onclick="grade(1)">애매</button>
                 <button class="g-btn bg-o" onclick="grade(2)">맞음</button>
+                <button class="g-btn bg-chk" onclick="grade(3)">확인</button>
             </div>
             <div class="nav-btns" id="nav-area">
                 <button class="nav-btn" onclick="moveCard(-1)">◀ 이전</button>
@@ -341,15 +346,20 @@
     </div>
 
 <script>
+    // 🔥 저장소 MK 설정 유지
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', imageMap = new Map();
     
+    // 🔥 동결 마법을 위한 키 추가 (state 보존)
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress_v2', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck';
     const STORAGE_KEY_FILTER_STATE = 'anki_final_filter_state', STORAGE_KEY_ACTIVE_IDS = 'anki_final_active_ids'; 
+    const S_ORDER = 'anki_v12_order', S_INDEX = 'anki_v12_index';
+
     const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'original': '🔄 원래순', 'wrong': '🔥 오답순', 'number': '🔢 번호순' };
 
+    // 🔥 파이어베이스 MKAPP 주소 유지
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
     let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
     let lastBackupTime = 0;
@@ -369,35 +379,37 @@
         setTimeout(() => { toast.classList.remove('show'); }, 3000);
     }
 
-    // 🔥 [마침내 돌아온 메뉴 버튼 토글 기능!]
-    function toggleMenu() { 
-        const sidebar = document.getElementById('sidebar'); 
+    // 🔥 메뉴 버튼 열기 (에러 방지 적용)
+    function toggleMenu(force) {
+        const sidebar = document.getElementById('sidebar');
         const overlay = document.querySelector('.sidebar-overlay');
-        const isOpen = sidebar.classList.toggle('open'); 
-        overlay.classList.toggle('open');
+        const isOpen = force !== undefined ? force : !sidebar.classList.contains('open');
         
-        if (isOpen) { 
+        if (isOpen) {
+            sidebar.classList.add('open'); overlay.classList.add('open');
             setTimeout(() => { 
                 try {
-                    const activeEl = document.querySelector('.active'); 
+                    const activeEl = document.querySelector('.tree-deck.active') || document.querySelector('.tree-header.active'); 
                     if (activeEl) { 
                         const top = activeEl.getBoundingClientRect().top + sidebar.scrollTop - sidebar.getBoundingClientRect().top; 
                         sidebar.scrollTo({ top: top - sidebar.clientHeight/2 + 20, behavior: 'auto' }); 
                     } 
-                } catch(e) { console.error("스크롤 무시", e); }
-            }, 100); 
-        } 
+                } catch(e) {}
+            }, 100);
+        } else { 
+            sidebar.classList.remove('open'); overlay.classList.remove('open'); 
+        }
     }
+
+    function toggleFilterBar() { document.getElementById('filter-bar').classList.toggle('open'); }
 
     function openTRModal() {
         document.getElementById('tr-input').value = Math.round(targetRetention * 100);
         document.getElementById('tr-modal').style.display = 'flex';
-        toggleMenu(); // 사이드바 닫기
+        toggleMenu(false); 
     }
     
-    function updateTRButton() {
-        document.getElementById('current-tr-display').innerText = Math.round(targetRetention * 100);
-    }
+    function updateTRButton() { document.getElementById('current-tr-display').innerText = Math.round(targetRetention * 100); }
 
     function saveTR() {
         let val = parseInt(document.getElementById('tr-input').value, 10);
@@ -440,14 +452,9 @@
                 isDataChanged = true; checkAutoBackup();
                 showToast(`전면 재계산 완료! (${recalcCount}개 업데이트됨)`, "success");
                 applyFilterAndSort(false); 
-            } else {
-                showToast("안전 모드로 기억률이 변경되었습니다.", "success");
-            }
+            } else { showToast("안전 모드로 기억률이 변경되었습니다.", "success"); }
             document.getElementById('tr-modal').style.display = 'none';
-        } else {
-            alert("70에서 99 사이의 숫자를 입력해주세요.");
-            document.getElementById('tr-input').value = Math.round(targetRetention * 100);
-        }
+        } else { alert("70에서 99 사이의 숫자를 입력해주세요."); document.getElementById('tr-input').value = Math.round(targetRetention * 100); }
     }
 
     const scrollContainer = document.getElementById('scroll-area');
@@ -485,9 +492,12 @@
         const data = { 
             stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), 
             lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), filter: localStorage.getItem(STORAGE_KEY_FILTER_STATE),
-            activeIds: localStorage.getItem(STORAGE_KEY_ACTIVE_IDS), timestamp: Date.now() 
+            activeIds: localStorage.getItem(STORAGE_KEY_ACTIVE_IDS), 
+            order: localStorage.getItem(S_ORDER), index: localStorage.getItem(S_INDEX), // 동결 상태 서버 저장
+            timestamp: Date.now() 
         };
         try {
+            // PUT 방식 유지
             const res = await fetch(`${FIREBASE_DB_URL}/backups/${data.timestamp}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
             if(res.ok) { isDataChanged = false; updateCloudIcon('done'); cleanupOldBackups(); if(!isAuto) showToast("🚀 수동 백업 100% 성공!", "success"); return true; } 
             else { updateCloudIcon('error'); if(!isAuto) showToast("❌ 백업 실패", "error"); return false; }
@@ -513,12 +523,18 @@
 
     async function restoreFromFirebase(ts) {
         try {
-            const res = await fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`); const targetData = await res.json();
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`); 
+            let targetData = await res.json();
+            // 포장지 버그 해결 로직 유지
+            if(targetData && !targetData.stats) { const keys = Object.keys(targetData); if(keys.length === 1 && targetData[keys[0]].stats) { targetData = targetData[keys[0]]; } }
+            
             if(targetData.stats) localStorage.setItem(STORAGE_KEY_STATS, targetData.stats);
             if(targetData.progress) localStorage.setItem(STORAGE_KEY_PROGRESS, targetData.progress);
             if(targetData.lastDeck) localStorage.setItem(STORAGE_KEY_LAST_DECK, targetData.lastDeck);
             if(targetData.filter) localStorage.setItem(STORAGE_KEY_FILTER_STATE, targetData.filter);
             if(targetData.activeIds) localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, targetData.activeIds); 
+            if(targetData.order) localStorage.setItem(S_ORDER, targetData.order);
+            if(targetData.index) localStorage.setItem(S_INDEX, targetData.index);
             location.reload();
         } catch(e) { document.getElementById('fb-list-ui').innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">복구 중 에러가 발생했습니다.</div>`; }
     }
@@ -538,7 +554,6 @@
             const listUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/`;
             const res = await fetch(listUrl, { headers });
             const files = (await res.json()).filter(f => f.name.endsWith('.txt'));
-            
             const savedStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
             
             for (const file of files) {
@@ -566,23 +581,19 @@
         return rows;
     }
 
-    function resolveCardId(q, stats) {
-        const currentId = cyrb53(q);
+    function resolveCardId(idString, stats) {
+        const currentId = cyrb53(idString);
         if (stats[currentId]) return currentId;
-
-        const strippedQ = q.replace(/\s*title\s*=\s*["'][^"']*["']/gi, '');
+        const strippedQ = idString.replace(/\s*title\s*=\s*["'][^"']*["']/gi, '');
         const strippedId = cyrb53(strippedQ);
         if (stats[strippedId]) return strippedId;
-
-        const naiveFormat = '"' + q.replace(/"/g, '""') + '"';
+        const naiveFormat = '"' + idString.replace(/"/g, '""') + '"';
         const naiveId = cyrb53(naiveFormat);
         if (stats[naiveId]) return naiveId;
-
         const strippedNaive = '"' + strippedQ.replace(/"/g, '""') + '"';
         const strippedNaiveId = cyrb53(strippedNaive);
         if (stats[strippedNaiveId]) return strippedNaiveId;
-
-        const fnameMatch = q.match(/src\s*=\s*["']?([^"'>\s]+)["']?/i);
+        const fnameMatch = idString.match(/src\s*=\s*["']?([^"'>\s]+)["']?/i);
         if(fnameMatch) {
             let fname = fnameMatch[1];
             let tests = [ `<img src="${fname}">`, `"<img src=""${fname}"">"`, fname, `"${fname}"` ];
@@ -591,16 +602,57 @@
         return currentId;
     }
 
+    // 🔥 [핵심 업데이트] 로그시크 빈칸뚫기 전용 파서
     function processAnkiText(text, filename, stats) {
         const rows = parseAnkiRawData(text);
-        let deck = filename.replace('.txt', '');
+        let defaultDeck = filename.replace('.txt', '');
+        
         rows.forEach(fields => {
             if (fields.length > 0 && fields[0].startsWith('#')) return; 
-            let deckNameInRow = null; let q = "", a = "";
-            if (fields.length >= 3) { deckNameInRow = fields[0].replace(/::/g, '__'); q = fields[1]; a = fields.slice(2).join('<br>'); } 
-            else { deckNameInRow = deck; if (fields.length === 2) { q = fields[0]; a = fields[1]; } else if (fields.length > 0) { q = fields[0]; a = fields.slice(1).join('<br>'); } }
+            if (fields.length === 0 || !fields[0]) return;
+            
+            let deckNameInRow = defaultDeck;
+            let q = "", a = "";
+            let idString = ""; 
+            
+            // 덱 이름 지정 (로그시크 템플릿 포함)
+            if (fields[0].includes('::') || fields.length >= 6) {
+                deckNameInRow = fields[0].replace(/::/g, '__');
+            }
+            
+            // Logseq 식별 (보통 2번째 칸(index 1)이 uuid)
+            const isLogseq = fields.length >= 4 && /^[0-9a-fA-F]{8}-/.test(fields[1] || fields[2] || "");
+            
+            if (isLogseq) {
+                idString = fields[1]; // 🔥 예전 점수를 유지하기 위해 반드시 uuid-type으로 해시 생성
+                let mainText = fields[3] || "";
+                
+                // 빈칸(Cloze) 파싱
+                if (mainText.includes('{{c')) {
+                    q = mainText.replace(/\{\{c\d+::(.*?)\}\}/g, '<span style="color:#fa5252; font-weight:bold;">[...]</span>');
+                    a = mainText.replace(/\{\{c\d+::(.*?)\}\}/g, '<span style="color:#4dabf7; font-weight:bold; background:#182836; padding:0 4px; border-radius:4px;">$1</span>');
+                } else {
+                    q = mainText;
+                    a = fields[4] || "";
+                }
+            } else {
+                // 일반 안키 카드 파싱
+                if (fields.length >= 3) { 
+                    q = fields[1]; 
+                    a = fields.slice(2).join('<br>'); 
+                } else if (fields.length === 2) { 
+                    q = fields[0]; 
+                    a = fields[1]; 
+                } else { 
+                    q = fields[0]; 
+                    a = ""; 
+                }
+                idString = q;
+            }
+            
             if(!q) return;
-            const finalId = resolveCardId(q, stats);
+            
+            const finalId = resolveCardId(idString, stats); // 예전 점수 보존
             if(!library[deckNameInRow]) library[deckNameInRow] = [];
             library[deckNameInRow].push({ id: finalId, q, a });
         });
@@ -613,20 +665,32 @@
         if(savedFilter.filter) currentFilterMode = savedFilter.filter;
         if(savedFilter.sort) currentSortMode = savedFilter.sort;
         updateFilterStatusUI(); highlightFilter();
-        if (last) {
-            if (library[last]) selectDeck(last, true);
-            else selectDeckGroup(last + '__', true); 
-        } else if (Object.keys(library).length) { selectDeck(Object.keys(library)[0], false); }
+        
+        // 동결 복원 로직 연결
+        restoreSessionFreeze();
     }
 
+    // 🔥 이미지 렌더링 최적화
     function createDOM(rawText, isAnswer) {
         let txt = rawText.trim();
-        if(txt.startsWith('"') && txt.endsWith('"')) txt = txt.slice(1, -1).replace(/""/g, '"');
         const temp = document.createElement('div'); temp.innerHTML = txt;
-        const regex = /([a-zA-Z0-9_\-\.\%\(\)\s\uAC00-\uD7A3]+\.(jpg|jpeg|png|gif|svg|webp))/gi;
-        temp.innerHTML = temp.innerHTML.replace(regex, (match) => {
-            let fname = match.trim(); let url = githubRawBase + encodeURIComponent(fname); return url;
+        
+        // 이미지 주소 자동 복구 및 NFC 한글 쪼개짐 해결
+        temp.querySelectorAll('img').forEach(img => { 
+            let src = img.getAttribute('src'); 
+            if (src && !src.startsWith('http') && repoOwner) {
+                let fname = src.split('/').pop().trim();
+                try { fname = decodeURIComponent(fname); } catch(e) {}
+                if(fname.normalize) fname = fname.normalize('NFC');
+                img.src = githubRawBase + encodeURIComponent(fname);
+                img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto';
+                img.onerror = function() { this.style.display = 'none'; }; // 없는 이미지는 숨김
+            } else if (src && src.startsWith('http')) {
+                img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto';
+                img.onerror = function() { this.style.display = 'none'; };
+            }
         });
+        
         const wrap = document.createElement('div'); wrap.className = 'text-area';
         let plainTxt = temp.textContent.trim();
         if(isAnswer && (plainTxt.startsWith('O') || plainTxt.startsWith('X'))) {
@@ -651,20 +715,7 @@
     function applyFilterAndSort(isRestore = false) {
         if(!currentDeckName) return;
         const stats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
-        if (isRestore) {
-            const savedIdsStr = localStorage.getItem(STORAGE_KEY_ACTIVE_IDS);
-            if (savedIdsStr) {
-                try {
-                    const savedIds = JSON.parse(savedIdsStr);
-                    const cardMap = new Map(); originalDeck.forEach(c => cardMap.set(c.id, c));
-                    activeDeck = []; savedIds.forEach(id => { if (cardMap.has(id)) activeDeck.push(cardMap.get(id)); });
-                    if (activeDeck.length > 0) {
-                        currentIndex = loadProgress(); if(currentIndex >= activeDeck.length) currentIndex = 0;
-                        updateFilterStatusUI(); renderDeckTree(); showCard(); return; 
-                    }
-                } catch(e) {}
-            }
-        }
+        
         let filtered = [...originalDeck];
         
         if(currentFilterMode !== 'default') {
@@ -680,7 +731,7 @@
             filtered.sort((a,b) => {
                 const sA = stats[a.id] || {correct:0, total:0}, sB = stats[b.id] || {correct:0, total:0};
                 const rA = sA.total === 0 ? 1 : (sA.correct / sA.total), rB = sB.total === 0 ? 1 : (sB.correct / sB.total);
-                return rA - rB;
+                return (rA - rB) || (sA.total - sB.total) || (a.id - b.id); // 🔥 동점자 순위 섞임 방지
             });
         } else if (currentSortMode === 'number') {
             filtered.sort((a,b) => {
@@ -689,8 +740,14 @@
                 return numA - numB;
             });
         }
-        activeDeck = filtered; localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, JSON.stringify(activeDeck.map(c => c.id)));
-        currentIndex = loadProgress(); if(currentIndex >= activeDeck.length) currentIndex = 0;
+        
+        activeDeck = filtered; 
+        
+        if (!isRestore) {
+            currentIndex = 0;
+            saveStateFreeze();
+        }
+        
         updateFilterStatusUI(); renderDeckTree(); showCard();
     }
 
@@ -700,20 +757,57 @@
     function resetFilters() { currentFilterMode = 'default'; currentSortMode = 'original'; saveFilterState(); highlightFilter(); applyFilterAndSort(false); }
     function saveFilterState() { localStorage.setItem(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: currentFilterMode, sort: currentSortMode })); isDataChanged = true; checkAutoBackup(); }
     function highlightFilter() { document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active')); document.getElementById(`filter-${currentFilterMode}`).classList.add('active'); document.getElementById(`sort-${currentSortMode}`).classList.add('active'); }
-    function toggleFilterBar() { document.getElementById('filter-bar').classList.toggle('open'); }
-
-    function selectDeck(name, isRestore = false) { 
+    function toggleTodayView() { showTodayCompleted = !showTodayCompleted; localStorage.setItem('anki_show_today', showTodayCompleted); updateTodayToggleUI(); if(currentDeckName) applyFilterAndSort(false); }
+    
+    function selectDeck(name) { 
         currentDeckName = name; originalDeck = library[name]; localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
         document.getElementById('deck-title-text').innerText = name.split('__').pop();
-        applyFilterAndSort(isRestore); if(!isRestore) { isDataChanged = true; checkAutoBackup(); }
+        applyFilterAndSort(false); isDataChanged = true; checkAutoBackup();
     }
 
-    function selectDeckGroup(prefix, isRestore = false) {
+    function selectDeckGroup(prefix) {
         let merged = []; Object.keys(library).forEach(key => { if (key.startsWith(prefix) || key === prefix.replace('__', '')) merged = merged.concat(library[key]); });
         if (!merged.length) { alert("하위 덱이 없습니다."); return; }
         currentDeckName = prefix.replace(/__$/, ''); originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName);
         document.getElementById('deck-title-text').innerText = currentDeckName.split('__').pop() + " (전체)";
-        applyFilterAndSort(isRestore); if(!isRestore) { toggleMenu(); isDataChanged = true; checkAutoBackup(); }
+        applyFilterAndSort(false); toggleMenu(false); isDataChanged = true; checkAutoBackup();
+    }
+
+    // 🔥 [동결 로직 추가]
+    function saveStateFreeze() {
+        if(!activeDeck.length) return;
+        localStorage.setItem(S_ORDER, JSON.stringify(activeDeck.map(c => c.id)));
+        localStorage.setItem(S_INDEX, currentIndex);
+    }
+    
+    function restoreSessionFreeze() {
+        const lastDeck = localStorage.getItem(STORAGE_KEY_LAST_DECK);
+        if(!lastDeck) return;
+        
+        let merged = [];
+        Object.keys(library).forEach(key => { if (key.startsWith(lastDeck + '__') || key === lastDeck) merged = merged.concat(library[key]); });
+        if(!merged.length) return;
+        
+        currentDeckName = lastDeck;
+        originalDeck = merged;
+        document.getElementById('deck-title-text').innerText = lastDeck.split('__').pop();
+        
+        const savedOrderStr = localStorage.getItem(S_ORDER);
+        if (savedOrderStr) {
+            try {
+                const savedOrder = JSON.parse(savedOrderStr);
+                const cardMap = new Map(); originalDeck.forEach(c => cardMap.set(c.id, c));
+                activeDeck = []; savedOrder.forEach(id => { if (cardMap.has(id)) activeDeck.push(cardMap.get(id)); });
+                
+                let savedIdx = parseInt(localStorage.getItem(S_INDEX) || '0', 10);
+                if (isNaN(savedIdx) || savedIdx < 0 || savedIdx >= activeDeck.length) savedIdx = 0;
+                currentIndex = savedIdx;
+                
+                updateFilterStatusUI(); renderDeckTree(); showCard();
+            } catch(e) { applyFilterAndSort(false); }
+        } else {
+            applyFilterAndSort(false);
+        }
     }
 
     function showCard() {
@@ -729,7 +823,15 @@
     }
 
     function revealAnswer() { document.getElementById('click-guide').style.display = 'none'; document.getElementById('divider').style.display = 'block'; document.getElementById('answer-section').style.display = 'block'; document.getElementById('grade-area').style.display = 'flex'; }
-    function moveCard(d) { let n = currentIndex + d; if(n >= 0 && n < activeDeck.length) { currentIndex = n; saveCurrentProgress(); showCard(); } }
+    
+    function moveCard(d) { 
+        let n = currentIndex + d; 
+        if(n >= 0 && n < activeDeck.length) { 
+            currentIndex = n; 
+            saveStateFreeze(); 
+            showCard(); 
+        } 
+    }
 
     function grade(score) {
         const id = activeDeck[currentIndex].id; 
@@ -738,6 +840,7 @@
         if(!data[id].fsrs) data[id].fsrs = { D: 5.0, S: 0, reps: 0 };
         let fsrs = data[id].fsrs;
 
+        // 🔥 [확인 버튼 비율 유지 로직]
         if (score === 3) { 
             let r = data[id].total === 0 ? 0 : data[id].correct / data[id].total; 
             data[id].total++; data[id].correct += r; 
@@ -782,7 +885,13 @@
         localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
         isDataChanged = true; checkAutoBackup();
         
-        if(currentIndex < activeDeck.length - 1) moveCard(1); else { alert("학습 완료!"); moveCard(0); }
+        if(currentIndex < activeDeck.length - 1) {
+            moveCard(1);
+        } else { 
+            alert("학습 완료!"); 
+            saveStateFreeze();
+            showCard();
+        }
     }
 
     function getVirtualDate(ts) { const d = new Date(ts); if(d.getHours() < 4) d.setDate(d.getDate()-1); d.setHours(0,0,0,0); return d; }
@@ -837,15 +946,13 @@
                     const count = library[item._path] ? library[item._path].length : 0;
                     li.className = `tree-deck ${item._path === currentDeckName ? 'active' : ''}`;
                     li.innerHTML = `<span>📄 ${k} <small style="font-size:0.75rem; opacity:0.6; margin-left:4px;">(${count})</small></span>`;
-                    li.onclick = () => { selectDeck(item._path); toggleMenu(); }; cont.appendChild(li);
+                    li.onclick = () => { selectDeck(item._path); toggleMenu(false); }; cont.appendChild(li);
                 }
             });
         }
         createDOMTree(tree, list);
     }
 
-    function saveCurrentProgress() { localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify({ ...JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'), [`${currentDeckName}__${currentFilterMode}__${currentSortMode}`]: currentIndex })); }
-    function loadProgress() { return JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}')[`${currentDeckName}__${currentFilterMode}__${currentSortMode}`] || 0; }
     function getStats(id) { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || {correct:0, total:0}; }
     function toggleTag(e, type) { e.stopPropagation(); const id = activeDeck[currentIndex].id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateIconsUI(data[id]); isDataChanged = true; checkAutoBackup(); }
     function updateIconsUI(s) { ['mem','cmp','fav','num','date','pen'].forEach(t => document.getElementById(`${t}-btn`).classList.toggle('active', !!s[t])); }
@@ -853,7 +960,7 @@
     function openEditModal(e) { e.stopPropagation(); const c = activeDeck[currentIndex]; document.getElementById('edit-q').value=c.q; document.getElementById('edit-a').value=c.a; document.getElementById('edit-modal').style.display='flex'; }
     function closeEditModal() { document.getElementById('edit-modal').style.display='none'; }
     function saveEdit() { const c = activeDeck[currentIndex]; c.q = document.getElementById('edit-q').value; c.a = document.getElementById('edit-a').value; closeEditModal(); showCard(); isDataChanged = true; checkAutoBackup(); }
-    function exportData() { const d = new Date(); const fileName = `yoki_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`; const a = document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(localStorage)], {type:'application/json'})); a.download=fileName; a.click(); }
+    function exportData() { const d = new Date(); const fileName = `mk_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`; const a = document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(localStorage)], {type:'application/json'})); a.download=fileName; a.click(); }
     function importData(input) { const reader = new FileReader(); reader.onload = e => { const data = JSON.parse(e.target.result); Object.keys(data).forEach(k => localStorage.setItem(k, data[k])); location.reload(); }; reader.readAsText(input.files[0]); }
 </script>
 </body>
