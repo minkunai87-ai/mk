@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#2a2a2a" />
+      <stop offset="100%" stop-color="#0a0a0a" />
+    </radialGradient>
+
+    <linearGradient id="fireGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ff2a00" />
+      <stop offset="50%" stop-color="#ff7b00" />
+      <stop offset="100%" stop-color="#ffdd00" />
+    </linearGradient>
+
+    <filter id="drop-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="10" dy="15" stdDeviation="15" flood-color="#000000" flood-opacity="0.9"/>
+    </filter>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="115" fill="url(#bgGrad)" filter="url(#drop-shadow)" />
+  
+  <rect x="4" y="4" width="504" height="504" rx="111" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="8" />
+
+  <text x="48%" y="58%" font-family="'Arial Black', 'Impact', sans-serif" font-weight="900" font-size="220" fill="#4a0d00" text-anchor="middle" dominant-baseline="middle" letter-spacing="-5" transform="translate(12, 12)">MK</text>
+  
+  <text x="48%" y="58%" font-family="'Arial Black', 'Impact', sans-serif" font-weight="900" font-size="220" fill="#992200" text-anchor="middle" dominant-baseline="middle" letter-spacing="-5" transform="translate(6, 6)">MK</text>
+  
+  <text x="48%" y="58%" font-family="'Arial Black', 'Impact', sans-serif" font-weight="900" font-size="220" fill="url(#fireGrad)" text-anchor="middle" dominant-baseline="middle" letter-spacing="-5" filter="url(#glow)">MK</text>
+  
+  <text x="48%" y="58%" font-family="'Arial Black', 'Impact', sans-serif" font-weight="900" font-size="220" fill="#ffffff" fill-opacity="0.5" text-anchor="middle" dominant-baseline="middle" letter-spacing="-5" transform="translate(-3, -3)">MK</text>
+
+  <g transform="translate(360, 110) scale(0.38)" filter="url(#glow)">
+    <path d="M159.3 283.4c-4.7 19.3-15.6 36.6-30.8 49.3C104.4 353 64 362 25.4 345c-8.9-3.9-18.6 3.7-16 13.1 14.5 52.8 54.3 95.8 106.8 114.7 54.5 19.6 114.6 11.5 159.2-21.7 44.6-33.1 71.9-85.3 75.3-142.3 1-16.7-18.4-25.1-31.2-13.6-26.3 23.5-62 30-94.8 17.5-6.7-2.6-11.8-9.1-13-16.3-5-29.4-23.7-55.2-51.5-70.5C122.9 205.5 90.9 176.6 77 134.7c-2.4-7.2-12.7-7.8-16.8-1.1-18.6 30-24.8 66.8-17.5 101.4 1.5 7.1 11.4 7.6 14.3 .7 12-28.7 34.6-52.6 62.4-65 24.3-10.8 51.5-9.3 75.3 3.8 33.2 18.3 54.6 52.4 56.5 89.8 1 19.1-6.1 38.3-19.8 53-12.6 13.5-30 22-48.4 23.7zM256 0c-3.1 0-5.8 2-6.8 5C227.6 66.7 186.2 115 131.7 141.2c-7.6 3.7-8 14.5-1 18.6 42.1 24.7 75.3 64 90.5 111.4 2.1 6.6 11.7 6.4 13.2-.4 11.4-52.6 44.7-96 90.8-124.6 7.6-4.7 6.4-16.1-1.6-19.1C281.4 112 256 55.4 256 0z" fill="url(#fireGrad)"/>
+    <path d="M256 250c-20 0-35-15-35-35s15-50 35-70c20 20 35 50 35 70s-15 35-35 35z" fill="#ffffff" fill-opacity="0.4"/>
+  </g>
+</svg>
