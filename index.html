@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v12.27 - Auto Scroll)</title>
+<title>MK (v12.28 - Sync State Fix)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -70,6 +70,7 @@
     .deck-list { list-style: none; padding: 0; margin: 0; }
     .tree-folder { margin-bottom: 4px; }
     .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); transition: 0.2s; margin-bottom: 4px; }
+    .tree-header:hover { background: var(--btn-hover); }
     .tree-header.active { background: #182836; color: #74c0fc; border: 2px solid #1c7ed6; }
     .tree-children { display: none; padding-left: 10px; margin-left: 8px; border-left: 2px solid #444; }
     .tree-children.open { display: block; }
@@ -201,12 +202,12 @@
             <button class="btn-sub" onclick="document.getElementById('backup-input').click()">📂 로컬 백업 불러오기</button>
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
             
-            <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정</button>
+            <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정 (파이어베이스)</button>
             <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 서버 연결 안정화됨</div>
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v12.27 - Auto Scroll)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v12.28 - Sync State Fix)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -254,7 +255,7 @@
             </div>
             
             <div class="header-center">
-                <div class="header-title" id="deck-title">
+                <div class="header-title" id="deck-title" onclick="isDataChanged = true; performFirebaseBackup(false);" style="cursor:pointer;" title="수동 백업 쏘기">
                     <span id="deck-title-text">MK</span>
                     <span id="cloud-icon" class="cloud-icon">🔥</span>
                 </div>
@@ -583,7 +584,7 @@
             const files = data.filter(f => f.name.endsWith('.txt'));
             const savedStats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
             
-            library = {}; 
+            let newLibrary = {}; 
             
             for (const file of files) {
                 try {
@@ -596,12 +597,16 @@
                     }
                     
                     text = text.replace(/\r\n/g, '\n'); 
-                    processAnkiText(text, file.name, savedStats);
+                    processAnkiText(text, file.name, savedStats, newLibrary);
                 } catch(err) { console.error("File skip:", file.name); }
             }
             
-            localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(library)); 
-            
+            // 🔥 [요청 2 반영] 덱 위치/진행도 파괴의 원인이던 쓸데없는 방어막 완전 삭제!
+            if (Object.keys(newLibrary).length > 0) {
+                library = newLibrary; 
+                localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(library)); 
+                renderDeckTree(); 
+            }
         } catch (e) { console.log(e); }
         document.getElementById('loading').style.display = 'none';
     }
@@ -649,7 +654,7 @@
         return currentId;
     }
 
-    function processAnkiText(text, filename, stats) {
+    function processAnkiText(text, filename, stats, targetLib) {
         const rows = parseAnkiRawData(text);
         let deck = filename.replace('.txt', '');
         rows.forEach(fields => {
@@ -677,8 +682,8 @@
             if(!q) return;
             const finalId = resolveCardId(idString, stats);
             
-            if(!library[deckNameInRow]) library[deckNameInRow] = [];
-            library[deckNameInRow].push({ id: finalId, q, a, isLogseq, blockId, breadcrumb });
+            if(!targetLib[deckNameInRow]) targetLib[deckNameInRow] = [];
+            targetLib[deckNameInRow].push({ id: finalId, q, a, isLogseq, blockId, breadcrumb });
         });
     }
 
