@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK</title>
+<title>MK (v12.27 - Auto Scroll)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -70,7 +70,6 @@
     .deck-list { list-style: none; padding: 0; margin: 0; }
     .tree-folder { margin-bottom: 4px; }
     .tree-header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; background: var(--input-bg); border: 1px solid var(--border); transition: 0.2s; margin-bottom: 4px; }
-    .tree-header:hover { background: var(--btn-hover); }
     .tree-header.active { background: #182836; color: #74c0fc; border: 2px solid #1c7ed6; }
     .tree-children { display: none; padding-left: 10px; margin-left: 8px; border-left: 2px solid #444; }
     .tree-children.open { display: block; }
@@ -202,7 +201,7 @@
             <button class="btn-sub" onclick="document.getElementById('backup-input').click()">📂 로컬 백업 불러오기</button>
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
             
-            <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정 (파이어베이스)</button>
+            <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정</button>
             <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 서버 연결 안정화됨</div>
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
@@ -486,13 +485,11 @@
     function resetZoom() { scale = 1; pointX = 0; pointY = 0; updateTransform(); scrollContainer.style.overflowY = 'auto'; }
     function updateTransform() { if (scale > 1) scrollContainer.style.overflow = 'hidden'; else scrollContainer.style.overflowY = 'auto'; zoomContent.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`; }
 
-    // 🔥 [새 기능 추가] 빈칸(Cloze) 위치로 스크롤 이동하는 함수
     function scrollToCloze(e) {
         if(e) e.preventDefault();
         const container = document.getElementById('scroll-area');
         const cloze = document.querySelector('.cloze-q');
         if (cloze) {
-            // 빈칸의 높이를 계산해서 적절한 여백(-60px)을 두고 스크롤을 내립니다.
             const topPos = cloze.getBoundingClientRect().top + container.scrollTop - container.getBoundingClientRect().top;
             container.scrollTo({ top: topPos - 60, behavior: 'smooth' });
         }
@@ -716,7 +713,6 @@
 
         const wrap = document.createElement('div');
         
-        // 🔥 [변경점] 빵부스러기나 blockId가 있으면 배지 영역 생성
         if (!isAnswer && card.isLogseq && (card.breadcrumb || card.blockId)) {
             const lsHeader = document.createElement('div'); lsHeader.className = 'ls-header';
             
@@ -727,7 +723,6 @@
             
             const arrowDiv = document.createElement('div'); arrowDiv.className = 'ls-arrows';
             
-            // 🔥 [변경점] 로그시크 이동 버튼 대신 "빈칸 스크롤 버튼" 단 하나만 배치!
             arrowDiv.innerHTML = `
                 <button class="ls-btn" onclick="scrollToCloze(event)" title="빈칸으로 스크롤">⤵</button>
             `;
