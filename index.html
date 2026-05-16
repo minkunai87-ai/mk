@@ -19,7 +19,7 @@
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
 <style>
-    /* 기본 테마 유지 */
+    /* 기존 명품 테마 완벽 보존 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; --sub-group-bg: #252525; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
@@ -115,9 +115,10 @@
     table { table-layout: fixed !important; width: 100% !important; max-width: 100% !important; display: table !important; }
     img { border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); max-width: 100% !important; height: auto !important; display: block; margin: 10px auto; }
     
-    /* ⭐ [v12.29 정밀 매칭] 로그시크 원본 스타일과 100% 일치하는 불렛 구조선 및 정렬 조정 */
+    /* ⭐ [v12.29-하이어라키 연동 스타일 조정] 록식 순정과 완전 일치하는 구조 지표선 구현 */
+    .parent-path-line { font-size: 0.85rem; color: #4dabf7; font-weight: bold; margin-bottom: 14px; border-bottom: 1px dashed #333; padding-bottom: 8px; word-break: break-all; }
     ul.children-list { list-style: none; padding-left: 18px !important; border-left: 1px solid #3a3a3a; margin: 4px 0 4px 4px !important; }
-    li.children { margin: 4px 0 !important; padding: 0 0 0 12px !important; position: relative; line-height: 1.5 !important; }
+    li.children { margin: 6px 0 !important; padding: 0 0 0 12px !important; position: relative; line-height: 1.5 !important; }
     li.children::before { content: "•"; position: absolute; left: 0px; color: #777; font-size: 1.1rem; top: -1px; line-height: 1.5; }
     li.children > span, li.children > div { display: block; }
     .block-ref { cursor: pointer; border-bottom: 1px solid #74c0fc; color: #e0e0e0 !important; text-decoration: none; padding-bottom: 1px; display: inline-block; }
@@ -136,7 +137,7 @@
     .mode-answer .cloze-q { display: none !important; }
     .mode-answer .cloze-a { display: inline !important; }
 
-    /* ⭐ [v12.29 명품 대융합] 문제 풀이 시 주인공 바로 아래의 하위 자식 내용만 완벽 차단하는 직계 CSS 매직 */
+    /* ⭐ [v12.29 명품 대융합] 문제 출이 중일 때만 내 직계 하위 자식 노드를 숨기는 초정밀 선택 장치 */
     .mode-question .active-block > ul.children-list { display: none !important; }
     .mode-answer .active-block > ul.children-list { display: block !important; }
     .sibling-block { opacity: 0.55; } 
@@ -607,7 +608,6 @@
                 } catch(err) { console.error("File skip:", file.name); }
             }
             
-            // 구 소방학개론 -> 신 소방학개론 데이터 대융합 이사 유지
             let mergeCount = 0;
             for (let deckName in newLibrary) {
                 newLibrary[deckName].forEach(card => {
