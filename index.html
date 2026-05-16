@@ -115,20 +115,28 @@
     table { table-layout: fixed !important; width: 100% !important; max-width: 100% !important; display: table !important; }
     img { border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); max-width: 100% !important; height: auto !important; display: block; margin: 10px auto; }
     
-    /* ⭐ [v12.29 세로 계단식 조상 족보 & Extra 해설지 디자인 매직] */
-    ul.children-list { list-style: none; padding-left: 18px !important; border-left: 1px solid #3a3a3a; margin: 4px 0 4px 4px !important; }
-    li.children { margin: 6px 0 !important; padding: 0 0 0 12px !important; position: relative; line-height: 1.5 !important; }
+    /* ⭐ 1. 세로 계단식 조상 족보 (독립 구역) */
+    .ancestor-wrapper { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed #3a3a3a; }
+    ul.ancestor-list { list-style: none; padding-left: 14px; margin: 0; position: relative; }
+    ul.ancestor-list.root-ancestor { padding-left: 0; }
+    ul.ancestor-list li { position: relative; margin: 4px 0; padding-left: 12px; }
+    ul.ancestor-list li::before { content: "•"; position: absolute; left: 0px; color: #555; font-size: 1.1rem; top: -1px; line-height: 1.5; }
+    .ancestor-text { font-size: 0.85rem; color: #a0a0a0; font-weight: bold; }
+
+    /* ⭐ 2. 메인 문제 및 동급 형제 (왼쪽 벽에 딱 붙임) */
+    ul.main-sibling-list { padding-left: 4px !important; margin-left: 0 !important; border-left: none !important; margin-top: 10px; }
+    
+    /* 일반 자식 요소 불렛 구조선 유지 */
+    ul.children-list { list-style: none; padding-left: 18px; border-left: 1px solid #3a3a3a; margin: 4px 0 4px 4px; }
+    li.children { margin: 6px 0; padding: 0 0 0 12px; position: relative; line-height: 1.5; }
     li.children::before { content: "•"; position: absolute; left: 0px; color: #777; font-size: 1.1rem; top: -1px; line-height: 1.5; }
     li.children > span, li.children > div { display: block; }
-
-    /* 조상 텍스트는 빵부스러기 크기로 예쁘게 작게! */
-    .ancestor-text { font-size: 0.85rem; color: #a0a0a0; font-weight: bold; display: block; margin-bottom: 2px; }
-
-    /* Extra 영역 블라인드 및 개방 디자인 */
-    .mk-extra-content { display: none !important; }
-    .mode-answer .mk-extra-content { 
+    
+    /* ⭐ 3. Extra 영역 스위치 블라인드 및 개방 디자인 */
+    .mk-extra-node { display: none !important; }
+    .mode-answer .mk-extra-node { 
         display: block !important; 
-        margin-top: 15px; 
+        margin-top: 10px; 
         padding: 12px; 
         background: rgba(77, 171, 247, 0.05); 
         border-left: 3px solid #4dabf7; 
@@ -136,7 +144,7 @@
         font-size: 0.95rem;
         color: var(--text-sub);
     }
-    .extra-label { font-weight: bold; color: #4dabf7; margin-bottom: 8px; font-size: 0.85rem; }
+    .extra-label { font-weight: bold; color: #4dabf7; margin-bottom: 8px; font-size: 0.85rem; display: block; }
 
     .block-ref { cursor: pointer; border-bottom: 1px solid #74c0fc; color: #e0e0e0 !important; text-decoration: none; padding-bottom: 1px; display: inline-block; }
 
@@ -154,9 +162,9 @@
     .mode-answer .cloze-q { display: none !important; }
     .mode-answer .cloze-a { display: inline !important; }
 
-    /* ⭐ [대융합 차단 매직] 문제 풀이 상태(.mode-question)일 때 활성 블록 하위 요소들을 철저히 블라인드 차단 */
-    .mode-question .active-block ul { display: none !important; }
-    .mode-answer .active-block ul { display: block !important; }
+    /* ⭐ [대융합 차단 매직] 문제 풀이 상태(.mode-question)일 때 활성 블록 하위 자식들을 철저히 블라인드 차단 */
+    .mode-question .active-block > ul.children-list { display: none !important; }
+    .mode-answer .active-block > ul.children-list { display: block !important; }
     .sibling-block { opacity: 0.55; } 
 
     .divider { display: none; border: 0; border-top: 2px dashed var(--border); margin: 15px 0; position: relative; }
@@ -737,12 +745,17 @@
 
             if (fields.length >= 5 && /^[0-9a-fA-F]{8}-/.test(fields[1] || fields[2] || "")) {
                 isLogseq = true; idString = fields[1]; blockId = fields[2];
-                let mainText = fields[3] || ""; breadcrumb = fields[5] ? fields[5] : (fields[4] || "");
+                let mainText = fields[3] || ""; 
+                let answerText = fields[4] || "";
+                breadcrumb = fields[5] ? fields[5] : (fields[4] || "");
                 
                 if (mainText.includes('{{c')) {
                     q = mainText.replace(/\{\{c\d+::([\s\S]*?)(?:::[\s\S]*?)?\}\}/g, '<span class="cloze-wrapper"><span class="cloze-q">[...]</span><span class="cloze-a">$1</span></span>');
-                    a = q;
-                } else { q = mainText; a = fields[4] || ""; }
+                    a = answerText || q;
+                } else { 
+                    q = mainText; 
+                    a = answerText; 
+                }
             } else {
                 if (fields.length >= 3) { deckNameInRow = fields[0].replace(/::/g, '__'); q = fields[1]; a = fields.slice(2).join('<br>'); } 
                 else if (fields.length === 2) { q = fields[0]; a = fields[1]; } 
@@ -940,7 +953,7 @@
 
         const aSection = document.getElementById('answer-section');
         aSection.innerHTML = '';
-        if (!card.q.includes('cloze-wrapper') && card.a && card.a !== card.q) {
+        if (card.a && card.a !== card.q) {
             aSection.appendChild(createDOM(card, true));
         }
 
