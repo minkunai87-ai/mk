@@ -19,7 +19,7 @@
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
 <style>
-    /* 기본 테마 유지 */
+    /* 기존 v12.29 명품 테마 스타일 완벽 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; --sub-group-bg: #252525; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
@@ -107,7 +107,6 @@
     .num-btn.active { color: #66d9e8; } .date-btn.active { color: #b197fc; } .pen-btn.active { color: #ff6b6b; }
     .edit-btn { font-size: 1.2rem; margin-right: 5px; opacity: 1; color: var(--text-sub); }
 
-    /* 🔥 [상하/좌우 간격 유지] line-height 1.4 & 10px 들여쓰기 */
     .text-area { font-size: 1.05rem; line-height: 1.4; word-break: keep-all; white-space: normal !important; width: 100%; margin-bottom: 20px; color: var(--text) !important; position: relative; overflow-x: hidden; }
     .text-area * { color: inherit !important; max-width: 100% !important; box-sizing: border-box !important; }
     .text-area br { display: none !important; } 
@@ -122,13 +121,13 @@
     li.children:not(.numbered) > span::before { content: "•"; position: absolute; left: -10px; color: #888; font-size: 1.1rem; top: 0px; line-height: 1.4; }
     .block-ref { cursor: pointer; border-bottom: 1px solid #74c0fc; color: #e0e0e0 !important; text-decoration: none; padding-bottom: 1px; display: inline-block; }
 
+    /* 로그시크 이동 전용 화살표 및 스크롤 단축 버튼 UI 유지 */
     .ls-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; padding: 0; background: transparent; border: none; }
     .ls-breadcrumb { display: inline-flex; align-items: center; background: #333; padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; color: #a0a0a0; }
     .ls-breadcrumb a { color: #a0a0a0 !important; text-decoration: none; }
     .ls-arrows { display: flex; gap: 6px; align-items: center; }
     .ls-btn { background: #333; border: none; color: #4dabf7 !important; font-size: 0.9rem; border-radius: 6px; padding: 4px 10px; cursor: pointer; text-decoration: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-weight: bold; }
 
-    /* 인라인 Cloze (빈칸 뚫기) */
     .cloze-wrapper { display: inline; }
     .cloze-q { color: #ff6b6b !important; font-weight: bold; background: rgba(255,107,107,0.15); padding: 0 4px; border-radius: 4px; cursor: pointer; }
     .cloze-a { color: #4dabf7 !important; font-weight: bold; background: #182836; padding: 0 4px; border-radius: 4px; }
@@ -532,7 +531,6 @@
             const data = await res.json(); if(!data) { listUI.innerHTML = '<div style="padding:20px; text-align:center;">아직 저장된 백업이 없습니다.</div>'; return; }
             const timestamps = Object.keys(data).sort((a, b) => b - a); listUI.innerHTML = '';
             
-            // 🔥 백업 리스트 100개까지 불러오기
             timestamps.slice(0, 100).forEach(ts => {
                 const item = document.createElement('div'); item.className = 'backup-item'; const d = new Date(parseInt(ts));
                 const timeStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
@@ -561,7 +559,6 @@
             const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${Date.now()}`); const data = await res.json(); if(!data) return;
             const timestamps = Object.keys(data).sort((a, b) => a - b); 
             
-            // 🔥 백업 한도 100개로 넉넉하게 변경
             if(timestamps.length > 100) { const toDelete = timestamps.slice(0, timestamps.length - 100); for(const ts of toDelete) { fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`, { method: 'DELETE' }); } }
         } catch(e) {}
     }
@@ -604,6 +601,74 @@
                     processAnkiText(text, file.name, savedStats, newLibrary);
                 } catch(err) { console.error("File skip:", file.name); }
             }
+            
+            // ⭐ [v12.29 명품 대융합 파트] 안키 텍스트 기반 카드와 록식 고유 UUID 기반 카드의 학습 데이터 자동 병합 로직
+            const normalizeText = (t) => t.replace(/<[^>]*>?/gm, '').replace(/\s+/g, '').trim();
+            let mergeCount = 0;
+
+            for (let deckName in newLibrary) {
+                const textMap = new Map();
+                const uniqueCards = [];
+
+                newLibrary[deckName].forEach(card => {
+                    const norm = normalizeText(card.q);
+                    if (textMap.has(norm)) {
+                        const existingCard = textMap.get(norm);
+                        const idA = existingCard.id; 
+                        const idB = card.id;
+
+                        if (idA !== idB) {
+                            const statA = savedStats[idA] || { correct: 0, total: 0, lastDate: 0, dueDate: 0 };
+                            const statB = savedStats[idB] || { correct: 0, total: 0, lastDate: 0, dueDate: 0 };
+
+                            // 두 카드의 총 복습 횟수와 정답수 합산 및 일정 통합
+                            const mergedStat = {
+                                total: (statA.total || 0) + (statB.total || 0),
+                                correct: (statA.correct || 0) + (statB.correct || 0),
+                                lastDate: Math.max(statA.lastDate || 0, statB.lastDate || 0),
+                                dueDate: Math.max(statA.dueDate || 0, statB.dueDate || 0),
+                                interval: Math.max(statA.interval || 1, statB.interval || 1),
+                                mem: statA.mem || statB.mem || false,
+                                cmp: statA.cmp || statB.cmp || false,
+                                fav: statA.fav || statB.fav || false,
+                                num: statA.num || statB.num || false,
+                                date: statA.date || statB.date || false,
+                                pen: statA.pen || statB.pen || false
+                            };
+
+                            // FSRS 데이터가 둘 다 존재하면 더 유의미한 수치를 병합 선택
+                            if (statA.fsrs || statB.fsrs) {
+                                const fsrsA = statA.fsrs || { D: 5.0, S: 0, reps: 0 };
+                                const fsrsB = statB.fsrs || { D: 5.0, S: 0, reps: 0 };
+                                mergedStat.fsrs = fsrsA.reps >= fsrsB.reps ? fsrsA : fsrsB;
+                                mergedStat.fsrs.reps = Math.max(fsrsA.reps, fsrsB.reps) + Math.min(fsrsA.reps, fsrsB.reps);
+                            }
+
+                            // 구 버전 신 버전 ID 보관소 양쪽에 모두 안전 보관 처리
+                            savedStats[idA] = mergedStat; 
+                            savedStats[idB] = mergedStat;
+                            mergeCount++;
+                        }
+
+                        // 라이브러리 껍데기는 로그시크 버전(이동 단축키/UUID 포함)을 우선순위로 생존시킴
+                        if (card.isLogseq && !existingCard.isLogseq) {
+                            const idx = uniqueCards.indexOf(existingCard);
+                            if (idx !== -1) uniqueCards[idx] = card;
+                            textMap.set(norm, card);
+                        }
+                    } else {
+                        textMap.set(norm, card); 
+                        uniqueCards.push(card);
+                    }
+                });
+                newLibrary[deckName] = uniqueCards;
+            }
+
+            if (mergeCount > 0) {
+                localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(savedStats));
+                isDataChanged = true;
+            }
+            // --- 대융합 파트 종료 ---
             
             if (Object.keys(newLibrary).length > 0) {
                 library = newLibrary; 
@@ -657,6 +722,7 @@
         return currentId;
     }
 
+    // [지난번 업데이트 수정 반영] 중복 차단 및 실시간 단일 파일 내 덮어쓰기 업데이트 완벽 통합
     function processAnkiText(text, filename, stats, targetLib) {
         const rows = parseAnkiRawData(text);
         let deck = filename.replace('.txt', '');
@@ -686,7 +752,15 @@
             const finalId = resolveCardId(idString, stats);
             
             if(!targetLib[deckNameInRow]) targetLib[deckNameInRow] = [];
-            targetLib[deckNameInRow].push({ id: finalId, q, a, isLogseq, blockId, breadcrumb });
+            
+            const existingCardIndex = targetLib[deckNameInRow].findIndex(c => c.id === finalId);
+            const cardData = { id: finalId, q, a, isLogseq, blockId, breadcrumb };
+            
+            if (existingCardIndex !== -1) {
+                targetLib[deckNameInRow][existingCardIndex] = cardData;
+            } else {
+                targetLib[deckNameInRow].push(cardData);
+            }
         });
     }
 
@@ -731,7 +805,6 @@
             
             const arrowDiv = document.createElement('div'); arrowDiv.className = 'ls-arrows';
             
-            // 🔥 [요청 1 반영] 로그시크 이동 버튼(➡) 부활 & 빈칸 스크롤 버튼(⤵) 동시 배치!
             let graphName = 'Loqseq'; 
             const match = bcHtml.match(/graph\/([^?&"]+)/);
             if (match) graphName = match[1];
@@ -834,7 +907,7 @@
         if (isOpen) {
             sidebar.classList.add('open'); overlay.classList.add('open');
             setTimeout(() => { const active = document.querySelector('.tree-deck.active'); if(active) active.scrollIntoView({block:'center', behavior:'smooth'}); }, 300);
-        } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
+        } else { sidebar.classList.remove('open'); overlay.classList.open = false; sidebar.classList.remove('open'); overlay.classList.remove('open'); }
     }
 
     function selectDeck(name, isRestore = false) { 
