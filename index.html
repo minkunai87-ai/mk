@@ -19,7 +19,7 @@
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
 <style>
-    /* 기존 v12.29 명품 테마 스타일 완벽 유지 */
+    /* 기본 테마 유지 */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { --primary: #4dabf7; --bg: #121212; --surface: #1e1e1e; --text: #e0e0e0; --text-sub: #a0a0a0; --border: #333333; --input-bg: #2c2c2c; --btn-hover: #383838; --sub-group-bg: #252525; }
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
@@ -115,10 +115,11 @@
     table { table-layout: fixed !important; width: 100% !important; max-width: 100% !important; display: table !important; }
     img { border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); max-width: 100% !important; height: auto !important; display: block; margin: 10px auto; }
     
-    ul.children-list { list-style: none; padding-left: 10px !important; border-left: 1px solid #444; margin: 1px 0 1px 4px !important; }
-    li.children { margin: 0 !important; padding: 0 !important; position: relative; }
-    li.children > span { display: block; position: relative; padding: 1px 0 !important; line-height: 1.4 !important; }
-    li.children:not(.numbered) > span::before { content: "•"; position: absolute; left: -10px; color: #888; font-size: 1.1rem; top: 0px; line-height: 1.4; }
+    /* ⭐ [v12.29 정밀 매칭] 로그시크 원본 스타일과 100% 일치하는 불렛 구조선 및 정렬 조정 */
+    ul.children-list { list-style: none; padding-left: 18px !important; border-left: 1px solid #3a3a3a; margin: 4px 0 4px 4px !important; }
+    li.children { margin: 4px 0 !important; padding: 0 0 0 12px !important; position: relative; line-height: 1.5 !important; }
+    li.children::before { content: "•"; position: absolute; left: 0px; color: #777; font-size: 1.1rem; top: -1px; line-height: 1.5; }
+    li.children > span, li.children > div { display: block; }
     .block-ref { cursor: pointer; border-bottom: 1px solid #74c0fc; color: #e0e0e0 !important; text-decoration: none; padding-bottom: 1px; display: inline-block; }
 
     .ls-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; padding: 0; background: transparent; border: none; }
@@ -130,16 +131,15 @@
     .cloze-wrapper { display: inline; }
     .cloze-q { color: #ff6b6b !important; font-weight: bold; background: rgba(255,107,107,0.15); padding: 0 4px; border-radius: 4px; cursor: pointer; }
     .cloze-a { color: #4dabf7 !important; font-weight: bold; background: #182836; padding: 0 4px; border-radius: 4px; }
-    
     .mode-question .cloze-a { display: none !important; }
     .mode-question .cloze-q { display: inline !important; }
     .mode-answer .cloze-q { display: none !important; }
     .mode-answer .cloze-a { display: inline !important; }
 
-    /* ⭐ [v12.29 명품 대융합] 문제 풀이 시 주인공의 하위 내용만 완벽 차단하는 CSS 매직 */
-    .mode-question .active-block ul.children-list { display: none !important; }
-    .mode-answer .active-block ul.children-list { display: block !important; }
-    .sibling-block { opacity: 0.55; } /* 동급 형제들은 가독성을 해치지 않게 은은하게 힌트화 */
+    /* ⭐ [v12.29 명품 대융합] 문제 풀이 시 주인공 바로 아래의 하위 자식 내용만 완벽 차단하는 직계 CSS 매직 */
+    .mode-question .active-block > ul.children-list { display: none !important; }
+    .mode-answer .active-block > ul.children-list { display: block !important; }
+    .sibling-block { opacity: 0.55; } 
 
     .divider { display: none; border: 0; border-top: 2px dashed var(--border); margin: 15px 0; position: relative; }
     .divider::after { content: "정답 추가 설명"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--surface); padding: 0 10px; color: var(--text-sub); font-size: 0.8rem; font-weight: bold; }
@@ -607,7 +607,7 @@
                 } catch(err) { console.error("File skip:", file.name); }
             }
             
-            // 삭제된 구 소방학개론(텍스트 ID) -> 신 소방학개론__p2(UUID ID) 데이터 대융합 이사 유지
+            // 구 소방학개론 -> 신 소방학개론 데이터 대융합 이사 유지
             let mergeCount = 0;
             for (let deckName in newLibrary) {
                 newLibrary[deckName].forEach(card => {
@@ -708,7 +708,6 @@
         return currentId;
     }
 
-    // 오타 수정 시 분리 및 중복 방지 로직 완벽 연동
     function processAnkiText(text, filename, stats, targetLib) {
         const rows = parseAnkiRawData(text);
         let deck = filename.replace('.txt', '');
