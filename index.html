@@ -121,7 +121,6 @@
     li.children:not(.numbered) > span::before { content: "•"; position: absolute; left: -10px; color: #888; font-size: 1.1rem; top: 0px; line-height: 1.4; }
     .block-ref { cursor: pointer; border-bottom: 1px solid #74c0fc; color: #e0e0e0 !important; text-decoration: none; padding-bottom: 1px; display: inline-block; }
 
-    /* 로그시크 상단 빵부스러기 및 이동 전용 화살표 버튼 복구 상태 유지 */
     .ls-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; padding: 0; background: transparent; border: none; }
     .ls-breadcrumb { display: inline-flex; align-items: center; background: #333; padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; color: #a0a0a0; }
     .ls-breadcrumb a { color: #a0a0a0 !important; text-decoration: none; }
@@ -131,10 +130,16 @@
     .cloze-wrapper { display: inline; }
     .cloze-q { color: #ff6b6b !important; font-weight: bold; background: rgba(255,107,107,0.15); padding: 0 4px; border-radius: 4px; cursor: pointer; }
     .cloze-a { color: #4dabf7 !important; font-weight: bold; background: #182836; padding: 0 4px; border-radius: 4px; }
+    
     .mode-question .cloze-a { display: none !important; }
     .mode-question .cloze-q { display: inline !important; }
     .mode-answer .cloze-q { display: none !important; }
     .mode-answer .cloze-a { display: inline !important; }
+
+    /* ⭐ [v12.29 명품 대융합] 문제 풀이 시 주인공의 하위 내용만 완벽 차단하는 CSS 매직 */
+    .mode-question .active-block ul.children-list { display: none !important; }
+    .mode-answer .active-block ul.children-list { display: block !important; }
+    .sibling-block { opacity: 0.55; } /* 동급 형제들은 가독성을 해치지 않게 은은하게 힌트화 */
 
     .divider { display: none; border: 0; border-top: 2px dashed var(--border); margin: 15px 0; position: relative; }
     .divider::after { content: "정답 추가 설명"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--surface); padding: 0 10px; color: var(--text-sub); font-size: 0.8rem; font-weight: bold; }
@@ -602,11 +607,10 @@
                 } catch(err) { console.error("File skip:", file.name); }
             }
             
-            // ⭐ [v12.29 명품 대융합 파트] 삭제된 구 소방학개론(텍스트 ID) -> 신 소방학개론__p2(UUID ID) 데이터 자동 매칭 및 복습 이력 이사 로직
+            // 삭제된 구 소방학개론(텍스트 ID) -> 신 소방학개론__p2(UUID ID) 데이터 대융합 이사 유지
             let mergeCount = 0;
             for (let deckName in newLibrary) {
                 newLibrary[deckName].forEach(card => {
-                    // 구 버전 카드들의 질문 내용(\s 제거 및 공백 정규화)에 해당하는 텍스트 해시 ID 후보군 추적
                     const txtId1 = cyrb53(card.q);
                     const strippedQ = card.q.replace(/\s*title\s*=\s*["'][^"']*["']/gi, '');
                     const txtId2 = cyrb53(strippedQ);
@@ -615,7 +619,6 @@
                     if (savedStats[txtId1] && txtId1 !== card.id) oldId = txtId1;
                     else if (savedStats[txtId2] && txtId2 !== card.id) oldId = txtId2;
                     
-                    // 과거 학습 내역 기록이 발견되면, 새롭게 바뀐 UUID의 고유 공간으로 이사 및 복제 합체 처리 진행
                     if (oldId) {
                         const oldStat = savedStats[oldId];
                         const newStat = savedStats[card.id] || { correct: 0, total: 0, lastDate: 0, dueDate: 0 };
@@ -641,8 +644,8 @@
                             mergedStat.fsrs.reps = Math.max(fsrsO.reps, fsrsN.reps) + Math.min(fsrsO.reps, fsrsN.reps);
                         }
                         
-                        savedStats[card.id] = mergedStat; // 데이터 융합 본체 완성
-                        delete savedStats[oldId];        // 과거 찌꺼기 키 슬롯을 깔끔하게 제거하여 이사 완료
+                        savedStats[card.id] = mergedStat;
+                        delete savedStats[oldId];
                         mergeCount++;
                     }
                 });
@@ -705,7 +708,7 @@
         return currentId;
     }
 
-    // 단일 파일 내 실시간 오타 수정 시 중복 카드가 무한 적재 및 분리되는 현상 원천 차단
+    // 오타 수정 시 분리 및 중복 방지 로직 완벽 연동
     function processAnkiText(text, filename, stats, targetLib) {
         const rows = parseAnkiRawData(text);
         let deck = filename.replace('.txt', '');
