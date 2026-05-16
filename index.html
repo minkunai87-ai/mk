@@ -121,7 +121,7 @@
     li.children:not(.numbered) > span::before { content: "•"; position: absolute; left: -10px; color: #888; font-size: 1.1rem; top: 0px; line-height: 1.4; }
     .block-ref { cursor: pointer; border-bottom: 1px solid #74c0fc; color: #e0e0e0 !important; text-decoration: none; padding-bottom: 1px; display: inline-block; }
 
-    /* 로그시크 이동 전용 화살표 및 스크롤 단축 버튼 UI 유지 */
+    /* 로그시크 상단 빵부스러기 및 이동 전용 화살표 버튼 복구 상태 유지 */
     .ls-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; padding: 0; background: transparent; border: none; }
     .ls-breadcrumb { display: inline-flex; align-items: center; background: #333; padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; color: #a0a0a0; }
     .ls-breadcrumb a { color: #a0a0a0 !important; text-decoration: none; }
@@ -602,73 +602,56 @@
                 } catch(err) { console.error("File skip:", file.name); }
             }
             
-            // ⭐ [v12.29 명품 대융합 파트] 안키 텍스트 기반 카드와 록식 고유 UUID 기반 카드의 학습 데이터 자동 병합 로직
-            const normalizeText = (t) => t.replace(/<[^>]*>?/gm, '').replace(/\s+/g, '').trim();
+            // ⭐ [v12.29 명품 대융합 파트] 삭제된 구 소방학개론(텍스트 ID) -> 신 소방학개론__p2(UUID ID) 데이터 자동 매칭 및 복습 이력 이사 로직
             let mergeCount = 0;
-
             for (let deckName in newLibrary) {
-                const textMap = new Map();
-                const uniqueCards = [];
-
                 newLibrary[deckName].forEach(card => {
-                    const norm = normalizeText(card.q);
-                    if (textMap.has(norm)) {
-                        const existingCard = textMap.get(norm);
-                        const idA = existingCard.id; 
-                        const idB = card.id;
-
-                        if (idA !== idB) {
-                            const statA = savedStats[idA] || { correct: 0, total: 0, lastDate: 0, dueDate: 0 };
-                            const statB = savedStats[idB] || { correct: 0, total: 0, lastDate: 0, dueDate: 0 };
-
-                            // 두 카드의 총 복습 횟수와 정답수 합산 및 일정 통합
-                            const mergedStat = {
-                                total: (statA.total || 0) + (statB.total || 0),
-                                correct: (statA.correct || 0) + (statB.correct || 0),
-                                lastDate: Math.max(statA.lastDate || 0, statB.lastDate || 0),
-                                dueDate: Math.max(statA.dueDate || 0, statB.dueDate || 0),
-                                interval: Math.max(statA.interval || 1, statB.interval || 1),
-                                mem: statA.mem || statB.mem || false,
-                                cmp: statA.cmp || statB.cmp || false,
-                                fav: statA.fav || statB.fav || false,
-                                num: statA.num || statB.num || false,
-                                date: statA.date || statB.date || false,
-                                pen: statA.pen || statB.pen || false
-                            };
-
-                            // FSRS 데이터가 둘 다 존재하면 더 유의미한 수치를 병합 선택
-                            if (statA.fsrs || statB.fsrs) {
-                                const fsrsA = statA.fsrs || { D: 5.0, S: 0, reps: 0 };
-                                const fsrsB = statB.fsrs || { D: 5.0, S: 0, reps: 0 };
-                                mergedStat.fsrs = fsrsA.reps >= fsrsB.reps ? fsrsA : fsrsB;
-                                mergedStat.fsrs.reps = Math.max(fsrsA.reps, fsrsB.reps) + Math.min(fsrsA.reps, fsrsB.reps);
-                            }
-
-                            // 구 버전 신 버전 ID 보관소 양쪽에 모두 안전 보관 처리
-                            savedStats[idA] = mergedStat; 
-                            savedStats[idB] = mergedStat;
-                            mergeCount++;
+                    // 구 버전 카드들의 질문 내용(\s 제거 및 공백 정규화)에 해당하는 텍스트 해시 ID 후보군 추적
+                    const txtId1 = cyrb53(card.q);
+                    const strippedQ = card.q.replace(/\s*title\s*=\s*["'][^"']*["']/gi, '');
+                    const txtId2 = cyrb53(strippedQ);
+                    
+                    let oldId = null;
+                    if (savedStats[txtId1] && txtId1 !== card.id) oldId = txtId1;
+                    else if (savedStats[txtId2] && txtId2 !== card.id) oldId = txtId2;
+                    
+                    // 과거 학습 내역 기록이 발견되면, 새롭게 바뀐 UUID의 고유 공간으로 이사 및 복제 합체 처리 진행
+                    if (oldId) {
+                        const oldStat = savedStats[oldId];
+                        const newStat = savedStats[card.id] || { correct: 0, total: 0, lastDate: 0, dueDate: 0 };
+                        
+                        const mergedStat = {
+                            total: (oldStat.total || 0) + (newStat.total || 0),
+                            correct: (oldStat.correct || 0) + (newStat.correct || 0),
+                            lastDate: Math.max(oldStat.lastDate || 0, newStat.lastDate || 0),
+                            dueDate: Math.max(oldStat.dueDate || 0, newStat.dueDate || 0),
+                            interval: Math.max(oldStat.interval || 1, newStat.interval || 1),
+                            mem: oldStat.mem || newStat.mem || false,
+                            cmp: oldStat.cmp || newStat.cmp || false,
+                            fav: oldStat.fav || newStat.fav || false,
+                            num: oldStat.num || newStat.num || false,
+                            date: oldStat.date || newStat.date || false,
+                            pen: oldStat.pen || newStat.pen || false
+                        };
+                        
+                        if (oldStat.fsrs || newStat.fsrs) {
+                            const fsrsO = oldStat.fsrs || { D: 5.0, S: 0, reps: 0 };
+                            const fsrsN = newStat.fsrs || { D: 5.0, S: 0, reps: 0 };
+                            mergedStat.fsrs = fsrsO.reps >= fsrsN.reps ? fsrsO : fsrsN;
+                            mergedStat.fsrs.reps = Math.max(fsrsO.reps, fsrsN.reps) + Math.min(fsrsO.reps, fsrsN.reps);
                         }
-
-                        // 라이브러리 껍데기는 로그시크 버전(이동 단축키/UUID 포함)을 우선순위로 생존시킴
-                        if (card.isLogseq && !existingCard.isLogseq) {
-                            const idx = uniqueCards.indexOf(existingCard);
-                            if (idx !== -1) uniqueCards[idx] = card;
-                            textMap.set(norm, card);
-                        }
-                    } else {
-                        textMap.set(norm, card); 
-                        uniqueCards.push(card);
+                        
+                        savedStats[card.id] = mergedStat; // 데이터 융합 본체 완성
+                        delete savedStats[oldId];        // 과거 찌꺼기 키 슬롯을 깔끔하게 제거하여 이사 완료
+                        mergeCount++;
                     }
                 });
-                newLibrary[deckName] = uniqueCards;
             }
-
+            
             if (mergeCount > 0) {
                 localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(savedStats));
                 isDataChanged = true;
             }
-            // --- 대융합 파트 종료 ---
             
             if (Object.keys(newLibrary).length > 0) {
                 library = newLibrary; 
@@ -722,7 +705,7 @@
         return currentId;
     }
 
-    // [지난번 업데이트 수정 반영] 중복 차단 및 실시간 단일 파일 내 덮어쓰기 업데이트 완벽 통합
+    // 단일 파일 내 실시간 오타 수정 시 중복 카드가 무한 적재 및 분리되는 현상 원천 차단
     function processAnkiText(text, filename, stats, targetLib) {
         const rows = parseAnkiRawData(text);
         let deck = filename.replace('.txt', '');
@@ -754,12 +737,10 @@
             if(!targetLib[deckNameInRow]) targetLib[deckNameInRow] = [];
             
             const existingCardIndex = targetLib[deckNameInRow].findIndex(c => c.id === finalId);
-            const cardData = { id: finalId, q, a, isLogseq, blockId, breadcrumb };
-            
             if (existingCardIndex !== -1) {
-                targetLib[deckNameInRow][existingCardIndex] = cardData;
+                targetLib[deckNameInRow][existingCardIndex] = { id: finalId, q, a, isLogseq, blockId, breadcrumb };
             } else {
-                targetLib[deckNameInRow].push(cardData);
+                targetLib[deckNameInRow].push({ id: finalId, q, a, isLogseq, blockId, breadcrumb });
             }
         });
     }
@@ -907,7 +888,7 @@
         if (isOpen) {
             sidebar.classList.add('open'); overlay.classList.add('open');
             setTimeout(() => { const active = document.querySelector('.tree-deck.active'); if(active) active.scrollIntoView({block:'center', behavior:'smooth'}); }, 300);
-        } else { sidebar.classList.remove('open'); overlay.classList.open = false; sidebar.classList.remove('open'); overlay.classList.remove('open'); }
+        } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
     }
 
     function selectDeck(name, isRestore = false) { 
