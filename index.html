@@ -794,7 +794,7 @@
         } else if (Object.keys(library).length) { selectDeck(Object.keys(library)[0], false); }
     }
 
-    function createDOM(card, isAnswer) {
+function createDOM(card, isAnswer) {
         let txt = isAnswer ? card.a.trim() : card.q.trim();
         if(txt.startsWith('"') && txt.endsWith('"')) txt = txt.slice(1, -1).replace(/""/g, '"');
         
@@ -806,6 +806,7 @@
 
         const wrap = document.createElement('div');
         
+        // 1. 상위 목차(Breadcrumb) 조립
         if (!isAnswer && card.isLogseq && (card.breadcrumb || card.blockId)) {
             const lsHeader = document.createElement('div'); lsHeader.className = 'ls-header';
             
@@ -828,10 +829,24 @@
             lsHeader.appendChild(bcDiv); lsHeader.appendChild(arrowDiv); wrap.appendChild(lsHeader);
         }
         
+        // 2. 본문(Main Text) 조립
         const temp = document.createElement('div'); temp.innerHTML = txt;
-        
-        // 이미지 속성 동적 바인딩 로직
-        temp.querySelectorAll('img').forEach(img => { 
+        wrap.appendChild(temp);
+
+        // 3. 추가 해설(Extra) 조립
+        if (isAnswer && card.extra && card.extra.trim() !== '') {
+            let extraText = card.extra;
+            if(extraText.startsWith('"') && extraText.endsWith('"')) extraText = extraText.slice(1, -1).replace(/""/g, '"');
+            
+            const extraDiv = document.createElement('div');
+            extraDiv.className = 'mk-extra-content';
+            extraDiv.innerHTML = `<span class="extra-label">💡 추가 해설</span>${extraText}`;
+            wrap.appendChild(extraDiv);
+        }
+
+        // 🔥 [진짜 흑막 체포] 🔥
+        // 상위 목차, 본문, 추가해설까지 싹 다 모아놓고, 한 번에 이미지 주소를 깃허브로 싹 다 변환!
+        wrap.querySelectorAll('img').forEach(img => { 
             let src = img.getAttribute('src'); 
             if (src && !src.startsWith('http') && repoOwner) {
                 let fname = src.split('/').pop().trim();
@@ -845,33 +860,10 @@
                 img.onerror = function() { this.style.display = 'none'; };
             }
         });
-        
-        wrap.appendChild(temp);
-
-        if (isAnswer && card.extra && card.extra.trim() !== '') {
-            let extraText = card.extra;
-            if(extraText.startsWith('"') && extraText.endsWith('"')) extraText = extraText.slice(1, -1).replace(/""/g, '"');
-            
-            const extraDiv = document.createElement('div');
-            extraDiv.className = 'mk-extra-content';
-            extraDiv.innerHTML = `<span class="extra-label">💡 추가 해설</span>${extraText}`;
-            
-            extraDiv.querySelectorAll('img').forEach(img => { 
-                let src = img.getAttribute('src'); 
-                if (src && !src.startsWith('http') && repoOwner) {
-                    let fname = src.split('/').pop().trim();
-                    try { fname = decodeURIComponent(fname); } catch(e) {}
-                    if(fname.normalize) fname = fname.normalize('NFC');
-                    img.src = githubRawBase + encodeURIComponent(fname);
-                    img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto';
-                }
-            });
-            wrap.appendChild(extraDiv);
-        }
 
         return wrap;
     }
-
+    
     function extractNumber(card) {
         const plainText = card.a.replace(/<[^>]*>?/gm, ' ').trim();
         const matches = [...plainText.matchAll(/(N)?\s*(\d+)/gi)];
