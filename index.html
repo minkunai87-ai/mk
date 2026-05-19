@@ -795,10 +795,6 @@
     }
 
 function createDOM(card, isAnswer) {
-    // createDOM 함수 내부의 상위 목차(bcDiv) 조립 부분 바로 아래에 추가
-        if(bcDiv) {
-        console.log("목차 원본 데이터:", bcHtml); // 이 한 줄 추가
-        }   
         let txt = isAnswer ? card.a.trim() : card.q.trim();
         if(txt.startsWith('"') && txt.endsWith('"')) txt = txt.slice(1, -1).replace(/""/g, '"');
         
