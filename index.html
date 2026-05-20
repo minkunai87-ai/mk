@@ -191,6 +191,13 @@
     .backup-item { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text); }
     .backup-item:hover { background: var(--btn-hover); }
     .backup-date { color: #fab005; font-weight: bold; }
+    .extra-annotation {
+    display: none;
+}
+
+.cloze-a .extra-annotation {
+    display: inline-block;
+}
     
     #toast { position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 24px; border-radius: 25px; font-size: 0.95rem; font-weight: bold; transition: bottom 0.3s ease; z-index: 20000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px; pointer-events: none; }
     #toast.show { bottom: 85px; } 
