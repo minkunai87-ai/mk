@@ -198,6 +198,25 @@
 .cloze-a .extra-annotation {
     display: inline-block;
 }
+
+.block-ref {
+  text-decoration: none !important;
+  border-bottom: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.block-ref::after,
+.block-ref::before {
+  display: none !important;
+  content: none !important;
+}
+
+.block-ref img {
+  display: block !important;
+  text-decoration: none !important;
+  border-bottom: none !important;
+}
     
     #toast { position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 24px; border-radius: 25px; font-size: 0.95rem; font-weight: bold; transition: bottom 0.3s ease; z-index: 20000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px; pointer-events: none; }
     #toast.show { bottom: 85px; } 
