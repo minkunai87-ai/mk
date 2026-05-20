@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.0 - Image Master Fix)</title>
+<title>MK (v18.1 - iPhone Bottom UI Fix)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -219,7 +219,7 @@
 }
     
     #toast { position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 24px; border-radius: 25px; font-size: 0.95rem; font-weight: bold; transition: bottom 0.3s ease; z-index: 20000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px; pointer-events: none; }
-    #toast.show { bottom: 85px; } 
+    #toast.show { bottom: calc(18px + env(safe-area-inset-bottom)); } 
     #toast.error { background: #fa5252; color: white; }
     #toast.success { background: #40c057; color: white; }
 </style>
@@ -261,7 +261,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.0)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.1 - iPhone Bottom UI Fix)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
