@@ -964,7 +964,16 @@ function createDOM(card, isAnswer) {
                 return numA - numB;
             });
         }
-        activeDeck = filtered;
+        activeDeck = [...filtered].sort((a, b) => {
+    const orderA = a.sourceOrder ?? 999999;
+    const orderB = b.sourceOrder ?? 999999;
+
+    if (currentSortMode === 'original') {
+        return orderA - orderB;
+    }
+
+    return 0;
+});
         localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, JSON.stringify(activeDeck.map(c => c.id)));
         if (currentSortMode === 'original' && currentFilterMode === 'default') {
             currentIndex = 0;
@@ -1004,7 +1013,17 @@ localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
     function selectDeckGroup(prefix, isRestore = false) {
         let merged = []; Object.keys(library).forEach(key => { if (key.startsWith(prefix) || key === prefix.replace('__', '')) merged = merged.concat(library[key]); });
         if (!merged.length) { alert("하위 덱이 없습니다."); return; }
-        currentDeckName = prefix.replace(/__$/, ''); originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName);
+        currentDeckName = prefix.replace(/__$/, ''); merged.sort((a, b) => {
+    const orderA = a.sourceOrder ?? 999999;
+    const orderB = b.sourceOrder ?? 999999;
+
+    if (orderA !== orderB) return orderA - orderB;
+
+    return String(a.blockId || a.id)
+        .localeCompare(String(b.blockId || b.id));
+});
+
+originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName);
         document.getElementById('deck-title-text').innerText = currentDeckName.split('__').pop() + " (전체)";
         applyFilterAndSort(isRestore); if(!isRestore) { toggleMenu(false); isDataChanged = true; checkAutoBackup(); }
     }
