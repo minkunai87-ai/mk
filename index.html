@@ -660,13 +660,21 @@
             let mergeCount = 0;
             for (let deckName in newLibrary) {
                 newLibrary[deckName].forEach(card => {
-                    const txtId1 = cyrb53(card.q);
                     const strippedQ = card.q.replace(/\s*title\s*=\s*["'][^"']*["']/gi, '');
-                    const txtId2 = cyrb53(strippedQ);
+                    const legacyIds = [
+                        cyrb53(card.id),
+                        card.blockId ? cyrb53(card.blockId) : null,
+                        cyrb53(card.q),
+                        cyrb53(strippedQ)
+                    ].filter(Boolean);
                     
                     let oldId = null;
-                    if (savedStats[txtId1] && txtId1 !== card.id) oldId = txtId1;
-                    else if (savedStats[txtId2] && txtId2 !== card.id) oldId = txtId2;
+                    for (const legacyId of legacyIds) {
+                        if (legacyId !== card.id && savedStats[legacyId]) {
+                            oldId = legacyId;
+                            break;
+                        }
+                    }
                     
                     if (oldId) {
                         const oldStat = savedStats[oldId];
@@ -725,6 +733,10 @@
         return rows;
     }
 
+    function isUuid(value) {
+        return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value || '');
+    }
+
     function resolveCardId(q, stats) {
         const currentId = cyrb53(q);
         if (stats[currentId]) return currentId;
@@ -755,6 +767,11 @@
             }
         }
         return currentId;
+    }
+
+    function resolveStableLogseqCardId(blockId, idString, q, stats) {
+        const stableId = isUuid(blockId) ? blockId : (isUuid(idString) ? idString : null);
+        return stableId || resolveCardId(idString || q, stats);
     }
 
     function processAnkiText(text, filename, stats, targetLib) {
@@ -788,7 +805,7 @@
             }
 
             if(!q) return;
-            const finalId = resolveCardId(idString, stats);
+            const finalId = isLogseq ? resolveStableLogseqCardId(blockId, idString, q, stats) : resolveCardId(idString, stats);
             
             if(!targetLib[deckNameInRow]) targetLib[deckNameInRow] = [];
             
