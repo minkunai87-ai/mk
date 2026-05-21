@@ -714,10 +714,26 @@
             }
             
             if (Object.keys(newLibrary).length > 0) {
-                library = newLibrary; 
-                localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(library)); 
-                renderDeckTree(); 
-            }
+    Object.keys(newLibrary).forEach(deckName => {
+        newLibrary[deckName].sort((a, b) => (a.sourceOrder ?? 999999) - (b.sourceOrder ?? 999999));
+    });
+
+    library = newLibrary;
+
+    console.log("MK_LIBRARY_ORDER", Object.fromEntries(
+        Object.entries(library).map(([deckName, cards]) => [
+            deckName,
+            cards.slice(0, 30).map(card => ({
+                id: card.id,
+                blockId: card.blockId,
+                sourceOrder: card.sourceOrder
+            }))
+        ])
+    ));
+
+    localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(library)); 
+    renderDeckTree(); 
+}
         } catch (e) { console.log(e); }
         document.getElementById('loading').style.display = 'none';
     }
@@ -978,7 +994,9 @@ function createDOM(card, isAnswer) {
     }
 
     function selectDeck(name, isRestore = false) { 
-        currentDeckName = name; originalDeck = library[name]; localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
+        currentDeckName = name;
+originalDeck = [...(library[name] || [])].sort((a, b) => (a.sourceOrder ?? 999999) - (b.sourceOrder ?? 999999));
+localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
         document.getElementById('deck-title-text').innerText = name.split('__').pop();
         applyFilterAndSort(isRestore); if(!isRestore) { isDataChanged = true; checkAutoBackup(); toggleMenu(false); }
     }
