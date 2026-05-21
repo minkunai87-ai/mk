@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.2.4 - UUID + Safe Visual Order + Asset No-Import Fix)</title>
+<title>MK (v18.5.2 - Preserve txt Original Order)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -261,7 +261,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.2.4 - UUID + Safe Visual Order + Asset No-Import Fix)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.2 - Preserve txt Original Order)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -917,20 +917,6 @@ function createDOM(card, isAnswer) {
     function applyFilterAndSort(isRestore = false) {
         if(!currentDeckName) return;
         const stats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
-        if (isRestore) {
-            const savedIdsStr = localStorage.getItem(STORAGE_KEY_ACTIVE_IDS);
-            if (savedIdsStr) {
-                try {
-                    const savedIds = JSON.parse(savedIdsStr);
-                    const cardMap = new Map(); originalDeck.forEach(c => cardMap.set(c.id, c));
-                    activeDeck = []; savedIds.forEach(id => { if (cardMap.has(id)) activeDeck.push(cardMap.get(id)); });
-                    if (activeDeck.length > 0) {
-                        currentIndex = loadProgress(); if(currentIndex >= activeDeck.length) currentIndex = 0;
-                        updateFilterStatusUI(); renderDeckTree(); showCard(); return; 
-                    }
-                } catch(e) {}
-            }
-        }
         let filtered = [...originalDeck];
         
         if(currentFilterMode !== 'default') {
@@ -957,7 +943,8 @@ function createDOM(card, isAnswer) {
                 return numA - numB;
             });
         }
-        activeDeck = filtered; localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, JSON.stringify(activeDeck.map(c => c.id)));
+        activeDeck = filtered;
+        localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, JSON.stringify(activeDeck.map(c => c.id)));
         currentIndex = loadProgress(); if(currentIndex >= activeDeck.length) currentIndex = 0;
         updateFilterStatusUI(); renderDeckTree(); showCard();
     }
