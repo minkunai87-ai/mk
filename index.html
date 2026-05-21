@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.3 - Original Starts At First Txt Row)</title>
+<title>MK (v18.5.4 - Original Starts At First Txt Row)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -261,7 +261,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.3 - Original Starts At First Txt Row)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.4 - Original Starts At First Txt Row)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -812,11 +812,13 @@
             if(!targetLib[deckNameInRow]) targetLib[deckNameInRow] = [];
             
             const existingCardIndex = targetLib[deckNameInRow].findIndex(c => c.id === finalId);
-            if (existingCardIndex !== -1) {
-                targetLib[deckNameInRow][existingCardIndex] = { id: finalId, q, a, isLogseq, blockId, breadcrumb, extra, sourceOrder };
-            } else {
-                targetLib[deckNameInRow].push({ id: finalId, q, a, isLogseq, blockId, breadcrumb, extra, sourceOrder });
-            }
+            const cardObj = { id: finalId, q, a, isLogseq, blockId, breadcrumb, extra, sourceOrder };
+
+if (existingCardIndex !== -1) {
+    targetLib[deckNameInRow].splice(existingCardIndex, 1);
+}
+
+targetLib[deckNameInRow].push(cardObj);
         });
     }
 
