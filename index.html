@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.2 - Preserve txt Original Order)</title>
+<title>MK (v18.5.3 - Original Starts At First Txt Row)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -261,7 +261,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.2 - Preserve txt Original Order)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.3 - Original Starts At First Txt Row)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -776,6 +776,7 @@
 
     function processAnkiText(text, filename, stats, targetLib) {
         const rows = parseAnkiRawData(text);
+        let rowOrder = 0;
         let deck = filename.replace('.txt', '');
         rows.forEach(fields => {
             if (!fields || fields.length === 0 || fields[0].startsWith('#')) return; 
@@ -806,14 +807,15 @@
 
             if(!q) return;
             const finalId = isLogseq ? resolveStableLogseqCardId(blockId, idString, q, stats) : resolveCardId(idString, stats);
+            const sourceOrder = rowOrder++;
             
             if(!targetLib[deckNameInRow]) targetLib[deckNameInRow] = [];
             
             const existingCardIndex = targetLib[deckNameInRow].findIndex(c => c.id === finalId);
             if (existingCardIndex !== -1) {
-                targetLib[deckNameInRow][existingCardIndex] = { id: finalId, q, a, isLogseq, blockId, breadcrumb, extra };
+                targetLib[deckNameInRow][existingCardIndex] = { id: finalId, q, a, isLogseq, blockId, breadcrumb, extra, sourceOrder };
             } else {
-                targetLib[deckNameInRow].push({ id: finalId, q, a, isLogseq, blockId, breadcrumb, extra });
+                targetLib[deckNameInRow].push({ id: finalId, q, a, isLogseq, blockId, breadcrumb, extra, sourceOrder });
             }
         });
     }
@@ -918,7 +920,9 @@ function createDOM(card, isAnswer) {
         if(!currentDeckName) return;
         const stats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
         let filtered = [...originalDeck];
-        
+        if (currentSortMode === 'original') {
+            filtered.sort((a, b) => (a.sourceOrder ?? 999999) - (b.sourceOrder ?? 999999));
+        }
         if(currentFilterMode !== 'default') {
             if (currentFilterMode === 'due') {
                 const today = new Date(); 
@@ -928,7 +932,6 @@ function createDOM(card, isAnswer) {
                 filtered = filtered.filter(c => (stats[c.id] || {})[currentFilterMode]);
             }
         }
-        
         if(currentSortMode === 'wrong') {
             filtered.sort((a,b) => {
                 const sA = stats[a.id] || {correct:0, total:0}, sB = stats[b.id] || {correct:0, total:0};
@@ -945,7 +948,12 @@ function createDOM(card, isAnswer) {
         }
         activeDeck = filtered;
         localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, JSON.stringify(activeDeck.map(c => c.id)));
-        currentIndex = loadProgress(); if(currentIndex >= activeDeck.length) currentIndex = 0;
+        if (currentSortMode === 'original' && currentFilterMode === 'default') {
+            currentIndex = 0;
+        } else {
+            currentIndex = loadProgress();
+            if(currentIndex >= activeDeck.length) currentIndex = 0;
+        }
         updateFilterStatusUI(); renderDeckTree(); showCard();
     }
 
