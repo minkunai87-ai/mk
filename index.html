@@ -41,7 +41,33 @@
     .header-controls { display: flex; gap: 10px; align-items: center; }
     .menu-btn, .filter-toggle-btn { font-size: 1.5rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); display: flex; align-items: center; justify-content: center; }
     .filter-toggle-btn { color: var(--primary); } 
-    .counter { font-size: 0.85rem; font-weight: bold; color: var(--text-sub); background: var(--input-bg); padding: 5px 12px; border-radius: 15px; }
+    .counter { font-size: 0.85rem; font-weight: bold; color: var(--text-sub); background: var(--input-bg); padding: 5px 12px; border-radius: 15px; cursor: pointer; transition: 0.2s; user-select: none; }
+    .counter:active { transform: scale(0.96); }
+
+    .slider-panel {
+        position: fixed;
+        left: 16px;
+        right: 16px;
+        bottom: calc(110px + env(safe-area-inset-bottom));
+        background: rgba(30, 30, 30, 0.96);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 18px 16px 14px;
+        z-index: 9997;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+        opacity: 0;
+        transform: translateY(12px);
+        pointer-events: none;
+        transition: all 0.22s ease;
+    }
+    .slider-panel.open { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .slider-preview { text-align: center; color: var(--primary); font-size: 0.92rem; font-weight: bold; min-height: 22px; margin-bottom: 12px; opacity: 0; transition: opacity 0.15s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .slider-preview.show { opacity: 1; }
+    .card-slider { width: 100%; height: 42px; background: transparent; -webkit-appearance: none; appearance: none; }
+    .card-slider::-webkit-slider-runnable-track { height: 8px; background: #3a3a3a; border-radius: 999px; }
+    .card-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 30px; height: 30px; border-radius: 50%; background: var(--primary); border: 3px solid white; margin-top: -11px; box-shadow: 0 2px 10px rgba(0,0,0,0.35); }
+    .slider-back-btn { margin-top: 12px; width: 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); border-radius: 12px; padding: 12px; font-size: 0.95rem; font-weight: bold; cursor: pointer; }
 
     .filter-bar { width: 100%; background: var(--surface); display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; max-height: 0; opacity: 0; overflow-y: hidden; transition: all 0.3s ease-in-out; padding: 0 15px; border-bottom: 0px solid var(--border); }
     .filter-bar.open { max-height: 65px; opacity: 1; padding: 12px 15px; border-bottom: 1px solid var(--border); }
@@ -317,7 +343,7 @@
             </div>
 
             <div class="header-controls">
-                <span class="counter" id="card-counter">0 / 0</span>
+                <span class="counter" id="card-counter" onclick="toggleSliderPanel()">0 / 0</span>
             </div>
         </div>
         
@@ -387,6 +413,11 @@
         </div>
     </div>
 
+    <div class="slider-panel" id="slider-panel">
+        <div class="slider-preview" id="slider-preview"></div>
+        <input type="range" min="0" max="0" value="0" class="card-slider" id="card-slider" oninput="previewSliderCard(this.value)" onchange="commitSliderCard(this.value)">
+        <button class="slider-back-btn" onclick="goToPreviousCard()">↶ 직전 카드로 돌아가기</button>
+    </div>
     <div class="modal-overlay" id="edit-modal">
         <div class="modal-content">
             <textarea id="edit-q" class="edit-input" style="min-height: 80px;"></textarea>
@@ -433,6 +464,7 @@
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', imageMap = new Map();
+    let previousCardIndex = null;
     
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress_v2', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck';
     const STORAGE_KEY_FILTER_STATE = 'anki_final_filter_state', STORAGE_KEY_ACTIVE_IDS = 'anki_final_active_ids'; 
@@ -1033,6 +1065,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         if (!activeDeck || activeDeck.length === 0) { document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub); text-align:center;'>카드가 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
         if(currentIndex >= activeDeck.length) currentIndex = 0;
         const card = activeDeck[currentIndex]; const stats = getStats(card.id);
+        updateSliderUI();
         document.getElementById('card-counter').innerText = `${currentIndex + 1} / ${activeDeck.length}`;
         document.getElementById('card-info').style.display='flex';
         updateStatsUI(stats); updateIconsUI(stats);
@@ -1079,7 +1112,15 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         }
     }
 
-    function moveCard(d) { let n = currentIndex + d; if(n >= 0 && n < activeDeck.length) { currentIndex = n; saveCurrentProgress(); showCard(); } }
+    function moveCard(d) {
+        let n = currentIndex + d;
+        if(n >= 0 && n < activeDeck.length) {
+            previousCardIndex = currentIndex;
+            currentIndex = n;
+            saveCurrentProgress();
+            showCard();
+        }
+    }
 
     function grade(score) {
         const id = activeDeck[currentIndex].id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
@@ -1161,8 +1202,78 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     function openEditModal(e) { e.stopPropagation(); const c = activeDeck[currentIndex]; document.getElementById('edit-q').value=c.q; document.getElementById('edit-a').value=c.a; document.getElementById('edit-modal').style.display='flex'; }
     function closeEditModal() { document.getElementById('edit-modal').style.display='none'; }
     function saveEdit() { const c = activeDeck[currentIndex]; c.q = document.getElementById('edit-q').value; c.a = document.getElementById('edit-a').value; closeEditModal(); showCard(); isDataChanged = true; checkAutoBackup(); }
+
+    function toggleSliderPanel() {
+        const panel = document.getElementById('slider-panel');
+        panel.classList.toggle('open');
+        if (panel.classList.contains('open')) updateSliderUI();
+    }
+
+    function updateSliderUI() {
+        const slider = document.getElementById('card-slider');
+        const preview = document.getElementById('slider-preview');
+        if (!slider || !activeDeck.length) return;
+        slider.max = Math.max(0, activeDeck.length - 1);
+        slider.value = currentIndex;
+        if (preview) preview.classList.remove('show');
+    }
+
+    function previewSliderCard(value) {
+        const index = Number(value);
+        const preview = document.getElementById('slider-preview');
+        const card = activeDeck[index];
+        if (!preview || !card) return;
+
+        let previewText = '';
+        if (card.breadcrumb) {
+            const temp = document.createElement('div');
+            temp.innerHTML = card.breadcrumb;
+            previewText = temp.textContent || temp.innerText || '';
+        }
+
+        if (!previewText) {
+            previewText = (card.q || '')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .slice(0, 60);
+        }
+
+        preview.innerText = previewText || `${index + 1}번째 카드`;
+        preview.classList.add('show');
+    }
+
+    function commitSliderCard(value) {
+        const index = Number(value);
+        if (index === currentIndex || !activeDeck[index]) return;
+        previousCardIndex = currentIndex;
+        currentIndex = index;
+        saveCurrentProgress();
+        showCard();
+    }
+
+    function goToPreviousCard() {
+        if (previousCardIndex === null || !activeDeck[previousCardIndex]) {
+            showToast('직전 카드가 없습니다');
+            return;
+        }
+        const nowIndex = currentIndex;
+        currentIndex = previousCardIndex;
+        previousCardIndex = nowIndex;
+        saveCurrentProgress();
+        showCard();
+    }
     function exportData() { const d = new Date(); const fileName = `mk_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`; const a = document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(localStorage)], {type:'application/json'})); a.download=fileName; a.click(); }
     function importData(input) { const reader = new FileReader(); reader.onload = e => { const data = JSON.parse(e.target.result); Object.keys(data).forEach(k => localStorage.setItem(k, data[k])); location.reload(); }; reader.readAsText(input.files[0]); }
 </script>
+    <script>
+    document.addEventListener('click', (e) => {
+        const panel = document.getElementById('slider-panel');
+        const counter = document.getElementById('card-counter');
+        if (!panel || !counter || !panel.classList.contains('open')) return;
+        if (panel.contains(e.target) || counter.contains(e.target)) return;
+        panel.classList.remove('open');
+    });
+    </script>
 </body>
 </html>
