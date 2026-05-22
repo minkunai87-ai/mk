@@ -1212,34 +1212,50 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     function updateSliderUI() {
         const slider = document.getElementById('card-slider');
         const preview = document.getElementById('slider-preview');
+        const counter = document.getElementById('card-counter');
         if (!slider || !activeDeck.length) return;
         slider.max = Math.max(0, activeDeck.length - 1);
         slider.value = currentIndex;
+        if (counter) counter.innerText = `${currentIndex + 1} / ${activeDeck.length}`;
         if (preview) preview.classList.remove('show');
     }
 
     function previewSliderCard(value) {
         const index = Number(value);
         const preview = document.getElementById('slider-preview');
+        const counter = document.getElementById('card-counter');
         const card = activeDeck[index];
         if (!preview || !card) return;
 
         let previewText = '';
+
         if (card.breadcrumb) {
             const temp = document.createElement('div');
             temp.innerHTML = card.breadcrumb;
             previewText = temp.textContent || temp.innerText || '';
+            previewText = previewText.replace(/\s+/g, ' ').trim();
         }
 
         if (!previewText) {
-            previewText = (card.q || '')
-                .replace(/<[^>]+>/g, ' ')
+            const temp = document.createElement('div');
+            temp.innerHTML = card.q || '';
+            previewText = (temp.textContent || temp.innerText || '')
                 .replace(/\s+/g, ' ')
-                .trim()
-                .slice(0, 60);
+                .trim();
         }
 
-        preview.innerText = previewText || `${index + 1}번째 카드`;
+        if (!previewText && card.extra) {
+            const temp = document.createElement('div');
+            temp.innerHTML = card.extra;
+            previewText = (temp.textContent || temp.innerText || '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        previewText = previewText.slice(0, 80);
+
+        if (counter) counter.innerText = `${index + 1} / ${activeDeck.length}`;
+        preview.innerText = `${index + 1}번 · ${previewText || '카드 미리보기 없음'}`;
         preview.classList.add('show');
     }
 
