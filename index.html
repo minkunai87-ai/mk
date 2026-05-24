@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.8 - Per-Card Review History)</title>
+<title>MK (v18.5.9 - History Recalculated Review Date)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -297,7 +297,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.8 - Per-Card Review History)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.9 - History Recalculated Review Date)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -1209,40 +1209,86 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         if (!cardId) return;
 
         const history = getReviewHistory();
-        const items = Array.isArray(history[cardId]) ? history[cardId] : [];
+        const items = Array.isArray(history[cardId]) ? [...history[cardId]] : [];
         const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
         const prev = data[cardId] || {};
 
-        let total = 0;
-        let correct = 0;
-        let lastDate = 0;
-
-        items.forEach(item => {
-            total += 1;
-            if (Number(item.score) === 2) correct += 1;
-            else if (Number(item.score) === 1) correct += 0.5;
-            else if (Number(item.score) === 3) correct += 0;
-            lastDate = Math.max(lastDate, Number(item.time) || 0);
-        });
-
-        if (total === 0) {
+        if (items.length === 0) {
             data[cardId] = {
                 ...prev,
                 correct: 0,
                 total: 0,
                 lastDate: 0,
                 dueDate: 0,
-                interval: 0
+                interval: 0,
+                fsrs: { D: 5.0, S: 0, reps: 0 }
             };
-        } else {
-            data[cardId] = {
-                ...prev,
-                correct,
-                total,
-                lastDate
-            };
+            localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
+
+            const card = activeDeck && activeDeck[currentIndex];
+            if (card && card.id === cardId) updateStatsUI(data[cardId]);
+            return;
         }
 
+        const rebuilt = {
+            ...prev,
+            correct: 0,
+            total: 0,
+            lastDate: 0,
+            dueDate: 0,
+            interval: 0,
+            fsrs: { D: 5.0, S: 0, reps: 0 }
+        };
+
+        items.sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
+
+        items.forEach(item => {
+            const score = Number(item.score);
+            const reviewTime = Number(item.time) || Date.now();
+            const oldTotal = rebuilt.total;
+            const oldCorrect = rebuilt.correct;
+
+            rebuilt.total += 1;
+            if (score === 2) rebuilt.correct += 1;
+            else if (score === 1) rebuilt.correct += 0.5;
+            else if (score === 3) {
+                if (oldTotal > 0) rebuilt.correct += (oldCorrect / oldTotal);
+            }
+
+            if (score !== 3) {
+                const fsrs = rebuilt.fsrs;
+                fsrs.reps += 1;
+
+                if (fsrs.reps === 1) {
+                    if (score === 0) { fsrs.D = 7.0; fsrs.S = 1.0; }
+                    else if (score === 1) { fsrs.D = 6.0; fsrs.S = 2.0; }
+                    else if (score === 2) { fsrs.D = 5.0; fsrs.S = 3.0; }
+                } else {
+                    if (score === 0) fsrs.D = Math.min(10, fsrs.D + 1.5);
+                    else if (score === 1) fsrs.D = Math.min(10, fsrs.D + 0.5);
+                    else if (score === 2) fsrs.D = Math.max(1, fsrs.D - 0.5);
+
+                    if (score === 0) {
+                        fsrs.S = Math.max(1, fsrs.S * 0.2);
+                    } else {
+                        const factor = score === 1 ? 1.2 : (1 + 0.5 * (11 - fsrs.D));
+                        fsrs.S = fsrs.S * factor;
+                    }
+                }
+
+                let intervalFactor = Math.log(targetRetention) / Math.log(0.90);
+                let interval = Math.max(1, Math.round(fsrs.S * intervalFactor));
+
+                rebuilt.interval = interval;
+                const baseDate = new Date(reviewTime);
+                baseDate.setHours(0, 0, 0, 0);
+                rebuilt.dueDate = baseDate.getTime() + (interval * 86400000);
+            }
+
+            rebuilt.lastDate = reviewTime;
+        });
+
+        data[cardId] = rebuilt;
         localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
 
         const card = activeDeck && activeDeck[currentIndex];
