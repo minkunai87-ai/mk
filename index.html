@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.7 - Full Subdeck From Row)</title>
+<title>MK (v18.5.8 - Per-Card Review History)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -217,6 +217,16 @@
     .backup-item { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text); }
     .backup-item:hover { background: var(--btn-hover); }
     .backup-date { color: #fab005; font-weight: bold; }
+    .history-list { max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--input-bg); }
+.history-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+.history-result.correct { color: #69db7c; font-weight: bold; }
+.history-result.wrong { color: #ff8787; font-weight: bold; }
+.history-result.hard { color: #ffd43b; font-weight: bold; }
+.history-result.check { color: #74c0fc; font-weight: bold; }
+.history-time { color: var(--text-sub); font-size: 0.82rem; }
+.history-delete-btn { background: transparent; border: none; color: #ff8787; font-size: 1.05rem; font-weight: bold; cursor: pointer; }
+.history-empty { padding: 22px; text-align: center; color: var(--text-sub); }
+.history-clear-btn { width: 100%; margin-top: 12px; padding: 11px; border-radius: 10px; border: 1px solid #ff8787; color: #ff8787; background: transparent; font-weight: bold; cursor: pointer; }
     .extra-annotation {
     display: none;
 }
@@ -287,7 +297,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.7 - Full Subdeck From Row)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.8 - Per-Card Review History)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -326,7 +336,17 @@
             </div>
         </div>
     </div>
-
+    <div class="modal-overlay" id="history-modal">
+    <div class="modal-content">
+        <h3 style="margin-top:0; color:var(--text);">📈 카드 정답률 히스토리</h3>
+        <div id="history-card-title" style="font-size:0.85rem; color:var(--text-sub); margin-top:-8px; margin-bottom:5px;"></div>
+        <div id="history-list" class="history-list"></div>
+        <button class="history-clear-btn" onclick="clearCurrentCardHistory()">이 카드 기록 전체 삭제</button>
+        <div class="modal-btns">
+            <button class="modal-btn btn-cancel" onclick="closeHistoryModal()">닫기</button>
+        </div>
+    </div>
+</div>
     <div class="header-container">
         <div class="header">
             <div class="header-left">
@@ -467,6 +487,7 @@
     let previousCardIndex = null;
     
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress_v2', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck';
+    const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
     const STORAGE_KEY_FILTER_STATE = 'anki_final_filter_state', STORAGE_KEY_ACTIVE_IDS = 'anki_final_active_ids'; 
     const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'original': '🔄 원래순', 'wrong': '🔥 오답순', 'number': '🔢 번호순' };
 
@@ -1146,8 +1167,103 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         }
     }
 
+    function getReviewHistory() {
+        try { return JSON.parse(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY) || '{}'); }
+        catch(e) { return {}; }
+    }
+
+    function saveReviewHistory(history) {
+        localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(history));
+        isDataChanged = true;
+        checkAutoBackup();
+    }
+
+    function getGradeMeta(score) {
+        if (score === 2) return { key: 'correct', label: '✅ 정답', className: 'correct' };
+        if (score === 1) return { key: 'hard', label: '🔺 애매', className: 'hard' };
+        if (score === 0) return { key: 'wrong', label: '❌ 오답', className: 'wrong' };
+        return { key: 'check', label: '☑️ 확인', className: 'check' };
+    }
+
+    function recordReviewHistory(cardId, score) {
+        if (!cardId) return;
+        const history = getReviewHistory();
+        if (!Array.isArray(history[cardId])) history[cardId] = [];
+        const meta = getGradeMeta(score);
+        history[cardId].unshift({
+            id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            score,
+            result: meta.key,
+            time: Date.now()
+        });
+        if (history[cardId].length > 300) history[cardId] = history[cardId].slice(0, 300);
+        saveReviewHistory(history);
+    }
+
+    function formatHistoryTime(ts) {
+        const d = new Date(ts);
+        return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+
+    function openCurrentCardHistory(e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        const card = activeDeck && activeDeck[currentIndex];
+        if (!card) return;
+
+        const modal = document.getElementById('history-modal');
+        const list = document.getElementById('history-list');
+        const title = document.getElementById('history-card-title');
+        const history = getReviewHistory();
+        const items = Array.isArray(history[card.id]) ? history[card.id] : [];
+
+        title.innerText = `${currentDeckName || ''} · ${items.length}개 기록`;
+
+        if (!items.length) {
+            list.innerHTML = `<div class="history-empty">아직 이 카드의 히스토리가 없습니다.</div>`;
+        } else {
+            list.innerHTML = items.map(item => {
+                const meta = getGradeMeta(Number(item.score));
+                return `
+                    <div class="history-item" data-history-id="${item.id}">
+                        <div class="history-main">
+                            <span class="history-result ${meta.className}">${meta.label}</span>
+                            <span class="history-time">${formatHistoryTime(item.time)}</span>
+                        </div>
+                        <button class="history-delete-btn" onclick="deleteCurrentCardHistoryItem('${item.id}')">×</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    function closeHistoryModal() {
+        document.getElementById('history-modal').style.display = 'none';
+    }
+
+    function deleteCurrentCardHistoryItem(historyId) {
+        const card = activeDeck && activeDeck[currentIndex];
+        if (!card || !historyId) return;
+        const history = getReviewHistory();
+        history[card.id] = (history[card.id] || []).filter(item => item.id !== historyId);
+        saveReviewHistory(history);
+        openCurrentCardHistory();
+    }
+
+    function clearCurrentCardHistory() {
+        const card = activeDeck && activeDeck[currentIndex];
+        if (!card) return;
+        if (!confirm('이 카드의 정답률 히스토리를 전부 삭제할까요?')) return;
+        const history = getReviewHistory();
+        delete history[card.id];
+        saveReviewHistory(history);
+        openCurrentCardHistory();
+    }
+
     function grade(score) {
         const id = activeDeck[currentIndex].id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        recordReviewHistory(id, score);
         if(!data[id]) data[id] = { correct: 0, total: 0, lastDate: 0 }; if(!data[id].fsrs) data[id].fsrs = { D: 5.0, S: 0, reps: 0 };
         let fsrs = data[id].fsrs;
 
@@ -1175,6 +1291,8 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     
     function updateStatsUI(s) {
         const b = document.getElementById('rate-badge');
+        b.onclick = openCurrentCardHistory;
+        b.title = '이 카드 정답률 히스토리 보기';
         if(!s.total) { b.innerText="New"; b.className="rate-badge"; } else { const r = Math.round((s.correct/s.total)*100); b.innerText=`${r}% (${s.total}회)`; b.className=`rate-badge ${r>=80?'high':(r<50?'low':'')}`; }
         const db = document.getElementById('date-badge');
         if(!s.lastDate) db.style.display='none';
