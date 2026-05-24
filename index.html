@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.6 - Subdeck Restore From Breadcrumb)</title>
+<title>MK (v18.5.7 - Full Subdeck From Row)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -287,7 +287,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.6 - Subdeck Restore From Breadcrumb)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.7 - Full Subdeck From Row)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -831,11 +831,12 @@
             let deckNameInRow = null; let q = "", a = ""; let extra = "";
             let idString = ""; let blockId = ""; let breadcrumb = ""; let isLogseq = false;
 
-            if (fields[0].includes('::')) {
-                deckNameInRow = fields[0].replace(/::/g, '__');
-            } else {
-                deckNameInRow = deck;
-            }
+            const rowDeckName = (fields[0] || '')
+                .replace(/\//g, '__')
+                .replace(/::/g, '__')
+                .trim();
+
+            deckNameInRow = rowDeckName || deck;
 
             if (fields.length >= 5 && /^[0-9a-fA-F]{8}-/.test(fields[1] || fields[2] || "")) {
                 isLogseq = true; idString = fields[1]; blockId = fields[2];
@@ -844,7 +845,7 @@
                 breadcrumb = fields[5] ? fields[5] : "";
 
                 if (
-                    deckNameInRow === deck &&
+                    (!deckNameInRow || deckNameInRow === deck) &&
                     breadcrumb &&
                     breadcrumb.includes('[[')
                 ) {
