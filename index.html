@@ -1106,12 +1106,18 @@ function createDOM(card, isAnswer) {
                             if (originY === 'center') rectTop -= actualHeight / 2;
                             else if (originY === 'bottom') rectTop -= actualHeight;
 
+                            const leftPercent = (rectLeft / naturalWidth) * 100;
+                            const topPercent = (rectTop / naturalHeight) * 100;
+                            const widthPercent = (actualWidth / naturalWidth) * 100;
+                            const heightPercent = (actualHeight / naturalHeight) * 100;
+
                             const mask = document.createElement('span');
                             mask.className = 'mk-io-mask';
-                            mask.style.left = `${Math.round((rectLeft * scaleX) + ioOffsetX)}px`;
-                            mask.style.top = `${Math.round((rectTop * scaleY) + ioOffsetY)}px`;
-                            mask.style.width = `${Math.round(actualWidth * scaleX)}px`;
-                            mask.style.height = `${Math.round(actualHeight * scaleY)}px`;
+                            mask.style.left = `${leftPercent}%`;
+                            mask.style.top = `${topPercent}%`;
+                            mask.style.width = `${widthPercent}%`;
+                            mask.style.height = `${heightPercent}%`;
+                            mask.style.transformOrigin = 'center center';
                             mask.style.transform = `rotate(${angle}deg)`;
                             layer.appendChild(mask);
                         });
