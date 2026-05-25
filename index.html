@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.30 - 이미지 오클루전 마스크 미세 조정)</title>
+<title>MK (v18.5.31 - 이미지 오클루전 반응형 보정)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -333,7 +333,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.30 - 이미지 오클루전 마스크 미세 조정)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.31 - 이미지 오클루전 반응형 보정)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -1047,7 +1047,7 @@ function createDOM(card, isAnswer) {
 
         wrappers.forEach(wrapper => {
             try {
-                if (wrapper.dataset.mkIoRendered === '1') return;
+                if (wrapper.dataset.mkIoRendered === '1' && wrapper.dataset.mkIoResizeBound === '1') return;
 
                 const img = wrapper.querySelector('img.mk-io-image');
                 if (!img) return;
@@ -1055,6 +1055,7 @@ function createDOM(card, isAnswer) {
                 const renderMasks = () => {
                     try {
                         wrapper.querySelectorAll('.mk-io-layer').forEach(el => el.remove());
+                        wrapper.dataset.mkIoRendered = '0';
 
                         const raw = wrapper.dataset.mkIoElements;
                         if (!raw) return;
@@ -1104,6 +1105,8 @@ function createDOM(card, isAnswer) {
 
                         wrapper.appendChild(layer);
                         wrapper.dataset.mkIoRendered = '1';
+                        wrapper.dataset.mkIoLastWidth = String(displayWidth);
+                        wrapper.dataset.mkIoLastHeight = String(displayHeight);
                     } catch (err) {
                         console.log('MK_IO_RENDER_ERROR', err);
                     }
@@ -1113,6 +1116,30 @@ function createDOM(card, isAnswer) {
                     renderMasks();
                 } else {
                     img.addEventListener('load', renderMasks, { once: true });
+                }
+
+                if (wrapper.dataset.mkIoResizeBound !== '1') {
+                    wrapper.dataset.mkIoResizeBound = '1';
+
+                    if (window.ResizeObserver) {
+                        const observer = new ResizeObserver(() => {
+                            const currentWidth = img.clientWidth;
+                            const currentHeight = img.clientHeight;
+                            const lastWidth = Number(wrapper.dataset.mkIoLastWidth || 0);
+                            const lastHeight = Number(wrapper.dataset.mkIoLastHeight || 0);
+
+                            if (
+                                Math.abs(currentWidth - lastWidth) > 1 ||
+                                Math.abs(currentHeight - lastHeight) > 1
+                            ) {
+                                renderMasks();
+                            }
+                        });
+                        observer.observe(img);
+                        observer.observe(wrapper);
+                    } else {
+                        window.addEventListener('resize', renderMasks);
+                    }
                 }
             } catch (err) {
                 console.log('MK_IO_WRAPPER_ERROR', err);
