@@ -1072,12 +1072,13 @@ function createDOM(card, isAnswer) {
                         const scaleX = displayWidth / naturalWidth;
                         const scaleY = displayHeight / naturalHeight;
 
-                        // Occlusion Editor 좌표가 실제 표시 이미지와 살짝 밀리는 문제 보정값.
-                        // 좌표는 원본 이미지 기준 px → 표시 이미지 기준 px로 바꾼 뒤 마지막에 미세 보정한다.
-                        const ioOffsetX = -14;
-                        const ioOffsetY = -8;
-                        const ioExtraWidth = 8;
-                        const ioExtraHeight = 4;
+                        // Sync 좌표 기준 미세 보정
+                        // 왼쪽으로 조금, 아래로 조금 이동
+                        // width/height 는 sync 값 그대로 사용
+                        const ioOffsetX = -18;
+                        const ioOffsetY = 4;
+                        const ioExtraWidth = 0;
+                        const ioExtraHeight = 0;
 
                         const layer = document.createElement('span');
                         layer.className = 'mk-io-layer';
@@ -1093,10 +1094,10 @@ function createDOM(card, isAnswer) {
 
                             const mask = document.createElement('span');
                             mask.className = 'mk-io-mask';
-                            mask.style.left = `${(left * scaleX) + ioOffsetX}px`;
-                            mask.style.top = `${(top * scaleY) + ioOffsetY}px`;
-                            mask.style.width = `${(width * scaleX) + ioExtraWidth}px`;
-                            mask.style.height = `${(height * scaleY) + ioExtraHeight}px`;
+                            mask.style.left = `${Math.round((left * scaleX) + ioOffsetX)}px`;
+                            mask.style.top = `${Math.round((top * scaleY) + ioOffsetY)}px`;
+                            mask.style.width = `${Math.round((width * scaleX) + ioExtraWidth)}px`;
+                            mask.style.height = `${Math.round((height * scaleY) + ioExtraHeight)}px`;
                             mask.style.transform = `rotate(${angle}deg)`;
                             layer.appendChild(mask);
                         });
