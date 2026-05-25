@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.26 - 이미지 오클루전 런타임 렌더링)</title>
+<title>MK (v18.5.29 - 이미지 오클루전 위치 미세 보정)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -333,7 +333,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.26 - 이미지 오클루전 런타임 렌더링)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.29 - 이미지 오클루전 위치 미세 보정)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -1072,6 +1072,13 @@ function createDOM(card, isAnswer) {
                         const scaleX = displayWidth / naturalWidth;
                         const scaleY = displayHeight / naturalHeight;
 
+                        // Occlusion Editor 좌표가 실제 표시 이미지와 살짝 밀리는 문제 보정값.
+                        // 좌표는 원본 이미지 기준 px → 표시 이미지 기준 px로 바꾼 뒤 마지막에 미세 보정한다.
+                        const ioOffsetX = -8;
+                        const ioOffsetY = -6;
+                        const ioExtraWidth = 4;
+                        const ioExtraHeight = 4;
+
                         const layer = document.createElement('span');
                         layer.className = 'mk-io-layer';
 
@@ -1086,10 +1093,10 @@ function createDOM(card, isAnswer) {
 
                             const mask = document.createElement('span');
                             mask.className = 'mk-io-mask';
-                            mask.style.left = `${left * scaleX}px`;
-                            mask.style.top = `${top * scaleY}px`;
-                            mask.style.width = `${width * scaleX}px`;
-                            mask.style.height = `${height * scaleY}px`;
+                            mask.style.left = `${(left * scaleX) + ioOffsetX}px`;
+                            mask.style.top = `${(top * scaleY) + ioOffsetY}px`;
+                            mask.style.width = `${(width * scaleX) + ioExtraWidth}px`;
+                            mask.style.height = `${(height * scaleY) + ioExtraHeight}px`;
                             mask.style.transform = `rotate(${angle}deg)`;
                             layer.appendChild(mask);
                         });
