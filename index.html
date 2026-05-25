@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.10 - Firebase Review History Backup)</title>
+<title>MK (v18.5.26 - 이미지 오클루전 런타임 렌더링)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -188,6 +188,42 @@
     .mode-answer .cloze-q { display: none !important; }
     .mode-answer .cloze-a { display: inline !important; }
 
+    .mk-io-wrapper {
+        position: relative;
+        display: inline-block;
+        max-width: 100%;
+        vertical-align: top;
+        line-height: 0;
+        overflow: hidden;
+    }
+
+    .mk-io-image {
+        display: block;
+        max-width: 100% !important;
+        height: auto !important;
+    }
+
+    .mk-io-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 5;
+    }
+
+    .mk-io-mask {
+        position: absolute;
+        background: #1f2937;
+        border: 2px solid rgba(255,255,255,0.95);
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+        box-sizing: border-box;
+        transform-origin: center center;
+    }
+
+    .mode-answer .mk-io-mask {
+        display: none !important;
+    }
+
     .mode-question .active-block > ul.children-list { display: none !important; }
     .mode-answer .active-block > ul.children-list { display: block !important; }
 
@@ -297,7 +333,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.10 - Firebase Review History Backup)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.26 - 이미지 오클루전 런타임 렌더링)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -1006,6 +1042,76 @@ function createDOM(card, isAnswer) {
         return wrap;
     }
 
+    function renderMkImageOcclusions(root = document) {
+        const wrappers = root.querySelectorAll('.mk-io-wrapper[data-mk-io="1"]');
+
+        wrappers.forEach(wrapper => {
+            try {
+                if (wrapper.dataset.mkIoRendered === '1') return;
+
+                const img = wrapper.querySelector('img.mk-io-image');
+                if (!img) return;
+
+                const renderMasks = () => {
+                    try {
+                        wrapper.querySelectorAll('.mk-io-layer').forEach(el => el.remove());
+
+                        const raw = wrapper.dataset.mkIoElements;
+                        if (!raw) return;
+
+                        const elements = JSON.parse(decodeURIComponent(raw));
+                        if (!Array.isArray(elements) || elements.length === 0) return;
+
+                        const naturalWidth = img.naturalWidth || img.width;
+                        const naturalHeight = img.naturalHeight || img.height;
+                        const displayWidth = img.clientWidth;
+                        const displayHeight = img.clientHeight;
+
+                        if (!naturalWidth || !naturalHeight || !displayWidth || !displayHeight) return;
+
+                        const scaleX = displayWidth / naturalWidth;
+                        const scaleY = displayHeight / naturalHeight;
+
+                        const layer = document.createElement('span');
+                        layer.className = 'mk-io-layer';
+
+                        elements.forEach(el => {
+                            const left = Number(el.left) || 0;
+                            const top = Number(el.top) || 0;
+                            const width = Number(el.width) || 0;
+                            const height = Number(el.height) || 0;
+                            const angle = Number(el.angle) || 0;
+
+                            if (width <= 0 || height <= 0) return;
+
+                            const mask = document.createElement('span');
+                            mask.className = 'mk-io-mask';
+                            mask.style.left = `${left * scaleX}px`;
+                            mask.style.top = `${top * scaleY}px`;
+                            mask.style.width = `${width * scaleX}px`;
+                            mask.style.height = `${height * scaleY}px`;
+                            mask.style.transform = `rotate(${angle}deg)`;
+                            layer.appendChild(mask);
+                        });
+
+                        wrapper.appendChild(layer);
+                        wrapper.dataset.mkIoRendered = '1';
+                    } catch (err) {
+                        console.log('MK_IO_RENDER_ERROR', err);
+                    }
+                };
+
+                if (img.complete) {
+                    renderMasks();
+                } else {
+                    img.addEventListener('load', renderMasks, { once: true });
+                }
+            } catch (err) {
+                console.log('MK_IO_WRAPPER_ERROR', err);
+            }
+        });
+    }
+
     function extractNumber(card) {
         const plainText = card.a.replace(/<[^>]*>?/gm, ' ').trim();
         const matches = [...plainText.matchAll(/(N)?\s*(\d+)/gi)];
@@ -1138,6 +1244,9 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         if (window.MathJax) {
             MathJax.typesetPromise([qSection, aSection]).catch(function (err) { console.log(err); });
         }
+
+        renderMkImageOcclusions(qSection);
+        renderMkImageOcclusions(aSection);
     }
 
     function revealAnswer() { 
@@ -1157,6 +1266,9 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         if (window.MathJax) {
             MathJax.typesetPromise([qDiv, aDiv]).catch(function (err) { console.log(err); });
         }
+
+        renderMkImageOcclusions(qDiv);
+        renderMkImageOcclusions(aDiv);
     }
 
     function moveCard(d) {
