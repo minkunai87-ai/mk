@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.31 - 이미지 오클루전 반응형 보정)</title>
+<title>MK (v18.5.32 - 이미지 오클루전 좌상단 미세 보정)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -333,7 +333,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.31 - 이미지 오클루전 반응형 보정)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.32 - 이미지 오클루전 좌상단 미세 보정)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -1074,10 +1074,10 @@ function createDOM(card, isAnswer) {
                         const scaleY = displayHeight / naturalHeight;
 
                         // Sync 좌표 기준 미세 보정
-                        // 왼쪽으로 조금, 아래로 조금 이동
+                        // 왼쪽으로 더 이동, 위로 조금 이동
                         // width/height 는 sync 값 그대로 사용
-                        const ioOffsetX = -18;
-                        const ioOffsetY = 4;
+                        const ioOffsetX = -24;
+                        const ioOffsetY = -2;
                         const ioExtraWidth = 0;
                         const ioExtraHeight = 0;
 
