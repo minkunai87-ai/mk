@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.34 - 이미지 오클루전 비율 좌표 정밀 렌더)</title>
+<title>MK (v18.5.35 - 이미지 오클루전 SVG 좌표 렌더)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -201,23 +201,26 @@
         display: block;
         max-width: 100% !important;
         height: auto !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
     }
 
     .mk-io-layer {
         position: absolute;
-        inset: 0;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
         pointer-events: none;
         z-index: 5;
+        display: block;
     }
 
     .mk-io-mask {
-        position: absolute;
-        background: #1f2937;
-        border: none;
-        border-radius: 3px;
-        box-shadow: none;
-        box-sizing: border-box;
-        transform-origin: center center;
+        fill: #1f2937;
+        stroke: none;
+        filter: none;
     }
 
     .mode-answer .mk-io-mask {
@@ -333,7 +336,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.34 - 이미지 오클루전 비율 좌표 정밀 렌더)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.35 - 이미지 오클루전 SVG 좌표 렌더)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -1088,16 +1091,35 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 
                         if (!naturalWidth || !naturalHeight || !displayWidth || !displayHeight) return;
 
-                        const scaleX = displayWidth / naturalWidth;
-                        const scaleY = displayHeight / naturalHeight;
+                        let config = {};
+                        try {
+                            config = wrapper.dataset.mkIoConfig ? JSON.parse(decodeURIComponent(wrapper.dataset.mkIoConfig)) : {};
+                        } catch(e) {
+                            config = {};
+                        }
 
-                        // Anki/Image Occlusion elements are Fabric.js-like objects.
-                        // Do not use fixed offsets here; calculate real rect from origin + scale.
-                        const ioOffsetX = 0;
-                        const ioOffsetY = 0;
+                        const sourceWidth =
+                            Number(config.width) ||
+                            Number(config.imageWidth) ||
+                            Number(config.image_width) ||
+                            Number(config.naturalWidth) ||
+                            Number(config.natural_width) ||
+                            naturalWidth;
 
-                        const layer = document.createElement('span');
-                        layer.className = 'mk-io-layer';
+                        const sourceHeight =
+                            Number(config.height) ||
+                            Number(config.imageHeight) ||
+                            Number(config.image_height) ||
+                            Number(config.naturalHeight) ||
+                            Number(config.natural_height) ||
+                            naturalHeight;
+
+                        if (!sourceWidth || !sourceHeight) return;
+
+                        const layer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                        layer.classList.add('mk-io-layer');
+                        layer.setAttribute('viewBox', `0 0 ${sourceWidth} ${sourceHeight}`);
+                        layer.setAttribute('preserveAspectRatio', 'none');
 
                         elements.forEach(el => {
                             const rawLeft = Number(el.left) || 0;
