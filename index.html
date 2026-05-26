@@ -1124,19 +1124,19 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                             if (originY === 'center') rectTop -= actualHeight / 2;
                             else if (originY === 'bottom') rectTop -= actualHeight;
 
-                            const leftPercent = (rectLeft / naturalWidth) * 100;
-                            const topPercent = (rectTop / naturalHeight) * 100;
-                            const widthPercent = (actualWidth / naturalWidth) * 100;
-                            const heightPercent = (actualHeight / naturalHeight) * 100;
+                            const mask = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                            mask.classList.add('mk-io-mask');
+                            mask.setAttribute('x', rectLeft);
+                            mask.setAttribute('y', rectTop);
+                            mask.setAttribute('width', actualWidth);
+                            mask.setAttribute('height', actualHeight);
+                            mask.setAttribute('rx', '3');
+                            mask.setAttribute('ry', '3');
 
-                            const mask = document.createElement('span');
-                            mask.className = 'mk-io-mask';
-                            mask.style.left = `${leftPercent}%`;
-                            mask.style.top = `${topPercent}%`;
-                            mask.style.width = `${widthPercent}%`;
-                            mask.style.height = `${heightPercent}%`;
-                            mask.style.transformOrigin = 'center center';
-                            mask.style.transform = `rotate(${angle}deg)`;
+                            if (angle) {
+                                mask.setAttribute('transform', `rotate(${angle} ${rectLeft + actualWidth / 2} ${rectTop + actualHeight / 2})`);
+                            }
+
                             layer.appendChild(mask);
                         });
 
