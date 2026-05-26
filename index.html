@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.33 - 이미지 오클루전 Fabric 좌표 보정)</title>
+<title>MK (v18.5.34 - 이미지 오클루전 비율 좌표 정밀 렌더)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -333,7 +333,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.33 - 이미지 오클루전 Fabric 좌표 보정)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.34 - 이미지 오클루전 비율 좌표 정밀 렌더)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -1031,10 +1031,28 @@ function createDOM(card, isAnswer) {
                 try { fname = decodeURIComponent(fname); } catch(e) {}
                 if(fname.normalize) fname = fname.normalize('NFC');
                 img.src = githubRawBase + encodeURIComponent(fname);
-                img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto';
+                img.style.maxWidth = '100%';
+img.style.display = 'block';
+
+if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === '1' || img.closest('.mk-io-wrapper')) {
+    img.style.margin = '0';
+    img.style.borderRadius = '0';
+    img.style.boxShadow = 'none';
+} else {
+    img.style.margin = '10px auto';
+}
                 img.onerror = function() { this.style.display = 'none'; };
             } else if (src && src.startsWith('http')) {
-                img.style.maxWidth='100%'; img.style.display='block'; img.style.margin='10px auto';
+                img.style.maxWidth = '100%';
+img.style.display = 'block';
+
+if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === '1' || img.closest('.mk-io-wrapper')) {
+    img.style.margin = '0';
+    img.style.borderRadius = '0';
+    img.style.boxShadow = 'none';
+} else {
+    img.style.margin = '10px auto';
+}
                 img.onerror = function() { this.style.display = 'none'; };
             }
         });
