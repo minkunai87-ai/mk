@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.38 - 이미지 오클루전 대상 마스크 강조)</title>
+<title>MK (v18.5.39 - 이미지 오클루전 EXTRA 정답 표시)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -158,8 +158,11 @@
     .ls-active > div { color: var(--text); }
     .sibling-block { opacity: 0.55; }
 
-    .mk-extra-node { display: none !important; }
-    .mode-answer .mk-extra-node { 
+.mk-extra-node,
+.mk-extra-content { display: none !important; }
+
+.mode-answer .mk-extra-node,
+.mode-answer .mk-extra-content {
         display: block !important; 
         margin-top: 10px; 
         padding: 12px; 
@@ -340,7 +343,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.38 - 이미지 오클루전 대상 마스크 강조)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.39 - 이미지 오클루전 EXTRA 정답 표시)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -1019,7 +1022,9 @@ function createDOM(card, isAnswer) {
         wrap.appendChild(temp);
 
         // 3. 추가 해설(Extra) 조립
-        if (isAnswer && card.extra && card.extra.trim() !== '') {
+        const isIoCard = !!temp.querySelector('.mk-io-wrapper[data-mk-io="1"]') || txt.includes('data-mk-io="1"');
+
+if ((isAnswer || isIoCard) && card.extra && card.extra.trim() !== '') {
             let extraText = card.extra;
             if(extraText.startsWith('"') && extraText.endsWith('"')) extraText = extraText.slice(1, -1).replace(/""/g, '"');
             
