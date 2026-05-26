@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.39 - 이미지 오클루전 EXTRA 정답 표시1)</title>
+<title>MK (v18.5.40 - 이미지 오클루전 EXTRA 블록 파싱)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -343,7 +343,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.39 - 이미지 오클루전 EXTRA 정답 표시)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.40 - 이미지 오클루전 EXTRA 블록 파싱)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -992,6 +992,16 @@ function createDOM(card, isAnswer) {
             txt = txt.replace(/[\r\n]+/g, ""); 
         }
 
+        let inlineExtraText = '';
+        txt = txt.replace(/#\+BEGIN_EXTRA([\s\S]*?)#\+END_EXTRA/gi, (match, body) => {
+            inlineExtraText += body;
+            return '';
+        });
+        txt = txt.replace(/#\+BEGIN_EXTRA([\s\S]*)$/gi, (match, body) => {
+            inlineExtraText += body;
+            return '';
+        });
+
         const wrap = document.createElement('div');
         
         // 1. 상위 목차(Breadcrumb) 조립
@@ -1024,8 +1034,12 @@ function createDOM(card, isAnswer) {
         // 3. 추가 해설(Extra) 조립
         const isIoCard = !!temp.querySelector('.mk-io-wrapper[data-mk-io="1"]') || txt.includes('data-mk-io="1"');
 
-if ((isAnswer || isIoCard) && card.extra && card.extra.trim() !== '') {
-            let extraText = card.extra;
+        const combinedExtraText = [card.extra, inlineExtraText]
+            .filter(v => v && String(v).trim() !== '')
+            .join('<br>');
+
+        if ((isAnswer || isIoCard) && combinedExtraText.trim() !== '') {
+            let extraText = combinedExtraText;
             if(extraText.startsWith('"') && extraText.endsWith('"')) extraText = extraText.slice(1, -1).replace(/""/g, '"');
             
             const extraDiv = document.createElement('div');
