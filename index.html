@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.47 - 백업 기기 metadata)</title>
+<title>MK (v18.5.48 - 2차 정렬)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -79,6 +79,9 @@
     .filter-chip.sort-chip.active { background: #fcc419; color: #000; border-color: #fcc419; }
     .filter-chip.reset-chip { color: #ff8787; border-color: #ff8787; }
     .filter-chip.reset-chip:active { background: #fa5252; color: white; }
+    .sort-select-wrap { display: flex; align-items: center; gap: 6px; flex-shrink: 0; background: #242424; border: 1px solid #5c5c5c; border-radius: 20px; padding: 5px 8px 5px 12px; color: #ffd43b; font-size: 0.82rem; font-weight: bold; }
+    .sort-select { background: #333; color: #fff3bf; border: 1px solid #5c5c5c; border-radius: 14px; padding: 6px 24px 6px 8px; font-size: 0.82rem; font-weight: bold; outline: none; cursor: pointer; }
+    .sort-select:focus { border-color: #fcc419; }
 
     .sidebar { position: fixed; top: 0; left: 0; width: 300px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); box-shadow: 2px 0 15px rgba(0,0,0,0.5); transition: transform 0.3s ease; z-index: 9999; padding: 25px; padding-top: calc(env(safe-area-inset-top) + 25px); display: flex; flex-direction: column; overflow-y: auto; transform: translateX(-105%); }
     .sidebar.open { transform: translateX(0); }
@@ -343,7 +346,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.47 - 백업 기기 metadata)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.48 - 2차 정렬)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -416,9 +419,24 @@
         <div class="filter-bar" id="filter-bar">
             <div class="filter-chip reset-chip" onclick="resetFilters()">🔄 초기화</div>
             <div style="width:1px; height:20px; background:var(--border); flex-shrink:0;"></div>
-            <div class="filter-chip sort-chip active" id="sort-original" onclick="setSortMode('original')">🔄 원래순</div>
-            <div class="filter-chip sort-chip" id="sort-wrong" onclick="setSortMode('wrong')">🔥 오답순</div>
-            <div class="filter-chip sort-chip" id="sort-number" onclick="setSortMode('number')">🔢 번호순</div>
+            <label class="sort-select-wrap">1차
+                <select class="sort-select" id="sort-primary-select" onchange="setSortMode(this.value)">
+                    <option value="original">🔄 원래순</option>
+                    <option value="wrong">🔥 오답순</option>
+                    <option value="number">🔢 번호순</option>
+                    <option value="oldest">📅 오래된순</option>
+                    <option value="recent">🕘 최근순</option>
+                </select>
+            </label>
+            <label class="sort-select-wrap">2차
+                <select class="sort-select" id="sort-secondary-select" onchange="setSecondarySortMode(this.value)">
+                    <option value="none">없음</option>
+                    <option value="wrong">🔥 오답순</option>
+                    <option value="number">🔢 번호순</option>
+                    <option value="oldest">📅 오래된순</option>
+                    <option value="recent">🕘 최근순</option>
+                </select>
+            </label>
             <div style="width:1px; height:20px; background:var(--border); flex-shrink:0;"></div>
             <div class="filter-chip active" id="filter-default" onclick="setFilterMode('default')">📋 전체</div>
             <div class="filter-chip" id="filter-due" onclick="setFilterMode('due')">🎯 오늘 복습</div>
@@ -527,16 +545,16 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.47 - 백업 기기 metadata';
+    const APP_VERSION = 'v18.5.48 - 2차 정렬';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
-    let currentFilterMode = 'default', currentSortMode = 'original', imageMap = new Map();
+    let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
     let previousCardIndex = null;
     
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress_v2', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck';
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
     const STORAGE_KEY_FILTER_STATE = 'anki_final_filter_state', STORAGE_KEY_ACTIVE_IDS = 'anki_final_active_ids'; 
-    const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'original': '🔄 원래순', 'wrong': '🔥 오답순', 'number': '🔢 번호순' };
+    const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'none': '보조 없음', 'original': '🔄 원래순', 'wrong': '🔥 오답순', 'number': '🔢 번호순', 'oldest': '📅 오래된순', 'recent': '🕘 최근순' };
 
     let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
     let backupTimer = null;
@@ -1270,6 +1288,7 @@
         const savedFilter = JSON.parse(localStorage.getItem(STORAGE_KEY_FILTER_STATE) || '{}');
         if(savedFilter.filter) currentFilterMode = savedFilter.filter;
         if(savedFilter.sort) currentSortMode = savedFilter.sort;
+        if(savedFilter.secondarySort) currentSecondarySortMode = savedFilter.secondarySort;
         updateFilterStatusUI(); highlightFilter();
         
         if (last) {
@@ -1541,9 +1560,6 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         if(!currentDeckName) return;
         const stats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
         let filtered = [...originalDeck];
-        if (currentSortMode === 'original') {
-            filtered.sort((a, b) => (a.sourceOrder ?? 999999) - (b.sourceOrder ?? 999999));
-        }
         if(currentFilterMode !== 'default') {
             if (currentFilterMode === 'due') {
                 const today = new Date(); 
@@ -1553,32 +1569,52 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                 filtered = filtered.filter(c => (stats[c.id] || {})[currentFilterMode]);
             }
         }
-        if(currentSortMode === 'wrong') {
-            filtered.sort((a,b) => {
-                const sA = stats[a.id] || {correct:0, total:0}, sB = stats[b.id] || {correct:0, total:0};
-                const rA = sA.total === 0 ? 1 : (sA.correct / sA.total), rB = sB.total === 0 ? 1 : (sB.correct / sB.total);
-                return rA - rB;
-            });
-        } else if (currentSortMode === 'number') {
-            filtered.sort((a,b) => {
-                const numA = extractNumber(a);
-                const numB = extractNumber(b);
-                if (numA === numB) return a.id - b.id;
-                return numA - numB;
-            });
-        }
-        activeDeck = [...filtered].sort((a, b) => {
-    const orderA = a.sourceOrder ?? 999999;
-    const orderB = b.sourceOrder ?? 999999;
 
-    if (currentSortMode === 'original') {
-        return orderA - orderB;
-    }
-
-    return 0;
-});
+        const originalOrder = new Map();
+        originalDeck.forEach((card, idx) => originalOrder.set(String(card.id), idx));
+        const getOriginalOrder = (card) => originalOrder.has(String(card.id)) ? originalOrder.get(String(card.id)) : 999999;
+        const getWrongRate = (card) => {
+            const s = stats[card.id] || { correct: 0, total: 0 };
+            return s.total === 0 ? 1 : (s.correct / s.total);
+        };
+        const getLastSeen = (card) => {
+            const s = stats[card.id] || {};
+            return Number(s.lastDate) || 0;
+        };
+        const compareByMode = (a, b, mode) => {
+            if(mode === 'wrong') {
+                const diff = getWrongRate(a) - getWrongRate(b);
+                if(diff !== 0) return diff;
+            } else if(mode === 'number') {
+                const diff = extractNumber(a) - extractNumber(b);
+                if(diff !== 0) return diff;
+            } else if(mode === 'oldest') {
+                const aSeen = getLastSeen(a), bSeen = getLastSeen(b);
+                const aVal = aSeen || Number.MAX_SAFE_INTEGER;
+                const bVal = bSeen || Number.MAX_SAFE_INTEGER;
+                const diff = aVal - bVal;
+                if(diff !== 0) return diff;
+            } else if(mode === 'recent') {
+                const diff = getLastSeen(b) - getLastSeen(a);
+                if(diff !== 0) return diff;
+            } else if(mode === 'original') {
+                const diff = getOriginalOrder(a) - getOriginalOrder(b);
+                if(diff !== 0) return diff;
+            }
+            return 0;
+        };
+        filtered.sort((a,b) => {
+            const primary = compareByMode(a, b, currentSortMode);
+            if(primary !== 0) return primary;
+            if(currentSecondarySortMode !== 'none' && currentSecondarySortMode !== currentSortMode) {
+                const secondary = compareByMode(a, b, currentSecondarySortMode);
+                if(secondary !== 0) return secondary;
+            }
+            return getOriginalOrder(a) - getOriginalOrder(b);
+        });
+        activeDeck = filtered;
         localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, JSON.stringify(activeDeck.map(c => c.id)));
-        if (currentSortMode === 'original' && currentFilterMode === 'default') {
+        if (currentSortMode === 'original' && currentSecondarySortMode === 'none' && currentFilterMode === 'default') {
             currentIndex = 0;
         } else {
             currentIndex = loadProgress();
@@ -1587,12 +1623,24 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         updateFilterStatusUI(); renderDeckTree(); showCard();
     }
 
-    function updateFilterStatusUI() { document.getElementById('filter-status-text').innerText = `${modeNames[currentSortMode] || '🔄 원래순'} & ${modeNames[currentFilterMode] || '📋 전체'}`; }
+    function updateFilterStatusUI() {
+        const secondaryText = currentSecondarySortMode && currentSecondarySortMode !== 'none' ? ` + ${modeNames[currentSecondarySortMode]}` : '';
+        document.getElementById('filter-status-text').innerText = `${modeNames[currentSortMode] || '🔄 원래순'}${secondaryText} & ${modeNames[currentFilterMode] || '📋 전체'}`;
+    }
     function setFilterMode(mode) { currentFilterMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); }
     function setSortMode(mode) { currentSortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); }
-    function resetFilters() { currentFilterMode = 'default'; currentSortMode = 'original'; saveFilterState(); highlightFilter(); applyFilterAndSort(false); }
-    function saveFilterState() { localStorage.setItem(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: currentFilterMode, sort: currentSortMode })); }
-    function highlightFilter() { document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active')); document.getElementById(`filter-${currentFilterMode}`).classList.add('active'); document.getElementById(`sort-${currentSortMode}`).classList.add('active'); }
+    function setSecondarySortMode(mode) { currentSecondarySortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); }
+    function resetFilters() { currentFilterMode = 'default'; currentSortMode = 'original'; currentSecondarySortMode = 'none'; saveFilterState(); highlightFilter(); applyFilterAndSort(false); }
+    function saveFilterState() { localStorage.setItem(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: currentFilterMode, sort: currentSortMode, secondarySort: currentSecondarySortMode })); }
+    function highlightFilter() {
+        document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+        const filterChip = document.getElementById(`filter-${currentFilterMode}`);
+        if(filterChip) filterChip.classList.add('active');
+        const primarySelect = document.getElementById('sort-primary-select');
+        const secondarySelect = document.getElementById('sort-secondary-select');
+        if(primarySelect) primarySelect.value = currentSortMode;
+        if(secondarySelect) secondarySelect.value = currentSecondarySortMode;
+    }
     function toggleFilterBar() { document.getElementById('filter-bar').classList.toggle('open'); }
 
     function toggleMenu(force) {
@@ -1961,8 +2009,13 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         createDOMTree(tree, list);
     }
 
-    function saveCurrentProgress() { localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify({ ...JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'), [`${currentDeckName}__${currentFilterMode}__${currentSortMode}`]: currentIndex })); }
-    function loadProgress() { return JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}')[`${currentDeckName}__${currentFilterMode}__${currentSortMode}`] || 0; }
+    function getProgressKey() { return `${currentDeckName}__${currentFilterMode}__${currentSortMode}__${currentSecondarySortMode}`; }
+    function getLegacyProgressKey() { return `${currentDeckName}__${currentFilterMode}__${currentSortMode}`; }
+    function saveCurrentProgress() { localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify({ ...JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'), [getProgressKey()]: currentIndex })); }
+    function loadProgress() {
+        const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
+        return progress[getProgressKey()] ?? progress[getLegacyProgressKey()] ?? 0;
+    }
     function getStats(id) { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || {correct:0, total:0}; }
     function toggleTag(e, type) { e.stopPropagation(); const id = activeDeck[currentIndex].id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateIconsUI(data[id]); scheduleBackup(); }
     function updateIconsUI(s) { ['mem','cmp','fav','num','date','pen'].forEach(t => document.getElementById(`${t}-btn`).classList.toggle('active', !!s[t])); }
