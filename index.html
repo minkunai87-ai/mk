@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v11.04-완전백업롤백)</title>
+<title>MK (v18.5.41 - 확인 기록 정답률 제외)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -346,7 +346,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v11.04-완전백업롤백)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.41 - 확인 기록 정답률 제외)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -547,7 +547,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v11.04-완전백업롤백';
+    const APP_VERSION = 'v18.5.41 - 확인 기록 정답률 제외';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
@@ -1640,13 +1640,13 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         originalDeck.forEach((card, idx) => originalOrder.set(String(card.id), idx));
         const getOriginalOrder = (card) => originalOrder.has(String(card.id)) ? originalOrder.get(String(card.id)) : 999999;
         const isUnlearned = (card) => {
-            const s = stats[card.id] || {};
+            const accuracy = getAccuracyStats(card.id, stats[card.id]);
             const history = reviewHistory[String(card.id)];
-            return Number(s.total || 0) === 0 || !Array.isArray(history) || history.length === 0;
+            return accuracy.total === 0 || !Array.isArray(history) || history.length === 0;
         };
         const getWrongRate = (card) => {
-            const s = stats[card.id] || { correct: 0, total: 0 };
-            return s.total === 0 ? 1 : (s.correct / s.total);
+            const accuracy = getAccuracyStats(card.id, stats[card.id]);
+            return accuracy.total === 0 ? 1 : (accuracy.correct / accuracy.total);
         };
         const getLastSeen = (card) => {
             const s = stats[card.id] || {};
@@ -1828,11 +1828,35 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         scheduleBackup();
     }
 
+    function isConfirmHistoryItem(item) {
+        return Number(item && item.score) === 3 || item?.result === 'confirm' || item?.type === 'confirm' || item?.result === 'check' || item?.type === 'check';
+    }
+
+    function getAccuracyStats(cardId, fallbackStat = {}) {
+        const history = getReviewHistory();
+        const items = Array.isArray(history[cardId]) ? history[cardId] : [];
+        if (!items.length) {
+            return {
+                correct: Number(fallbackStat.correct) || 0,
+                total: Number(fallbackStat.total) || 0
+            };
+        }
+
+        return items.reduce((acc, item) => {
+            if (isConfirmHistoryItem(item)) return acc;
+            const score = Number(item.score);
+            acc.total += 1;
+            if (score === 2) acc.correct += 1;
+            else if (score === 1) acc.correct += 0.5;
+            return acc;
+        }, { correct: 0, total: 0 });
+    }
+
     function getGradeMeta(score) {
         if (score === 2) return { key: 'correct', label: '✅ 정답', className: 'correct' };
         if (score === 1) return { key: 'hard', label: '🔺 애매', className: 'hard' };
         if (score === 0) return { key: 'wrong', label: '❌ 오답', className: 'wrong' };
-        return { key: 'check', label: '☑️ 확인', className: 'check' };
+        return { key: 'confirm', label: '☑️ 확인', className: 'check' };
     }
 
     function recordReviewHistory(cardId, score) {
@@ -1844,6 +1868,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             score,
             result: meta.key,
+            type: score === 3 ? 'confirm' : meta.key,
             time: Date.now()
         });
         if (history[cardId].length > 300) history[cardId] = history[cardId].slice(0, 300);
@@ -1898,11 +1923,10 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             const oldTotal = rebuilt.total;
             const oldCorrect = rebuilt.correct;
 
-            rebuilt.total += 1;
-            if (score === 2) rebuilt.correct += 1;
-            else if (score === 1) rebuilt.correct += 0.5;
-            else if (score === 3) {
-                if (oldTotal > 0) rebuilt.correct += (oldCorrect / oldTotal);
+            if (!isConfirmHistoryItem(item)) {
+                rebuilt.total += 1;
+                if (score === 2) rebuilt.correct += 1;
+                else if (score === 1) rebuilt.correct += 0.5;
             }
 
             if (score !== 3) {
@@ -2013,8 +2037,11 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
 
         const oldTotal = data[id].total; const oldCorrect = data[id].correct;
 
-        data[id].total++; 
-        if(score === 2) data[id].correct++; else if(score === 1) data[id].correct += 0.5; else if(score === 3) { if(oldTotal > 0) data[id].correct += (oldCorrect / oldTotal); }
+        if(score !== 3) {
+            data[id].total++;
+            if(score === 2) data[id].correct++;
+            else if(score === 1) data[id].correct += 0.5;
+        }
 
         if (score !== 3) {
             fsrs.reps++;
@@ -2036,6 +2063,8 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     function updateStatsUI(s) {
         const b = document.getElementById('rate-badge');
         b.onclick = openCurrentCardHistory;
+        const cardId = activeDeck[currentIndex] && activeDeck[currentIndex].id;
+        s = { ...s, ...getAccuracyStats(cardId, s) };
         b.title = '이 카드 정답률 히스토리 보기';
         if(!s.total) { b.innerText="New"; b.className="rate-badge"; } else { const r = Math.round((s.correct/s.total)*100); b.innerText=`${r}% (${s.total}회)`; b.className=`rate-badge ${r>=80?'high':(r<50?'low':'')}`; }
         const db = document.getElementById('date-badge');
