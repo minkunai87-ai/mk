@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.48 - 2차 정렬)</title>
+<title>MK (v11.03-미학습정렬)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -346,7 +346,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.48 - 2차 정렬)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v11.03-미학습정렬)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -422,6 +422,7 @@
             <label class="sort-select-wrap">1차
                 <select class="sort-select" id="sort-primary-select" onchange="setSortMode(this.value)">
                     <option value="original">🔄 원래순</option>
+                    <option value="unlearned">🆕 미학습순</option>
                     <option value="wrong">🔥 오답순</option>
                     <option value="number">🔢 번호순</option>
                     <option value="oldest">📅 오래된순</option>
@@ -431,6 +432,7 @@
             <label class="sort-select-wrap">2차
                 <select class="sort-select" id="sort-secondary-select" onchange="setSecondarySortMode(this.value)">
                     <option value="none">없음</option>
+                    <option value="unlearned">🆕 미학습순</option>
                     <option value="wrong">🔥 오답순</option>
                     <option value="number">🔢 번호순</option>
                     <option value="oldest">📅 오래된순</option>
@@ -545,7 +547,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.48 - 2차 정렬';
+    const APP_VERSION = 'v11.03-미학습정렬';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
@@ -554,7 +556,7 @@
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress_v2', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck';
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
     const STORAGE_KEY_FILTER_STATE = 'anki_final_filter_state', STORAGE_KEY_ACTIVE_IDS = 'anki_final_active_ids'; 
-    const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'none': '보조 없음', 'original': '🔄 원래순', 'wrong': '🔥 오답순', 'number': '🔢 번호순', 'oldest': '📅 오래된순', 'recent': '🕘 최근순' };
+    const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'none': '보조 없음', 'original': '🔄 원래순', 'unlearned': '🆕 미학습순', 'wrong': '🔥 오답순', 'number': '🔢 번호순', 'oldest': '📅 오래된순', 'recent': '🕘 최근순' };
 
     let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
     let backupTimer = null;
@@ -1570,9 +1572,15 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             }
         }
 
+        const reviewHistory = JSON.parse(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY) || '{}');
         const originalOrder = new Map();
         originalDeck.forEach((card, idx) => originalOrder.set(String(card.id), idx));
         const getOriginalOrder = (card) => originalOrder.has(String(card.id)) ? originalOrder.get(String(card.id)) : 999999;
+        const isUnlearned = (card) => {
+            const s = stats[card.id] || {};
+            const history = reviewHistory[String(card.id)];
+            return Number(s.total || 0) === 0 || !Array.isArray(history) || history.length === 0;
+        };
         const getWrongRate = (card) => {
             const s = stats[card.id] || { correct: 0, total: 0 };
             return s.total === 0 ? 1 : (s.correct / s.total);
@@ -1582,7 +1590,11 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             return Number(s.lastDate) || 0;
         };
         const compareByMode = (a, b, mode) => {
-            if(mode === 'wrong') {
+            if(mode === 'unlearned') {
+                const aUnlearned = isUnlearned(a);
+                const bUnlearned = isUnlearned(b);
+                if(aUnlearned !== bUnlearned) return aUnlearned ? -1 : 1;
+            } else if(mode === 'wrong') {
                 const diff = getWrongRate(a) - getWrongRate(b);
                 if(diff !== 0) return diff;
             } else if(mode === 'number') {
@@ -1606,6 +1618,9 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         filtered.sort((a,b) => {
             const primary = compareByMode(a, b, currentSortMode);
             if(primary !== 0) return primary;
+            if(currentSortMode === 'unlearned' && isUnlearned(a) && isUnlearned(b)) {
+                return getOriginalOrder(a) - getOriginalOrder(b);
+            }
             if(currentSecondarySortMode !== 'none' && currentSecondarySortMode !== currentSortMode) {
                 const secondary = compareByMode(a, b, currentSecondarySortMode);
                 if(secondary !== 0) return secondary;
