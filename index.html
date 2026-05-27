@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.45 - deck 지시문 기준 분류)</title>
+<title>MK (v18.5.46 - 사용자 액션 기반 백업)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -343,7 +343,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.45 - deck 지시문 기준 분류)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.46 - 사용자 액션 기반 백업)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -401,7 +401,7 @@
             </div>
             
             <div class="header-center">
-                <div class="header-title" id="deck-title" onclick="isDataChanged = true; performFirebaseBackup(false);" style="cursor:pointer;" title="수동 백업 쏘기">
+                <div class="header-title" id="deck-title" onclick="isDataChanged = true; flushBackupToFirebase(false);" style="cursor:pointer;" title="수동 백업 쏘기">
                     <span id="deck-title-text">MK</span>
                     <span id="cloud-icon" class="cloud-icon">🔥</span>
                 </div>
@@ -538,8 +538,9 @@
     const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'original': '🔄 원래순', 'wrong': '🔥 오답순', 'number': '🔢 번호순' };
 
     let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
-    let lastBackupTime = 0;
-    const BACKUP_INTERVAL = 10 * 60 * 1000; 
+    let backupTimer = null;
+    let isBackupInFlight = false;
+    const BACKUP_DEBOUNCE_MS = 3000;
     let isDataChanged = false;
 
     let targetRetention = parseFloat(localStorage.getItem('anki_target_retention')) || 0.90;
@@ -605,12 +606,11 @@
                 }
                 
                 localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(stats));
-                isDataChanged = true; checkAutoBackup();
+                scheduleBackup();
                 showToast(`전면 재계산 완료! (${recalcCount}개 업데이트됨)`, "success");
                 applyFilterAndSort(false); 
             } else {
                 showToast("안전 모드로 기억률이 변경되었습니다.", "success");
-                isDataChanged = true; checkAutoBackup();
             }
             
             document.getElementById('tr-modal').style.display = 'none';
@@ -658,10 +658,33 @@
     function openFirebaseSettings() { document.getElementById('gh-token-input').value = ghRepoToken; showAuthSection(); document.getElementById('fb-modal').style.display = 'flex'; }
     function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
     function updateCloudIcon(status) { const icon = document.getElementById('cloud-icon'); if(!icon) return; icon.className = `cloud-icon ${status}`; icon.innerText = status === 'active' ? '🔄' : (status === 'error' ? '❌' : '🔥'); }
-    async function testFirebaseSync() { document.getElementById('fb-modal').style.display = 'none'; ghRepoToken = document.getElementById('gh-token-input').value.trim(); localStorage.setItem('gh_repo_token', ghRepoToken); isDataChanged = true; await performFirebaseBackup(false); }
-    async function checkAutoBackup() { if(!isDataChanged) return; const now = Date.now(); if(now - lastBackupTime >= BACKUP_INTERVAL) { lastBackupTime = now; await performFirebaseBackup(true); } }
+    async function testFirebaseSync() { document.getElementById('fb-modal').style.display = 'none'; ghRepoToken = document.getElementById('gh-token-input').value.trim(); localStorage.setItem('gh_repo_token', ghRepoToken); isDataChanged = true; await flushBackupToFirebase(false); }
 
-    async function performFirebaseBackup(isAuto) {
+    function scheduleBackup() {
+        isDataChanged = true;
+        if (backupTimer) clearTimeout(backupTimer);
+        backupTimer = setTimeout(() => {
+            backupTimer = null;
+            flushBackupToFirebase(true);
+        }, BACKUP_DEBOUNCE_MS);
+    }
+
+    async function flushBackupToFirebase(isAuto = true, options = {}) {
+        if (!isDataChanged || isBackupInFlight) return false;
+        if (backupTimer) {
+            clearTimeout(backupTimer);
+            backupTimer = null;
+        }
+
+        isBackupInFlight = true;
+        try {
+            return await performFirebaseBackup(isAuto, options);
+        } finally {
+            isBackupInFlight = false;
+        }
+    }
+
+    async function performFirebaseBackup(isAuto, options = {}) {
         updateCloudIcon('active');
         const data = { 
             stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), 
@@ -672,11 +695,22 @@
             timestamp: Date.now() 
         };
         try {
-            const res = await fetch(`${FIREBASE_DB_URL}/backups/${data.timestamp}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-            if(res.ok) { isDataChanged = false; updateCloudIcon('done'); cleanupOldBackups(); if(!isAuto) showToast("🚀 수동 백업 100% 성공!", "success"); return true; } 
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${data.timestamp}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: !!options.keepalive });
+            if(res.ok) { isDataChanged = false; updateCloudIcon('done'); if(!options.keepalive) cleanupOldBackups(); if(!isAuto) showToast("🚀 수동 백업 100% 성공!", "success"); return true; } 
             else { updateCloudIcon('error'); if(!isAuto) showToast("❌ 백업 실패", "error"); return false; }
         } catch(e) { updateCloudIcon('error'); if(!isAuto) showToast("❌ 인터넷 연결 오류", "error"); return false; }
     }
+
+    function flushPendingBackupOnExit() {
+        if (!isDataChanged) return;
+        flushBackupToFirebase(true, { keepalive: true });
+    }
+
+    window.addEventListener('beforeunload', flushPendingBackupOnExit);
+    window.addEventListener('pagehide', flushPendingBackupOnExit);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') flushPendingBackupOnExit();
+    });
 
     async function fetchFirebaseList() {
         document.getElementById('fb-auth-section').style.display = 'none'; document.getElementById('fb-list-section').style.display = 'block';
@@ -972,7 +1006,7 @@
             
             if (mergeCount > 0) {
                 localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(savedStats));
-                isDataChanged = true;
+                
             }
             
             if (Object.keys(newLibrary).length > 0) {
@@ -1496,7 +1530,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
     function setFilterMode(mode) { currentFilterMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); }
     function setSortMode(mode) { currentSortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); }
     function resetFilters() { currentFilterMode = 'default'; currentSortMode = 'original'; saveFilterState(); highlightFilter(); applyFilterAndSort(false); }
-    function saveFilterState() { localStorage.setItem(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: currentFilterMode, sort: currentSortMode })); isDataChanged = true; checkAutoBackup(); }
+    function saveFilterState() { localStorage.setItem(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: currentFilterMode, sort: currentSortMode })); }
     function highlightFilter() { document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active')); document.getElementById(`filter-${currentFilterMode}`).classList.add('active'); document.getElementById(`sort-${currentSortMode}`).classList.add('active'); }
     function toggleFilterBar() { document.getElementById('filter-bar').classList.toggle('open'); }
 
@@ -1515,7 +1549,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 originalDeck = getDeckCards(name);
 localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
         document.getElementById('deck-title-text').innerText = name.split('__').pop();
-        applyFilterAndSort(isRestore); if(!isRestore) { isDataChanged = true; checkAutoBackup(); toggleMenu(false); }
+        applyFilterAndSort(isRestore); if(!isRestore) { toggleMenu(false); }
     }
 
     function selectDeckGroup(prefix, isRestore = false) {
@@ -1525,7 +1559,7 @@ localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
 
 originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName);
         document.getElementById('deck-title-text').innerText = currentDeckName.split('__').pop() + " (전체)";
-        applyFilterAndSort(isRestore); if(!isRestore) { toggleMenu(false); isDataChanged = true; checkAutoBackup(); }
+        applyFilterAndSort(isRestore); if(!isRestore) { toggleMenu(false); }
     }
 
     function showCard() {
@@ -1603,8 +1637,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
 
     function saveReviewHistory(history) {
         localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(history));
-        isDataChanged = true;
-        checkAutoBackup();
+        scheduleBackup();
     }
 
     function getGradeMeta(score) {
@@ -1806,7 +1839,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             if (interval > 3) { let fuzz = 0; if (interval >= 4 && interval <= 7) fuzz = 1; else if (interval >= 8 && interval <= 15) fuzz = 2; else if (interval >= 16) fuzz = 3; const randomFuzz = Math.floor(Math.random() * (2 * fuzz + 1)) - fuzz; interval = Math.max(1, interval + randomFuzz); }
             data[id].interval = interval; const now = new Date(); now.setHours(0,0,0,0); data[id].dueDate = now.getTime() + (interval * 86400000);
         }
-        data[id].lastDate = Date.now(); localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); isDataChanged = true; checkAutoBackup();
+        data[id].lastDate = Date.now(); localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); scheduleBackup();
         if(currentIndex < activeDeck.length - 1) moveCard(1); else { alert("학습 완료!"); moveCard(0); }
     }
 
@@ -1870,12 +1903,12 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     function saveCurrentProgress() { localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify({ ...JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}'), [`${currentDeckName}__${currentFilterMode}__${currentSortMode}`]: currentIndex })); }
     function loadProgress() { return JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}')[`${currentDeckName}__${currentFilterMode}__${currentSortMode}`] || 0; }
     function getStats(id) { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || {correct:0, total:0}; }
-    function toggleTag(e, type) { e.stopPropagation(); const id = activeDeck[currentIndex].id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateIconsUI(data[id]); isDataChanged = true; checkAutoBackup(); }
+    function toggleTag(e, type) { e.stopPropagation(); const id = activeDeck[currentIndex].id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateIconsUI(data[id]); scheduleBackup(); }
     function updateIconsUI(s) { ['mem','cmp','fav','num','date','pen'].forEach(t => document.getElementById(`${t}-btn`).classList.toggle('active', !!s[t])); }
     function filterCards() { const q = document.getElementById('search-input').value.toLowerCase(); if(!q) { applyFilterAndSort(true); return; } activeDeck = originalDeck.filter(c => c.q.toLowerCase().includes(q) || c.a.toLowerCase().includes(q)); currentIndex = 0; showCard(); }
     function openEditModal(e) { e.stopPropagation(); const c = activeDeck[currentIndex]; document.getElementById('edit-q').value=c.q; document.getElementById('edit-a').value=c.a; document.getElementById('edit-modal').style.display='flex'; }
     function closeEditModal() { document.getElementById('edit-modal').style.display='none'; }
-    function saveEdit() { const c = activeDeck[currentIndex]; c.q = document.getElementById('edit-q').value; c.a = document.getElementById('edit-a').value; closeEditModal(); showCard(); isDataChanged = true; checkAutoBackup(); }
+    function saveEdit() { const c = activeDeck[currentIndex]; c.q = document.getElementById('edit-q').value; c.a = document.getElementById('edit-a').value; closeEditModal(); showCard(); scheduleBackup(); }
 
     function toggleSliderPanel() {
         const panel = document.getElementById('slider-panel');
