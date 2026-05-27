@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.42 - 모바일 히스토리 복구 안정화)</title>
+<title>MK (v18.5.43 - 덱 트리 표시 정리)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -343,7 +343,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.42 - 모바일 히스토리 복구 안정화)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.43 - 덱 트리 표시 정리)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -1781,7 +1781,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
                     const groupCount = getGroupCount(item._path);
                     li.className = 'tree-folder'; const head = document.createElement('div'); head.className = 'tree-header';
                     if (currentDeckName === item._path) head.classList.add('active');
-                    head.innerHTML = `<div class="folder-title">📂 ${k} <small style="font-size:0.75rem; opacity:0.6; margin-left:4px;">(${exactCount})</small></div> <button class="play-btn">▶ 전체 ${groupCount}</button>`;
+                    head.innerHTML = `<div class="folder-title">📂 ${k} <small style="font-size:0.75rem; opacity:0.6; margin-left:4px;">(${groupCount})</small></div> <button class="play-btn">▶ 전체</button>`;
                     head.onclick = () => {
                         if (exactCount > 0) selectDeck(item._path);
                         else li.querySelector('.tree-children').classList.toggle('open');
