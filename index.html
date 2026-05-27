@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.43 - 덱 트리 표시 정리)</title>
+<title>MK (v18.5.44 - 모바일 백업 복구 용량 확보)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -343,7 +343,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.43 - 덱 트리 표시 정리)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.44 - 모바일 백업 복구 용량 확보)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -723,6 +723,63 @@
         }
     }
 
+    function freeRestorableCacheStorage() {
+        // The deck library is rebuilt from GitHub txt files on reload, so it is safe to clear
+        // before restoring mobile backups where localStorage quota is tight.
+        localStorage.removeItem(STORAGE_KEY_LIBRARY);
+        localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS);
+    }
+
+    function getCurrentLibraryCardIds() {
+        const ids = new Set();
+        Object.values(library || {}).forEach(cards => {
+            if (!Array.isArray(cards)) return;
+            cards.forEach(card => {
+                if (card && card.id) ids.add(String(card.id));
+            });
+        });
+        return ids;
+    }
+
+    function compactStatsValue(value) {
+        const normalized = normalizeBackupValue(value);
+        if (!normalized) return null;
+
+        let stats;
+        try {
+            stats = JSON.parse(normalized);
+        } catch (e) {
+            return normalized;
+        }
+
+        if (!stats || typeof stats !== 'object') return normalized;
+
+        const currentCardIds = getCurrentLibraryCardIds();
+        if (currentCardIds.size === 0) return normalized;
+
+        const compacted = {};
+        Object.entries(stats).forEach(([cardId, cardStats]) => {
+            if (currentCardIds.has(String(cardId))) compacted[cardId] = cardStats;
+        });
+
+        return JSON.stringify(compacted);
+    }
+
+    function restoreStatsWithFallback(value) {
+        let result = safeRestoreLocalStorage(STORAGE_KEY_STATS, value);
+        if (result.ok) return { ok: true, compacted: false };
+
+        freeRestorableCacheStorage();
+        result = safeRestoreLocalStorage(STORAGE_KEY_STATS, value);
+        if (result.ok) return { ok: true, compacted: false, clearedCache: true };
+
+        const compactedValue = compactStatsValue(value);
+        result = safeRestoreLocalStorage(STORAGE_KEY_STATS, compactedValue);
+        if (result.ok) return { ok: true, compacted: true };
+
+        return result;
+    }
+
     function compactReviewHistoryValue(value, maxItemsPerCard) {
         const normalized = normalizeBackupValue(value);
         if (!normalized) return null;
@@ -771,12 +828,14 @@
 
             const targetData = await res.json();
             if (!targetData || typeof targetData !== 'object') throw new Error('EMPTY_BACKUP');
+
+            freeRestorableCacheStorage();
+
             const restoreResults = [
-                ['stats', safeRestoreLocalStorage(STORAGE_KEY_STATS, targetData.stats)],
+                ['stats', restoreStatsWithFallback(targetData.stats)],
                 ['progress', safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, targetData.progress)],
                 ['lastDeck', safeRestoreLocalStorage(STORAGE_KEY_LAST_DECK, targetData.lastDeck)],
                 ['filter', safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, targetData.filter)],
-                ['activeIds', safeRestoreLocalStorage(STORAGE_KEY_ACTIVE_IDS, targetData.activeIds)],
                 ['targetRetention', safeRestoreLocalStorage('anki_target_retention', targetData.targetRetention)]
             ];
 
@@ -798,6 +857,13 @@
                 setTimeout(() => location.reload(), 1200);
                 return;
             }
+            const statsResult = restoreResults.find(([name]) => name === 'stats')?.[1];
+            if (statsResult && statsResult.compacted) {
+                listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fab005;">Stats backup was too large, so only current card stats were restored.<br>Reloading...</div>`;
+                setTimeout(() => location.reload(), 1200);
+                return;
+            }
+
             location.reload();
         } catch(e) {
             const message = e && e.message ? e.message : String(e);
