@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.45 - 모바일 이미지 확대)</title>
+<title>MK (v18.5.44 - uuid migration)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -353,11 +353,12 @@
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
             
             <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정 (파이어베이스)</button>
+            <button class="btn-sub" onclick="openUuidMigrationModal()">🔗 UUID 마이그레이션</button>
             <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 서버 연결 안정화됨</div>
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.45 - 모바일 이미지 확대)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.44 - uuid migration)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -554,11 +555,30 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="uuid-migration-modal">
+        <div class="modal-content" style="max-width:720px;">
+            <h3 style="margin-top:0; color:var(--text);">🔗 UUID 마이그레이션</h3>
+            <div style="font-size:0.86rem; color:var(--text-sub); line-height:1.45;">
+                Firebase 백업의 old uuid 학습 데이터를 현재 카드 uuid로 연결합니다. confidence 낮은 항목은 자동 선택하지 않습니다.
+            </div>
+            <div class="modal-btns">
+                <button class="modal-btn btn-save" onclick="loadUuidMigrationBackups()">Firebase 백업 불러오기</button>
+                <button class="modal-btn btn-cancel" onclick="document.getElementById('uuid-migration-modal').style.display='none'">닫기</button>
+            </div>
+            <div id="uuid-migration-status" style="font-size:0.85rem; color:var(--text-sub);"></div>
+            <div id="uuid-backup-list" class="backup-list" style="display:none;"></div>
+            <div id="uuid-preview-list" class="backup-list" style="display:none; max-height:360px;"></div>
+            <div class="modal-btns" id="uuid-apply-actions" style="display:none;">
+                <button class="modal-btn btn-save" onclick="applyUuidMigration()">선택 항목 적용</button>
+            </div>
+        </div>
+    </div>
+
 <script>
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.45 - 모바일 이미지 확대';
+    const APP_VERSION = 'v18.5.44 - uuid migration';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
@@ -937,6 +957,206 @@
                 }
             } catch(e) {}
         }));
+    }
+
+    let uuidMigrationMatches = [];
+
+    function openUuidMigrationModal() {
+        uuidMigrationMatches = [];
+        document.getElementById('uuid-migration-modal').style.display = 'flex';
+        document.getElementById('uuid-migration-status').innerText = 'Firebase 백업을 불러와 old uuid 후보를 선택하세요.';
+        document.getElementById('uuid-backup-list').style.display = 'none';
+        document.getElementById('uuid-preview-list').style.display = 'none';
+        document.getElementById('uuid-apply-actions').style.display = 'none';
+    }
+
+    async function loadUuidMigrationBackups() {
+        const status = document.getElementById('uuid-migration-status');
+        const list = document.getElementById('uuid-backup-list');
+        status.innerText = 'Firebase 백업 목록을 불러오는 중...';
+        list.style.display = 'block';
+        list.innerHTML = '';
+        try {
+            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${Date.now()}`);
+            if(!res.ok) throw new Error();
+            const data = await res.json();
+            const timestamps = Object.keys(data || {}).sort((a, b) => b - a).slice(0, 50);
+            if(!timestamps.length) {
+                status.innerText = '사용 가능한 Firebase 백업이 없습니다.';
+                return;
+            }
+            status.innerText = 'old uuid가 들어있는 백업을 선택하세요.';
+            timestamps.forEach(ts => {
+                const d = new Date(Number(ts));
+                const item = document.createElement('div');
+                item.className = 'backup-item';
+                item.innerHTML = `<span>${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}</span><button class="modal-btn btn-save">분석</button>`;
+                item.querySelector('button').onclick = (e) => { e.stopPropagation(); analyzeUuidMigrationBackup(ts); };
+                list.appendChild(item);
+            });
+        } catch(e) {
+            status.innerText = 'Firebase 백업 목록을 불러오지 못했습니다.';
+        }
+    }
+
+    function normalizeMigrationText(value) {
+        return String(value || '')
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/&nbsp;|&#160;/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+    }
+
+    function escapeMigrationHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function levenshteinSimilarity(a, b) {
+        a = normalizeMigrationText(a);
+        b = normalizeMigrationText(b);
+        if(!a && !b) return 1;
+        if(!a || !b) return 0;
+        const maxLen = Math.max(a.length, b.length);
+        const dp = Array.from({ length: b.length + 1 }, (_, i) => i);
+        for(let i = 1; i <= a.length; i++) {
+            let prev = dp[0];
+            dp[0] = i;
+            for(let j = 1; j <= b.length; j++) {
+                const temp = dp[j];
+                dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+                prev = temp;
+            }
+        }
+        return 1 - (dp[b.length] / maxLen);
+    }
+
+    function getCurrentMigrationCards() {
+        const cards = [];
+        Object.entries(library || {}).forEach(([deck, deckCards]) => {
+            (deckCards || []).forEach((card, index) => {
+                cards.push({ id: String(card.id), deck, q: card.q || '', order: card.sourceOrder ?? index });
+            });
+        });
+        return cards;
+    }
+
+    function getBackupMigrationCards(targetData) {
+        const cards = [];
+        const addCard = (card, fallbackDeck, index) => {
+            if(!card || !card.id) return;
+            cards.push({
+                id: String(card.id),
+                deck: normalizeDeckPath(card.deck || fallbackDeck || ''),
+                q: card.q || card.question || '',
+                order: card.sourceOrder ?? index
+            });
+        };
+        const viewState = parseJSONSafe(targetData && targetData.viewState, {});
+        if(Array.isArray(viewState.activeCards)) viewState.activeCards.forEach((card, index) => addCard(card, viewState.deck, index));
+        const backupLibrary = parseJSONSafe(targetData && targetData.library, null);
+        if(backupLibrary && typeof backupLibrary === 'object') {
+            Object.entries(backupLibrary).forEach(([deck, deckCards]) => {
+                if(Array.isArray(deckCards)) deckCards.forEach((card, index) => addCard(card, deck, index));
+            });
+        }
+        return cards.filter((card, index, arr) => arr.findIndex(other => other.id === card.id) === index);
+    }
+
+    async function analyzeUuidMigrationBackup(ts) {
+        const status = document.getElementById('uuid-migration-status');
+        const preview = document.getElementById('uuid-preview-list');
+        uuidMigrationMatches = [];
+        status.innerText = '백업을 분석하는 중...';
+        preview.style.display = 'none';
+        document.getElementById('uuid-apply-actions').style.display = 'none';
+        try {
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${ts}.json?_t=${Date.now()}`);
+            if(!res.ok) throw new Error();
+            const targetData = await res.json();
+            const oldStats = parseJSONSafe(targetData.stats, {});
+            const oldHistory = parseJSONSafe(targetData.reviewHistory, {});
+            const oldCards = getBackupMigrationCards(targetData).filter(card => oldStats[card.id] || oldHistory[card.id]);
+            const currentCards = getCurrentMigrationCards();
+            if(!oldCards.length) {
+                status.innerText = '이 백업에는 비교 가능한 카드 스냅샷이 없습니다. uuid 매칭을 하려면 viewState.activeCards 또는 library가 포함된 백업이 필요합니다.';
+                return;
+            }
+            const usedNewIds = new Set();
+            oldCards.forEach(oldCard => {
+                const candidates = currentCards.filter(card => card.deck === oldCard.deck && card.id !== oldCard.id && !usedNewIds.has(card.id));
+                let best = null;
+                candidates.forEach(newCard => {
+                    const textScore = levenshteinSimilarity(oldCard.q, newCard.q);
+                    const orderScore = 1 - Math.min(Math.abs((oldCard.order || 0) - (newCard.order || 0)) / 20, 1);
+                    const confidence = (textScore * 0.82) + (orderScore * 0.18);
+                    if(!best || confidence > best.confidence) best = { oldCard, newCard, confidence, textScore, orderScore };
+                });
+                if(best) {
+                    if(best.confidence >= 0.82) usedNewIds.add(best.newCard.id);
+                    uuidMigrationMatches.push({ ...best, auto: best.confidence >= 0.82, stats: oldStats[oldCard.id], history: oldHistory[oldCard.id] });
+                }
+            });
+            renderUuidMigrationPreview();
+            const autoCount = uuidMigrationMatches.filter(match => match.auto).length;
+            status.innerText = `매칭 ${uuidMigrationMatches.length}개 발견, 자동 적용 후보 ${autoCount}개입니다.`;
+        } catch(e) {
+            status.innerText = '백업 분석에 실패했습니다.';
+        }
+    }
+
+    function renderUuidMigrationPreview() {
+        const preview = document.getElementById('uuid-preview-list');
+        preview.style.display = 'block';
+        if(!uuidMigrationMatches.length) {
+            preview.innerHTML = '<div class="history-empty">매칭 후보가 없습니다.</div>';
+            return;
+        }
+        preview.innerHTML = uuidMigrationMatches.map((match, index) => {
+            const confidence = Math.round(match.confidence * 100);
+            const checked = match.auto ? 'checked' : '';
+            const confidenceLabel = match.auto ? '자동 후보' : '수동 확인';
+            const deckLabel = escapeMigrationHtml(match.oldCard.deck.replace(/__/g, ' › '));
+            const questionPreview = escapeMigrationHtml(normalizeMigrationText(match.newCard.q).slice(0, 120));
+            const oldId = escapeMigrationHtml(match.oldCard.id);
+            const newId = escapeMigrationHtml(match.newCard.id);
+            return `<label class="history-item" style="align-items:flex-start;">
+                <input type="checkbox" data-uuid-match="${index}" ${checked} style="margin-top:4px;">
+                <div style="min-width:0;">
+                    <div style="font-size:0.8rem; color:var(--text-sub);">${deckLabel} · confidence ${confidence}% · ${confidenceLabel}</div>
+                    <div style="font-size:0.78rem; color:#ff8787;">old ${oldId}</div>
+                    <div style="font-size:0.78rem; color:#69db7c;">new ${newId}</div>
+                    <div style="font-size:0.78rem; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${questionPreview}</div>
+                </div>
+            </label>`;
+        }).join('');
+        document.getElementById('uuid-apply-actions').style.display = 'flex';
+    }
+
+    function applyUuidMigration() {
+        const selected = [...document.querySelectorAll('[data-uuid-match]:checked')].map(input => uuidMigrationMatches[Number(input.dataset.uuidMatch)]).filter(Boolean);
+        if(!selected.length) {
+            document.getElementById('uuid-migration-status').innerText = '선택된 매칭이 없습니다.';
+            return;
+        }
+        const stats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        const history = getReviewHistory();
+        localStorage.setItem(`uuid_migration_backup_${Date.now()}`, JSON.stringify({ stats, reviewHistory: history }));
+        selected.forEach(match => {
+            if(match.stats) stats[match.newCard.id] = { ...(stats[match.newCard.id] || {}), ...match.stats };
+            if(match.history) history[match.newCard.id] = Array.isArray(match.history) ? [...match.history] : match.history;
+        });
+        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(stats));
+        localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(history));
+        isDataChanged = true;
+        scheduleBackup();
+        if(activeDeck[currentIndex]) updateStatsUI(getStats(activeDeck[currentIndex].id));
+        document.getElementById('uuid-migration-status').innerText = `${selected.length}개 uuid 학습 데이터를 이전했습니다. old uuid 데이터는 삭제하지 않았고 별도 로컬 백업도 남겼습니다.`;
     }
 
     function normalizeBackupValue(value) {
