@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.42 - 카드 위치 날짜 복원)</title>
+<title>MK (v18.5.43 - 최근 학습 덱)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -82,6 +82,11 @@
     .sort-select-wrap { display: flex; align-items: center; gap: 6px; flex-shrink: 0; background: #242424; border: 1px solid #5c5c5c; border-radius: 20px; padding: 5px 8px 5px 12px; color: #ffd43b; font-size: 0.82rem; font-weight: bold; }
     .sort-select { background: #333; color: #fff3bf; border: 1px solid #5c5c5c; border-radius: 14px; padding: 6px 24px 6px 8px; font-size: 0.82rem; font-weight: bold; outline: none; cursor: pointer; }
     .sort-select:focus { border-color: #fcc419; }
+    .recent-decks { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+    .recent-deck-item { width: 100%; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-sub); border-radius: 6px; padding: 7px 8px; cursor: pointer; text-align: left; font-size: 12px; line-height: 1.25; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .recent-deck-item:active { border-color: var(--primary); background: #182836; }
+    .recent-deck-last { color: var(--text); font-weight: 800; }
+    .recent-empty { font-size: 12px; line-height: 1.25; color: var(--text-sub); opacity: 0.75; padding: 4px 0 0; }
 
     .sidebar { position: fixed; top: 0; left: 0; width: 300px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); box-shadow: 2px 0 15px rgba(0,0,0,0.5); transition: transform 0.3s ease; z-index: 9999; padding: 25px; padding-top: calc(env(safe-area-inset-top) + 25px); display: flex; flex-direction: column; overflow-y: auto; transform: translateX(-105%); }
     .sidebar.open { transform: translateX(0); }
@@ -331,6 +336,10 @@
             </div>
         </div>
         <div class="menu-section">
+            <span class="menu-label">최근 학습</span>
+            <div class="recent-decks" id="recent-decks-ui"></div>
+        </div>
+        <div class="menu-section">
             <span class="menu-label">덱 관리</span>
             <ul class="deck-list" id="deck-list-ui"></ul>
         </div>
@@ -346,7 +355,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.42 - 카드 위치 날짜 복원)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.43 - 최근 학습 덱)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -547,7 +556,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.42 - 카드 위치 날짜 복원';
+    const APP_VERSION = 'v18.5.43 - 최근 학습 덱';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
@@ -557,6 +566,7 @@
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
     const STORAGE_KEY_FILTER_STATE = 'anki_final_filter_state', STORAGE_KEY_ACTIVE_IDS = 'anki_final_active_ids'; 
     const STORAGE_KEY_CURRENT_CARD_ID = 'anki_final_current_card_id', STORAGE_KEY_VIEW_STATE = 'anki_final_view_state';
+    const STORAGE_KEY_RECENT_DECKS = 'recentDecks';
     const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'none': '보조 없음', 'original': '🔄 원래순', 'unlearned': '🆕 미학습순', 'wrong': '🔥 오답순', 'number': '🔢 번호순', 'oldest': '📅 오래된순', 'recent': '🕘 최근순' };
 
     let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
@@ -755,6 +765,7 @@
             activeIds: localStorage.getItem(STORAGE_KEY_ACTIVE_IDS),
             currentCardId: localStorage.getItem(STORAGE_KEY_CURRENT_CARD_ID),
             viewState: backupViewState,
+            recentDecks: localStorage.getItem(STORAGE_KEY_RECENT_DECKS),
             reviewHistory: localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY),
             targetRetention: localStorage.getItem('anki_target_retention'),
             searchQuery: localStorage.getItem('anki_search_query') || '',
@@ -898,6 +909,77 @@
         }
     }
 
+    function parseRecentDecks(value = localStorage.getItem(STORAGE_KEY_RECENT_DECKS)) {
+        const rawItems = parseJSONSafe(value, []);
+        if (!Array.isArray(rawItems)) return [];
+        return rawItems
+            .map(item => typeof item === 'string' ? { deck: item } : item)
+            .filter(item => item && item.deck)
+            .map(item => ({
+                deck: normalizeDeckPath(item.deck),
+                deckMode: item.deckMode || 'auto',
+                filter: item.filter || 'default',
+                sort: item.sort || 'original',
+                secondarySort: item.secondarySort || 'none'
+            }));
+    }
+
+    function getCurrentDeckModeForRecent(deck) {
+        const hasChildren = Object.keys(library).some(key => key.startsWith(deck + '__'));
+        const exactCount = Array.isArray(library[deck]) ? library[deck].length : 0;
+        return hasChildren && (originalDeck || []).length > exactCount ? 'group' : 'deck';
+    }
+
+    function saveRecentDeck() {
+        if (!currentDeckName) return;
+        const deck = normalizeDeckPath(currentDeckName);
+        const nextItem = {
+            deck,
+            deckMode: getCurrentDeckModeForRecent(deck),
+            filter: currentFilterMode,
+            sort: currentSortMode,
+            secondarySort: currentSecondarySortMode
+        };
+        const next = [nextItem, ...parseRecentDecks().filter(item => item.deck !== deck)].slice(0, 5);
+        localStorage.setItem(STORAGE_KEY_RECENT_DECKS, JSON.stringify(next));
+        renderRecentDecks();
+    }
+
+    function formatRecentDeckPath(deck) {
+        const parts = normalizeDeckPath(deck).split('__').filter(Boolean);
+        if (!parts.length) return '';
+        const escaped = parts.map(part => String(part).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])));
+        const last = escaped.pop();
+        return `${escaped.join(' › ')}${escaped.length ? ' › ' : ''}<span class="recent-deck-last">${last}</span>`;
+    }
+
+    function openRecentDeck(index) {
+        const item = parseRecentDecks()[index];
+        if (!item || !item.deck) return;
+        currentFilterMode = item.filter || 'default';
+        currentSortMode = item.sort || 'original';
+        currentSecondarySortMode = item.secondarySort || 'none';
+        saveFilterState();
+        highlightFilter();
+        if (item.deckMode === 'group' || (!library[item.deck] && Object.keys(library).some(key => key.startsWith(item.deck + '__')))) {
+            selectDeckGroup(item.deck, true);
+        } else {
+            selectDeck(item.deck, true);
+        }
+        toggleMenu(false);
+    }
+
+    function renderRecentDecks() {
+        const el = document.getElementById('recent-decks-ui');
+        if (!el) return;
+        const items = parseRecentDecks().filter(item => item.deck && (library[item.deck] || Object.keys(library).some(key => key.startsWith(item.deck + '__')))).slice(0, 5);
+        if (!items.length) {
+            el.innerHTML = '<div class="recent-empty">아직 최근 학습 덱이 없습니다.</div>';
+            return;
+        }
+        el.innerHTML = items.map((item, index) => `<button class="recent-deck-item" onclick="openRecentDeck(${index})" title="${normalizeDeckPath(item.deck).replace(/__/g, ' › ')}">${formatRecentDeckPath(item.deck)}</button>`).join('');
+    }
+
     function getCurrentLibraryCardIds() {
         const ids = new Set();
         Object.values(library || {}).forEach(cards => {
@@ -1007,6 +1089,7 @@
                 ['activeIds', safeRestoreLocalStorage(STORAGE_KEY_ACTIVE_IDS, targetData.activeIds)],
                 ['currentCardId', safeRestoreLocalStorage(STORAGE_KEY_CURRENT_CARD_ID, targetData.currentCardId)],
                 ['viewState', safeRestoreLocalStorage(STORAGE_KEY_VIEW_STATE, targetData.viewState ? JSON.stringify(targetData.viewState) : null)],
+                ['recentDecks', safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, targetData.recentDecks)],
                 ['searchQuery', safeRestoreLocalStorage('anki_search_query', targetData.searchQuery)],
                 ['targetRetention', safeRestoreLocalStorage('anki_target_retention', targetData.targetRetention)]
             ];
@@ -1344,6 +1427,7 @@
 
     function initApp() {
         renderDeckTree();
+        renderRecentDecks();
         const savedViewState = parseJSONSafe(localStorage.getItem(STORAGE_KEY_VIEW_STATE), {});
         const last = (savedViewState && savedViewState.deck) || localStorage.getItem(STORAGE_KEY_LAST_DECK);
         const savedFilter = JSON.parse(localStorage.getItem(STORAGE_KEY_FILTER_STATE) || '{}');
@@ -2026,6 +2110,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
 
     function grade(score) {
         const id = activeDeck[currentIndex].id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        saveRecentDeck();
         recordReviewHistory(id, score);
         if(!data[id]) data[id] = { correct: 0, total: 0, lastDate: 0 }; if(!data[id].fsrs) data[id].fsrs = { D: 5.0, S: 0, reps: 0 };
         let fsrs = data[id].fsrs;
@@ -2135,6 +2220,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     }
 
     function renderDeckTree() {
+        renderRecentDecks();
         const list = document.getElementById('deck-list-ui'); list.innerHTML = '';
         const names = Object.keys(library).sort(); const tree = {};
         names.forEach(path => { const parts = path.split('__'); let cur = tree; parts.forEach((p, i) => { if(!cur[p]) cur[p] = { _path: parts.slice(0, i+1).join('__'), _children: {}, _isLeaf: (i === parts.length-1) }; cur = cur[p]._children; }); });
