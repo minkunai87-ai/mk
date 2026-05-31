@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.46 - IO cId 렌더링)</title>
+<title>MK (v18.5.45 - 정답 확인 하단 고정)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -252,7 +252,7 @@
     #answer-section { display: none; padding-bottom: 20px; animation: fadeIn 0.3s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-    .footer { width: 100%; padding: 10px 20px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); z-index: 10; display: flex; flex-direction: column; gap: 10px; justify-content: center; flex-shrink: 0; }
+    .footer { width: 100%; padding: 10px 20px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); z-index: 10; display: flex; flex-direction: column; gap: 10px; justify-content: center; flex-shrink: 0; position: sticky; bottom: 0; }
     .footer-content { display: flex; flex-direction: column; gap: 10px; }
     .nav-btns, .grade-btns { display: flex; justify-content: space-between; width: 100%; margin: 0; gap: 8px; }
     .nav-btn { flex: 1; background: var(--input-bg); border: 1px solid var(--border); padding: 14px 0; border-radius: 12px; cursor: pointer; font-weight: bold; color: var(--text); font-size: 1rem; text-align: center; transition: 0.2s; }
@@ -261,7 +261,9 @@
     .g-btn:active { transform: scale(0.98); opacity: 0.9; }
     .bg-x { background: #fa5252; } .bg-tri { background: #fab005; } .bg-o { background: #40c057; } .bg-chk { background: #339af0; }
 
-    .click-guide { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-top: 40px; cursor: pointer; padding: 30px; border: 2px dashed var(--border); border-radius: 12px; background: #181818; }
+    .click-guide { text-align: center; color: #fff; font-size: 1rem; cursor: pointer; padding: 16px; border: 1px solid #1c7ed6; border-radius: 12px; background: var(--primary); font-weight: bold; box-shadow: 0 3px 10px rgba(0,0,0,0.25); }
+    .click-guide:active { transform: scale(0.99); opacity: 0.92; }
+    .zoom-content { padding-bottom: 140px; }
     
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: none; align-items: center; justify-content: center; }
     .modal-content { background: var(--surface); width: 90%; max-width: 500px; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border); }
@@ -358,7 +360,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.46 - IO cId 렌더링)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.45 - 정답 확인 하단 고정)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -488,7 +490,6 @@
                     </div>
 
                     <div id="question-section" class="text-area mode-question"></div>
-                    <div id="click-guide" class="click-guide" onclick="revealAnswer()">👇 터치하여 정답 확인</div>
                     <hr id="divider" class="divider">
                     <div id="answer-section" class="text-area"></div>
                 </div>
@@ -498,6 +499,7 @@
 
     <div class="footer">
         <div class="footer-content">
+            <div id="click-guide" class="click-guide" onclick="revealAnswer()">👇 터치하여 정답 확인</div>
             <div class="grade-btns" id="grade-area" style="display:none;">
                 <button class="g-btn bg-x" onclick="grade(0)">모름</button>
                 <button class="g-btn bg-tri" onclick="grade(1)">애매</button>
@@ -578,7 +580,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.46 - IO cId 렌더링';
+    const APP_VERSION = 'v18.5.45 - 정답 확인 하단 고정';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
