@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.45 - Logseq 그래프명 자동 감지)</title>
+<title>MK (v18.5.46 - IO cId 렌더링)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -358,7 +358,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.45 - Logseq 그래프명 자동 감지)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.46 - IO cId 렌더링)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -578,7 +578,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.45 - Logseq 그래프명 자동 감지';
+    const APP_VERSION = 'v18.5.46 - IO cId 렌더링';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
@@ -2013,7 +2013,8 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                         if (!raw) return;
 
                         const elements = JSON.parse(decodeURIComponent(raw));
-                        const targetIndex = Number(wrapper.dataset.mkIoTargetIndex ?? -1);
+                        const targetCId = Number(wrapper.dataset.mkIoTargetCid ?? NaN);
+                        const fallbackTargetIndex = Number(wrapper.dataset.mkIoTargetIndex ?? -1);
                         if (!Array.isArray(elements) || elements.length === 0) return;
 
                         const naturalWidth = img.naturalWidth || img.width;
@@ -2054,6 +2055,10 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                         layer.setAttribute('preserveAspectRatio', 'none');
 
                         elements.forEach((el, elementIndex) => {
+                            const elementCId = Number(el && (el.cId ?? el.cid ?? el.clozeId ?? el.cloze));
+                            const isTargetMask = Number.isFinite(targetCId)
+                                ? elementCId === targetCId
+                                : elementIndex === fallbackTargetIndex;
                             const rawLeft = Number(el.left) || 0;
                             const rawTop = Number(el.top) || 0;
                             const rawWidth = Number(el.width) || 0;
@@ -2081,7 +2086,10 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                             const mask = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                             mask.classList.add('mk-io-mask');
                             mask.dataset.mkIoIndex = String(elementIndex);
-                            if (elementIndex === targetIndex) {
+                            if (Number.isFinite(elementCId)) {
+                                mask.dataset.mkIoCid = String(elementCId);
+                            }
+                            if (isTargetMask) {
                                 mask.classList.add('mk-io-target-mask');
                             }
                             mask.setAttribute('x', rectLeft);
