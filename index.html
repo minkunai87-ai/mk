@@ -1341,12 +1341,12 @@
         const filterState = parseJSONSafe(data.filter, {});
         return {
             ...viewState,
-            deck: viewState.deck || data.lastDeck || '',
+            deck: data.currentDeckName || data.currentDeck || viewState.currentDeckName || viewState.deck || data.lastDeck || '',
             filter: viewState.filter || filterState.filter || 'default',
             sort: viewState.sort || filterState.sort || 'original',
             secondarySort: viewState.secondarySort || filterState.secondarySort || 'none',
-            index: Number.isFinite(Number(viewState.index)) ? Number(viewState.index) : 0,
-            cardId: data.currentCardUuid || viewState.currentCardUuid || data.currentCardId || viewState.cardId || '',
+            index: Number.isFinite(Number(data.currentCardIndex)) ? Number(data.currentCardIndex) : (Number.isFinite(Number(viewState.currentCardIndex)) ? Number(viewState.currentCardIndex) : (Number.isFinite(Number(viewState.index)) ? Number(viewState.index) : 0)),
+            cardId: data.currentCardUuid || data.currentCardId || viewState.currentCardUuid || viewState.currentCardId || viewState.cardId || '',
             activeIds: Array.isArray(viewState.activeIds) ? viewState.activeIds : parseJSONSafe(data.activeIds, []),
             searchQuery: typeof viewState.searchQuery === 'string' ? viewState.searchQuery : (data.searchQuery || '')
         };
