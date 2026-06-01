@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.47 - 시작 위치 복원 안정화)</title>
+<title>MK (v18.5.48 - 백업 위치 복원 우선)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -360,7 +360,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.47 - 시작 위치 복원 안정화)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.48 - 백업 위치 복원 우선)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -580,7 +580,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.47 - 시작 위치 복원 안정화';
+    const APP_VERSION = 'v18.5.48 - 백업 위치 복원 우선';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
@@ -1352,6 +1352,39 @@
         };
     }
 
+    function persistBackupPositionState(data = {}, source = 'backup') {
+        const state = getBackupViewState(data);
+        const latestBackupAt = getBackupUpdatedAt(data, data && data.timestamp);
+        const cardId = getStartupTargetCardId(state);
+        console.log(`RESTORE_BACKUP latestBackupAt=${latestBackupAt}`);
+        console.log(`RESTORE_POSITION source=${source}`);
+        console.log(`RESTORE_POSITION deck=${state.deck || ''}`);
+        console.log(`RESTORE_POSITION uuid=${cardId}`);
+        console.log(`RESTORE_POSITION index=${Number(state.index) || 0}`);
+
+        pendingStartupViewState = state;
+        if (state.deck) localStorage.setItem(STORAGE_KEY_LAST_DECK, state.deck);
+        if (state.filter || state.sort || state.secondarySort) {
+            localStorage.setItem(STORAGE_KEY_FILTER_STATE, JSON.stringify({
+                filter: state.filter || 'default',
+                sort: state.sort || 'original',
+                secondarySort: state.secondarySort || 'none'
+            }));
+        }
+        if (typeof state.searchQuery === 'string') localStorage.setItem('anki_search_query', state.searchQuery);
+        if (Array.isArray(state.activeIds) && state.activeIds.length) localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, JSON.stringify(state.activeIds.map(String)));
+        if (cardId) localStorage.setItem(STORAGE_KEY_CURRENT_CARD_ID, cardId);
+        localStorage.setItem(STORAGE_KEY_VIEW_STATE, JSON.stringify({ ...state, cardId }));
+        if (state.deck) {
+            const progress = parseJSONSafe(localStorage.getItem(STORAGE_KEY_PROGRESS), {});
+            progress[`${state.deck}__${state.filter || 'default'}__${state.sort || 'original'}__${state.secondarySort || 'none'}`] = Number(state.index) || 0;
+            progress[`${state.deck}__${state.filter || 'default'}__${state.sort || 'original'}`] = Number(state.index) || 0;
+            localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
+        }
+        console.log(`RESTORE_POSITION result=stored`);
+        return state;
+    }
+
     function mergeHistoryByCardId(localHistory = {}, cloudHistory = {}) {
         const merged = { ...(localHistory || {}) };
         Object.entries(cloudHistory || {}).forEach(([cardId, cloudItems]) => {
@@ -1418,7 +1451,7 @@
             localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(mergedStats));
             localStorage.setItem(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(verifiedCloudUpdatedAt));
             markLocalDataUpdated(Math.max(localUpdatedAt, verifiedCloudUpdatedAt));
-            pendingStartupViewState = getBackupViewState(data);
+            persistBackupPositionState(data, 'backup');
             showToast('최신 클라우드 데이터 동기화 완료', 'success');
         } catch(e) {
             console.error('[MK Auto Cloud Sync Error]', e);
@@ -1434,7 +1467,7 @@
         const sort = viewState.sort || filterState.sort || 'original';
         const secondarySort = viewState.secondarySort || filterState.secondarySort || 'none';
         const index = Number.isFinite(Number(viewState.index)) ? Number(viewState.index) : 0;
-        const cardId = viewState.cardId || (data && data.currentCardId) || '';
+        const cardId = (data && data.currentCardUuid) || viewState.currentCardUuid || viewState.cardId || (data && data.currentCardId) || '';
         const searchQuery = typeof viewState.searchQuery === 'string' ? viewState.searchQuery : ((data && data.searchQuery) || '');
         const resolvedActiveIds = Array.isArray(viewState.activeIds) ? viewState.activeIds : (Array.isArray(activeIds) ? activeIds : []);
 
@@ -1648,6 +1681,7 @@
                 ['searchQuery', safeRestoreLocalStorage('anki_search_query', targetData.searchQuery)],
                 ['targetRetention', safeRestoreLocalStorage('anki_target_retention', targetData.targetRetention)]
             ];
+            persistBackupPositionState(targetData, 'backup');
             restoreViewStateToStorage(targetData);
 
             let historyResult = { ok: true, skipped: true };
@@ -2018,15 +2052,18 @@
         if (targetLocation) {
             applyStartupViewState(savedViewState, targetLocation.deck);
             selectDeck(targetLocation.deck, true);
+            console.log(`RESTORE_POSITION result=found deck=${targetLocation.deck} index=${currentIndex}`);
             ensureVisibleCard();
             return;
         }
+        if (targetCardId) console.log(`RESTORE_POSITION result=uuid-not-found uuid=${targetCardId}`);
 
         if (last) {
             if (library[last]) selectDeck(last, true);
             else if (getDeckGroupCards(last).length || getDeckGroupCards(last + '__').length) selectDeckGroup(last, true); 
         } else if (Object.keys(library).length) { selectDeck(Object.keys(library)[0], false); }
-        ensureVisibleCard();
+        const ensured = ensureVisibleCard();
+        if (ensured) console.log(`RESTORE_POSITION result=fallback deck=${currentDeckName || ''} index=${currentIndex}`);
     }
 
     function getStartupViewState() {
