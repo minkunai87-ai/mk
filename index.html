@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.57 - 이미지 확대 안정화 및 원본 화질 개선)</title>
+<title>MK (v18.5.58 - 모바일 이미지 더블탭 오류 및 화질 개선)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -360,7 +360,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.57 - 이미지 확대 안정화 및 원본 화질 개선)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.58 - 모바일 이미지 더블탭 오류 및 화질 개선)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -580,7 +580,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.57 - 이미지 확대 안정화 및 원본 화질 개선';
+    const APP_VERSION = 'v18.5.58 - 모바일 이미지 더블탭 오류 및 화질 개선';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
@@ -863,6 +863,8 @@
         const targets = new Set();
         root.querySelectorAll('.mk-io-wrapper').forEach(el => targets.add(el));
         root.querySelectorAll('img').forEach(img => targets.add(getMediaZoomTarget(img) || img));
+        const isMobileZoomDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const isPwaMode = !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || !!navigator.standalone;
         targets.forEach(wrapper => {
             if (!wrapper || wrapper.dataset.mediaZoomBound === '1') return;
             wrapper.dataset.mediaZoomBound = '1';
@@ -870,10 +872,16 @@
             wrapper.style.transformOrigin = '0 0';
             const mediaImages = wrapper.matches('img') ? [wrapper] : Array.from(wrapper.querySelectorAll('img'));
             mediaImages.forEach(img => {
+                const originalSrc = img.getAttribute('data-original-src') || img.getAttribute('src') || img.currentSrc || '';
+                if (originalSrc) {
+                    img.dataset.originalSrc = originalSrc;
+                    if (img.getAttribute('src') !== originalSrc) img.setAttribute('src', originalSrc);
+                }
                 img.removeAttribute('srcset');
                 img.removeAttribute('sizes');
                 img.decoding = 'async';
                 img.style.imageRendering = 'auto';
+                console.log('IMG_SRC_USED', img.getAttribute('src') || img.currentSrc || '');
             });
             const state = wrapper._mediaZoomState = {
                 scale: 1,
@@ -907,12 +915,18 @@
                 }
                 console.log('IMG_NATURAL_SIZE', img.naturalWidth, img.naturalHeight);
                 console.log('IMG_DISPLAY_SIZE', img.clientWidth, img.clientHeight);
+                console.log('IMG_SRC_USED', img.getAttribute('src') || img.currentSrc || '');
+                console.log('IS_MOBILE', isMobileZoomDevice);
+                console.log('IS_PWA', isPwaMode);
                 wrapper.dataset.mediaZoomSizeLogged = '1';
             };
             logImageSizes();
             const getBaseRect = (rect = wrapper.getBoundingClientRect()) => {
                 const width = wrapper.offsetWidth || (rect.width / state.scale) || rect.width || 1;
                 const height = wrapper.offsetHeight || (rect.height / state.scale) || rect.height || 1;
+                if (!Number.isFinite(rect.left) || !Number.isFinite(rect.top) || width <= 0 || height <= 0) {
+                    throw new Error('INVALID_IMAGE_ZOOM_RECT');
+                }
                 return {
                     left: rect.left - state.translateX,
                     top: rect.top - state.translateY,
@@ -921,6 +935,9 @@
                 };
             };
             const getContentPoint = (clientX, clientY, scaleValue = state.scale, translateX = state.translateX, translateY = state.translateY, base = getBaseRect()) => {
+                if (!Number.isFinite(clientX) || !Number.isFinite(clientY) || !Number.isFinite(scaleValue) || scaleValue <= 0) {
+                    throw new Error('INVALID_IMAGE_ZOOM_POINT');
+                }
                 return {
                     x: (clientX - base.left - translateX) / scaleValue,
                     y: (clientY - base.top - translateY) / scaleValue
@@ -955,13 +972,22 @@
                 }
             };
             const apply = () => {
-                clampTranslate();
-                if (state.raf) cancelAnimationFrame(state.raf);
-                state.raf = requestAnimationFrame(() => {
-                    wrapper.style.transform = `matrix(${state.scale}, 0, 0, ${state.scale}, ${state.translateX}, ${state.translateY})`;
-                    wrapper.classList.toggle('is-media-zoomed', state.scale > 1);
-                    state.raf = null;
-                });
+                try {
+                    clampTranslate();
+                    if (state.raf) cancelAnimationFrame(state.raf);
+                    state.raf = requestAnimationFrame(() => {
+                        wrapper.style.transform = `matrix(${state.scale}, 0, 0, ${state.scale}, ${state.translateX}, ${state.translateY})`;
+                        wrapper.classList.toggle('is-media-zoomed', state.scale > 1);
+                        state.raf = null;
+                    });
+                } catch (err) {
+                    console.error('IMAGE_ZOOM_ERROR', err);
+                    state.scale = 1;
+                    state.translateX = 0;
+                    state.translateY = 0;
+                    wrapper.style.transform = '';
+                    wrapper.classList.remove('is-media-zoomed');
+                }
             };
             const reset = () => {
                 state.scale = 1; state.translateX = 0; state.translateY = 0;
@@ -978,70 +1004,98 @@
                 if (state.scale <= MIN_SCALE) reset();
                 else apply();
             };
+            const safeZoomAt = (clientX, clientY, nextScale, logLabel = 'IMAGE_ZOOM_ERROR') => {
+                try {
+                    const img = getPrimaryImage();
+                    if (!wrapper.isConnected || !img || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return false;
+                    if (img.complete && (!img.naturalWidth || !img.naturalHeight)) return false;
+                    zoomAt(clientX, clientY, nextScale);
+                    return true;
+                } catch (err) {
+                    console.error(logLabel, err);
+                    reset();
+                    return false;
+                }
+            };
             const center = touches => ({ x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 });
             const distance = touches => Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
 
             wrapper.addEventListener('touchstart', e => {
-                e.stopPropagation();
-                if (e.touches.length === 2) {
-                    e.preventDefault();
-                    const c = center(e.touches);
-                    state.startDist = distance(e.touches);
-                    state.startScale = state.scale;
-                    state.startTranslateX = state.translateX;
-                    state.startTranslateY = state.translateY;
-                    state.startCenterX = c.x;
-                    state.startCenterY = c.y;
-                    const base = getBaseRect();
-                    state.gestureBaseLeft = base.left;
-                    state.gestureBaseTop = base.top;
-                    const contentPoint = getContentPoint(c.x, c.y, state.startScale, state.startTranslateX, state.startTranslateY, base);
-                    state.startContentX = contentPoint.x;
-                    state.startContentY = contentPoint.y;
-                    console.log('PINCH_CENTER', c.x, c.y);
-                    return;
-                }
-                if (e.touches.length !== 1) return;
-                const touch = e.touches[0];
-                const now = Date.now();
-                if (now - state.lastTap < 300) {
-                    e.preventDefault();
-                    if (state.scale > 1) reset();
-                    else zoomAt(touch.clientX, touch.clientY, 1.5);
-                    state.lastTap = 0;
-                    return;
-                }
-                state.lastTap = now;
-                if (state.scale > 1) {
-                    e.preventDefault();
-                    state.startX = touch.clientX;
-                    state.startY = touch.clientY;
-                    state.panX = state.translateX;
-                    state.panY = state.translateY;
+                try {
+                    e.stopPropagation();
+                    if (e.touches.length === 2) {
+                        e.preventDefault();
+                        const c = center(e.touches);
+                        state.startDist = distance(e.touches);
+                        state.startScale = state.scale;
+                        state.startTranslateX = state.translateX;
+                        state.startTranslateY = state.translateY;
+                        state.startCenterX = c.x;
+                        state.startCenterY = c.y;
+                        const base = getBaseRect();
+                        state.gestureBaseLeft = base.left;
+                        state.gestureBaseTop = base.top;
+                        const contentPoint = getContentPoint(c.x, c.y, state.startScale, state.startTranslateX, state.startTranslateY, base);
+                        state.startContentX = contentPoint.x;
+                        state.startContentY = contentPoint.y;
+                        console.log('PINCH_CENTER', c.x, c.y);
+                        return;
+                    }
+                    if (e.touches.length !== 1) return;
+                    const touch = e.touches[0];
+                    const now = Date.now();
+                    if (now - state.lastTap < 300) {
+                        e.preventDefault();
+                        try {
+                            if (state.scale > 1) reset();
+                            else safeZoomAt(touch.clientX, touch.clientY, 1.5, 'DOUBLE_TAP_ERROR');
+                        } catch (err) {
+                            console.error('DOUBLE_TAP_ERROR', err);
+                            reset();
+                        }
+                        state.lastTap = 0;
+                        return;
+                    }
+                    state.lastTap = now;
+                    if (state.scale > 1) {
+                        e.preventDefault();
+                        state.startX = touch.clientX;
+                        state.startY = touch.clientY;
+                        state.panX = state.translateX;
+                        state.panY = state.translateY;
+                    }
+                } catch (err) {
+                    console.error('IMAGE_ZOOM_ERROR', err);
+                    reset();
                 }
             }, { passive: false });
 
             wrapper.addEventListener('touchmove', e => {
-                if (e.touches.length === 2) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (!state.startDist) return;
-                    const c = center(e.touches);
-                    state.scale = clamp(state.startScale * (distance(e.touches) / state.startDist), MIN_SCALE, MAX_SCALE);
-                    state.translateX = c.x - state.gestureBaseLeft - (state.startContentX * state.scale);
-                    state.translateY = c.y - state.gestureBaseTop - (state.startContentY * state.scale);
-                    console.log('IMG_CURRENT_SCALE', state.scale);
-                    console.log('PINCH_CENTER', c.x, c.y);
-                    console.log('PINCH_TRANSLATE', state.translateX, state.translateY);
-                    apply();
-                    return;
-                }
-                if (e.touches.length === 1 && state.scale > 1) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    state.translateX = state.panX + (e.touches[0].clientX - state.startX);
-                    state.translateY = state.panY + (e.touches[0].clientY - state.startY);
-                    apply();
+                try {
+                    if (e.touches.length === 2) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!state.startDist) return;
+                        const c = center(e.touches);
+                        state.scale = clamp(state.startScale * (distance(e.touches) / state.startDist), MIN_SCALE, MAX_SCALE);
+                        state.translateX = c.x - state.gestureBaseLeft - (state.startContentX * state.scale);
+                        state.translateY = c.y - state.gestureBaseTop - (state.startContentY * state.scale);
+                        console.log('IMG_CURRENT_SCALE', state.scale);
+                        console.log('PINCH_CENTER', c.x, c.y);
+                        console.log('PINCH_TRANSLATE', state.translateX, state.translateY);
+                        apply();
+                        return;
+                    }
+                    if (e.touches.length === 1 && state.scale > 1) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        state.translateX = state.panX + (e.touches[0].clientX - state.startX);
+                        state.translateY = state.panY + (e.touches[0].clientY - state.startY);
+                        apply();
+                    }
+                } catch (err) {
+                    console.error('IMAGE_ZOOM_ERROR', err);
+                    reset();
                 }
             }, { passive: false });
 
