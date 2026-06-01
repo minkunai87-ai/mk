@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.46 - 자동 최신 데이터 동기화)</title>
+<title>MK (v18.5.47 - 시작 위치 복원 안정화)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -360,7 +360,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.46 - 자동 최신 데이터 동기화)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.47 - 시작 위치 복원 안정화)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -580,11 +580,12 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.46 - 자동 최신 데이터 동기화';
+    const APP_VERSION = 'v18.5.47 - 시작 위치 복원 안정화';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
     let previousCardIndex = null;
+    let pendingStartupViewState = null;
     
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress_v2', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck';
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
@@ -950,8 +951,8 @@
 
     window.onload = async function() { 
         updateTRButton();
-        await syncLatestFirebaseBackupOnStartup();
         await autoScanGitHub(); 
+        await syncLatestFirebaseBackupOnStartup();
         initApp(); 
     };
 
@@ -1335,6 +1336,22 @@
         return Number(data && (data.localUpdatedAt || data.backupAt || data.timestamp || (data.metadata && (data.metadata.localUpdatedAt || data.metadata.backupAt)))) || Number(ts) || 0;
     }
 
+    function getBackupViewState(data = {}) {
+        const viewState = parseJSONSafe(data.viewState, {});
+        const filterState = parseJSONSafe(data.filter, {});
+        return {
+            ...viewState,
+            deck: viewState.deck || data.lastDeck || '',
+            filter: viewState.filter || filterState.filter || 'default',
+            sort: viewState.sort || filterState.sort || 'original',
+            secondarySort: viewState.secondarySort || filterState.secondarySort || 'none',
+            index: Number.isFinite(Number(viewState.index)) ? Number(viewState.index) : 0,
+            cardId: data.currentCardUuid || viewState.currentCardUuid || data.currentCardId || viewState.cardId || '',
+            activeIds: Array.isArray(viewState.activeIds) ? viewState.activeIds : parseJSONSafe(data.activeIds, []),
+            searchQuery: typeof viewState.searchQuery === 'string' ? viewState.searchQuery : (data.searchQuery || '')
+        };
+    }
+
     function mergeHistoryByCardId(localHistory = {}, cloudHistory = {}) {
         const merged = { ...(localHistory || {}) };
         Object.entries(cloudHistory || {}).forEach(([cardId, cloudItems]) => {
@@ -1401,6 +1418,7 @@
             localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(mergedStats));
             localStorage.setItem(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(verifiedCloudUpdatedAt));
             markLocalDataUpdated(Math.max(localUpdatedAt, verifiedCloudUpdatedAt));
+            pendingStartupViewState = getBackupViewState(data);
             showToast('최신 클라우드 데이터 동기화 완료', 'success');
         } catch(e) {
             console.error('[MK Auto Cloud Sync Error]', e);
@@ -1983,7 +2001,7 @@
     function initApp() {
         renderDeckTree();
         renderRecentDecks();
-        const savedViewState = parseJSONSafe(localStorage.getItem(STORAGE_KEY_VIEW_STATE), {});
+        const savedViewState = getStartupViewState();
         const last = (savedViewState && savedViewState.deck) || localStorage.getItem(STORAGE_KEY_LAST_DECK);
         const savedFilter = JSON.parse(localStorage.getItem(STORAGE_KEY_FILTER_STATE) || '{}');
         if(savedViewState.filter) currentFilterMode = savedViewState.filter;
@@ -1994,11 +2012,81 @@
         else if(savedFilter.secondarySort) currentSecondarySortMode = savedFilter.secondarySort;
         if(typeof savedViewState.searchQuery === 'string') document.getElementById('search-input').value = savedViewState.searchQuery;
         updateFilterStatusUI(); highlightFilter();
-        
+
+        const targetCardId = getStartupTargetCardId(savedViewState);
+        const targetLocation = findCardLocationById(targetCardId);
+        if (targetLocation) {
+            applyStartupViewState(savedViewState, targetLocation.deck);
+            selectDeck(targetLocation.deck, true);
+            ensureVisibleCard();
+            return;
+        }
+
         if (last) {
             if (library[last]) selectDeck(last, true);
-            else selectDeckGroup(last, true); 
+            else if (getDeckGroupCards(last).length || getDeckGroupCards(last + '__').length) selectDeckGroup(last, true); 
         } else if (Object.keys(library).length) { selectDeck(Object.keys(library)[0], false); }
+        ensureVisibleCard();
+    }
+
+    function getStartupViewState() {
+        return pendingStartupViewState || parseJSONSafe(localStorage.getItem(STORAGE_KEY_VIEW_STATE), {});
+    }
+
+    function getStartupTargetCardId(viewState = {}) {
+        return String(viewState.currentCardUuid || viewState.cardId || localStorage.getItem(STORAGE_KEY_CURRENT_CARD_ID) || '').trim();
+    }
+
+    function applyStartupViewState(viewState = {}, fallbackDeck = '') {
+        if (viewState.filter) currentFilterMode = viewState.filter;
+        if (viewState.sort) currentSortMode = viewState.sort;
+        if (viewState.secondarySort) currentSecondarySortMode = viewState.secondarySort;
+        if (typeof viewState.searchQuery === 'string') {
+            document.getElementById('search-input').value = viewState.searchQuery;
+            localStorage.setItem('anki_search_query', viewState.searchQuery);
+        }
+        const cardId = getStartupTargetCardId(viewState);
+        if (cardId) localStorage.setItem(STORAGE_KEY_CURRENT_CARD_ID, cardId);
+        localStorage.setItem(STORAGE_KEY_VIEW_STATE, JSON.stringify({ ...viewState, deck: viewState.deck || fallbackDeck, cardId }));
+        saveFilterState();
+        highlightFilter();
+    }
+
+    function findCardLocationById(cardId) {
+        const targetId = String(cardId || '');
+        if (!targetId) return null;
+        for (const [deckName, cards] of Object.entries(library || {})) {
+            if (!Array.isArray(cards)) continue;
+            const index = cards.findIndex(card => String(card && card.id) === targetId);
+            if (index >= 0) return { deck: deckName, index, card: cards[index] };
+        }
+        return null;
+    }
+
+    function getFirstValidDeckName() {
+        return Object.keys(library || {}).find(deck => Array.isArray(library[deck]) && library[deck].length > 0) || '';
+    }
+
+    function ensureVisibleCard() {
+        if (activeDeck && activeDeck.length > 0) {
+            if (currentIndex < 0 || currentIndex >= activeDeck.length) currentIndex = 0;
+            showCard();
+            return true;
+        }
+        const firstDeck = getFirstValidDeckName();
+        if (firstDeck && currentDeckName !== firstDeck) {
+            selectDeck(firstDeck, false);
+            return true;
+        }
+        if (firstDeck && Array.isArray(library[firstDeck]) && library[firstDeck].length) {
+            currentDeckName = firstDeck;
+            originalDeck = library[firstDeck];
+            activeDeck = [...originalDeck];
+            currentIndex = 0;
+            showCard();
+            return true;
+        }
+        return false;
     }
 
 function createDOM(card, isAnswer) {
@@ -2279,6 +2367,11 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             } else {
                 filtered = filtered.filter(c => (stats[c.id] || {})[currentFilterMode]);
             }
+        }
+        if (isRestore) {
+            const targetCardId = getStartupTargetCardId(getStartupViewState());
+            const targetCard = originalDeck.find(c => String(c.id) === String(targetCardId));
+            if (targetCard && !filtered.some(c => String(c.id) === String(targetCardId))) filtered.unshift(targetCard);
         }
 
         const reviewHistory = JSON.parse(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY) || '{}');
@@ -2909,7 +3002,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     function resolveIndexForDeck(isRestore = false) {
         if(!activeDeck.length) return 0;
         if(isRestore) {
-            const savedViewState = parseJSONSafe(localStorage.getItem(STORAGE_KEY_VIEW_STATE), {});
+            const savedViewState = getStartupViewState();
             const targetCardId = savedViewState.cardId || localStorage.getItem(STORAGE_KEY_CURRENT_CARD_ID);
             if(targetCardId) {
                 const foundIndex = activeDeck.findIndex(c => String(c.id) === String(targetCardId));
