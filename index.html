@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.45 - 정답 확인 하단 고정)</title>
+<title>MK (v18.5.46 - 자동 최신 데이터 동기화)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -360,7 +360,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.45 - 정답 확인 하단 고정)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.46 - 자동 최신 데이터 동기화)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -580,7 +580,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.45 - 정답 확인 하단 고정';
+    const APP_VERSION = 'v18.5.46 - 자동 최신 데이터 동기화';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
@@ -593,6 +593,8 @@
     const STORAGE_KEY_RECENT_DECKS = 'recentDecks';
     const STORAGE_KEY_DECK_VIEW_STATES = 'deckViewStates';
     const STORAGE_KEY_LOGSEQ_GRAPH_NAME = 'mk_logseq_graph_name';
+    const STORAGE_KEY_LOCAL_DATA_UPDATED_AT = 'mk_local_data_updated_at';
+    const STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT = 'mk_last_auto_cloud_sync_at';
     const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 벌칙', 'none': '보조 없음', 'original': '🔄 원래순', 'unlearned': '🆕 미학습순', 'wrong': '🔥 오답순', 'number': '🔢 번호순', 'oldest': '📅 오래된순', 'recent': '🕘 최근순' };
 
     let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
@@ -948,6 +950,7 @@
 
     window.onload = async function() { 
         updateTRButton();
+        await syncLatestFirebaseBackupOnStartup();
         await autoScanGitHub(); 
         initApp(); 
     };
@@ -986,6 +989,7 @@
         persistCurrentViewState(false);
         const backupViewState = getCurrentViewState(true);
         const metadata = getBackupMetadata();
+        const localUpdatedAt = getLocalDataUpdatedAt();
         const data = { 
             stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), 
             lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), filter: localStorage.getItem(STORAGE_KEY_FILTER_STATE),
@@ -998,7 +1002,8 @@
             targetRetention: localStorage.getItem('anki_target_retention'),
             searchQuery: localStorage.getItem('anki_search_query') || '',
             timestamp: metadata.backupAt,
-            metadata
+            localUpdatedAt,
+            metadata: { ...metadata, localUpdatedAt }
         };
         try {
             const res = await fetch(`${FIREBASE_DB_URL}/backups/${data.timestamp}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: !!options.keepalive });
@@ -1296,6 +1301,109 @@
             return typeof value === 'string' ? JSON.parse(value) : value;
         } catch(e) {
             return fallback;
+        }
+    }
+
+    function markLocalDataUpdated(time = Date.now()) {
+        try { localStorage.setItem(STORAGE_KEY_LOCAL_DATA_UPDATED_AT, String(time)); } catch(e) {}
+    }
+
+    function getHistoryItemTime(item) {
+        return Number(item && (item.updatedAt || item.time || item.timestamp || item.reviewedAt || item.date)) || 0;
+    }
+
+    function getHistoryLatestTime(history, cardId) {
+        const items = history && Array.isArray(history[cardId]) ? history[cardId] : [];
+        return items.reduce((latest, item) => Math.max(latest, getHistoryItemTime(item)), 0);
+    }
+
+    function getStatLatestTime(stat, history, cardId) {
+        const statTime = Number(stat && (stat.updatedAt || stat.lastUpdated || stat.modifiedAt || stat.lastDate || stat.lastReviewed)) || 0;
+        return Math.max(statTime, getHistoryLatestTime(history, cardId));
+    }
+
+    function getLocalDataUpdatedAt() {
+        const explicitTime = Number(localStorage.getItem(STORAGE_KEY_LOCAL_DATA_UPDATED_AT)) || 0;
+        const stats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
+        const history = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+        const statsTime = Object.keys(stats || {}).reduce((latest, cardId) => Math.max(latest, getStatLatestTime(stats[cardId], history, cardId)), 0);
+        const historyTime = Object.keys(history || {}).reduce((latest, cardId) => Math.max(latest, getHistoryLatestTime(history, cardId)), 0);
+        return Math.max(explicitTime, statsTime, historyTime);
+    }
+
+    function getBackupUpdatedAt(data, ts = 0) {
+        return Number(data && (data.localUpdatedAt || data.backupAt || data.timestamp || (data.metadata && (data.metadata.localUpdatedAt || data.metadata.backupAt)))) || Number(ts) || 0;
+    }
+
+    function mergeHistoryByCardId(localHistory = {}, cloudHistory = {}) {
+        const merged = { ...(localHistory || {}) };
+        Object.entries(cloudHistory || {}).forEach(([cardId, cloudItems]) => {
+            if (!Array.isArray(cloudItems)) return;
+            const localItems = Array.isArray(merged[cardId]) ? merged[cardId] : [];
+            const seen = new Set(localItems.map(item => `${item && item.id || ''}|${getHistoryItemTime(item)}|${item && item.score}|${item && item.result || ''}`));
+            const next = [...localItems];
+            cloudItems.forEach(item => {
+                const key = `${item && item.id || ''}|${getHistoryItemTime(item)}|${item && item.score}|${item && item.result || ''}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    next.push(item);
+                }
+            });
+            merged[cardId] = next.sort((a, b) => getHistoryItemTime(b) - getHistoryItemTime(a)).slice(0, 300);
+        });
+        return merged;
+    }
+
+    function mergeStatsByCardId(localStats = {}, cloudStats = {}, localHistory = {}, cloudHistory = {}) {
+        const merged = { ...(localStats || {}) };
+        Object.entries(cloudStats || {}).forEach(([cardId, cloudStat]) => {
+            if (!cloudStat || typeof cloudStat !== 'object') return;
+            const localStat = merged[cardId];
+            const localTime = getStatLatestTime(localStat, localHistory, cardId);
+            const cloudTime = getStatLatestTime(cloudStat, cloudHistory, cardId);
+            if (!localStat || cloudTime > localTime) merged[cardId] = cloudStat;
+        });
+        return merged;
+    }
+
+    async function getLatestFirebaseBackupTimestamp() {
+        const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${Date.now()}`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        const timestamps = Object.keys(data || {}).map(Number).filter(Boolean).sort((a, b) => b - a);
+        return timestamps.length ? String(timestamps[0]) : null;
+    }
+
+    async function syncLatestFirebaseBackupOnStartup() {
+        try {
+            const latestTs = await getLatestFirebaseBackupTimestamp();
+            if (!latestTs) return;
+            const metadataRes = await fetch(`${FIREBASE_DB_URL}/backups/${latestTs}/metadata.json?_t=${Date.now()}`);
+            const metadata = metadataRes.ok ? await metadataRes.json() : null;
+            const cloudUpdatedAt = getBackupUpdatedAt({ metadata, timestamp: Number(latestTs) }, latestTs);
+            const localUpdatedAt = getLocalDataUpdatedAt();
+            const lastAutoSyncAt = Number(localStorage.getItem(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT)) || 0;
+            if (cloudUpdatedAt <= localUpdatedAt || cloudUpdatedAt <= lastAutoSyncAt) return;
+
+            const res = await fetch(`${FIREBASE_DB_URL}/backups/${latestTs}.json?_t=${Date.now()}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const verifiedCloudUpdatedAt = getBackupUpdatedAt(data, latestTs);
+            if (verifiedCloudUpdatedAt <= localUpdatedAt || verifiedCloudUpdatedAt <= lastAutoSyncAt) return;
+
+            const localStats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
+            const cloudStats = parseJSONSafe(data && data.stats, {});
+            const localHistory = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+            const cloudHistory = parseJSONSafe(data && data.reviewHistory, {});
+            const mergedHistory = mergeHistoryByCardId(localHistory, cloudHistory);
+            const mergedStats = mergeStatsByCardId(localStats, cloudStats, localHistory, cloudHistory);
+            localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(mergedHistory));
+            localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(mergedStats));
+            localStorage.setItem(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(verifiedCloudUpdatedAt));
+            markLocalDataUpdated(Math.max(localUpdatedAt, verifiedCloudUpdatedAt));
+            showToast('최신 클라우드 데이터 동기화 완료', 'success');
+        } catch(e) {
+            console.error('[MK Auto Cloud Sync Error]', e);
         }
     }
 
@@ -2366,6 +2474,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
 
     function saveReviewHistory(history) {
         localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(history));
+        markLocalDataUpdated();
         scheduleBackup();
     }
 
@@ -2439,7 +2548,9 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
                 interval: 0,
                 fsrs: { D: 5.0, S: 0, reps: 0 }
             };
+            data[cardId].updatedAt = Date.now();
             localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
+            markLocalDataUpdated(data[cardId].updatedAt);
 
             const card = activeDeck && activeDeck[currentIndex];
             if (card && card.id === cardId) updateStatsUI(data[cardId]);
@@ -2503,8 +2614,10 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             rebuilt.lastDate = reviewTime;
         });
 
+        rebuilt.updatedAt = Date.now();
         data[cardId] = rebuilt;
         localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data));
+        markLocalDataUpdated(rebuilt.updatedAt);
 
         const card = activeDeck && activeDeck[currentIndex];
         if (card && card.id === cardId) {
@@ -2596,7 +2709,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             if (interval > 3) { let fuzz = 0; if (interval >= 4 && interval <= 7) fuzz = 1; else if (interval >= 8 && interval <= 15) fuzz = 2; else if (interval >= 16) fuzz = 3; const randomFuzz = Math.floor(Math.random() * (2 * fuzz + 1)) - fuzz; interval = Math.max(1, interval + randomFuzz); }
             data[id].interval = interval; const now = new Date(); now.setHours(0,0,0,0); data[id].dueDate = now.getTime() + (interval * 86400000);
         }
-        data[id].lastDate = Date.now(); localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); scheduleBackup();
+        data[id].lastDate = Date.now(); data[id].updatedAt = data[id].lastDate; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); markLocalDataUpdated(data[id].updatedAt); scheduleBackup();
         if(currentIndex < activeDeck.length - 1) moveCard(1); else { alert("학습 완료!"); moveCard(0); }
     }
 
@@ -2812,12 +2925,12 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         return progress[getProgressKey()] ?? progress[getLegacyProgressKey()] ?? 0;
     }
     function getStats(id) { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || {correct:0, total:0}; }
-    function toggleTag(e, type) { e.stopPropagation(); const id = activeDeck[currentIndex].id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); updateIconsUI(data[id]); scheduleBackup(); }
+    function toggleTag(e, type) { e.stopPropagation(); const id = activeDeck[currentIndex].id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; data[id].updatedAt = Date.now(); localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); markLocalDataUpdated(data[id].updatedAt); updateIconsUI(data[id]); scheduleBackup(); }
     function updateIconsUI(s) { ['mem','cmp','fav','num','date','pen'].forEach(t => document.getElementById(`${t}-btn`).classList.toggle('active', !!s[t])); }
     function filterCards() { const q = document.getElementById('search-input').value.toLowerCase(); localStorage.setItem('anki_search_query', q); if(!q) { applyFilterAndSort(true); persistCurrentViewState(true); return; } activeDeck = originalDeck.filter(c => c.q.toLowerCase().includes(q) || c.a.toLowerCase().includes(q)); currentIndex = 0; localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, JSON.stringify(activeDeck.map(c => c.id))); showCard(); persistCurrentViewState(true); }
     function openEditModal(e) { e.stopPropagation(); const c = activeDeck[currentIndex]; document.getElementById('edit-q').value=c.q; document.getElementById('edit-a').value=c.a; document.getElementById('edit-modal').style.display='flex'; }
     function closeEditModal() { document.getElementById('edit-modal').style.display='none'; }
-    function saveEdit() { const c = activeDeck[currentIndex]; c.q = document.getElementById('edit-q').value; c.a = document.getElementById('edit-a').value; closeEditModal(); showCard(); scheduleBackup(); }
+    function saveEdit() { const c = activeDeck[currentIndex]; c.q = document.getElementById('edit-q').value; c.a = document.getElementById('edit-a').value; markLocalDataUpdated(); closeEditModal(); showCard(); scheduleBackup(); }
 
     function toggleSliderPanel() {
         const panel = document.getElementById('slider-panel');
