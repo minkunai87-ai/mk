@@ -921,11 +921,41 @@
                 wrapper.dataset.mediaZoomSizeLogged = '1';
             };
             logImageSizes();
+            const setHighResImageMode = (enabled) => {
+                const img = getPrimaryImage();
+                if (!img || !img.naturalWidth || !img.naturalHeight) return;
+                if (!wrapper.matches('img')) return;
+                if (enabled) {
+                    if (!img.dataset.zoomOriginalStyleSaved) {
+                        img.dataset.zoomOriginalStyleSaved = '1';
+                        img.dataset.zoomOriginalWidthStyle = img.style.width || '';
+                        img.dataset.zoomOriginalMaxWidthStyle = img.style.maxWidth || '';
+                        img.dataset.zoomOriginalHeightStyle = img.style.height || '';
+                    }
+                    const displayWidth = img.clientWidth || wrapper.offsetWidth || 1;
+                    if (img.naturalWidth > displayWidth) {
+                        img.style.width = `${img.naturalWidth}px`;
+                        img.style.maxWidth = 'none';
+                        img.style.height = 'auto';
+                    }
+                } else if (img.dataset.zoomOriginalStyleSaved) {
+                    img.style.width = img.dataset.zoomOriginalWidthStyle || '';
+                    img.style.maxWidth = img.dataset.zoomOriginalMaxWidthStyle || '';
+                    img.style.height = img.dataset.zoomOriginalHeightStyle || '';
+                }
+            };
             const getBaseRect = (rect = wrapper.getBoundingClientRect()) => {
                 const width = wrapper.offsetWidth || (rect.width / state.scale) || rect.width || 1;
                 const height = wrapper.offsetHeight || (rect.height / state.scale) || rect.height || 1;
                 if (!Number.isFinite(rect.left) || !Number.isFinite(rect.top) || width <= 0 || height <= 0) {
-                    throw new Error('INVALID_IMAGE_ZOOM_RECT');
+                    const fallbackRect = scrollContainer.getBoundingClientRect();
+                    console.warn('IMAGE_ZOOM_ERROR', 'INVALID_IMAGE_ZOOM_RECT');
+                    return {
+                        left: fallbackRect.left,
+                        top: fallbackRect.top,
+                        width: Math.max(1, width || fallbackRect.width || 1),
+                        height: Math.max(1, height || fallbackRect.height || 1)
+                    };
                 }
                 return {
                     left: rect.left - state.translateX,
@@ -936,7 +966,8 @@
             };
             const getContentPoint = (clientX, clientY, scaleValue = state.scale, translateX = state.translateX, translateY = state.translateY, base = getBaseRect()) => {
                 if (!Number.isFinite(clientX) || !Number.isFinite(clientY) || !Number.isFinite(scaleValue) || scaleValue <= 0) {
-                    throw new Error('INVALID_IMAGE_ZOOM_POINT');
+                    console.warn('IMAGE_ZOOM_ERROR', 'INVALID_IMAGE_ZOOM_POINT');
+                    return { x: base.width / 2, y: base.height / 2 };
                 }
                 return {
                     x: (clientX - base.left - translateX) / scaleValue,
@@ -976,15 +1007,17 @@
                     clampTranslate();
                     if (state.raf) cancelAnimationFrame(state.raf);
                     state.raf = requestAnimationFrame(() => {
+                        setHighResImageMode(state.scale > 1);
                         wrapper.style.transform = `matrix(${state.scale}, 0, 0, ${state.scale}, ${state.translateX}, ${state.translateY})`;
                         wrapper.classList.toggle('is-media-zoomed', state.scale > 1);
                         state.raf = null;
                     });
                 } catch (err) {
-                    console.error('IMAGE_ZOOM_ERROR', err);
+                    console.warn('IMAGE_ZOOM_ERROR', err);
                     state.scale = 1;
                     state.translateX = 0;
                     state.translateY = 0;
+                    setHighResImageMode(false);
                     wrapper.style.transform = '';
                     wrapper.classList.remove('is-media-zoomed');
                 }
@@ -992,11 +1025,34 @@
             const reset = () => {
                 state.scale = 1; state.translateX = 0; state.translateY = 0;
                 wrapper.style.transformOrigin = '0 0';
+                setHighResImageMode(false);
                 apply();
             };
             const zoomAt = (clientX, clientY, nextScale) => {
-                const contentPoint = getContentPoint(clientX, clientY);
-                const base = getBaseRect();
+                const img = getPrimaryImage();
+                let contentPoint;
+                let base;
+                if (
+                    wrapper.matches('img') &&
+                    state.scale <= MIN_SCALE &&
+                    nextScale > MIN_SCALE &&
+                    img &&
+                    img.naturalWidth &&
+                    img.naturalHeight
+                ) {
+                    const displayRect = wrapper.getBoundingClientRect();
+                    const ratioX = img.naturalWidth / Math.max(1, displayRect.width || img.clientWidth || 1);
+                    const ratioY = img.naturalHeight / Math.max(1, displayRect.height || img.clientHeight || 1);
+                    contentPoint = {
+                        x: (clientX - displayRect.left) * ratioX,
+                        y: (clientY - displayRect.top) * ratioY
+                    };
+                    setHighResImageMode(true);
+                    base = getBaseRect();
+                } else {
+                    contentPoint = getContentPoint(clientX, clientY);
+                    base = getBaseRect();
+                }
                 state.scale = clamp(nextScale, MIN_SCALE, MAX_SCALE);
                 state.translateX = clientX - base.left - (contentPoint.x * state.scale);
                 state.translateY = clientY - base.top - (contentPoint.y * state.scale);
@@ -1012,7 +1068,7 @@
                     zoomAt(clientX, clientY, nextScale);
                     return true;
                 } catch (err) {
-                    console.error(logLabel, err);
+                    console.warn(logLabel, err);
                     reset();
                     return false;
                 }
@@ -1050,7 +1106,7 @@
                             if (state.scale > 1) reset();
                             else safeZoomAt(touch.clientX, touch.clientY, 1.5, 'DOUBLE_TAP_ERROR');
                         } catch (err) {
-                            console.error('DOUBLE_TAP_ERROR', err);
+                            console.warn('DOUBLE_TAP_ERROR', err);
                             reset();
                         }
                         state.lastTap = 0;
@@ -1065,7 +1121,7 @@
                         state.panY = state.translateY;
                     }
                 } catch (err) {
-                    console.error('IMAGE_ZOOM_ERROR', err);
+                    console.warn('IMAGE_ZOOM_ERROR', err);
                     reset();
                 }
             }, { passive: false });
@@ -1094,7 +1150,7 @@
                         apply();
                     }
                 } catch (err) {
-                    console.error('IMAGE_ZOOM_ERROR', err);
+                    console.warn('IMAGE_ZOOM_ERROR', err);
                     reset();
                 }
             }, { passive: false });
