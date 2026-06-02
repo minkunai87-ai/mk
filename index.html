@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.59 - 모바일 원본 이미지 화질 강제)</title>
+<title>MK (v18.5.60 - 모바일 원본 이미지 오버레이 확대)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -150,6 +150,7 @@
     img { border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); max-width: 100% !important; height: auto !important; display: block; margin: 10px auto; image-rendering: auto !important; }
     .media-zoom-target { transition: transform 0.18s ease; will-change: transform; touch-action: pan-y; transform-origin: 0 0; backface-visibility: hidden; -webkit-transform: translateZ(0); }
     .media-zoom-target.is-media-zoomed { position: relative; z-index: 5; touch-action: none; transition: none; }
+    .mk-high-res-zoom-layer { position: fixed; top: 0; left: 0; z-index: 9997; pointer-events: none; transform-origin: 0 0; image-rendering: auto !important; max-width: none !important; height: auto !important; margin: 0 !important; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.45); will-change: transform; }
     
     /* ⭐ 17버전 레이아웃 100% 보존 */
     .ancestor-wrapper { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed #3a3a3a; width: 100%; }
@@ -360,7 +361,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.59 - 모바일 원본 이미지 화질 강제)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.60 - 모바일 원본 이미지 오버레이 확대)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -580,7 +581,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.59 - 모바일 원본 이미지 화질 강제';
+    const APP_VERSION = 'v18.5.60 - 모바일 원본 이미지 오버레이 확대';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
@@ -853,6 +854,11 @@
                 el._mediaZoomState.translateX = 0;
                 el._mediaZoomState.translateY = 0;
                 el._mediaZoomState.raf = null;
+                if (el._mediaZoomState.overlay) {
+                    el._mediaZoomState.overlay.remove();
+                    el._mediaZoomState.overlay = null;
+                    el._mediaZoomState.overlayBaseRect = null;
+                }
             }
         });
     }
@@ -902,6 +908,9 @@
                 panY: 0,
                 startX: 0,
                 startY: 0,
+                overlay: null,
+                overlayBaseRect: null,
+                overlayBaseScale: 1,
                 raf: null
             };
             const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -921,37 +930,56 @@
                 wrapper.dataset.mediaZoomSizeLogged = '1';
             };
             logImageSizes();
-            const setHighResImageMode = (enabled) => {
-                const img = getPrimaryImage();
-                if (!img || !img.naturalWidth || !img.naturalHeight) return;
-                if (!wrapper.matches('img')) return;
-                if (enabled) {
-                    if (!img.dataset.zoomOriginalStyleSaved) {
-                        img.dataset.zoomOriginalStyleSaved = '1';
-                        img.dataset.zoomOriginalWidthStyle = img.style.width || '';
-                        img.dataset.zoomOriginalMaxWidthStyle = img.style.maxWidth || '';
-                        img.dataset.zoomOriginalHeightStyle = img.style.height || '';
-                    }
-                    const displayWidth = img.clientWidth || wrapper.offsetWidth || 1;
-                    if (img.naturalWidth > displayWidth) {
-                        img.style.setProperty('width', `${img.naturalWidth}px`, 'important');
-                        img.style.setProperty('max-width', 'none', 'important');
-                        img.style.setProperty('height', 'auto', 'important');
-                        console.log('IMG_HIGH_RES_MODE', {
-                            naturalWidth: img.naturalWidth,
-                            naturalHeight: img.naturalHeight,
-                            displayWidth,
-                            src: img.getAttribute('src') || img.currentSrc || ''
-                        });
-                    }
-                } else if (img.dataset.zoomOriginalStyleSaved) {
-                    if (img.dataset.zoomOriginalWidthStyle) img.style.setProperty('width', img.dataset.zoomOriginalWidthStyle);
-                    else img.style.removeProperty('width');
-                    if (img.dataset.zoomOriginalMaxWidthStyle) img.style.setProperty('max-width', img.dataset.zoomOriginalMaxWidthStyle);
-                    else img.style.removeProperty('max-width');
-                    if (img.dataset.zoomOriginalHeightStyle) img.style.setProperty('height', img.dataset.zoomOriginalHeightStyle);
-                    else img.style.removeProperty('height');
+            const removeHighResOverlay = () => {
+                if (state.overlay) {
+                    state.overlay.remove();
+                    state.overlay = null;
                 }
+                state.overlayBaseRect = null;
+                state.overlayBaseScale = 1;
+            };
+            const ensureHighResOverlay = () => {
+                const img = getPrimaryImage();
+                if (!wrapper.matches('img') || !img || !img.naturalWidth || !img.naturalHeight) return null;
+                if (!state.overlayBaseRect) {
+                    const rect = wrapper.getBoundingClientRect();
+                    state.overlayBaseRect = {
+                        left: rect.left,
+                        top: rect.top,
+                        width: rect.width || img.clientWidth || 1,
+                        height: rect.height || img.clientHeight || 1
+                    };
+                    state.overlayBaseScale = state.overlayBaseRect.width / Math.max(1, img.naturalWidth);
+                }
+                if (!state.overlay) {
+                    const overlay = document.createElement('img');
+                    overlay.className = 'mk-high-res-zoom-layer';
+                    overlay.src = img.dataset.originalSrc || img.getAttribute('src') || img.currentSrc || '';
+                    overlay.decoding = 'async';
+                    overlay.draggable = false;
+                    overlay.style.setProperty('width', `${img.naturalWidth}px`, 'important');
+                    overlay.style.setProperty('height', 'auto', 'important');
+                    overlay.style.setProperty('max-width', 'none', 'important');
+                    document.body.appendChild(overlay);
+                    state.overlay = overlay;
+                    console.log('IMG_HIGH_RES_MODE', {
+                        naturalWidth: img.naturalWidth,
+                        naturalHeight: img.naturalHeight,
+                        displayWidth: state.overlayBaseRect.width,
+                        baseScale: state.overlayBaseScale,
+                        src: overlay.src
+                    });
+                }
+                return state.overlay;
+            };
+            const applyHighResOverlay = () => {
+                const overlay = ensureHighResOverlay();
+                if (!overlay || !state.overlayBaseRect) return false;
+                const renderScale = state.overlayBaseScale * state.scale;
+                const x = state.overlayBaseRect.left + state.translateX;
+                const y = state.overlayBaseRect.top + state.translateY;
+                overlay.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${renderScale})`;
+                return true;
             };
             const getBaseRect = (rect = wrapper.getBoundingClientRect()) => {
                 const width = wrapper.offsetWidth || (rect.width / state.scale) || rect.width || 1;
@@ -1016,8 +1044,13 @@
                     clampTranslate();
                     if (state.raf) cancelAnimationFrame(state.raf);
                     state.raf = requestAnimationFrame(() => {
-                        setHighResImageMode(state.scale > 1);
-                        wrapper.style.transform = `matrix(${state.scale}, 0, 0, ${state.scale}, ${state.translateX}, ${state.translateY})`;
+                        if (wrapper.matches('img') && state.scale > 1) {
+                            applyHighResOverlay();
+                            wrapper.style.transform = '';
+                        } else {
+                            removeHighResOverlay();
+                            wrapper.style.transform = `matrix(${state.scale}, 0, 0, ${state.scale}, ${state.translateX}, ${state.translateY})`;
+                        }
                         wrapper.classList.toggle('is-media-zoomed', state.scale > 1);
                         state.raf = null;
                     });
@@ -1026,7 +1059,7 @@
                     state.scale = 1;
                     state.translateX = 0;
                     state.translateY = 0;
-                    setHighResImageMode(false);
+                    removeHighResOverlay();
                     wrapper.style.transform = '';
                     wrapper.classList.remove('is-media-zoomed');
                 }
@@ -1034,7 +1067,7 @@
             const reset = () => {
                 state.scale = 1; state.translateX = 0; state.translateY = 0;
                 wrapper.style.transformOrigin = '0 0';
-                setHighResImageMode(false);
+                removeHighResOverlay();
                 apply();
             };
             const zoomAt = (clientX, clientY, nextScale) => {
@@ -1050,13 +1083,10 @@
                     img.naturalHeight
                 ) {
                     const displayRect = wrapper.getBoundingClientRect();
-                    const ratioX = img.naturalWidth / Math.max(1, displayRect.width || img.clientWidth || 1);
-                    const ratioY = img.naturalHeight / Math.max(1, displayRect.height || img.clientHeight || 1);
                     contentPoint = {
-                        x: (clientX - displayRect.left) * ratioX,
-                        y: (clientY - displayRect.top) * ratioY
+                        x: clientX - displayRect.left,
+                        y: clientY - displayRect.top
                     };
-                    setHighResImageMode(true);
                     base = getBaseRect();
                 } else {
                     contentPoint = getContentPoint(clientX, clientY);
