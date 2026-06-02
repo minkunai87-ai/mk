@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.58 - 모바일 이미지 더블탭 오류 및 화질 개선)</title>
+<title>MK (v18.5.59 - 모바일 원본 이미지 화질 강제)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -360,7 +360,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.58 - 모바일 이미지 더블탭 오류 및 화질 개선)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.59 - 모바일 원본 이미지 화질 강제)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -580,7 +580,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.58 - 모바일 이미지 더블탭 오류 및 화질 개선';
+    const APP_VERSION = 'v18.5.59 - 모바일 원본 이미지 화질 강제';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
@@ -934,14 +934,23 @@
                     }
                     const displayWidth = img.clientWidth || wrapper.offsetWidth || 1;
                     if (img.naturalWidth > displayWidth) {
-                        img.style.width = `${img.naturalWidth}px`;
-                        img.style.maxWidth = 'none';
-                        img.style.height = 'auto';
+                        img.style.setProperty('width', `${img.naturalWidth}px`, 'important');
+                        img.style.setProperty('max-width', 'none', 'important');
+                        img.style.setProperty('height', 'auto', 'important');
+                        console.log('IMG_HIGH_RES_MODE', {
+                            naturalWidth: img.naturalWidth,
+                            naturalHeight: img.naturalHeight,
+                            displayWidth,
+                            src: img.getAttribute('src') || img.currentSrc || ''
+                        });
                     }
                 } else if (img.dataset.zoomOriginalStyleSaved) {
-                    img.style.width = img.dataset.zoomOriginalWidthStyle || '';
-                    img.style.maxWidth = img.dataset.zoomOriginalMaxWidthStyle || '';
-                    img.style.height = img.dataset.zoomOriginalHeightStyle || '';
+                    if (img.dataset.zoomOriginalWidthStyle) img.style.setProperty('width', img.dataset.zoomOriginalWidthStyle);
+                    else img.style.removeProperty('width');
+                    if (img.dataset.zoomOriginalMaxWidthStyle) img.style.setProperty('max-width', img.dataset.zoomOriginalMaxWidthStyle);
+                    else img.style.removeProperty('max-width');
+                    if (img.dataset.zoomOriginalHeightStyle) img.style.setProperty('height', img.dataset.zoomOriginalHeightStyle);
+                    else img.style.removeProperty('height');
                 }
             };
             const getBaseRect = (rect = wrapper.getBoundingClientRect()) => {
