@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.60 - 모바일 원본 이미지 오버레이 확대)</title>
+<title>MK (v18.5.62 - IO 더블탭 1.7배 안정 확대)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -361,7 +361,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.60 - 모바일 원본 이미지 오버레이 확대)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.62 - IO 더블탭 1.7배 안정 확대)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -581,7 +581,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.60 - 모바일 원본 이미지 오버레이 확대';
+    const APP_VERSION = 'v18.5.62 - IO 더블탭 1.7배 안정 확대';
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
@@ -876,6 +876,7 @@
             wrapper.dataset.mediaZoomBound = '1';
             wrapper.classList.add('media-zoom-target');
             wrapper.style.transformOrigin = '0 0';
+            const isIOZoomTarget = wrapper.classList.contains('mk-io-wrapper');
             const mediaImages = wrapper.matches('img') ? [wrapper] : Array.from(wrapper.querySelectorAll('img'));
             mediaImages.forEach(img => {
                 const originalSrc = img.getAttribute('data-original-src') || img.getAttribute('src') || img.currentSrc || '';
@@ -1112,6 +1113,37 @@
                     return false;
                 }
             };
+            const safeIODoubleTapZoom = (clientX, clientY) => {
+                try {
+                    if (!wrapper.isConnected || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return false;
+                    if (state.scale > 1.01) {
+                        reset();
+                        return true;
+                    }
+
+                    const rect = wrapper.getBoundingClientRect();
+                    if (!rect || !rect.width || !rect.height || !Number.isFinite(rect.left) || !Number.isFinite(rect.top)) {
+                        console.warn('IO_DOUBLE_TAP_ERROR', 'INVALID_IO_RECT');
+                        reset();
+                        return false;
+                    }
+
+                    const nextScale = 1.7;
+                    const contentX = clientX - rect.left;
+                    const contentY = clientY - rect.top;
+                    state.scale = nextScale;
+                    state.translateX = clientX - rect.left - (contentX * nextScale);
+                    state.translateY = clientY - rect.top - (contentY * nextScale);
+                    removeHighResOverlay();
+                    apply();
+                    console.log('IO_DOUBLE_TAP_ZOOM_APPLIED', nextScale);
+                    return true;
+                } catch (err) {
+                    console.warn('IO_DOUBLE_TAP_ERROR', err);
+                    reset();
+                    return false;
+                }
+            };
             const center = touches => ({ x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 });
             const distance = touches => Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
 
@@ -1141,8 +1173,11 @@
                     const now = Date.now();
                     if (now - state.lastTap < 300) {
                         e.preventDefault();
+                        e.stopPropagation();
                         try {
-                            if (state.scale > 1) reset();
+                            if (isIOZoomTarget) {
+                                safeIODoubleTapZoom(touch.clientX, touch.clientY);
+                            } else if (state.scale > 1) reset();
                             else safeZoomAt(touch.clientX, touch.clientY, 1.5, 'DOUBLE_TAP_ERROR');
                         } catch (err) {
                             console.warn('DOUBLE_TAP_ERROR', err);
