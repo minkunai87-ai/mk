@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.67 - IO 모드 옵션 및 마스크 이동)</title>
+<title>MK (v18.5.68 - Firebase 분리 점검)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -362,7 +362,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.67 - IO 모드 옵션 및 마스크 이동)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.68 - Firebase 분리 점검)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -582,7 +582,10 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.67 - IO 모드 옵션 및 마스크 이동';
+    const APP_VERSION = 'v18.5.68 - Firebase 분리 점검';
+    const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
+    const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
+    const FIREBASE_BACKUP_KEEP_COUNT = 20;
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
@@ -609,6 +612,21 @@
     let targetRetention = parseFloat(localStorage.getItem('anki_target_retention')) || 0.90;
 
     const cyrb53 = (str, seed = 0) => { let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed; for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); return 4294967296 * (2097151 & h2) + (h1 >>> 0); };
+
+    function isMkBackupRecord(data = {}) {
+        return !!(data && typeof data === 'object' && data.appId === 'mk');
+    }
+
+    function getBackupPayloadBreakdownKB(data) {
+        const diagnostics = data && data.diagnostics ? data.diagnostics : {};
+        return {
+            totalKB: Math.round(JSON.stringify(data || {}).length / 1024),
+            statsKB: Math.round(JSON.stringify(data && data.stats ? data.stats : '').length / 1024),
+            cardIdentityMapKB: Math.round(JSON.stringify(data && data.cardIdentityMap ? data.cardIdentityMap : {}).length / 1024),
+            libraryKB: Math.round(JSON.stringify(data && data.library ? data.library : '').length / 1024),
+            diagnosticsKB: Math.round(JSON.stringify(diagnostics).length / 1024)
+        };
+    }
 
     function getDeviceId() {
         let deviceId = localStorage.getItem('mkDeviceId');
@@ -1482,7 +1500,9 @@
         const metadata = getBackupMetadata();
         const localUpdatedAt = getLocalDataUpdatedAt();
         const currentCardUuid = getCurrentCardId();
-        const data = { 
+        const data = {
+            appId: 'mk',
+            appVersion: APP_VERSION,
             stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), 
             lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), filter: localStorage.getItem(STORAGE_KEY_FILTER_STATE),
             activeIds: localStorage.getItem(STORAGE_KEY_ACTIVE_IDS),
@@ -1506,9 +1526,28 @@
             localUpdatedAt,
             metadata: { ...metadata, localUpdatedAt }
         };
+        const payloadText = JSON.stringify(data);
+        const payloadBreakdownKB = getBackupPayloadBreakdownKB(data);
+        const backupIndexData = {
+            timestamp: data.timestamp,
+            appId: 'mk',
+            appVersion: APP_VERSION,
+            metadata: data.metadata,
+            statsKeyCount: Object.keys(parseJSONSafe(data.stats, {})).length,
+            localUpdatedAt,
+            createdAt: Date.now()
+        };
+        console.log('[MK Backup Payload Breakdown KB]', payloadBreakdownKB);
         try {
-            const res = await fetch(`${FIREBASE_DB_URL}/backups/${data.timestamp}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: !!options.keepalive });
-            if(res.ok) { isDataChanged = false; updateCloudIcon('done'); if(!options.keepalive) cleanupOldBackups(); if(!isAuto) showToast("🚀 수동 백업 100% 성공!", "success"); return true; } 
+            const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${data.timestamp}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: payloadText, keepalive: !!options.keepalive });
+            if(res.ok) {
+                try {
+                    await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}/${data.timestamp}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(backupIndexData), keepalive: !!options.keepalive });
+                } catch(indexError) {
+                    console.error('[MK Backup Index Error]', indexError);
+                }
+                isDataChanged = false; updateCloudIcon('done'); if(!options.keepalive) cleanupOldBackups(); if(!isAuto) showToast("백업 완료", "success"); return true;
+            } 
             else { updateCloudIcon('error'); if(!isAuto) showToast("❌ 백업 실패", "error"); return false; }
         } catch(e) { updateCloudIcon('error'); if(!isAuto) showToast("❌ 인터넷 연결 오류", "error"); return false; }
     }
@@ -1525,30 +1564,80 @@
     });
 
     async function fetchFirebaseList() {
-        document.getElementById('fb-auth-section').style.display = 'none'; document.getElementById('fb-list-section').style.display = 'block';
-        const listUI = document.getElementById('fb-list-ui'); listUI.innerHTML = '<div style="padding:20px; text-align:center;">구글 서버에서 가져오는 중...</div>';
+        document.getElementById('fb-auth-section').style.display = 'none';
+        document.getElementById('fb-list-section').style.display = 'block';
+        const listUI = document.getElementById('fb-list-ui');
+        listUI.innerHTML = '<div style="padding:20px; text-align:center;">구글 서버에서 가져오는 중...</div>';
         try {
-            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${Date.now()}`); if(!res.ok) throw new Error();
-            const data = await res.json(); if(!data) { listUI.innerHTML = '<div style="padding:20px; text-align:center;">아직 저장된 백업이 없습니다.</div>'; return; }
-            const timestamps = Object.keys(data).sort((a, b) => b - a); listUI.innerHTML = '';
-            
-            const visibleTimestamps = timestamps.slice(0, 100);
-            visibleTimestamps.forEach(ts => {
-                const item = document.createElement('div'); item.className = 'backup-item'; const d = new Date(parseInt(ts));
+            let records = await fetchBackupRecordsFromIndexFast();
+            if(!records.length) records = await fetchBackupRecordsFromShallowPath();
+            records = records.filter(record => record && isMkBackupRecord(record.data || { appId: record.source === 'shallow' ? 'mk' : '' }))
+                .sort((a, b) => Number(b.ts) - Number(a.ts))
+                .slice(0, FIREBASE_BACKUP_KEEP_COUNT);
+            listUI.innerHTML = '';
+            if(!records.length) {
+                listUI.innerHTML = '<div style="padding:20px; text-align:center;">아직 저장된 MK 백업이 없습니다.</div>';
+                return;
+            }
+            records.forEach(record => {
+                const ts = record.ts;
+                const item = document.createElement('div');
+                item.className = 'backup-item';
+                const d = new Date(parseInt(ts));
                 const timeStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-                item.innerHTML = `<span><span class="backup-date">🕒 ${timeStr}</span> 에 저장됨</span>`;
-                item.onclick = async () => { listUI.innerHTML = '<div style="padding:20px; text-align:center;">데이터를 복구 중입니다... 1초 대기!</div>'; await restoreFromFirebase(ts); };
+                const metadata = record.data && record.data.metadata ? record.data.metadata : null;
+                const detailText = metadata && metadata.deviceName
+                    ? `${metadata.deviceName} · ${metadata.platform || 'Unknown'} · ${metadata.version || record.data.appVersion || ''}`
+                    : (record.source === 'shallow' ? '정보 없음 · 클릭 시 검증' : `${record.data.appVersion || 'device unknown'}`);
+                const countText = record.data && record.data.statsKeyCount ? ` · stats ${record.data.statsKeyCount}` : '';
+                item.innerHTML = `<span><span class="backup-date">☁️ ${timeStr}</span> 저장됨 <small style="color:var(--primary);">[MK${record.source === 'shallow' ? ' shallow' : ''}]</small><br><small style="color:var(--text-sub);">${detailText}${countText}</small></span>`;
+                item.onclick = async () => {
+                    listUI.innerHTML = '<div style="padding:20px; text-align:center;">해당 백업 다운로드 중...</div>';
+                    await restoreFromFirebase(ts);
+                };
                 listUI.appendChild(item);
-                item.querySelector('span').insertAdjacentHTML('beforeend', `<br><small class="backup-device" data-backup-ts="${ts}" style="color:var(--text-sub);">device loading...</small>`);
             });
-            loadBackupMetadataForList(visibleTimestamps);
-        } catch(e) { listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">불러오기 실패. 앱을 새로고침 해주세요.</div>`; }
+        } catch(e) {
+            console.error('[MK Firebase Backup Index UI Error]', e);
+            listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">불러오기 실패. 앱을 새로고침 해주세요.</div>`;
+        }
     }
 
+    async function fetchBackupRecordsFromIndexFast() {
+        try {
+            const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json?orderBy=%22$key%22&limitToLast=${FIREBASE_BACKUP_KEEP_COUNT}&_t=${Date.now()}`, { cache: 'no-store' });
+            if(!res.ok) return [];
+            const data = await res.json();
+            if(!data || typeof data !== 'object') return [];
+            return Object.entries(data)
+                .filter(([ts, indexData]) => /^\d+$/.test(String(ts)) && isMkBackupRecord(indexData || {}))
+                .map(([ts, indexData]) => ({ ts, data: indexData || {}, source: 'index' }));
+        } catch(e) {
+            console.error('[MK Firebase Backup Index List Error]', e);
+            return [];
+        }
+    }
+
+    async function fetchBackupRecordsFromShallowPath() {
+        try {
+            const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}.json?shallow=true&_t=${Date.now()}`, { cache: 'no-store' });
+            if(!res.ok) return [];
+            const data = await res.json();
+            if(!data || typeof data !== 'object') return [];
+            return Object.keys(data)
+                .filter(ts => /^\d+$/.test(String(ts)))
+                .sort((a, b) => Number(b) - Number(a))
+                .slice(0, FIREBASE_BACKUP_KEEP_COUNT)
+                .map(ts => ({ ts, data: { appId: 'mk', appVersion: '정보 없음', metadata: null, timestamp: Number(ts), shallowOnly: true }, source: 'shallow' }));
+        } catch(e) {
+            console.error('[MK Firebase Backup Shallow List Error]', e);
+            return [];
+        }
+    }
     async function loadBackupMetadataForList(timestamps) {
         await Promise.all(timestamps.map(async ts => {
             try {
-                const res = await fetch(`${FIREBASE_DB_URL}/backups/${ts}/metadata.json?_t=${Date.now()}`);
+                const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${ts}/metadata.json?_t=${Date.now()}`);
                 if (!res.ok) return;
                 const metadata = await res.json();
                 const deviceEl = document.querySelector(`[data-backup-ts="${ts}"]`);
@@ -1580,7 +1669,7 @@
         list.style.display = 'block';
         list.innerHTML = '';
         try {
-            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${Date.now()}`);
+            const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}.json?shallow=true&_t=${Date.now()}`);
             if(!res.ok) throw new Error();
             const data = await res.json();
             const timestamps = Object.keys(data || {}).sort((a, b) => b - a).slice(0, 50);
@@ -1679,9 +1768,10 @@
         preview.style.display = 'none';
         document.getElementById('uuid-apply-actions').style.display = 'none';
         try {
-            const res = await fetch(`${FIREBASE_DB_URL}/backups/${ts}.json?_t=${Date.now()}`);
+            const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${ts}.json?_t=${Date.now()}`);
             if(!res.ok) throw new Error();
             const targetData = await res.json();
+            if(!isMkBackupRecord(targetData)) throw new Error(`Blocked non-MK backup migration analysis: ${targetData && targetData.appId ? targetData.appId : 'unknown'}`);
             const oldStats = parseJSONSafe(targetData.stats, {});
             const oldHistory = parseJSONSafe(targetData.reviewHistory, {});
             const oldCards = getBackupMigrationCards(targetData).filter(card => oldStats[card.id] || oldHistory[card.id]);
@@ -2001,10 +2091,14 @@
     }
 
     async function getLatestFirebaseBackupTimestamp() {
-        const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${Date.now()}`);
+        const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json?orderBy=%22$key%22&limitToLast=1&_t=${Date.now()}`, { cache: 'no-store' });
         if (!res.ok) return null;
         const data = await res.json();
-        const timestamps = Object.keys(data || {}).map(Number).filter(Boolean).sort((a, b) => b - a);
+        const timestamps = Object.entries(data || {})
+            .filter(([ts, indexData]) => /^\d+$/.test(String(ts)) && isMkBackupRecord(indexData || {}))
+            .map(([ts]) => Number(ts))
+            .filter(Boolean)
+            .sort((a, b) => b - a);
         return timestamps.length ? String(timestamps[0]) : null;
     }
 
@@ -2016,7 +2110,7 @@
                 console.log('RESTORE_SOURCE local');
                 return;
             }
-            const metadataRes = await fetch(`${FIREBASE_DB_URL}/backups/${latestTs}/metadata.json?_t=${Date.now()}`);
+            const metadataRes = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}/${latestTs}/metadata.json?_t=${Date.now()}`);
             const metadata = metadataRes.ok ? await metadataRes.json() : null;
             const cloudUpdatedAt = getBackupUpdatedAt({ metadata, timestamp: Number(latestTs) }, latestTs);
             const localUpdatedAt = getLocalDataUpdatedAt();
@@ -2028,12 +2122,16 @@
                 return;
             }
 
-            const res = await fetch(`${FIREBASE_DB_URL}/backups/${latestTs}.json?_t=${Date.now()}`);
+            const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${latestTs}.json?_t=${Date.now()}`);
             if (!res.ok) {
                 console.log('RESTORE_SOURCE local');
                 return;
             }
             const data = await res.json();
+            if (!isMkBackupRecord(data)) {
+                console.log('RESTORE_SOURCE local');
+                return;
+            }
             const verifiedCloudUpdatedAt = getBackupUpdatedAt(data, latestTs);
             console.log(`CLOUD_UPDATED_AT ${verifiedCloudUpdatedAt}`);
             if (verifiedCloudUpdatedAt <= localUpdatedAt || verifiedCloudUpdatedAt <= lastAutoSyncAt) {
@@ -2282,11 +2380,12 @@
         const listUI = document.getElementById('fb-list-ui');
         try {
             console.log('RESTORE_START');
-            const res = await fetch(`${FIREBASE_DB_URL}/backups/${ts}.json?_t=${Date.now()}`);
+            const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${ts}.json?_t=${Date.now()}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
             const targetData = await res.json();
             if (!targetData || typeof targetData !== 'object') throw new Error('EMPTY_BACKUP');
+            if (!isMkBackupRecord(targetData)) throw new Error(`Blocked non-MK backup restore: ${targetData.appId || 'unknown'}`);
             console.log(`RESTORE_BACKUP_SIZE kb=${getTextSizeKB(JSON.stringify(targetData))}`);
 
             freeRestorableCacheStorage();
@@ -2342,10 +2441,17 @@
 
     async function cleanupOldBackups() {
         try {
-            const res = await fetch(`${FIREBASE_DB_URL}/backups.json?shallow=true&_t=${Date.now()}`); const data = await res.json(); if(!data) return;
-            const timestamps = Object.keys(data).sort((a, b) => a - b); 
+            const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json?shallow=true&_t=${Date.now()}`, { cache: 'no-store' }); const data = await res.json(); if(!data) return;
+            const timestamps = Object.keys(data).filter(ts => /^\d+$/.test(String(ts))).sort((a, b) => Number(a) - Number(b)); 
             
-            if(timestamps.length > 100) { const toDelete = timestamps.slice(0, timestamps.length - 100); for(const ts of toDelete) { fetch(`${FIREBASE_DB_URL}/backups/${ts}.json`, { method: 'DELETE' }); } }
+            if(timestamps.length > FIREBASE_BACKUP_KEEP_COUNT) {
+                const toDelete = timestamps.slice(0, timestamps.length - FIREBASE_BACKUP_KEEP_COUNT);
+                await Promise.all(toDelete.map(ts => Promise.all([
+                    fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${ts}.json`, { method: 'DELETE' }),
+                    fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}/${ts}.json`, { method: 'DELETE' })
+                ])));
+                console.log('[MK Firebase Cleanup]', { keep: FIREBASE_BACKUP_KEEP_COUNT, deleted: toDelete.length });
+            }
         } catch(e) {}
     }
 
