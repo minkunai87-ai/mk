@@ -4028,7 +4028,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         const rateBadge = document.getElementById('rate-badge');
         const seenBadge = document.getElementById('date-badge');
         const dueBadge = document.getElementById('due-badge');
-        const cardIdForAccuracy = activeDeck[currentIndex] && activeDeck[currentIndex].id;
+        const cardIdForAccuracy = (s && s._statsKey) || (activeDeck[currentIndex] && activeDeck[currentIndex].id);
         const accuracy = getAccuracyStats(cardIdForAccuracy, s);
 
         rateBadge.onclick = openCurrentCardHistory;
@@ -4236,7 +4236,8 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     function getStatsForCard(card) {
         const stats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
         const found = findStatsForCard(card, stats, card && card.id);
-        return found.stat || {correct:0, total:0};
+        if(found.stat) return { ...found.stat, _statsKey: found.key };
+        return {correct:0, total:0, _statsKey: String(card && card.id || '')};
     }
     function getStats(id) { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || {correct:0, total:0}; }
     function toggleTag(e, type) { e.stopPropagation(); const id = activeDeck[currentIndex].id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; data[id].updatedAt = Date.now(); localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); markLocalDataUpdated(data[id].updatedAt); updateIconsUI(data[id]); scheduleBackup(); }
