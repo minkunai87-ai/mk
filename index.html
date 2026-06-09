@@ -2266,7 +2266,8 @@
         if(hasBackupField(raw, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, raw.recentDecks);
         if(hasBackupField(raw, 'targetRetention')) applyTargetRetentionFromBackup(raw.targetRetention, source);
         const restoredViewState = restorePosition(payload.viewState || getBackupViewState(raw), source);
-        markLocalDataUpdated(Math.max(getLocalDataUpdatedAt(), Number(payload.updatedAt) || Date.now()));
+        const restoredUpdatedAt = Number(payload.updatedAt) || getLocalDataUpdatedAt();
+        if(restoredUpdatedAt) markLocalDataUpdated(Math.max(getLocalDataUpdatedAt(), restoredUpdatedAt));
         logStudyStateSnapshot('restore', { stats: nextStats, reviewHistory: nextHistory, viewState: restoredViewState });
         console.log('RESTORE_COMPLETE', { source, currentCardUuid: restoredViewState.currentCardUuid || restoredViewState.cardId || '' });
         return restoredViewState;
@@ -2670,6 +2671,8 @@
             freeRestorableCacheStorage();
             const normalizedManualPayload = normalizeBackupPayload(targetData, 'manual-restore', ts);
             applyRestoredState(normalizedManualPayload, normalizedManualPayload.source);
+            await finishFirebaseRestore(targetData, listUI);
+            return;
             persistBackupPositionState(targetData, 'backup');
 
             const criticalResults = [
