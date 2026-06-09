@@ -2116,6 +2116,34 @@
         return Number(data && (data.localUpdatedAt || data.backupAt || data.timestamp || (data.metadata && (data.metadata.localUpdatedAt || data.metadata.backupAt)))) || Number(ts) || 0;
     }
 
+    function getBackupStatsCandidate(data = {}) {
+        const candidates = [
+            data && data.stats,
+            data && data.cardStats,
+            data && data.cards,
+            data && data[STORAGE_KEY_STATS]
+        ];
+        for (const candidate of candidates) {
+            const parsed = parseJSONSafe(candidate, null);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+        }
+        return {};
+    }
+
+    function logCurrentCardReviewState(context = 'current') {
+        try {
+            const currentCardUuid = getCurrentCardId();
+            const stats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
+            const stat = currentCardUuid ? stats[currentCardUuid] : null;
+            console.log('CARD_STATS_FOUND', { context, currentCardUuid, found: !!stat, statsKeyCount: Object.keys(stats || {}).length });
+            console.log('LAST_VIEWED_AT', { context, currentCardUuid, lastViewedAt: stat ? (stat.lastDate || stat.lastViewedAt || stat.lastReviewed || null) : null });
+            console.log('NEXT_REVIEW_DATE', { context, currentCardUuid, nextReviewDate: stat ? (stat.dueDate || stat.nextReviewDate || null) : null });
+            console.log('FSRS_STATE', { context, currentCardUuid, fsrs: stat ? (stat.fsrs || null) : null });
+        } catch(e) {
+            console.error('[MK Review State Log Error]', e);
+        }
+    }
+
     function getBackupViewState(data = {}) {
         const viewState = parseJSONSafe(data.viewState, {});
         const filterState = parseJSONSafe(data.filter, {});
@@ -2239,10 +2267,13 @@
 
     async function syncLatestFirebaseBackupOnStartup() {
         try {
+            console.log('AUTO_SYNC_START');
             console.log('RESTORE_START');
             const latestTs = await getLatestFirebaseBackupTimestamp();
             if (!latestTs) {
                 console.log('RESTORE_SOURCE local');
+                console.log('AUTO_SYNC_SOURCE local');
+                console.log('AUTO_SYNC_COMPLETE');
                 return;
             }
             const metadataRes = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}/${latestTs}/metadata.json?_t=${Date.now()}`);
@@ -2254,28 +2285,36 @@
             console.log(`CLOUD_UPDATED_AT ${cloudUpdatedAt}`);
             if (cloudUpdatedAt <= localUpdatedAt || cloudUpdatedAt <= lastAutoSyncAt) {
                 console.log('RESTORE_SOURCE local');
+                console.log('AUTO_SYNC_SOURCE local');
+                console.log('AUTO_SYNC_COMPLETE');
                 return;
             }
 
             const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${latestTs}.json?_t=${Date.now()}`);
             if (!res.ok) {
                 console.log('RESTORE_SOURCE local');
+                console.log('AUTO_SYNC_SOURCE local');
+                console.log('AUTO_SYNC_COMPLETE');
                 return;
             }
             const data = await res.json();
             if (!isMkBackupRecord(data)) {
                 console.log('RESTORE_SOURCE local');
+                console.log('AUTO_SYNC_SOURCE local');
+                console.log('AUTO_SYNC_COMPLETE');
                 return;
             }
             const verifiedCloudUpdatedAt = getBackupUpdatedAt(data, latestTs);
             console.log(`CLOUD_UPDATED_AT ${verifiedCloudUpdatedAt}`);
             if (verifiedCloudUpdatedAt <= localUpdatedAt || verifiedCloudUpdatedAt <= lastAutoSyncAt) {
                 console.log('RESTORE_SOURCE local');
+                console.log('AUTO_SYNC_SOURCE local');
+                console.log('AUTO_SYNC_COMPLETE');
                 return;
             }
 
             const localStats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
-            const cloudStats = parseJSONSafe(data && data.stats, {});
+            const cloudStats = getBackupStatsCandidate(data);
             const localHistory = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
             const cloudHistory = parseJSONSafe(data && data.reviewHistory, {});
             const mergedHistory = mergeHistoryByCardId(localHistory, cloudHistory);
@@ -2287,10 +2326,19 @@
             markLocalDataUpdated(Math.max(localUpdatedAt, verifiedCloudUpdatedAt));
             persistBackupPositionState(data, 'backup');
             console.log('RESTORE_SOURCE cloud');
+            console.log('AUTO_SYNC_SOURCE cloud');
+            console.log('AUTO_SYNC_COMPLETE', {
+                statsKeyCount: Object.keys(mergedStats || {}).length,
+                reviewHistoryKeyCount: Object.keys(mergedHistory || {}).length,
+                currentCardUuid: getStartupTargetCardId(getBackupViewState(data))
+            });
+            logCurrentCardReviewState('auto-sync-after-apply');
             showToast('최신 클라우드 데이터 동기화 완료', 'success');
         } catch(e) {
             console.error('[MK Auto Cloud Sync Error]', e);
             console.log('RESTORE_SOURCE local');
+            console.log('AUTO_SYNC_SOURCE local');
+            console.log('AUTO_SYNC_COMPLETE');
         }
     }
 
@@ -2527,7 +2575,7 @@
             persistBackupPositionState(targetData, 'backup');
 
             const criticalResults = [
-                ['stats', restoreStatsWithFallback(targetData.stats)],
+                ['stats', restoreStatsWithFallback(JSON.stringify(getBackupStatsCandidate(targetData)))],
                 ['targetRetention', safeRestoreLocalStorage('anki_target_retention', targetData.targetRetention)]
             ];
             applyTargetRetentionFromBackup(targetData.targetRetention, 'firebase');
@@ -3510,6 +3558,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         document.getElementById('card-counter').innerText = `${currentIndex + 1} / ${activeDeck.length}`;
         document.getElementById('card-info').style.display='flex';
         updateStatsUI(stats); updateIconsUI(stats);
+        logCurrentCardReviewState('showCard');
         
         const qSection = document.getElementById('question-section');
         qSection.innerHTML = '';
