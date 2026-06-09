@@ -2142,11 +2142,46 @@
         return Object.values(stats || {}).filter(stat => stat && stat.fsrs).length;
     }
 
+    function getStatsLookupKeysForCard(card, fallbackId = '') {
+        const keys = [];
+        const push = (value) => {
+            const key = String(value || '').trim();
+            if(key && !keys.includes(key)) keys.push(key);
+        };
+        if(card) {
+            push(card.id);
+            push(card.uuid);
+            push(card.blockId);
+            push(card.idString);
+            if(card.q) {
+                push(cyrb53(card.q));
+                push(cyrb53(String(card.q).replace(/\s*title\s*=\s*["'][^"']*["']/gi, '')));
+            }
+        }
+        push(fallbackId);
+        return keys;
+    }
+
+    function findStatsForCard(card, stats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {}), fallbackId = '') {
+        const sourceKeys = Object.keys(stats || {});
+        const keys = getStatsLookupKeysForCard(card, fallbackId);
+        if(card && card.q) {
+            const resolved = resolveCardId(card.q, stats || {});
+            if(resolved && !keys.includes(String(resolved))) keys.push(String(resolved));
+        }
+        const foundKey = keys.find(key => stats && stats[key]);
+        console.log('STATS_SOURCE_KEYS', sourceKeys.slice(0, 20));
+        console.log('CURRENT_CARD_KEYS', keys);
+        console.log('STATS_LOOKUP_TRIED_KEYS', keys);
+        console.log('STATS_LOOKUP_FOUND_KEY', foundKey || null);
+        return foundKey ? { key: foundKey, stat: stats[foundKey] } : { key: null, stat: null };
+    }
+
     function getCurrentStudyStat(stats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {})) {
         const card = activeDeck && activeDeck[currentIndex];
-        if(card && stats) return stats[String(card.id)] || null;
         const cardId = getCurrentCardId() || localStorage.getItem(STORAGE_KEY_CURRENT_CARD_ID);
-        return cardId && stats ? stats[String(cardId)] || null : null;
+        const found = findStatsForCard(card, stats, cardId);
+        return found.stat || null;
     }
 
     function logStudyStateSnapshot(context, payload = {}) {
@@ -2296,8 +2331,10 @@
         try {
             const currentCardUuid = getCurrentCardId();
             const stats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
-            const stat = currentCardUuid ? stats[currentCardUuid] : null;
-            console.log('CARD_STATS_FOUND', { context, currentCardUuid, found: !!stat, statsKeyCount: Object.keys(stats || {}).length });
+            const card = activeDeck && activeDeck[currentIndex];
+            const found = findStatsForCard(card, stats, currentCardUuid);
+            const stat = found.stat;
+            console.log('CARD_STATS_FOUND', { context, currentCardUuid, found: !!stat, foundKey: found.key, statsKeyCount: Object.keys(stats || {}).length });
             console.log('LAST_VIEWED_AT', { context, currentCardUuid, lastViewedAt: stat ? (stat.lastDate || stat.lastViewedAt || stat.lastReviewed || null) : null });
             console.log('NEXT_REVIEW_DATE', { context, currentCardUuid, nextReviewDate: stat ? (stat.dueDate || stat.nextReviewDate || null) : null });
             console.log('FSRS_STATE', { context, currentCardUuid, fsrs: stat ? (stat.fsrs || null) : null });
@@ -3653,7 +3690,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         resetZoom();
         if (!activeDeck || activeDeck.length === 0) { document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub); text-align:center;'>카드가 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
         if(currentIndex >= activeDeck.length) currentIndex = 0;
-        const card = activeDeck[currentIndex]; const stats = getStats(card.id);
+        const card = activeDeck[currentIndex]; const stats = getStatsForCard(card);
         localStorage.setItem(STORAGE_KEY_CURRENT_CARD_ID, String(card.id));
         updateSliderUI();
         document.getElementById('card-counter').innerText = `${currentIndex + 1} / ${activeDeck.length}`;
@@ -3945,7 +3982,9 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         console.log('REVIEW_BUTTON_CLICK', { score, currentCardUuid: getCurrentCardId() });
         const card = activeDeck[currentIndex];
         if(!card) return;
-        const id = card.id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        const foundStats = findStatsForCard(card, data, card.id);
+        const id = foundStats.key || String(card.id);
         saveRecentDeck();
         recordReviewHistory(id, score);
         if(!data[id]) data[id] = { correct: 0, total: 0, lastDate: 0 }; if(!data[id].fsrs) data[id].fsrs = { D: 5.0, S: 0, reps: 0 };
@@ -4193,6 +4232,11 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     function loadProgress() {
         const progress = JSON.parse(localStorage.getItem(STORAGE_KEY_PROGRESS) || '{}');
         return progress[getProgressKey()] ?? progress[getLegacyProgressKey()] ?? 0;
+    }
+    function getStatsForCard(card) {
+        const stats = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        const found = findStatsForCard(card, stats, card && card.id);
+        return found.stat || {correct:0, total:0};
     }
     function getStats(id) { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || {correct:0, total:0}; }
     function toggleTag(e, type) { e.stopPropagation(); const id = activeDeck[currentIndex].id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; data[id].updatedAt = Date.now(); localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); markLocalDataUpdated(data[id].updatedAt); updateIconsUI(data[id]); scheduleBackup(); }
