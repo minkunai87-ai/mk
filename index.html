@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.71 - 모바일 더블탭 크래시 방지)</title>
+<title>MK (v18.5.71 - 공통 저장복원엔진)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -362,7 +362,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.71 - 모바일 더블탭 크래시 방지)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.71 - 공통 저장복원엔진)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -582,7 +582,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.71 - 모바일 더블탭 크래시 방지';
+    const APP_VERSION = 'v18.5.71 - 공통 저장복원엔진';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -2052,13 +2052,19 @@
             localStorage.setItem(key, normalized);
             return { ok: true };
         } catch (e) {
-            if (isQuotaExceededError(e)) console.warn(`RESTORE_QUOTA_EXCEEDED key=${key}`, e);
+            if (isQuotaExceededError(e)) {
+                console.warn(`RESTORE_QUOTA_EXCEEDED key=${key}`, e);
+                console.warn('QUOTA_EXCEEDED', { key, message: e.message || String(e) });
+            }
             try {
                 localStorage.removeItem(key);
                 localStorage.setItem(key, normalized);
                 return { ok: true, clearedBeforeRestore: true };
             } catch (retryError) {
-                if (isQuotaExceededError(retryError)) console.warn(`RESTORE_QUOTA_EXCEEDED key=${key}`, retryError);
+                if (isQuotaExceededError(retryError)) {
+                    console.warn(`RESTORE_QUOTA_EXCEEDED key=${key}`, retryError);
+                    console.warn('QUOTA_EXCEEDED', { key, message: retryError.message || String(retryError) });
+                }
                 return {
                     ok: false,
                     error: retryError,
@@ -2116,6 +2122,189 @@
         return Number(data && (data.localUpdatedAt || data.backupAt || data.timestamp || (data.metadata && (data.metadata.localUpdatedAt || data.metadata.backupAt)))) || Number(ts) || 0;
     }
 
+    function hasBackupField(data, field) {
+        return !!data && Object.prototype.hasOwnProperty.call(data, field) && data[field] !== undefined && data[field] !== null;
+    }
+
+    function getStudyEnvironment() {
+        const ua = navigator.userAgent || '';
+        const standalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+        const iosStandalone = navigator.standalone === true;
+        return {
+            isPWA: !!(standalone || iosStandalone),
+            isSafari: /^((?!chrome|android).)*safari/i.test(ua),
+            isChrome: /Chrome|CriOS|Chromium/i.test(ua),
+            isIOS: /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+        };
+    }
+
+    function countFsrs(stats = {}) {
+        return Object.values(stats || {}).filter(stat => stat && stat.fsrs).length;
+    }
+
+    function getCurrentStudyStat(stats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {})) {
+        const card = activeDeck && activeDeck[currentIndex];
+        if(card && stats) return stats[String(card.id)] || null;
+        const cardId = getCurrentCardId() || localStorage.getItem(STORAGE_KEY_CURRENT_CARD_ID);
+        return cardId && stats ? stats[String(cardId)] || null : null;
+    }
+
+    function logStudyStateSnapshot(context, payload = {}) {
+        const stats = payload.stats || parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
+        const reviewHistory = payload.reviewHistory || parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+        const stat = getCurrentStudyStat(stats) || {};
+        console.log('APP_VERSION', APP_VERSION);
+        console.log('ENV', getStudyEnvironment());
+        console.log('SELECTED_DECK', currentDeckName || localStorage.getItem(STORAGE_KEY_LAST_DECK) || '');
+        console.log('CURRENT_CARD_UUID', getCurrentCardId() || localStorage.getItem(STORAGE_KEY_CURRENT_CARD_ID) || '');
+        console.log('CURRENT_CARD_INDEX', Number.isFinite(Number(currentIndex)) ? currentIndex : 0);
+        console.log('CARD_STATS_COUNT', Object.keys(stats || {}).length);
+        console.log('REVIEW_HISTORY_COUNT', Object.keys(reviewHistory || {}).length);
+        console.log('FSRS_COUNT', countFsrs(stats));
+        console.log('LAST_VIEWED_AT', stat.lastDate || stat.lastViewedAt || stat.lastReviewed || null);
+        console.log('NEXT_REVIEW_DATE', stat.dueDate || stat.nextReviewDate || null);
+        if(context) console.log('[MK StudyState]', context);
+    }
+
+    function saveStudyState(reason = 'manual', options = {}) {
+        console.log('SAVE_START', { reason });
+        try {
+            const viewState = compactViewState(getCurrentViewState(false));
+            if(viewState.deck) safeRestoreLocalStorage(STORAGE_KEY_LAST_DECK, viewState.deck);
+            if(viewState.cardId) safeRestoreLocalStorage(STORAGE_KEY_CURRENT_CARD_ID, viewState.cardId);
+            safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: viewState.filter, sort: viewState.sort, secondarySort: viewState.secondarySort }));
+            if(typeof viewState.searchQuery === 'string') safeRestoreLocalStorage('anki_search_query', viewState.searchQuery);
+            saveCompactViewState(viewState);
+            try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {}
+            const progress = parseJSONSafe(localStorage.getItem(STORAGE_KEY_PROGRESS), {});
+            if(viewState.deck) {
+                progress[`${viewState.deck}__${viewState.filter}__${viewState.sort}__${viewState.secondarySort}`] = viewState.index;
+                progress[`${viewState.deck}__${viewState.filter}__${viewState.sort}`] = viewState.index;
+                safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
+            }
+            markLocalDataUpdated(viewState.updatedAt);
+            logStudyStateSnapshot('save', { viewState });
+            console.log('SAVE_SUCCESS', { reason, currentCardUuid: viewState.currentCardUuid || viewState.cardId });
+            if(options.backup) {
+                isDataChanged = true;
+                backupStudyState(reason, options);
+            }
+            return { ok: true, viewState };
+        } catch(e) {
+            console.error('SAVE_FAIL', { reason, error: e && e.message ? e.message : String(e) });
+            return { ok: false, error: e };
+        }
+    }
+
+    function loadLocalStudyState() {
+        const stats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
+        const reviewHistory = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+        return {
+            source: 'local',
+            updatedAt: getLocalDataUpdatedAt(),
+            viewState: compactViewState(getStartupViewState()),
+            stats,
+            reviewHistory
+        };
+    }
+
+    async function loadCloudStudyState() {
+        const latestTs = await getLatestFirebaseBackupTimestamp();
+        if(!latestTs) return null;
+        const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${latestTs}.json?_t=${Date.now()}`, { cache: 'no-store' });
+        if(!res.ok) return null;
+        const data = await res.json();
+        if(!isMkBackupRecord(data)) return null;
+        return normalizeBackupPayload(data, 'cloud', latestTs);
+    }
+
+    function normalizeBackupPayload(raw = {}, source = 'backup', ts = raw && raw.timestamp) {
+        return {
+            raw,
+            source,
+            timestamp: ts,
+            updatedAt: getBackupUpdatedAt(raw, ts),
+            viewState: compactViewState(getBackupViewState(raw || {})),
+            stats: getBackupStatsCandidate(raw || {}),
+            reviewHistory: parseJSONSafe(raw && raw.reviewHistory, {})
+        };
+    }
+
+    function restorePosition(viewState = {}, source = 'restore') {
+        const state = compactViewState(viewState);
+        console.log('RESTORE_POSITION', {
+            source,
+            selectedDeckPath: state.selectedDeckPath,
+            viewMode: state.viewMode,
+            currentCardUuid: state.currentCardUuid || state.cardId,
+            currentCardIndex: state.index
+        });
+        pendingStartupViewState = state;
+        if(state.deck) safeRestoreLocalStorage(STORAGE_KEY_LAST_DECK, state.deck);
+        if(state.cardId) safeRestoreLocalStorage(STORAGE_KEY_CURRENT_CARD_ID, state.cardId);
+        safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: state.filter, sort: state.sort, secondarySort: state.secondarySort }));
+        if(typeof state.searchQuery === 'string') safeRestoreLocalStorage('anki_search_query', state.searchQuery);
+        saveCompactViewState(state);
+        try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {}
+        return state;
+    }
+
+    function applyRestoredState(payload = {}, source = 'restore') {
+        console.log('RESTORE_START', { source });
+        const raw = payload.raw || payload;
+        const incomingStats = payload.stats || getBackupStatsCandidate(raw);
+        const incomingHistory = payload.reviewHistory || parseJSONSafe(raw && raw.reviewHistory, {});
+        const localStats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
+        const localHistory = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+        const shouldMerge = source === 'cloud' || source === 'auto-restore';
+        const nextHistory = shouldMerge ? mergeHistoryByCardId(localHistory, incomingHistory) : incomingHistory;
+        const nextStats = shouldMerge ? mergeStatsByCardId(localStats, incomingStats, localHistory, incomingHistory) : incomingStats;
+        if(nextHistory && Object.keys(nextHistory).length) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(nextHistory));
+        if(nextStats && Object.keys(nextStats).length) restoreStatsWithFallback(JSON.stringify(nextStats));
+        if(hasBackupField(raw, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, raw.progress);
+        if(hasBackupField(raw, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, raw.filter);
+        if(hasBackupField(raw, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, raw.recentDecks);
+        if(hasBackupField(raw, 'targetRetention')) applyTargetRetentionFromBackup(raw.targetRetention, source);
+        const restoredViewState = restorePosition(payload.viewState || getBackupViewState(raw), source);
+        markLocalDataUpdated(Math.max(getLocalDataUpdatedAt(), Number(payload.updatedAt) || Date.now()));
+        logStudyStateSnapshot('restore', { stats: nextStats, reviewHistory: nextHistory, viewState: restoredViewState });
+        console.log('RESTORE_COMPLETE', { source, currentCardUuid: restoredViewState.currentCardUuid || restoredViewState.cardId || '' });
+        return restoredViewState;
+    }
+
+    function backupStudyState(reason = 'manual', options = {}) {
+        if(reason !== 'review' && reason !== 'manual') return false;
+        return flushBackupToFirebase(reason === 'review', options);
+    }
+
+    function getBackupStatsCandidate(data = {}) {
+        const candidates = [
+            data && data.stats,
+            data && data.cardStats,
+            data && data.cards,
+            data && data[STORAGE_KEY_STATS]
+        ];
+        for (const candidate of candidates) {
+            const parsed = parseJSONSafe(candidate, null);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+        }
+        return {};
+    }
+
+    function logCurrentCardReviewState(context = 'current') {
+        try {
+            const currentCardUuid = getCurrentCardId();
+            const stats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
+            const stat = currentCardUuid ? stats[currentCardUuid] : null;
+            console.log('CARD_STATS_FOUND', { context, currentCardUuid, found: !!stat, statsKeyCount: Object.keys(stats || {}).length });
+            console.log('LAST_VIEWED_AT', { context, currentCardUuid, lastViewedAt: stat ? (stat.lastDate || stat.lastViewedAt || stat.lastReviewed || null) : null });
+            console.log('NEXT_REVIEW_DATE', { context, currentCardUuid, nextReviewDate: stat ? (stat.dueDate || stat.nextReviewDate || null) : null });
+            console.log('FSRS_STATE', { context, currentCardUuid, fsrs: stat ? (stat.fsrs || null) : null });
+        } catch(e) {
+            console.error('[MK Review State Log Error]', e);
+        }
+    }
+
     function getBackupViewState(data = {}) {
         const viewState = parseJSONSafe(data.viewState, {});
         const filterState = parseJSONSafe(data.filter, {});
@@ -2150,7 +2339,7 @@
     }
 
     function persistBackupPositionState(data = {}, source = 'backup') {
-        const state = getBackupViewState(data);
+        const state = compactViewState(getBackupViewState(data));
         const latestBackupAt = getBackupUpdatedAt(data, data && data.timestamp);
         const cardId = getStartupTargetCardId(state);
         console.log(`RESTORE_BACKUP latestBackupAt=${latestBackupAt}`);
@@ -2162,28 +2351,7 @@
         console.log(`RESTORE_CARD_UUID ${cardId}`);
         console.log(`RESTORE_CARD_INDEX ${Number(state.index) || 0}`);
 
-        pendingStartupViewState = state;
-        if (state.deck) safeRestoreLocalStorage(STORAGE_KEY_LAST_DECK, state.deck);
-        if (state.filter || state.sort || state.secondarySort) {
-            safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, JSON.stringify({
-                filter: state.filter || 'default',
-                sort: state.sort || 'original',
-                secondarySort: state.secondarySort || 'none'
-            }));
-        }
-        if (typeof state.searchQuery === 'string') safeRestoreLocalStorage('anki_search_query', state.searchQuery);
-        if (cardId) safeRestoreLocalStorage(STORAGE_KEY_CURRENT_CARD_ID, cardId);
-        saveCompactViewState({
-            deck: state.deck || '',
-            deckMode: state.deckMode || 'deck',
-            filter: state.filter || 'default',
-            sort: state.sort || 'original',
-            secondarySort: state.secondarySort || 'none',
-            index: Number(state.index) || 0,
-            cardId,
-            searchQuery: typeof state.searchQuery === 'string' ? state.searchQuery : '',
-            snapshotVersion: APP_VERSION
-        });
+        restorePosition(state, source);
         if (state.deck) {
             const progress = parseJSONSafe(localStorage.getItem(STORAGE_KEY_PROGRESS), {});
             progress[`${state.deck}__${state.filter || 'default'}__${state.sort || 'original'}__${state.secondarySort || 'none'}`] = Number(state.index) || 0;
@@ -2239,58 +2407,34 @@
 
     async function syncLatestFirebaseBackupOnStartup() {
         try {
-            console.log('RESTORE_START');
-            const latestTs = await getLatestFirebaseBackupTimestamp();
-            if (!latestTs) {
-                console.log('RESTORE_SOURCE local');
-                return;
-            }
-            const metadataRes = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}/${latestTs}/metadata.json?_t=${Date.now()}`);
-            const metadata = metadataRes.ok ? await metadataRes.json() : null;
-            const cloudUpdatedAt = getBackupUpdatedAt({ metadata, timestamp: Number(latestTs) }, latestTs);
-            const localUpdatedAt = getLocalDataUpdatedAt();
+            console.log('AUTO_SYNC_START');
+            const localState = loadLocalStudyState();
+            const cloudState = await loadCloudStudyState();
+            const localUpdatedAt = Number(localState && localState.updatedAt) || 0;
+            const cloudUpdatedAt = Number(cloudState && cloudState.updatedAt) || 0;
             const lastAutoSyncAt = Number(localStorage.getItem(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT)) || 0;
             console.log(`LOCAL_UPDATED_AT ${localUpdatedAt}`);
             console.log(`CLOUD_UPDATED_AT ${cloudUpdatedAt}`);
-            if (cloudUpdatedAt <= localUpdatedAt || cloudUpdatedAt <= lastAutoSyncAt) {
+            if (!cloudState || cloudUpdatedAt <= localUpdatedAt || cloudUpdatedAt <= lastAutoSyncAt) {
+                restorePosition(localState.viewState || {}, 'local');
+                logStudyStateSnapshot('auto-sync-local', localState);
                 console.log('RESTORE_SOURCE local');
+                console.log('AUTO_SYNC_SOURCE local');
+                console.log('AUTO_SYNC_COMPLETE');
                 return;
             }
-
-            const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${latestTs}.json?_t=${Date.now()}`);
-            if (!res.ok) {
-                console.log('RESTORE_SOURCE local');
-                return;
-            }
-            const data = await res.json();
-            if (!isMkBackupRecord(data)) {
-                console.log('RESTORE_SOURCE local');
-                return;
-            }
-            const verifiedCloudUpdatedAt = getBackupUpdatedAt(data, latestTs);
-            console.log(`CLOUD_UPDATED_AT ${verifiedCloudUpdatedAt}`);
-            if (verifiedCloudUpdatedAt <= localUpdatedAt || verifiedCloudUpdatedAt <= lastAutoSyncAt) {
-                console.log('RESTORE_SOURCE local');
-                return;
-            }
-
-            const localStats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
-            const cloudStats = parseJSONSafe(data && data.stats, {});
-            const localHistory = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
-            const cloudHistory = parseJSONSafe(data && data.reviewHistory, {});
-            const mergedHistory = mergeHistoryByCardId(localHistory, cloudHistory);
-            const mergedStats = mergeStatsByCardId(localStats, cloudStats, localHistory, cloudHistory);
-            safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(mergedHistory));
-            safeRestoreLocalStorage(STORAGE_KEY_STATS, JSON.stringify(mergedStats));
-            applyTargetRetentionFromBackup(data && data.targetRetention, 'auto-cloud');
-            safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(verifiedCloudUpdatedAt));
-            markLocalDataUpdated(Math.max(localUpdatedAt, verifiedCloudUpdatedAt));
-            persistBackupPositionState(data, 'backup');
+            applyRestoredState(cloudState, 'cloud');
+            safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(cloudUpdatedAt));
             console.log('RESTORE_SOURCE cloud');
+            console.log('AUTO_SYNC_SOURCE cloud');
+            console.log('AUTO_SYNC_COMPLETE');
+            logCurrentCardReviewState('auto-sync-after-apply');
             showToast('최신 클라우드 데이터 동기화 완료', 'success');
         } catch(e) {
             console.error('[MK Auto Cloud Sync Error]', e);
             console.log('RESTORE_SOURCE local');
+            console.log('AUTO_SYNC_SOURCE local');
+            console.log('AUTO_SYNC_COMPLETE');
         }
     }
 
@@ -2524,10 +2668,12 @@
             console.log(`RESTORE_BACKUP_SIZE kb=${getTextSizeKB(JSON.stringify(targetData))}`);
 
             freeRestorableCacheStorage();
+            const normalizedManualPayload = normalizeBackupPayload(targetData, 'manual-restore', ts);
+            applyRestoredState(normalizedManualPayload, normalizedManualPayload.source);
             persistBackupPositionState(targetData, 'backup');
 
             const criticalResults = [
-                ['stats', restoreStatsWithFallback(targetData.stats)],
+                ['stats', restoreStatsWithFallback(JSON.stringify(getBackupStatsCandidate(targetData)))],
                 ['targetRetention', safeRestoreLocalStorage('anki_target_retention', targetData.targetRetention)]
             ];
             applyTargetRetentionFromBackup(targetData.targetRetention, 'firebase');
@@ -3445,7 +3591,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             return getOriginalOrder(a) - getOriginalOrder(b);
         });
         activeDeck = filtered;
-        localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, JSON.stringify(activeDeck.map(c => c.id)));
+        try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {}
         currentIndex = resolveIndexForDeck(isRestore);
         updateFilterStatusUI(); renderDeckTree(); showCard();
     }
@@ -3510,6 +3656,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         document.getElementById('card-counter').innerText = `${currentIndex + 1} / ${activeDeck.length}`;
         document.getElementById('card-info').style.display='flex';
         updateStatsUI(stats); updateIconsUI(stats);
+        logCurrentCardReviewState('showCard');
         
         const qSection = document.getElementById('question-section');
         qSection.innerHTML = '';
@@ -3563,7 +3710,6 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         bindImageZoomHandlers(aDiv);
         persistCurrentViewState(false);
         markLocalDataUpdated();
-        scheduleBackup('review');
     }
 
     function moveCard(d) {
@@ -3793,7 +3939,10 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     }
 
     function grade(score) {
-        const id = activeDeck[currentIndex].id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
+        console.log('REVIEW_BUTTON_CLICK', { score, currentCardUuid: getCurrentCardId() });
+        const card = activeDeck[currentIndex];
+        if(!card) return;
+        const id = card.id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
         saveRecentDeck();
         recordReviewHistory(id, score);
         if(!data[id]) data[id] = { correct: 0, total: 0, lastDate: 0 }; if(!data[id].fsrs) data[id].fsrs = { D: 5.0, S: 0, reps: 0 };
@@ -3818,8 +3967,16 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             if (interval > 3) { let fuzz = 0; if (interval >= 4 && interval <= 7) fuzz = 1; else if (interval >= 8 && interval <= 15) fuzz = 2; else if (interval >= 16) fuzz = 3; const randomFuzz = Math.floor(Math.random() * (2 * fuzz + 1)) - fuzz; interval = Math.max(1, interval + randomFuzz); }
             data[id].interval = interval; const now = new Date(); now.setHours(0,0,0,0); data[id].dueDate = now.getTime() + (interval * 86400000);
         }
-        data[id].lastDate = Date.now(); data[id].updatedAt = data[id].lastDate; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); markLocalDataUpdated(data[id].updatedAt); scheduleBackup('review');
+        data[id].lastDate = Date.now(); data[id].updatedAt = data[id].lastDate; localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); markLocalDataUpdated(data[id].updatedAt); saveStudyState('review', { backup: true });
+        updateStatsUI(data[id]);
+        console.log('REVIEW_SAVED', { score, currentCardUuid: String(id), nextReviewDate: data[id].dueDate || null });
+        if(score === 3) {
+            revealAnswer();
+            return;
+        }
+        console.log('NEXT_CARD_START', { fromIndex: currentIndex });
         if(currentIndex < activeDeck.length - 1) moveCard(1); else { alert("학습 완료!"); moveCard(0); }
+        console.log('NEXT_CARD_SUCCESS', { currentCardUuid: getCurrentCardId(), currentCardIndex: currentIndex });
     }
 
     function getVirtualDate(ts) { const d = new Date(ts); if(d.getHours() < 4) d.setDate(d.getDate()-1); d.setHours(0,0,0,0); return d; }
@@ -4008,7 +4165,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
         localStorage.setItem(STORAGE_KEY_LAST_DECK, viewState.deck);
         localStorage.setItem(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: viewState.filter, sort: viewState.sort, secondarySort: viewState.secondarySort }));
-        try { localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, JSON.stringify(viewState.activeIds)); } catch(e) { if (isQuotaExceededError(e)) console.warn('RESTORE_QUOTA_EXCEEDED key=' + STORAGE_KEY_ACTIVE_IDS, e); }
+        try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {}
         localStorage.setItem(STORAGE_KEY_CURRENT_CARD_ID, viewState.cardId);
         localStorage.setItem('anki_search_query', viewState.searchQuery);
         saveCompactViewState(viewState);
@@ -4037,7 +4194,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     function getStats(id) { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}')[id] || {correct:0, total:0}; }
     function toggleTag(e, type) { e.stopPropagation(); const id = activeDeck[currentIndex].id; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; data[id].updatedAt = Date.now(); localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); markLocalDataUpdated(data[id].updatedAt); updateIconsUI(data[id]); scheduleBackup(); }
     function updateIconsUI(s) { ['mem','cmp','fav','num','date','pen'].forEach(t => document.getElementById(`${t}-btn`).classList.toggle('active', !!s[t])); }
-    function filterCards() { const q = document.getElementById('search-input').value.toLowerCase(); localStorage.setItem('anki_search_query', q); if(!q) { applyFilterAndSort(true); persistCurrentViewState(true); return; } activeDeck = originalDeck.filter(c => c.q.toLowerCase().includes(q) || c.a.toLowerCase().includes(q)); currentIndex = 0; localStorage.setItem(STORAGE_KEY_ACTIVE_IDS, JSON.stringify(activeDeck.map(c => c.id))); showCard(); persistCurrentViewState(true); }
+    function filterCards() { const q = document.getElementById('search-input').value.toLowerCase(); localStorage.setItem('anki_search_query', q); if(!q) { applyFilterAndSort(true); persistCurrentViewState(true); return; } activeDeck = originalDeck.filter(c => c.q.toLowerCase().includes(q) || c.a.toLowerCase().includes(q)); currentIndex = 0; try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {} showCard(); persistCurrentViewState(true); }
     function openEditModal(e) { e.stopPropagation(); const c = activeDeck[currentIndex]; document.getElementById('edit-q').value=c.q; document.getElementById('edit-a').value=c.a; document.getElementById('edit-modal').style.display='flex'; }
     function closeEditModal() { document.getElementById('edit-modal').style.display='none'; }
     function saveEdit() { const c = activeDeck[currentIndex]; c.q = document.getElementById('edit-q').value; c.a = document.getElementById('edit-a').value; markLocalDataUpdated(); closeEditModal(); showCard(); scheduleBackup(); }
