@@ -3751,7 +3751,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         if(selectedFilters.length) {
             const today = new Date();
             today.setHours(0,0,0,0);
-            filtered = filtered.filter(c => selectedFilters.every(mode => {
+            filtered = filtered.filter(c => selectedFilters.some(mode => {
                 const stat = getResolvedStatForCard(c);
                 if(mode === 'due') return stat.dueDate && stat.dueDate <= today.getTime();
                 return !!stat[mode];
