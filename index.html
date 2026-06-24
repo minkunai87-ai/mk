@@ -612,7 +612,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.79 - local timestamp fix';
+    const APP_VERSION = 'v18.5.80 - stats 손실 방지 및 복구';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -633,6 +633,11 @@
     const STORAGE_KEY_NOTES = 'mk_notes_by_card_uuid_v1';
     const STORAGE_KEY_LOCAL_DATA_UPDATED_AT = 'mk_local_data_updated_at';
     const STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT = 'mk_last_auto_cloud_sync_at';
+    const STORAGE_KEY_LAST_GOOD_BACKUP_TIMESTAMP = 'mk_last_good_backup_timestamp';
+    const STORAGE_KEY_LAST_GOOD_STATS_COUNT = 'mk_last_good_stats_count';
+    const STATS_LOW_COUNT_BLOCK = 10;
+    const STATS_HEALTHY_MIN_COUNT = 1000;
+    const STATS_DROP_RATIO = 0.1;
     const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 긴급', 'none': '보조 없음', 'original': '🔄 원래순', 'unlearned': '🆕 미학습순', 'wrong': '🔥 오답순', 'number': '🔢 번호순', 'oldest': '📅 오래된순', 'recent': '🕘 최근순' };
     const filterModes = ['due', 'mem', 'cmp', 'fav', 'num', 'date', 'pen'];
 
@@ -1701,10 +1706,21 @@
         const metadata = getBackupMetadata();
         const localUpdatedAt = getLocalDataUpdatedAt();
         const currentCardUuid = getCurrentCardId();
+        const statsRaw = localStorage.getItem(STORAGE_KEY_STATS);
+        const statsKeyCount = getStatsKeyCount(statsRaw);
+        const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
+        const baselineCount = Math.max(lastGoodCount, STATS_HEALTHY_MIN_COUNT);
+        console.log('STATS_BACKUP_COUNT', statsKeyCount);
+        if (!statsKeyCount || isDangerouslyLowStatsCount(statsKeyCount) || isSuspiciousStatsDrop(statsKeyCount, baselineCount)) {
+            console.warn('STATS_BACKUP_BLOCKED_LOW_COUNT', { statsKeyCount, baselineCount });
+            updateCloudIcon('error');
+            if(!isAuto) showToast('Stats 개수가 비정상적으로 낮아 백업을 중단했습니다.', 'error');
+            return false;
+        }
         const data = {
             appId: 'mk',
             appVersion: APP_VERSION,
-            stats: localStorage.getItem(STORAGE_KEY_STATS), progress: localStorage.getItem(STORAGE_KEY_PROGRESS), 
+            stats: statsRaw, progress: localStorage.getItem(STORAGE_KEY_PROGRESS),
             lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), filter: localStorage.getItem(STORAGE_KEY_FILTER_STATE),
             activeIds: localStorage.getItem(STORAGE_KEY_ACTIVE_IDS),
             currentCardId: localStorage.getItem(STORAGE_KEY_CURRENT_CARD_ID),
@@ -1735,7 +1751,7 @@
             appId: 'mk',
             appVersion: APP_VERSION,
             metadata: data.metadata,
-            statsKeyCount: Object.keys(parseJSONSafe(data.stats, {})).length,
+            statsKeyCount,
             localUpdatedAt,
             createdAt: Date.now()
         };
@@ -1751,6 +1767,7 @@
                     console.error('[MK Backup Index Error]', indexError);
                 }
                 console.log('BACKUP_WRITE_SUCCESS', true);
+                rememberGoodBackupTimestamp(data.timestamp, statsKeyCount);
                 isDataChanged = false; updateCloudIcon('done'); if(!options.keepalive) cleanupOldBackups(); if(!isAuto) showToast("백업 완료", "success"); return true;
             } 
             else { console.log('BACKUP_WRITE_SUCCESS', false); updateCloudIcon('error'); if(!isAuto) showToast("❌ 백업 실패", "error"); return false; }
@@ -2118,6 +2135,38 @@
         if (normalized === null) return { ok: true, skipped: true };
         console.log(`LOCAL_STORAGE_WRITE_SIZE key=${key} kb=${getTextSizeKB(normalized)}`);
 
+        if (key === STORAGE_KEY_STATS) {
+            const oldValue = localStorage.getItem(key);
+            const oldCount = getStatsKeyCount(oldValue);
+            const nextCount = getStatsKeyCount(normalized);
+            if (isDangerouslyLowStatsCount(nextCount) || isSuspiciousStatsDrop(nextCount, oldCount)) {
+                console.warn('STATS_RESTORE_REJECTED', { oldCount, nextCount, reason: 'suspicious-drop' });
+                return { ok: false, rejected: true, reason: 'suspicious-drop', oldCount, nextCount };
+            }
+            const tempKey = `${key}__safe_write_tmp`;
+            try {
+                localStorage.setItem(tempKey, normalized);
+                localStorage.setItem(key, normalized);
+                localStorage.removeItem(tempKey);
+                return { ok: true, oldCount, nextCount };
+            } catch (e) {
+                try {
+                    if (oldValue === null) localStorage.removeItem(key);
+                    else localStorage.setItem(key, oldValue);
+                    localStorage.removeItem(tempKey);
+                } catch(rollbackError) {}
+                console.warn('STATS_SAFE_WRITE_FAILED_KEEP_OLD', { oldCount, nextCount, message: e && e.message ? e.message : String(e) });
+                return {
+                    ok: false,
+                    keptOld: true,
+                    oldCount,
+                    nextCount,
+                    error: e,
+                    message: e && e.name ? e.name : String(e)
+                };
+            }
+        }
+
         try {
             localStorage.setItem(key, normalized);
             return { ok: true };
@@ -2159,6 +2208,36 @@
         } catch(e) {
             return fallback;
         }
+    }
+
+    function getStatsKeyCount(value) {
+        const stats = parseJSONSafe(value, value && typeof value === 'object' ? value : {});
+        return stats && typeof stats === 'object' && !Array.isArray(stats) ? Object.keys(stats).length : 0;
+    }
+
+    function getLocalStatsKeyCount() {
+        return getStatsKeyCount(localStorage.getItem(STORAGE_KEY_STATS));
+    }
+
+    function isDangerouslyLowStatsCount(count) {
+        return Number(count) > 0 && Number(count) <= STATS_LOW_COUNT_BLOCK;
+    }
+
+    function isSuspiciousStatsDrop(nextCount, baselineCount) {
+        nextCount = Number(nextCount) || 0;
+        baselineCount = Number(baselineCount) || 0;
+        if (nextCount <= 0) return baselineCount >= STATS_HEALTHY_MIN_COUNT;
+        if (isDangerouslyLowStatsCount(nextCount) && baselineCount >= STATS_LOW_COUNT_BLOCK) return true;
+        if (baselineCount >= STATS_HEALTHY_MIN_COUNT && nextCount < Math.floor(baselineCount * STATS_DROP_RATIO)) return true;
+        return false;
+    }
+
+    function rememberGoodBackupTimestamp(timestamp, statsCount) {
+        const count = Number(statsCount) || 0;
+        if (!timestamp || count < STATS_HEALTHY_MIN_COUNT) return;
+        safeRestoreLocalStorage(STORAGE_KEY_LAST_GOOD_BACKUP_TIMESTAMP, String(timestamp));
+        safeRestoreLocalStorage(STORAGE_KEY_LAST_GOOD_STATS_COUNT, String(count));
+        console.log('LAST_GOOD_BACKUP_TIMESTAMP', String(timestamp));
     }
 
     function markLocalDataUpdated(time = Date.now()) {
@@ -2465,7 +2544,17 @@
         const nextStats = shouldMerge ? mergeStatsByCardId(localStats, incomingStats, localHistory, incomingHistory) : incomingStats;
         if(nextHistory && Object.keys(nextHistory).length) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(nextHistory));
         if(hasBackupField(raw, 'notesByCardUuid')) { const nextNotes = shouldMerge ? mergeNotesByUpdatedAt(getNotesByCardUuid(), incomingNotes) : incomingNotes; safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(nextNotes)); }
-        if(nextStats && Object.keys(nextStats).length) restoreStatsWithFallback(JSON.stringify(nextStats));
+        if(nextStats && Object.keys(nextStats).length) {
+            const statsResult = restoreStatsWithFallback(JSON.stringify(nextStats));
+            if(!statsResult || !statsResult.ok) {
+                console.warn('STATS_RESTORE_REJECTED', { source, result: statsResult });
+                showToast('Stats 복구가 안전성 검사에서 중단되었습니다. 기존 stats를 유지합니다.', 'error');
+                return null;
+            }
+            console.log('STATS_RESTORE_SOURCE', source);
+            console.log('STATS_RESTORE_COUNT', statsResult.statsKeyCount || getLocalStatsKeyCount());
+            if(payload.timestamp && (statsResult.statsKeyCount || 0) >= STATS_HEALTHY_MIN_COUNT) rememberGoodBackupTimestamp(payload.timestamp, statsResult.statsKeyCount);
+        }
         if(hasBackupField(raw, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, raw.progress);
         if(hasBackupField(raw, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, raw.filter);
         if(hasBackupField(raw, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, raw.recentDecks);
@@ -2606,15 +2695,29 @@
     }
 
     async function getLatestFirebaseBackupTimestamp() {
-        const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json?orderBy=%22$key%22&limitToLast=1&_t=${Date.now()}`, { cache: 'no-store' });
+        const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json?orderBy=%22$key%22&limitToLast=50&_t=${Date.now()}`, { cache: 'no-store' });
         if (!res.ok) return null;
         const data = await res.json();
-        const timestamps = Object.entries(data || {})
+        const localCount = getLocalStatsKeyCount();
+        const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
+        const baselineCount = Math.max(localCount, lastGoodCount);
+        const records = Object.entries(data || {})
             .filter(([ts, indexData]) => /^\d+$/.test(String(ts)) && isMkBackupRecord(indexData || {}))
-            .map(([ts]) => Number(ts))
-            .filter(Boolean)
-            .sort((a, b) => b - a);
-        return timestamps.length ? String(timestamps[0]) : null;
+            .map(([ts, indexData]) => ({
+                ts: Number(ts),
+                statsKeyCount: Number(indexData && indexData.statsKeyCount) || 0
+            }))
+            .filter(record => record.ts)
+            .sort((a, b) => b.ts - a.ts);
+        for (const record of records) {
+            if (isSuspiciousStatsDrop(record.statsKeyCount, baselineCount) || isDangerouslyLowStatsCount(record.statsKeyCount)) {
+                console.warn('STATS_RESTORE_REJECTED', { timestamp: record.ts, statsKeyCount: record.statsKeyCount, baselineCount, reason: 'auto-candidate-low-count' });
+                continue;
+            }
+            rememberGoodBackupTimestamp(record.ts, record.statsKeyCount);
+            return String(record.ts);
+        }
+        return null;
     }
 
     async function syncLatestFirebaseBackupOnStartup() {
@@ -2635,7 +2738,13 @@
                 console.log('AUTO_SYNC_COMPLETE');
                 return;
             }
-            applyRestoredState(cloudState, 'cloud');
+            const restoredState = applyRestoredState(cloudState, 'cloud');
+            if(!restoredState) {
+                console.log('AUTO_SYNC_SOURCE local');
+                console.log('AUTO_SYNC_APPLIED', false);
+                console.log('AUTO_SYNC_COMPLETE');
+                return;
+            }
             safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(Date.now()));
             console.log('RESTORE_SOURCE cloud');
             console.log('AUTO_SYNC_SOURCE cloud');
@@ -2800,16 +2909,30 @@
     }
 
     function restoreStatsWithFallback(value) {
+        const incomingCount = getStatsKeyCount(value);
+        const localCount = getLocalStatsKeyCount();
+        const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
+        const baselineCount = Math.max(localCount, lastGoodCount);
+        console.log('STATS_RESTORE_COUNT', { incomingCount, localCount, lastGoodCount });
+        if (isDangerouslyLowStatsCount(incomingCount) || isSuspiciousStatsDrop(incomingCount, baselineCount)) {
+            console.warn('STATS_RESTORE_REJECTED', { incomingCount, baselineCount, reason: 'low-count' });
+            return { ok: false, rejected: true, reason: 'low-count', incomingCount, baselineCount };
+        }
         let result = safeRestoreLocalStorage(STORAGE_KEY_STATS, value);
-        if (result.ok) return { ok: true, compacted: false };
+        if (result.ok) return { ok: true, compacted: false, statsKeyCount: getLocalStatsKeyCount() };
 
         freeRestorableCacheStorage();
         result = safeRestoreLocalStorage(STORAGE_KEY_STATS, value);
-        if (result.ok) return { ok: true, compacted: false, clearedCache: true };
+        if (result.ok) return { ok: true, compacted: false, clearedCache: true, statsKeyCount: getLocalStatsKeyCount() };
 
         const compactedValue = compactStatsValue(value);
+        const compactedCount = getStatsKeyCount(compactedValue);
+        if (isSuspiciousStatsDrop(compactedCount, baselineCount)) {
+            console.warn('STATS_RESTORE_REJECTED', { compactedCount, baselineCount, reason: 'compacted-drop' });
+            return { ok: false, rejected: true, reason: 'compacted-drop', compactedCount, baselineCount };
+        }
         result = safeRestoreLocalStorage(STORAGE_KEY_STATS, compactedValue);
-        if (result.ok) return { ok: true, compacted: true };
+        if (result.ok) return { ok: true, compacted: true, statsKeyCount: getLocalStatsKeyCount() };
 
         return result;
     }
@@ -4032,8 +4155,47 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     }
 
-    function recalcStatsFromHistory(cardId) {
+    async function restoreLatestGoodStatsFromCloud(reason = 'stats-guard') {
+        try {
+            const ts = await getLatestFirebaseBackupTimestamp();
+            if(!ts) {
+                console.warn('STATS_RESTORE_REJECTED', { reason, message: 'no-good-backup' });
+                return false;
+            }
+            const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${ts}.json?_t=${Date.now()}`, { cache: 'no-store' });
+            if(!res.ok) return false;
+            const data = await res.json();
+            if(!isMkBackupRecord(data)) return false;
+            const stats = getBackupStatsCandidate(data);
+            const count = Object.keys(stats || {}).length;
+            const result = restoreStatsWithFallback(JSON.stringify(stats));
+            if(result && result.ok) {
+                console.log('STATS_RESTORE_SOURCE', `cloud:${reason}:${ts}`);
+                console.log('STATS_RESTORE_COUNT', count);
+                rememberGoodBackupTimestamp(ts, count);
+                return true;
+            }
+            console.warn('STATS_RESTORE_REJECTED', { reason, timestamp: ts, result });
+            return false;
+        } catch(e) {
+            console.warn('STATS_RESTORE_REJECTED', { reason, message: e && e.message ? e.message : String(e) });
+            return false;
+        }
+    }
+
+    async function ensureStatsStoreReady(reason = 'stats-write') {
+        const count = getLocalStatsKeyCount();
+        if (count > STATS_LOW_COUNT_BLOCK) return true;
+        console.warn('STATS_RESTORE_REJECTED', { reason, localStatsKeyCount: count, action: 'recover-before-write' });
+        const recovered = await restoreLatestGoodStatsFromCloud(reason);
+        if (recovered && getLocalStatsKeyCount() > STATS_LOW_COUNT_BLOCK) return true;
+        showToast('Stats가 비어 있어 저장을 중단했습니다. 정상 백업 복구가 필요합니다.', 'error');
+        return false;
+    }
+
+    async function recalcStatsFromHistory(cardId) {
         if (!cardId) return;
+        if (!await ensureStatsStoreReady('recalcStatsFromHistory')) return;
 
         const history = getReviewHistory();
         const items = Array.isArray(history[cardId]) ? [...history[cardId]] : [];
@@ -4185,10 +4347,11 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         openCurrentCardHistory();
     }
 
-    function grade(score) {
+    async function grade(score) {
         console.log('REVIEW_BUTTON_CLICK', { score, currentCardUuid: getCurrentCardId() });
         const card = activeDeck[currentIndex];
         if(!card) return;
+        if (!await ensureStatsStoreReady('grade')) return;
         const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}');
         const foundStats = findStatsForCard(card, data, card.id);
         const id = foundStats.key || String(card.id);
@@ -4476,7 +4639,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         return {correct:0, total:0, _statsKey: String(card && card.id || '')};
     }
     function getStats(id) { return getStatsById(id); }
-    function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); const found = findStatsForCard(card, data, card && card.id); const id = found.key || String(card && card.id || ''); if(!id) return; if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; data[id].updatedAt = Date.now(); localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); markLocalDataUpdated(data[id].updatedAt); updateIconsUI(data[id]); scheduleBackup(); }
+    async function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; if(!await ensureStatsStoreReady('toggleTag')) return; const data = JSON.parse(localStorage.getItem(STORAGE_KEY_STATS) || '{}'); const found = findStatsForCard(card, data, card && card.id); const id = found.key || String(card && card.id || ''); if(!id) return; if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; data[id].updatedAt = Date.now(); localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(data)); markLocalDataUpdated(data[id].updatedAt); updateIconsUI(data[id]); scheduleBackup(); }
     function updateIconsUI(s) { ['mem','cmp','fav','num','date','pen'].forEach(t => document.getElementById(`${t}-btn`).classList.toggle('active', !!s[t])); }
     function filterCards() { const q = document.getElementById('search-input').value.toLowerCase(); localStorage.setItem('anki_search_query', q); if(!q) { applyFilterAndSort(true); persistCurrentViewState(true); return; } activeDeck = originalDeck.filter(c => c.q.toLowerCase().includes(q) || c.a.toLowerCase().includes(q)); currentIndex = 0; try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {} showCard(); persistCurrentViewState(true); }
 
