@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.82 - compact stats 손실 차단)</title>
+<title>MK (v18.5.83 - compact stats 손실 차단)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -374,7 +374,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.82 - compact stats 손실 차단)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.83 - compact stats 손실 차단)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -612,7 +612,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.82 - compact stats 손실 차단';
+    const APP_VERSION = 'v18.5.83 - compact stats 손실 차단';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -637,6 +637,7 @@
     const STORAGE_KEY_LAST_GOOD_STATS_COUNT = 'mk_last_good_stats_count';
     const STATS_LOW_COUNT_BLOCK = 10;
     const STATS_HEALTHY_MIN_COUNT = 1000;
+    const STATS_STANDALONE_RESTORE_MIN_COUNT = 8000;
     const STATS_MIN_RETAIN_RATIO = 0.8;
     const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 긴급', 'none': '보조 없음', 'original': '🔄 원래순', 'unlearned': '🆕 미학습순', 'wrong': '🔥 오답순', 'number': '🔢 번호순', 'oldest': '📅 오래된순', 'recent': '🕘 최근순' };
     const filterModes = ['due', 'mem', 'cmp', 'fav', 'num', 'date', 'pen'];
@@ -1819,6 +1820,7 @@
                     backupStatsKeyCount,
                     localStatsKeyCount: statsRestoreBaseline.localStatsKeyCount,
                     lastGoodStatsCount: statsRestoreBaseline.lastGoodStatsCount,
+                    latestNormalBackupStatsKeyCount: statsRestoreBaseline.latestNormalBackupStatsKeyCount,
                     baselineStatsKeyCount: statsRestoreBaseline.baselineStatsKeyCount
                 });
                 const statusColor = guard.allowed ? '#51cf66' : '#ff8787';
@@ -2251,6 +2253,10 @@
         return true;
     }
 
+    function isStandaloneNormalStatsCount(count) {
+        return Number(count) >= STATS_STANDALONE_RESTORE_MIN_COUNT;
+    }
+
     function getLatestNormalBackupStatsCount(records = []) {
         const maxCount = records.reduce((max, record) => {
             const count = Number(record && record.data && record.data.statsKeyCount) || Number(record && record.statsKeyCount) || 0;
@@ -2267,35 +2273,35 @@
     async function getStatsRestoreBaseline(records = null) {
         const localStatsKeyCount = getLocalStatsKeyCount();
         const lastGoodStatsCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
-        const remoteNormalStatsCount = Array.isArray(records)
+        const latestNormalBackupStatsKeyCount = Array.isArray(records)
             ? getLatestNormalBackupStatsCount(records)
             : (await getRemoteMaxStatsKeyCount());
-        if (isValidStatsBaselineCount(lastGoodStatsCount, remoteNormalStatsCount)) {
-            return { localStatsKeyCount, lastGoodStatsCount, baselineStatsKeyCount: lastGoodStatsCount, baselineSource: 'last-good' };
+        if (isValidStatsBaselineCount(lastGoodStatsCount, latestNormalBackupStatsKeyCount)) {
+            return { localStatsKeyCount, lastGoodStatsCount, latestNormalBackupStatsKeyCount, baselineStatsKeyCount: lastGoodStatsCount, baselineSource: 'last-good' };
         }
-        if (isValidStatsBaselineCount(remoteNormalStatsCount)) {
-            return { localStatsKeyCount, lastGoodStatsCount, baselineStatsKeyCount: remoteNormalStatsCount, baselineSource: 'latest-normal-backup' };
+        if (isValidStatsBaselineCount(latestNormalBackupStatsKeyCount)) {
+            return { localStatsKeyCount, lastGoodStatsCount, latestNormalBackupStatsKeyCount, baselineStatsKeyCount: latestNormalBackupStatsKeyCount, baselineSource: 'latest-normal-backup' };
         }
-        if (isValidStatsBaselineCount(localStatsKeyCount, remoteNormalStatsCount)) {
-            return { localStatsKeyCount, lastGoodStatsCount, baselineStatsKeyCount: localStatsKeyCount, baselineSource: 'local' };
+        if (isValidStatsBaselineCount(localStatsKeyCount, latestNormalBackupStatsKeyCount)) {
+            return { localStatsKeyCount, lastGoodStatsCount, latestNormalBackupStatsKeyCount, baselineStatsKeyCount: localStatsKeyCount, baselineSource: 'local' };
         }
-        return { localStatsKeyCount, lastGoodStatsCount, baselineStatsKeyCount: 0, baselineSource: 'none' };
+        return { localStatsKeyCount, lastGoodStatsCount, latestNormalBackupStatsKeyCount, baselineStatsKeyCount: null, baselineSource: 'none' };
     }
 
-    function evaluateStatsRestoreGuard({ backupTimestamp, backupStatsKeyCount, localStatsKeyCount, lastGoodStatsCount, baselineStatsKeyCount }) {
+    function evaluateStatsRestoreGuard({ backupTimestamp, backupStatsKeyCount, localStatsKeyCount, lastGoodStatsCount, latestNormalBackupStatsKeyCount, baselineStatsKeyCount }) {
         const baselineCount = Number(baselineStatsKeyCount) || 0;
         const backupCount = Number(backupStatsKeyCount) || 0;
         let reasonCode = 'allowed';
         let allowed = true;
-        if (!baselineCount) {
-            allowed = false;
-            reasonCode = 'no_valid_baseline';
-        } else if (!backupCount) {
+        if (!backupCount) {
             allowed = false;
             reasonCode = 'empty_backup_stats';
         } else if (isDangerouslyLowStatsCount(backupCount)) {
             allowed = false;
             reasonCode = 'dangerously_low_backup_stats';
+        } else if (!baselineCount) {
+            allowed = isStandaloneNormalStatsCount(backupCount);
+            reasonCode = allowed ? 'allowed_without_baseline_healthy_backup' : 'no_valid_baseline_suspicious_backup_stats';
         } else if (isSuspiciousStatsDrop(backupCount, baselineCount)) {
             allowed = false;
             reasonCode = 'suspicious_backup_stats_drop';
@@ -2305,7 +2311,8 @@
             backupStatsKeyCount: backupCount,
             localStatsKeyCount: Number(localStatsKeyCount) || 0,
             lastGoodStatsCount: Number(lastGoodStatsCount) || 0,
-            baselineStatsKeyCount: baselineCount,
+            latestNormalBackupStatsKeyCount: Number(latestNormalBackupStatsKeyCount) || 0,
+            baselineStatsKeyCount: baselineCount || null,
             allowed,
             reasonCode
         };
@@ -2315,7 +2322,7 @@
 
     function formatStatsRestoreStatus(guard) {
         if (guard && guard.allowed) return `정상 · stats ${guard.backupStatsKeyCount}`;
-        return `손상 의심 · stats ${guard ? guard.backupStatsKeyCount : 0} / 기준 ${guard ? guard.baselineStatsKeyCount : 0}`;
+        return `손상 의심 · stats ${guard ? guard.backupStatsKeyCount : 0} / 기준 ${guard && guard.baselineStatsKeyCount ? guard.baselineStatsKeyCount : '없음'}`;
     }
 
     function rememberGoodBackupTimestamp(timestamp, statsCount) {
@@ -2336,10 +2343,12 @@
             const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json?orderBy=%22$key%22&limitToLast=${limit}&_t=${Date.now()}`, { cache: 'no-store' });
             if (!res.ok) return 0;
             const data = await res.json();
-            return Object.entries(data || {})
+            const records = Object.entries(data || {})
                 .filter(([ts, indexData]) => /^\d+$/.test(String(ts)) && isMkBackupRecord(indexData || {}))
-                .reduce((max, [, indexData]) => Math.max(max, Number(indexData && indexData.statsKeyCount) || 0), 0);
+                .map(([ts, indexData]) => ({ ts, data: indexData }));
+            return getLatestNormalBackupStatsCount(records);
         } catch(e) {
+            console.warn('STATS_BASELINE_INDEX_FETCH_FAILED', { message: e && e.message ? e.message : String(e) });
             return 0;
         }
     }
@@ -2656,7 +2665,8 @@
                 console.warn('STATS_RESTORE_REJECTED', { source, result: statsResult });
                 const shownIncoming = Number(statsResult && statsResult.incomingCount) || getStatsKeyCount(JSON.stringify(nextStats));
                 const shownBaseline = Number(statsResult && statsResult.baselineCount) || Number(options.baselineStatsKeyCount) || 0;
-                showToast(`stats 복구 중단: 백업 stats ${shownIncoming} / 기준 ${shownBaseline}`, 'error');
+                const shownBaselineText = shownBaseline || '없음';
+                showToast(`stats 복구 중단: 백업 stats ${shownIncoming} / 기준 ${shownBaselineText}`, 'error');
                 return null;
             }
             console.log('STATS_RESTORE_SOURCE', source);
@@ -2986,10 +2996,19 @@
         const incomingCount = getStatsKeyCount(value);
         const localCount = getLocalStatsKeyCount();
         const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
-        const baselineCount = Number(options.baselineStatsKeyCount) || Math.max(localCount, lastGoodCount);
+        const fallbackBaselineCount = isValidStatsBaselineCount(lastGoodCount)
+            ? lastGoodCount
+            : (isValidStatsBaselineCount(localCount) ? localCount : 0);
+        const baselineCount = Number(options.baselineStatsKeyCount) || fallbackBaselineCount;
         console.log('STATS_RESTORE_COUNT', { incomingCount, localCount, lastGoodCount });
-        if (isDangerouslyLowStatsCount(incomingCount) || isSuspiciousStatsDrop(incomingCount, baselineCount)) {
-            const reason = isDangerouslyLowStatsCount(incomingCount) ? 'dangerously_low_backup_stats' : 'suspicious_backup_stats_drop';
+        if (
+            isDangerouslyLowStatsCount(incomingCount) ||
+            (!baselineCount && !isStandaloneNormalStatsCount(incomingCount)) ||
+            isSuspiciousStatsDrop(incomingCount, baselineCount)
+        ) {
+            const reason = isDangerouslyLowStatsCount(incomingCount)
+                ? 'dangerously_low_backup_stats'
+                : (!baselineCount ? 'no_valid_baseline_suspicious_backup_stats' : 'suspicious_backup_stats_drop');
             console.warn('STATS_RESTORE_REJECTED', { incomingCount, baselineCount, reason });
             return { ok: false, rejected: true, reason, incomingCount, baselineCount };
         }
@@ -3078,11 +3097,13 @@
                 backupStatsKeyCount: getStatsKeyCount(JSON.stringify(getBackupStatsCandidate(targetData))),
                 localStatsKeyCount: statsRestoreBaseline.localStatsKeyCount,
                 lastGoodStatsCount: statsRestoreBaseline.lastGoodStatsCount,
+                latestNormalBackupStatsKeyCount: statsRestoreBaseline.latestNormalBackupStatsKeyCount,
                 baselineStatsKeyCount: statsRestoreBaseline.baselineStatsKeyCount
             });
             if (!statsRestoreGuard.allowed) {
-                showToast(`stats 복구 중단: 백업 stats ${statsRestoreGuard.backupStatsKeyCount} / 기준 ${statsRestoreGuard.baselineStatsKeyCount}`, 'error');
-                if (listUI) listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">stats 복구 중단: 백업 stats ${statsRestoreGuard.backupStatsKeyCount} / 기준 ${statsRestoreGuard.baselineStatsKeyCount}</div>`;
+                const baselineText = statsRestoreGuard.baselineStatsKeyCount || '없음';
+                showToast(`stats 복구 중단: 백업 stats ${statsRestoreGuard.backupStatsKeyCount} / 기준 ${baselineText}`, 'error');
+                if (listUI) listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">stats 복구 중단: 백업 stats ${statsRestoreGuard.backupStatsKeyCount} / 기준 ${baselineText}</div>`;
                 return;
             }
 
