@@ -612,7 +612,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.80 - stats 손실 방지 및 복구';
+    const APP_VERSION = 'v18.5.81 - compact stats 손실 차단';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -637,7 +637,7 @@
     const STORAGE_KEY_LAST_GOOD_STATS_COUNT = 'mk_last_good_stats_count';
     const STATS_LOW_COUNT_BLOCK = 10;
     const STATS_HEALTHY_MIN_COUNT = 1000;
-    const STATS_DROP_RATIO = 0.1;
+    const STATS_MIN_RETAIN_RATIO = 0.8;
     const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 긴급', 'none': '보조 없음', 'original': '🔄 원래순', 'unlearned': '🆕 미학습순', 'wrong': '🔥 오답순', 'number': '🔢 번호순', 'oldest': '📅 오래된순', 'recent': '🕘 최근순' };
     const filterModes = ['due', 'mem', 'cmp', 'fav', 'num', 'date', 'pen'];
 
@@ -1709,7 +1709,8 @@
         const statsRaw = localStorage.getItem(STORAGE_KEY_STATS);
         const statsKeyCount = getStatsKeyCount(statsRaw);
         const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
-        const baselineCount = Math.max(lastGoodCount, STATS_HEALTHY_MIN_COUNT);
+        const remoteBaselineCount = await getRemoteMaxStatsKeyCount();
+        const baselineCount = Math.max(lastGoodCount, remoteBaselineCount, STATS_HEALTHY_MIN_COUNT);
         console.log('STATS_BACKUP_COUNT', statsKeyCount);
         if (!statsKeyCount || isDangerouslyLowStatsCount(statsKeyCount) || isSuspiciousStatsDrop(statsKeyCount, baselineCount)) {
             console.warn('STATS_BACKUP_BLOCKED_LOW_COUNT', { statsKeyCount, baselineCount });
@@ -2228,16 +2229,34 @@
         baselineCount = Number(baselineCount) || 0;
         if (nextCount <= 0) return baselineCount >= STATS_HEALTHY_MIN_COUNT;
         if (isDangerouslyLowStatsCount(nextCount) && baselineCount >= STATS_LOW_COUNT_BLOCK) return true;
-        if (baselineCount >= STATS_HEALTHY_MIN_COUNT && nextCount < Math.floor(baselineCount * STATS_DROP_RATIO)) return true;
+        if (baselineCount >= STATS_HEALTHY_MIN_COUNT && nextCount < Math.floor(baselineCount * STATS_MIN_RETAIN_RATIO)) return true;
         return false;
     }
 
     function rememberGoodBackupTimestamp(timestamp, statsCount) {
         const count = Number(statsCount) || 0;
         if (!timestamp || count < STATS_HEALTHY_MIN_COUNT) return;
+        const existingCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
+        if (existingCount >= STATS_HEALTHY_MIN_COUNT && isSuspiciousStatsDrop(count, existingCount)) {
+            console.warn('STATS_RESTORE_REJECTED', { timestamp, statsCount: count, existingCount, reason: 'last-good-downgrade' });
+            return;
+        }
         safeRestoreLocalStorage(STORAGE_KEY_LAST_GOOD_BACKUP_TIMESTAMP, String(timestamp));
         safeRestoreLocalStorage(STORAGE_KEY_LAST_GOOD_STATS_COUNT, String(count));
         console.log('LAST_GOOD_BACKUP_TIMESTAMP', String(timestamp));
+    }
+
+    async function getRemoteMaxStatsKeyCount(limit = 50) {
+        try {
+            const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json?orderBy=%22$key%22&limitToLast=${limit}&_t=${Date.now()}`, { cache: 'no-store' });
+            if (!res.ok) return 0;
+            const data = await res.json();
+            return Object.entries(data || {})
+                .filter(([ts, indexData]) => /^\d+$/.test(String(ts)) && isMkBackupRecord(indexData || {}))
+                .reduce((max, [, indexData]) => Math.max(max, Number(indexData && indexData.statsKeyCount) || 0), 0);
+        } catch(e) {
+            return 0;
+        }
     }
 
     function markLocalDataUpdated(time = Date.now()) {
@@ -2698,9 +2717,6 @@
         const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json?orderBy=%22$key%22&limitToLast=50&_t=${Date.now()}`, { cache: 'no-store' });
         if (!res.ok) return null;
         const data = await res.json();
-        const localCount = getLocalStatsKeyCount();
-        const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
-        const baselineCount = Math.max(localCount, lastGoodCount);
         const records = Object.entries(data || {})
             .filter(([ts, indexData]) => /^\d+$/.test(String(ts)) && isMkBackupRecord(indexData || {}))
             .map(([ts, indexData]) => ({
@@ -2709,6 +2725,10 @@
             }))
             .filter(record => record.ts)
             .sort((a, b) => b.ts - a.ts);
+        const localCount = getLocalStatsKeyCount();
+        const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
+        const remoteMaxCount = records.reduce((max, record) => Math.max(max, record.statsKeyCount || 0), 0);
+        const baselineCount = Math.max(localCount, lastGoodCount, remoteMaxCount);
         for (const record of records) {
             if (isSuspiciousStatsDrop(record.statsKeyCount, baselineCount) || isDangerouslyLowStatsCount(record.statsKeyCount)) {
                 console.warn('STATS_RESTORE_REJECTED', { timestamp: record.ts, statsKeyCount: record.statsKeyCount, baselineCount, reason: 'auto-candidate-low-count' });
@@ -2873,46 +2893,11 @@
         el.innerHTML = items.map((item, index) => `<button class="recent-deck-item" onclick="openRecentDeck(${index})" title="${normalizeDeckPath(item.deck).replace(/__/g, ' › ')}">${formatRecentDeckPath(item.deck)}</button>`).join('');
     }
 
-    function getCurrentLibraryCardIds() {
-        const ids = new Set();
-        Object.values(library || {}).forEach(cards => {
-            if (!Array.isArray(cards)) return;
-            cards.forEach(card => {
-                if (card && card.id) ids.add(String(card.id));
-            });
-        });
-        return ids;
-    }
-
-    function compactStatsValue(value) {
-        const normalized = normalizeBackupValue(value);
-        if (!normalized) return null;
-
-        let stats;
-        try {
-            stats = JSON.parse(normalized);
-        } catch (e) {
-            return normalized;
-        }
-
-        if (!stats || typeof stats !== 'object') return normalized;
-
-        const currentCardIds = getCurrentLibraryCardIds();
-        if (currentCardIds.size === 0) return normalized;
-
-        const compacted = {};
-        Object.entries(stats).forEach(([cardId, cardStats]) => {
-            if (currentCardIds.has(String(cardId))) compacted[cardId] = cardStats;
-        });
-
-        return JSON.stringify(compacted);
-    }
-
     function restoreStatsWithFallback(value) {
         const incomingCount = getStatsKeyCount(value);
         const localCount = getLocalStatsKeyCount();
         const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
-        const baselineCount = Math.max(localCount, lastGoodCount);
+        const baselineCount = Math.max(localCount, lastGoodCount, incomingCount);
         console.log('STATS_RESTORE_COUNT', { incomingCount, localCount, lastGoodCount });
         if (isDangerouslyLowStatsCount(incomingCount) || isSuspiciousStatsDrop(incomingCount, baselineCount)) {
             console.warn('STATS_RESTORE_REJECTED', { incomingCount, baselineCount, reason: 'low-count' });
@@ -2925,15 +2910,7 @@
         result = safeRestoreLocalStorage(STORAGE_KEY_STATS, value);
         if (result.ok) return { ok: true, compacted: false, clearedCache: true, statsKeyCount: getLocalStatsKeyCount() };
 
-        const compactedValue = compactStatsValue(value);
-        const compactedCount = getStatsKeyCount(compactedValue);
-        if (isSuspiciousStatsDrop(compactedCount, baselineCount)) {
-            console.warn('STATS_RESTORE_REJECTED', { compactedCount, baselineCount, reason: 'compacted-drop' });
-            return { ok: false, rejected: true, reason: 'compacted-drop', compactedCount, baselineCount };
-        }
-        result = safeRestoreLocalStorage(STORAGE_KEY_STATS, compactedValue);
-        if (result.ok) return { ok: true, compacted: true, statsKeyCount: getLocalStatsKeyCount() };
-
+        console.warn('STATS_SAFE_WRITE_FAILED_KEEP_OLD', { incomingCount, localCount, reason: 'full-stats-write-failed-no-compact' });
         return result;
     }
 
