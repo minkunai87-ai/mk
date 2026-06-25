@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.84 - compact stats 손실 차단)</title>
+<title>MK (v18.5.85 - compact stats 손실 차단)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -374,7 +374,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.84 - compact stats 손실 차단)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.85 - compact stats 손실 차단)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -612,7 +612,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.84 - compact stats 손실 차단';
+    const APP_VERSION = 'v18.5.85 - compact stats 손실 차단';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -4511,6 +4511,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         const rateBadge = document.getElementById('rate-badge');
         const seenBadge = document.getElementById('date-badge');
         const dueBadge = document.getElementById('due-badge');
+        const htmlBeforeInsert = document.getElementById('card-info') ? document.getElementById('card-info').outerHTML : '';
         const cardIdForAccuracy = (s && s._statsKey) || (activeDeck[currentIndex] && activeDeck[currentIndex].id);
         const accuracy = getAccuracyStats(cardIdForAccuracy, s);
 
@@ -4579,6 +4580,27 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             dueDate: Number(s && s.dueDate) || 0,
             renderedLastDate: seenBadge ? (seenBadge.style.display === 'none' ? '' : seenBadge.innerText) : '',
             renderedDueDate: dueBadge ? (dueBadge.style.display === 'none' ? '' : dueBadge.innerText) : ''
+        });
+        console.log('[MK_STATS_DATE_RENDER_TRACE]', {
+            cardId: debugCard ? String(debugCard.id || '') : '',
+            statsKey: debugFound && debugFound.key ? debugFound.key : (s && s._statsKey ? s._statsKey : null),
+            statsFound: !!(debugFound && debugFound.stat),
+            statObject: debugFound && debugFound.stat ? debugFound.stat : null,
+            lastDateRaw: Number(debugFound && debugFound.stat && debugFound.stat.lastDate) || 0,
+            updatedAtRaw: Number(debugFound && debugFound.stat && debugFound.stat.updatedAt) || 0,
+            dueDateRaw: Number(debugFound && debugFound.stat && debugFound.stat.dueDate) || 0,
+            normalizedLastDate: Number(s && s.lastDate) || 0,
+            normalizedDueDate: Number(s && s.dueDate) || 0,
+            shouldRenderLastDate: !!(s && s.lastDate),
+            shouldRenderDueDate: !!(s && s.dueDate),
+            htmlBeforeInsert,
+            htmlAfterInsert: document.getElementById('card-info') ? document.getElementById('card-info').outerHTML : '',
+            lastDateElementExists: !!seenBadge,
+            dueDateElementExists: !!dueBadge,
+            lastDateComputedDisplay: seenBadge ? getComputedStyle(seenBadge).display : null,
+            dueDateComputedDisplay: dueBadge ? getComputedStyle(dueBadge).display : null,
+            lastDateComputedVisibility: seenBadge ? getComputedStyle(seenBadge).visibility : null,
+            dueDateComputedVisibility: dueBadge ? getComputedStyle(dueBadge).visibility : null
         });
         }
         return;
