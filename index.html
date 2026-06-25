@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.86 - compact stats 손실 차단)</title>
+<title>MK (v18.5.87 - compact stats 손실 차단)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -374,7 +374,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.86 - compact stats 손실 차단)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.87 - compact stats 손실 차단)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -612,7 +612,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.86 - compact stats 손실 차단';
+    const APP_VERSION = 'v18.5.87 - compact stats 손실 차단';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -2589,10 +2589,29 @@
         const stats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
         const reviewHistory = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
         const viewState = getTrustedStartupViewState();
-        const hasLocalStats = stats && Object.keys(stats).length > 0;
+        const localStatsKeyCount = getStatsKeyCount(stats);
+        const hasLocalStats = localStatsKeyCount > 0;
+        const lastGoodStatsCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
+        const hasUsableLocalStats = hasLocalStats
+            && !isDangerouslyLowStatsCount(localStatsKeyCount)
+            && !isSuspiciousStatsDrop(localStatsKeyCount, lastGoodStatsCount);
+        const localDataUpdatedAt = getLocalDataUpdatedAt();
+        const localUpdatedAt = (isTrustedLocalViewState(viewState) && hasLocalStats) || hasUsableLocalStats
+            ? localDataUpdatedAt
+            : 0;
+        if (hasLocalStats && localDataUpdatedAt && !localUpdatedAt) {
+            console.warn('[MK_LOCAL_STATE_IGNORED_FOR_SYNC]', {
+                localStatsKeyCount,
+                lastGoodStatsCount,
+                localDataUpdatedAt,
+                reasonCode: isDangerouslyLowStatsCount(localStatsKeyCount) || isSuspiciousStatsDrop(localStatsKeyCount, lastGoodStatsCount)
+                    ? 'suspicious_local_stats_count'
+                    : 'untrusted_local_state'
+            });
+        }
         return {
             source: 'local',
-            updatedAt: isTrustedLocalViewState(viewState) && hasLocalStats ? getLocalDataUpdatedAt() : 0,
+            updatedAt: localUpdatedAt,
             viewState: compactViewState(viewState),
             stats,
             reviewHistory
@@ -2679,7 +2698,15 @@
         if(hasBackupField(raw, 'targetRetention')) applyTargetRetentionFromBackup(raw.targetRetention, source);
         const restoredViewState = restorePosition(payload.viewState || getBackupViewState(raw), source);
         const restoredUpdatedAt = Number(payload.updatedAt) || Number(raw && (raw.localUpdatedAt || raw.updatedAt || (raw.metadata && raw.metadata.localUpdatedAt))) || 0;
-        if(restoredUpdatedAt) {
+        if(source === 'manual-restore') {
+            const pinnedUpdatedAt = Date.now();
+            markLocalDataUpdated(pinnedUpdatedAt);
+            console.log('[MK_MANUAL_RESTORE_LOCAL_PIN]', {
+                backupTimestamp: payload.timestamp || null,
+                restoredUpdatedAt,
+                localUpdatedAt: pinnedUpdatedAt
+            });
+        } else if(restoredUpdatedAt) {
             if(source === 'cloud') markLocalDataUpdated(restoredUpdatedAt);
             else markLocalDataUpdated(Math.max(getLocalDataUpdatedAt(), restoredUpdatedAt));
         }
@@ -3092,6 +3119,7 @@
     async function finishFirebaseRestore(targetData, listUI, message = '복구 완료') {
         try {
             await autoScanGitHub();
+            restorePosition(getBackupViewState(targetData || {}), 'manual-restore-final');
             initApp();
             ensureVisibleCard();
             const fbModal = document.getElementById('fb-modal');
