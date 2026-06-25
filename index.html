@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.91 - compact stats 손실 차단)</title>
+<title>MK (v18.5.92 - compact stats 손실 차단)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -375,7 +375,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.91 - compact stats 손실 차단)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.92 - compact stats 손실 차단)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -614,7 +614,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.91 - compact stats 손실 차단';
+    const APP_VERSION = 'v18.5.92 - compact stats 손실 차단';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -2230,6 +2230,65 @@
         return stats && typeof stats === 'object' && !Array.isArray(stats) ? Object.keys(stats).length : 0;
     }
 
+    function getStatsKeys(value) {
+        const stats = parseJSONSafe(value, value && typeof value === 'object' ? value : {});
+        return stats && typeof stats === 'object' && !Array.isArray(stats) ? Object.keys(stats).sort() : [];
+    }
+
+    function verifyStatsKeySetExact(payloadStats, localStatsValue, context = {}) {
+        const payloadKeys = getStatsKeys(payloadStats);
+        const localKeys = getStatsKeys(localStatsValue);
+        const result = {
+            ok: payloadKeys.length === localKeys.length,
+            reasonCode: 'stats_key_set_match',
+            payloadStatsKeyCount: payloadKeys.length,
+            localStatsKeyCount: localKeys.length,
+            missingKeys: [],
+            extraKeys: [],
+            checkedKeys: context.checkedKeys || []
+        };
+        if (result.ok) {
+            for (let i = 0; i < payloadKeys.length; i++) {
+                if (payloadKeys[i] !== localKeys[i]) {
+                    result.ok = false;
+                    break;
+                }
+            }
+        }
+        if (!result.ok) {
+            const localSet = new Set(localKeys);
+            const payloadSet = new Set(payloadKeys);
+            result.missingKeys = payloadKeys.filter(key => !localSet.has(key)).slice(0, 50);
+            result.extraKeys = localKeys.filter(key => !payloadSet.has(key)).slice(0, 50);
+            result.reasonCode = result.payloadStatsKeyCount !== result.localStatsKeyCount
+                ? 'stats_key_count_mismatch_after_write'
+                : 'stats_key_set_mismatch_after_write';
+        }
+        if (Array.isArray(result.checkedKeys) && result.checkedKeys.length) {
+            result.checkedKeyStatus = {};
+            const payloadStatsObject = parseJSONSafe(payloadStats, payloadStats && typeof payloadStats === 'object' ? payloadStats : {});
+            const localStatsObject = parseJSONSafe(localStatsValue, localStatsValue && typeof localStatsValue === 'object' ? localStatsValue : {});
+            result.checkedKeys.forEach(key => {
+                result.checkedKeyStatus[key] = {
+                    inPayload: !!(payloadStatsObject && Object.prototype.hasOwnProperty.call(payloadStatsObject, key)),
+                    inLocal: !!(localStatsObject && Object.prototype.hasOwnProperty.call(localStatsObject, key))
+                };
+            });
+        }
+        console.log('[MK_STATS_RESTORE_KEYSET_VERIFY]', {
+            phase: context.phase || 'unknown',
+            backupTimestamp: context.backupTimestamp || null,
+            payloadStatsKeyCount: result.payloadStatsKeyCount,
+            localStatsKeyCount: result.localStatsKeyCount,
+            keySetIdentical: result.ok,
+            reasonCode: result.reasonCode,
+            missingKeys: result.missingKeys,
+            extraKeys: result.extraKeys,
+            checkedKeyStatus: result.checkedKeyStatus || null
+        });
+        return result;
+    }
+
     function getLocalStatsKeyCount() {
         return getStatsKeyCount(localStorage.getItem(STORAGE_KEY_STATS));
     }
@@ -2712,10 +2771,16 @@
         if(hasBackupField(raw, 'notesByCardUuid')) { const nextNotes = shouldMerge ? mergeNotesByUpdatedAt(getNotesByCardUuid(), incomingNotes) : incomingNotes; safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(nextNotes)); }
         if(nextStats && Object.keys(nextStats).length) {
             const statsResult = restoreStatsWithFallback(JSON.stringify(nextStats), {
-                baselineStatsKeyCount: options.baselineStatsKeyCount
+                baselineStatsKeyCount: options.baselineStatsKeyCount,
+                backupTimestamp: payload.timestamp || null,
+                checkedKeys: options.checkedKeys || []
             });
             if(!statsResult || !statsResult.ok) {
                 console.warn('STATS_RESTORE_REJECTED', { source, result: statsResult });
+                if (statsResult && statsResult.reason && String(statsResult.reason).startsWith('stats_key_')) {
+                    showToast(`stats restore failed: ${statsResult.reason} (${statsResult.localCount || 0}/${statsResult.payloadStatsKeyCount || 0})`, 'error');
+                    return null;
+                }
                 const shownIncoming = Number(statsResult && statsResult.incomingCount) || getStatsKeyCount(JSON.stringify(nextStats));
                 const shownBaseline = Number(statsResult && statsResult.baselineCount) || Number(options.baselineStatsKeyCount) || 0;
                 const shownBaselineText = shownBaseline || '없음';
@@ -2724,15 +2789,17 @@
             }
             console.log('STATS_RESTORE_SOURCE', source);
             console.log('STATS_RESTORE_COUNT', statsResult.statsKeyCount || getLocalStatsKeyCount());
-            if(payload.timestamp && (statsResult.statsKeyCount || 0) >= STATS_HEALTHY_MIN_COUNT) rememberGoodBackupTimestamp(payload.timestamp, statsResult.statsKeyCount);
+            if(!options.deferLocalCommit && payload.timestamp && (statsResult.statsKeyCount || 0) >= STATS_HEALTHY_MIN_COUNT) rememberGoodBackupTimestamp(payload.timestamp, statsResult.statsKeyCount);
         }
         if(hasBackupField(raw, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, raw.progress);
         if(hasBackupField(raw, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, raw.filter);
         if(hasBackupField(raw, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, raw.recentDecks);
         if(hasBackupField(raw, 'targetRetention')) applyTargetRetentionFromBackup(raw.targetRetention, source);
-        const restoredViewState = restorePosition(payload.viewState || getBackupViewState(raw), source);
+        const restoredViewState = options.deferViewState
+            ? compactViewState(payload.viewState || getBackupViewState(raw))
+            : restorePosition(payload.viewState || getBackupViewState(raw), source);
         const restoredUpdatedAt = Number(payload.updatedAt) || Number(raw && (raw.localUpdatedAt || raw.updatedAt || (raw.metadata && raw.metadata.localUpdatedAt))) || 0;
-        if(source === 'manual-restore') {
+        if(source === 'manual-restore' && !options.deferLocalCommit) {
             const pinnedUpdatedAt = Date.now();
             markLocalDataUpdated(pinnedUpdatedAt);
             console.log('[MK_MANUAL_RESTORE_LOCAL_PIN]', {
@@ -2899,45 +2966,28 @@
         return merged;
     }
 
-    function repairMissingCurrentCardStatsFromBackup(targetData = {}) {
+    function verifyRestoredStatsPayloadIntegrity(targetData = {}, phase = 'after-restore') {
         const backupStats = getBackupStatsCandidate(targetData || {});
-        const localStats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
-        if (!backupStats || !localStats || typeof backupStats !== 'object' || typeof localStats !== 'object') return { repaired: 0 };
-
-        const currentCardIds = new Set();
-        Object.values(library || {}).forEach(cards => {
-            if (!Array.isArray(cards)) return;
-            cards.forEach(card => {
-                if (card && card.id) currentCardIds.add(String(card.id));
-            });
+        const verification = verifyStatsKeySetExact(backupStats, localStorage.getItem(STORAGE_KEY_STATS), {
+            phase,
+            backupTimestamp: targetData.timestamp || (targetData.metadata && targetData.metadata.timestamp) || null,
+            checkedKeys: [
+                '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
+                '6a17f7fc-d939-4ac3-b401-d165f66b62df'
+            ]
         });
-
-        let repaired = 0;
-        const repairedKeys = [];
-        currentCardIds.forEach(cardId => {
-            const backupStat = backupStats[cardId];
-            if (!backupStat) return;
-            const localStat = localStats[cardId];
-            const backupHasDate = !!(backupStat.lastDate || backupStat.updatedAt || backupStat.dueDate);
-            const localHasDate = !!(localStat && (localStat.lastDate || localStat.updatedAt || localStat.dueDate));
-            if (!localStat || (backupHasDate && !localHasDate)) {
-                localStats[cardId] = { ...(localStat || {}), ...backupStat };
-                repaired++;
-                if (repairedKeys.length < 20) repairedKeys.push(cardId);
-            }
-        });
-
-        if (repaired > 0) {
-            safeRestoreLocalStorage(STORAGE_KEY_STATS, JSON.stringify(localStats));
-            console.warn('[MK_STATS_RESTORE_INTEGRITY_REPAIR]', {
-                backupTimestamp: targetData.timestamp || (targetData.metadata && targetData.metadata.timestamp) || null,
-                repaired,
-                repairedKeys,
-                localStatsKeyCount: Object.keys(localStats).length
+        if (!verification.ok) {
+            console.error('[MK_STATS_RESTORE_VERIFY_FAILED]', {
+                phase,
+                reasonCode: verification.reasonCode,
+                payloadStatsKeyCount: verification.payloadStatsKeyCount,
+                localStatsKeyCount: verification.localStatsKeyCount,
+                missingKeys: verification.missingKeys,
+                extraKeys: verification.extraKeys,
+                checkedKeyStatus: verification.checkedKeyStatus || null
             });
         }
-
-        return { repaired, repairedKeys };
+        return verification;
     }
 
     async function getLatestFirebaseBackupTimestamp() {
@@ -3140,12 +3190,35 @@
             console.warn('STATS_RESTORE_REJECTED', { incomingCount, baselineCount, reason });
             return { ok: false, rejected: true, reason, incomingCount, baselineCount };
         }
-        let result = safeRestoreLocalStorage(STORAGE_KEY_STATS, value);
-        if (result.ok) return { ok: true, compacted: false, statsKeyCount: getLocalStatsKeyCount() };
+        const verifyFullStatsWrite = (result, phase) => {
+            if (!result || !result.ok) return result;
+            const verification = verifyStatsKeySetExact(value, localStorage.getItem(STORAGE_KEY_STATS), {
+                phase,
+                backupTimestamp: options.backupTimestamp || null,
+                checkedKeys: options.checkedKeys || []
+            });
+            if (!verification.ok) {
+                return {
+                    ok: false,
+                    rejected: true,
+                    reason: verification.reasonCode,
+                    incomingCount,
+                    localCount: verification.localStatsKeyCount,
+                    payloadStatsKeyCount: verification.payloadStatsKeyCount,
+                    missingKeys: verification.missingKeys,
+                    extraKeys: verification.extraKeys,
+                    checkedKeyStatus: verification.checkedKeyStatus || null
+                };
+            }
+            return { ok: true, compacted: false, statsKeyCount: verification.localStatsKeyCount, verification };
+        };
+
+        let result = verifyFullStatsWrite(safeRestoreLocalStorage(STORAGE_KEY_STATS, value), 'after-stats-write');
+        if (result.ok) return result;
 
         freeRestorableCacheStorage();
-        result = safeRestoreLocalStorage(STORAGE_KEY_STATS, value);
-        if (result.ok) return { ok: true, compacted: false, clearedCache: true, statsKeyCount: getLocalStatsKeyCount() };
+        result = verifyFullStatsWrite(safeRestoreLocalStorage(STORAGE_KEY_STATS, value), 'after-stats-write-retry');
+        if (result.ok) return { ...result, clearedCache: true };
 
         console.warn('STATS_SAFE_WRITE_FAILED_KEEP_OLD', { incomingCount, localCount, reason: 'full-stats-write-failed-no-compact' });
         return result;
@@ -3194,7 +3267,23 @@
     async function finishFirebaseRestore(targetData, listUI, message = '복구 완료') {
         try {
             await autoScanGitHub();
-            repairMissingCurrentCardStatsFromBackup(targetData || {});
+            const statsIntegrity = verifyRestoredStatsPayloadIntegrity(targetData || {}, 'after-startup-scan');
+            if (!statsIntegrity.ok) {
+                const errorMessage = `stats restore failed: ${statsIntegrity.reasonCode} (${statsIntegrity.localStatsKeyCount}/${statsIntegrity.payloadStatsKeyCount})`;
+                showToast(errorMessage, 'error');
+                if (listUI) listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">${errorMessage}</div>`;
+                return false;
+            }
+            const pinnedUpdatedAt = Date.now();
+            markLocalDataUpdated(pinnedUpdatedAt);
+            if (targetData && targetData.timestamp && statsIntegrity.localStatsKeyCount >= STATS_HEALTHY_MIN_COUNT) {
+                rememberGoodBackupTimestamp(targetData.timestamp, statsIntegrity.localStatsKeyCount);
+            }
+            console.log('[MK_MANUAL_RESTORE_LOCAL_PIN]', {
+                backupTimestamp: targetData && targetData.timestamp || null,
+                localUpdatedAt: pinnedUpdatedAt,
+                statsKeyCount: statsIntegrity.localStatsKeyCount
+            });
             restorePosition(getBackupViewState(targetData || {}), 'manual-restore-final');
             initApp();
             ensureVisibleCard();
@@ -3241,7 +3330,14 @@
             freeRestorableCacheStorage();
             const normalizedManualPayload = normalizeBackupPayload(targetData, 'manual-restore', ts);
             const restoredState = applyRestoredState(normalizedManualPayload, normalizedManualPayload.source, {
-                baselineStatsKeyCount: statsRestoreGuard.baselineStatsKeyCount
+                baselineStatsKeyCount: statsRestoreGuard.baselineStatsKeyCount,
+                backupTimestamp: ts,
+                checkedKeys: [
+                    '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
+                    '6a17f7fc-d939-4ac3-b401-d165f66b62df'
+                ],
+                deferViewState: true,
+                deferLocalCommit: true
             });
             if (!restoredState) return;
             await finishFirebaseRestore(targetData, listUI);
