@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.89 - compact stats 손실 차단)</title>
+<title>MK (v18.5.90 - compact stats 손실 차단)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -132,6 +132,7 @@
     .badge-today { background: #0b2e13; color: #40c057; border: 1px solid #40c057; } 
     .badge-1d { background: #3f2e05; color: #ffd43b; border: 1px solid #ffd43b; } 
     .badge-old { background: #212529; color: #868e96; border: 1px solid #495057; } 
+    .date-diagnostic { display: none; margin: 0 0 12px 0; padding: 8px 10px; border-radius: 6px; border: 1px solid #ffd43b; background: #2b240f; color: #ffe066; font-size: 0.74rem; line-height: 1.35; word-break: break-all; }
 
     .icon-wrapper { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
     .icon-row { display: flex; gap: 12px; }
@@ -374,7 +375,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.89 - compact stats 손실 차단)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.90 - compact stats 손실 차단)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -506,6 +507,7 @@
                         </div>
                     </div>
 
+                    <div id="date-diagnostic" class="date-diagnostic"></div>
                     <div id="question-section" class="text-area mode-question"></div>
                     <hr id="divider" class="divider">
                     <div id="answer-section" class="text-area"></div>
@@ -612,7 +614,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.89 - compact stats 손실 차단';
+    const APP_VERSION = 'v18.5.90 - compact stats 손실 차단';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -4644,6 +4646,60 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
                 dueBadge.style.border = '1px solid #1c7ed6';
             }
         }
+        const updateDateDiagnosticUI = (phase = 'render') => {
+            const diagnostic = document.getElementById('date-diagnostic');
+            if (!diagnostic) return;
+            const rawStat = debugFound && debugFound.stat ? debugFound.stat : null;
+            const matchedKey = debugFound && debugFound.key ? debugFound.key : (s && s._statsKey ? s._statsKey : '');
+            const lastStyle = seenBadge ? getComputedStyle(seenBadge) : null;
+            const dueStyle = dueBadge ? getComputedStyle(dueBadge) : null;
+            const lastBadgeVisible = !!(seenBadge && seenBadge.innerText && lastStyle && lastStyle.display !== 'none' && lastStyle.visibility !== 'hidden' && lastStyle.opacity !== '0');
+            const dueBadgeVisible = !!(dueBadge && dueBadge.innerText && dueStyle && dueStyle.display !== 'none' && dueStyle.visibility !== 'hidden' && dueStyle.opacity !== '0');
+            const shouldRenderLastDate = !!(s && s.lastDate);
+            const shouldRenderDueDate = !!(s && s.dueDate);
+            const statsFound = !!rawStat;
+            if (lastBadgeVisible && dueBadgeVisible) {
+                diagnostic.style.display = 'none';
+                diagnostic.textContent = '';
+                return;
+            }
+            let renderState = '정상';
+            if (!statsFound) renderState = 'lookup실패';
+            else if (!shouldRenderLastDate || !shouldRenderDueDate) renderState = '조건false';
+            else if (!lastBadgeVisible || !dueBadgeVisible) renderState = '차단';
+            const text = [
+                `[날짜 진단] stats=${statsFound ? '있음' : '없음'}`,
+                `cardId=${debugCard ? String(debugCard.id || '') : ''}`,
+                `key=${matchedKey || '없음'}`,
+                `statsFound=${statsFound}`,
+                `lastDateRaw=${Number(rawStat && rawStat.lastDate) || 0}`,
+                `updatedAtRaw=${Number(rawStat && rawStat.updatedAt) || 0}`,
+                `dueDateRaw=${Number(rawStat && rawStat.dueDate) || 0}`,
+                `lastBadge=${lastBadgeVisible ? '표시' : '숨김'}`,
+                `dueBadge=${dueBadgeVisible ? '표시' : '숨김'}`,
+                `condition=last:${shouldRenderLastDate},due:${shouldRenderDueDate}`,
+                `render=${renderState}`,
+                `phase=${phase}`
+            ].join(' | ');
+            diagnostic.textContent = text;
+            diagnostic.style.display = 'block';
+            console.warn('[MK_DATE_DIAGNOSTIC_UI]', {
+                cardId: debugCard ? String(debugCard.id || '') : '',
+                lookupKey: matchedKey || '',
+                statsFound,
+                lastDateRaw: Number(rawStat && rawStat.lastDate) || 0,
+                updatedAtRaw: Number(rawStat && rawStat.updatedAt) || 0,
+                dueDateRaw: Number(rawStat && rawStat.dueDate) || 0,
+                lastBadgeVisible,
+                dueBadgeVisible,
+                shouldRenderLastDate,
+                shouldRenderDueDate,
+                renderState,
+                phase
+            });
+        };
+        updateDateDiagnosticUI('updateStatsUI');
+        requestAnimationFrame(() => setTimeout(() => updateDateDiagnosticUI('settled'), 0));
         console.log('[MK_STATS_DATE_DEBUG]', {
             cardId: debugCard ? String(debugCard.id || '') : '',
             cardIdentity: debugCard ? {
