@@ -135,11 +135,12 @@
     .date-diagnostic { display: none; margin: 0 0 12px 0; padding: 8px 10px; border-radius: 6px; border: 1px solid #ffd43b; background: #2b240f; color: #ffe066; font-size: 0.74rem; line-height: 1.35; word-break: break-all; }
 
     .icon-wrapper { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
-    .icon-row { display: flex; gap: 12px; }
-    .icon-btn { font-size: 1.4rem; cursor: pointer; background: none; border: none; padding: 0; line-height: 1; color: var(--text-sub); transition: 0.2s; opacity: 0.4; filter: grayscale(100%); }
+    .icon-row { display: flex; gap: 12px; align-items: center; }
+    .icon-btn { width: 28px; height: 28px; font-size: 1.4rem; cursor: pointer; background: none; border: none; padding: 0; line-height: 1; color: var(--text-sub); transition: 0.2s; opacity: 0.4; filter: grayscale(100%); display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
     .icon-btn.active { opacity: 1; filter: grayscale(0%); transform: scale(1.1); }
     .mem-btn.active { color: #ff8787; } .cmp-btn.active { color: #74c0fc; } .fav-btn.active { color: #ffd43b; }
     .num-btn.active { color: #66d9e8; } .date-btn.active { color: #b197fc; } .pen-btn.active { color: #ff6b6b; }
+    .context-btn { font-size: 1.32rem; font-family: inherit; }
     .context-btn.active { color: #74c0fc; }
     .context-menu {
         position: absolute;
