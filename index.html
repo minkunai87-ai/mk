@@ -5084,6 +5084,11 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             const shouldRenderLastDate = !!(s && s.lastDate);
             const shouldRenderDueDate = !!(s && s.dueDate);
             const statsFound = !!rawStat;
+            if (!statsFound) {
+                diagnostic.style.display = 'none';
+                diagnostic.textContent = '';
+                return;
+            }
             if (lastBadgeVisible && dueBadgeVisible) {
                 diagnostic.style.display = 'none';
                 diagnostic.textContent = '';
