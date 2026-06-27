@@ -5073,8 +5073,14 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             }
         }
         const updateDateDiagnosticUI = (phase = 'render') => {
+            const SHOW_DATE_DIAGNOSTIC_UI = false;
             const diagnostic = document.getElementById('date-diagnostic');
             if (!diagnostic) return;
+            if (!SHOW_DATE_DIAGNOSTIC_UI) {
+                diagnostic.style.display = 'none';
+                diagnostic.textContent = '';
+                return;
+            }
             const rawStat = debugFound && debugFound.stat ? debugFound.stat : null;
             const matchedKey = debugFound && debugFound.key ? debugFound.key : (s && s._statsKey ? s._statsKey : '');
             const lastStyle = seenBadge ? getComputedStyle(seenBadge) : null;
