@@ -647,7 +647,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.94 - compact stats 손실 차단';
+    const APP_VERSION = 'v18.5.95 - startup stats bootstrap';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -677,6 +677,7 @@
     const STATS_HEALTHY_MIN_COUNT = 1000;
     const STATS_STANDALONE_RESTORE_MIN_COUNT = 8000;
     const STATS_MIN_RETAIN_RATIO = 0.8;
+    const STATS_KNOWN_SUSPICIOUS_COUNTS = new Set([4, 1778]);
     const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 긴급', 'none': '보조 없음', 'original': '🔄 원래순', 'unlearned': '🆕 미학습순', 'wrong': '🔥 오답순', 'number': '🔢 번호순', 'oldest': '📅 오래된순', 'recent': '🕘 최근순' };
     const filterModes = ['due', 'mem', 'cmp', 'fav', 'num', 'date', 'pen'];
 
@@ -2437,6 +2438,10 @@
         return Number(count) > 0 && Number(count) <= STATS_LOW_COUNT_BLOCK;
     }
 
+    function isKnownSuspiciousStatsCount(count) {
+        return STATS_KNOWN_SUSPICIOUS_COUNTS.has(Number(count) || 0);
+    }
+
     function isSuspiciousStatsDrop(nextCount, baselineCount) {
         nextCount = Number(nextCount) || 0;
         baselineCount = Number(baselineCount) || 0;
@@ -2498,6 +2503,9 @@
         if (!backupCount) {
             allowed = false;
             reasonCode = 'empty_backup_stats';
+        } else if (isKnownSuspiciousStatsCount(backupCount)) {
+            allowed = false;
+            reasonCode = 'known_suspicious_backup_stats';
         } else if (isDangerouslyLowStatsCount(backupCount)) {
             allowed = false;
             reasonCode = 'dangerously_low_backup_stats';
@@ -2919,19 +2927,38 @@
             const statsResult = restoreStatsWithFallback(JSON.stringify(nextStats), {
                 baselineStatsKeyCount: options.baselineStatsKeyCount,
                 backupTimestamp: payload.timestamp || null,
-                checkedKeys: options.checkedKeys || []
+                checkedKeys: options.checkedKeys || [],
+                allowStartupBootstrap: !!options.allowStartupBootstrap
             });
             if(!statsResult || !statsResult.ok) {
                 console.warn('STATS_RESTORE_REJECTED', { source, result: statsResult });
                 if (statsResult && statsResult.reason && String(statsResult.reason).startsWith('stats_key_')) {
-                    showToast(`stats restore failed: ${statsResult.reason} (${statsResult.localCount || 0}/${statsResult.payloadStatsKeyCount || 0})`, 'error');
+                    const message = source === 'cloud'
+                        ? `stats 자동복구 중단: 저장 검증 실패`
+                        : `stats restore failed: ${statsResult.reason} (${statsResult.localCount || 0}/${statsResult.payloadStatsKeyCount || 0})`;
+                    showToast(message, 'error');
                     return null;
                 }
                 const shownIncoming = Number(statsResult && statsResult.incomingCount) || getStatsKeyCount(JSON.stringify(nextStats));
                 const shownBaseline = Number(statsResult && statsResult.baselineCount) || Number(options.baselineStatsKeyCount) || 0;
                 const shownBaselineText = shownBaseline || '없음';
-                showToast(`stats 복구 중단: 백업 stats ${shownIncoming} / 기준 ${shownBaselineText}`, 'error');
+                const message = source === 'cloud'
+                    ? `stats 자동복구 중단: 손상 의심 백업 stats ${shownIncoming}`
+                    : `stats 복구 중단: 백업 stats ${shownIncoming} / 기준 ${shownBaselineText}`;
+                showToast(message, 'error');
                 return null;
+            }
+            if (options.requireStatsLookupVerification) {
+                const lookupVerification = verifyRestoredStatsLookup(nextStats, payload.viewState || getBackupViewState(raw), {
+                    phase: source === 'cloud' ? 'startup-auto-restore' : 'after-restore',
+                    backupTimestamp: payload.timestamp || null,
+                    checkedKeys: options.checkedKeys || []
+                });
+                if (!lookupVerification.ok) {
+                    console.warn('STATS_RESTORE_REJECTED', { source, result: lookupVerification });
+                    showToast(source === 'cloud' ? 'stats 자동복구 중단: 저장 검증 실패' : `stats restore failed: ${lookupVerification.reasonCode}`, 'error');
+                    return null;
+                }
             }
             console.log('STATS_RESTORE_SOURCE', source);
             console.log('STATS_RESTORE_COUNT', statsResult.statsKeyCount || getLocalStatsKeyCount());
@@ -3136,6 +3163,45 @@
         return verification;
     }
 
+    function verifyRestoredStatsLookup(payloadStats = {}, viewState = {}, context = {}) {
+        const stats = parseJSONSafe(payloadStats, payloadStats && typeof payloadStats === 'object' ? payloadStats : {});
+        const keys = getStatsKeys(stats);
+        const preferredIds = [
+            viewState && (viewState.currentCardUuid || viewState.cardId || viewState.currentCardId),
+            ...(context.checkedKeys || []),
+            ...keys.slice(0, 120)
+        ].map(id => String(id || '').trim()).filter(Boolean);
+        const uniqueIds = [...new Set(preferredIds)];
+        const checked = [];
+        for (const id of uniqueIds) {
+            const card = findCardById(id);
+            if (!card) continue;
+            const found = findStatsForCard(card, stats, id);
+            checked.push({ id, found: !!(found && found.stat), foundKey: found && found.key ? found.key : '' });
+            if (found && found.stat) {
+                console.log('[MK_STATS_RESTORE_LOOKUP_VERIFY]', {
+                    phase: context.phase || 'after-restore',
+                    backupTimestamp: context.backupTimestamp || null,
+                    ok: true,
+                    checked
+                });
+                return { ok: true, checked };
+            }
+        }
+        const result = {
+            ok: checked.length === 0,
+            skipped: checked.length === 0,
+            reasonCode: checked.length === 0 ? 'stats_lookup_no_cards_checked' : 'stats_lookup_failed_after_write',
+            checked
+        };
+        console.log('[MK_STATS_RESTORE_LOOKUP_VERIFY]', {
+            phase: context.phase || 'after-restore',
+            backupTimestamp: context.backupTimestamp || null,
+            ...result
+        });
+        return result;
+    }
+
     async function getLatestFirebaseBackupTimestamp() {
         const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json?orderBy=%22$key%22&limitToLast=50&_t=${Date.now()}`, { cache: 'no-store' });
         if (!res.ok) return null;
@@ -3153,11 +3219,10 @@
         const remoteMaxCount = records.reduce((max, record) => Math.max(max, record.statsKeyCount || 0), 0);
         const baselineCount = Math.max(localCount, lastGoodCount, remoteMaxCount);
         for (const record of records) {
-            if (isSuspiciousStatsDrop(record.statsKeyCount, baselineCount) || isDangerouslyLowStatsCount(record.statsKeyCount)) {
+            if (isKnownSuspiciousStatsCount(record.statsKeyCount) || isSuspiciousStatsDrop(record.statsKeyCount, baselineCount) || isDangerouslyLowStatsCount(record.statsKeyCount)) {
                 console.warn('STATS_RESTORE_REJECTED', { timestamp: record.ts, statsKeyCount: record.statsKeyCount, baselineCount, reason: 'auto-candidate-low-count' });
                 continue;
             }
-            rememberGoodBackupTimestamp(record.ts, record.statsKeyCount);
             return String(record.ts);
         }
         return null;
@@ -3181,7 +3246,16 @@
                 console.log('AUTO_SYNC_COMPLETE');
                 return;
             }
-            const restoredState = applyRestoredState(cloudState, 'cloud');
+            const cloudStatsCount = getStatsKeyCount(cloudState && cloudState.stats);
+            const isStartupBootstrap = getLocalStatsKeyCount() === 0 && isStandaloneNormalStatsCount(cloudStatsCount) && !isKnownSuspiciousStatsCount(cloudStatsCount);
+            const restoredState = applyRestoredState(cloudState, 'cloud', {
+                allowStartupBootstrap: isStartupBootstrap,
+                requireStatsLookupVerification: true,
+                checkedKeys: [
+                    '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
+                    '6a17f7fc-d939-4ac3-b401-d165f66b62df'
+                ]
+            });
             if(!restoredState) {
                 console.log('AUTO_SYNC_SOURCE local');
                 console.log('AUTO_SYNC_APPLIED', false);
@@ -3324,13 +3398,21 @@
             ? lastGoodCount
             : (isValidStatsBaselineCount(localCount) ? localCount : 0);
         const baselineCount = Number(options.baselineStatsKeyCount) || fallbackBaselineCount;
-        console.log('STATS_RESTORE_COUNT', { incomingCount, localCount, lastGoodCount });
+        const allowStartupBootstrap = !!options.allowStartupBootstrap
+            && localCount === 0
+            && !baselineCount
+            && isStandaloneNormalStatsCount(incomingCount)
+            && !isKnownSuspiciousStatsCount(incomingCount);
+        console.log('STATS_RESTORE_COUNT', { incomingCount, localCount, lastGoodCount, allowStartupBootstrap });
         if (
+            isKnownSuspiciousStatsCount(incomingCount) ||
             isDangerouslyLowStatsCount(incomingCount) ||
-            (!baselineCount && !isStandaloneNormalStatsCount(incomingCount)) ||
-            isSuspiciousStatsDrop(incomingCount, baselineCount)
+            (!baselineCount && !allowStartupBootstrap && !isStandaloneNormalStatsCount(incomingCount)) ||
+            (!allowStartupBootstrap && isSuspiciousStatsDrop(incomingCount, baselineCount))
         ) {
-            const reason = isDangerouslyLowStatsCount(incomingCount)
+            const reason = isKnownSuspiciousStatsCount(incomingCount)
+                ? 'known_suspicious_backup_stats'
+                : isDangerouslyLowStatsCount(incomingCount)
                 ? 'dangerously_low_backup_stats'
                 : (!baselineCount ? 'no_valid_baseline_suspicious_backup_stats' : 'suspicious_backup_stats_drop');
             console.warn('STATS_RESTORE_REJECTED', { incomingCount, baselineCount, reason });
