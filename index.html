@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.96 - dedicated startup bootstrap)</title>
+<title>MK (v18.5.97 - canonical stats self-heal)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -403,7 +403,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.96 - dedicated startup bootstrap)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.97 - canonical stats self-heal)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -647,7 +647,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.96 - dedicated startup bootstrap';
+    const APP_VERSION = 'v18.5.97 - canonical stats self-heal';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -659,6 +659,8 @@
     let pendingStartupViewState = null;
     let restoredStats = null;
     let restoreStatsWriteGuard = null;
+    let isBootstrapRestoring = false;
+    let bootstrapAllowedStatsWriteValue = null;
     
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress_v2', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck';
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
@@ -673,6 +675,7 @@
     const STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT = 'mk_last_auto_cloud_sync_at';
     const STORAGE_KEY_LAST_GOOD_BACKUP_TIMESTAMP = 'mk_last_good_backup_timestamp';
     const STORAGE_KEY_LAST_GOOD_STATS_COUNT = 'mk_last_good_stats_count';
+    const STORAGE_KEY_BOOTSTRAP_FAILURE_NOTIFIED = 'mk_bootstrap_failure_notified';
     const STATS_LOW_COUNT_BLOCK = 10;
     const STATS_HEALTHY_MIN_COUNT = 1000;
     const STATS_STANDALONE_RESTORE_MIN_COUNT = 8000;
@@ -2191,7 +2194,8 @@
             const oldValue = localStorage.getItem(key);
             const oldCount = getStatsKeyCount(oldValue);
             const nextCount = getStatsKeyCount(normalized);
-            if (isDangerouslyLowStatsCount(nextCount) || isSuspiciousStatsDrop(nextCount, oldCount)) {
+            const isAllowedBootstrapStatsWrite = isBootstrapRestoring && normalized === bootstrapAllowedStatsWriteValue;
+            if (!isAllowedBootstrapStatsWrite && (isDangerouslyLowStatsCount(nextCount) || isSuspiciousStatsDrop(nextCount, oldCount))) {
                 console.warn('STATS_RESTORE_REJECTED', { oldCount, nextCount, reason: 'suspicious-drop' });
                 return { ok: false, rejected: true, reason: 'suspicious-drop', oldCount, nextCount };
             }
@@ -2280,9 +2284,72 @@
         return parseJSONSafe(JSON.stringify(stats || {}), {});
     }
 
-    function getStatsStore() {
+    function normalizeStatsObject(value) {
+        const parsed = parseJSONSafe(value, value && typeof value === 'object' ? value : {});
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    }
+
+    function getCanonicalStatsStore() {
         if (restoredStats && typeof restoredStats === 'object' && !Array.isArray(restoredStats)) return restoredStats;
-        return parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
+        restoredStats = normalizeStatsObject(localStorage.getItem(STORAGE_KEY_STATS));
+        return restoredStats;
+    }
+
+    function getStatsStore() {
+        return getCanonicalStatsStore();
+    }
+
+    function setCanonicalStatsStore(nextStats, source = 'stats-write') {
+        const stats = normalizeStatsObject(nextStats);
+        restoredStats = stats;
+        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(stats));
+        console.log('[MK_CANONICAL_STATS_SET]', { source, statsKeyCount: Object.keys(stats || {}).length });
+        return stats;
+    }
+
+    function resolveCanonicalCardId(card, fallbackId = '') {
+        const found = findStatsForCard(card, getCanonicalStatsStore(), fallbackId || (card && card.id));
+        return found.key || String(fallbackId || (card && card.id) || '');
+    }
+
+    function getCardStat(card, fallbackId = '') {
+        const stats = getCanonicalStatsStore();
+        const found = findStatsForCard(card, stats, fallbackId || (card && card.id));
+        if (!found.stat) return null;
+        normalizeReviewStatInPlace(found.stat, found.key);
+        return found.stat;
+    }
+
+    function getCanonicalStatsDebugForCard(card, fallbackId = '') {
+        const stats = getCanonicalStatsStore();
+        const found = findStatsForCard(card, stats, fallbackId || (card && card.id));
+        if (!found.stat) return {
+            cardId: String(fallbackId || (card && card.id) || ''),
+            canonicalLookupKey: found.key || null,
+            accuracyStatObject: null,
+            dateStatObject: null,
+            fsrsStatObject: null,
+            allSameReference: false,
+            correct: 0,
+            total: 0,
+            lastDate: 0,
+            updatedAt: 0,
+            dueDate: 0
+        };
+        normalizeReviewStatInPlace(found.stat, found.key);
+        return {
+            cardId: String(fallbackId || (card && card.id) || ''),
+            canonicalLookupKey: found.key,
+            accuracyStatObject: found.stat,
+            dateStatObject: found.stat,
+            fsrsStatObject: found.stat,
+            allSameReference: found.stat === found.stat,
+            correct: Number(found.stat.correct) || 0,
+            total: Number(found.stat.total) || 0,
+            lastDate: Number(found.stat.lastDate) || 0,
+            updatedAt: Number(found.stat.updatedAt) || 0,
+            dueDate: Number(found.stat.dueDate) || 0
+        };
     }
 
     function hasAllCanonicalStatsKeys(nextStats) {
@@ -2301,6 +2368,10 @@
         const beforeStats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
         const beforeCount = Object.keys(beforeStats || {}).length;
         const afterCount = Object.keys(nextStats || {}).length;
+        if (isBootstrapRestoring && normalized !== bootstrapAllowedStatsWriteValue) {
+            console.warn('[MK_STATS_WRITE_BLOCKED_DURING_BOOTSTRAP]', { source, beforeCount, afterCount });
+            return { ok: false, blocked: true, reason: 'bootstrap_restore_in_progress', beforeCount, afterCount };
+        }
         const guardActive = isRestoreStatsWriteGuardActive();
         if (guardActive) {
             const allowed = hasAllCanonicalStatsKeys(nextStats);
@@ -2335,13 +2406,12 @@
                 return { ok: false, blocked: true, reason: 'blocked_canonical_key_loss_after_restore', beforeCount, afterCount };
             }
         }
-        localStorage.setItem(STORAGE_KEY_STATS, normalized);
-        restoredStats = cloneStatsObject(nextStats);
+        setCanonicalStatsStore(nextStats, source);
         return { ok: true, beforeCount, afterCount };
     }
 
     function beginRestoreStatsProtection(canonicalStats, context = {}) {
-        restoredStats = cloneStatsObject(canonicalStats);
+        restoredStats = normalizeStatsObject(canonicalStats);
         const startedAt = Date.now();
         restoreStatsWriteGuard = {
             startedAt,
@@ -2432,6 +2502,104 @@
 
     function getLocalStatsKeyCount() {
         return getStatsKeyCount(localStorage.getItem(STORAGE_KEY_STATS));
+    }
+
+    function getLocalStatsParseResult() {
+        const raw = localStorage.getItem(STORAGE_KEY_STATS);
+        if (!raw) return { ok: true, stats: {}, count: 0, raw };
+        try {
+            const parsed = JSON.parse(raw);
+            const ok = !!parsed && typeof parsed === 'object' && !Array.isArray(parsed);
+            return { ok, stats: ok ? parsed : {}, count: ok ? Object.keys(parsed).length : 0, raw };
+        } catch(e) {
+            return { ok: false, stats: {}, count: 0, raw, error: e && e.message ? e.message : String(e) };
+        }
+    }
+
+    function getRecoverySnapshotKeys() {
+        return [
+            STORAGE_KEY_STATS,
+            STORAGE_KEY_VIEW_STATE,
+            STORAGE_KEY_CURRENT_CARD_ID,
+            STORAGE_KEY_LOCAL_DATA_UPDATED_AT,
+            STORAGE_KEY_LAST_GOOD_BACKUP_TIMESTAMP,
+            STORAGE_KEY_LAST_GOOD_STATS_COUNT,
+            STORAGE_KEY_REVIEW_HISTORY,
+            STORAGE_KEY_FILTER_STATE,
+            STORAGE_KEY_ACTIVE_IDS,
+            STORAGE_KEY_DECK_VIEW_STATES,
+            'uuid_migration_backup_latest'
+        ];
+    }
+
+    function saveRecoverySnapshot(reasonCode = 'invalid-local-state') {
+        const timestamp = Date.now();
+        const key = `mk_recovery_snapshot_${timestamp}`;
+        const values = {};
+        getRecoverySnapshotKeys().forEach(storageKey => {
+            try { values[storageKey] = localStorage.getItem(storageKey); } catch(e) { values[storageKey] = null; }
+        });
+        const snapshot = {
+            reasonCode,
+            createdAt: timestamp,
+            appVersion: APP_VERSION,
+            statsKeyCount: getLocalStatsKeyCount(),
+            lastGoodStatsCount: Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0,
+            localUpdatedAt: localStorage.getItem(STORAGE_KEY_LOCAL_DATA_UPDATED_AT),
+            values
+        };
+        try {
+            localStorage.setItem(key, JSON.stringify(snapshot));
+            console.warn('[MK_RECOVERY_SNAPSHOT_SAVED]', { key, reasonCode, statsKeyCount: snapshot.statsKeyCount });
+            return key;
+        } catch(e) {
+            console.warn('[MK_RECOVERY_SNAPSHOT_FAILED]', { reasonCode, message: e && e.message ? e.message : String(e) });
+            return null;
+        }
+    }
+
+    function getCanonicalLocalKeySetMismatch() {
+        if (!restoredStats) return false;
+        const localKeys = getStatsKeys(localStorage.getItem(STORAGE_KEY_STATS));
+        const canonicalKeys = getStatsKeys(restoredStats);
+        if (localKeys.length !== canonicalKeys.length) return true;
+        for (let i = 0; i < localKeys.length; i++) {
+            if (localKeys[i] !== canonicalKeys[i]) return true;
+        }
+        return false;
+    }
+
+    function getStatsLookupHealthForVerificationCards() {
+        const ids = [
+            '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
+            '6a17f7fc-d939-4ac3-b401-d165f66b62df'
+        ];
+        return ids.map(cardId => {
+            const card = findCardById(cardId);
+            const stat = card ? getCardStat(card, cardId) : null;
+            return {
+                cardId,
+                cardFound: !!card,
+                statsFound: !!stat,
+                hasDate: !!(stat && (stat.lastDate || stat.dueDate || stat.updatedAt)),
+                lookupKey: stat && stat._statsKey || null
+            };
+        });
+    }
+
+    function getInvalidLocalStatsState() {
+        const parsed = getLocalStatsParseResult();
+        if (!parsed.ok) return { invalid: true, reasonCode: 'local_stats_parse_failed', localStatsKeyCount: 0 };
+        if (!parsed.count) return { invalid: true, reasonCode: 'local_stats_empty', localStatsKeyCount: 0 };
+        if (isKnownSuspiciousStatsCount(parsed.count)) return { invalid: true, reasonCode: 'known_suspicious_local_stats_count', localStatsKeyCount: parsed.count };
+        if (isDangerouslyLowStatsCount(parsed.count)) return { invalid: true, reasonCode: 'dangerously_low_local_stats_count', localStatsKeyCount: parsed.count };
+        if (getCanonicalLocalKeySetMismatch()) return { invalid: true, reasonCode: 'canonical_local_keyset_mismatch', localStatsKeyCount: parsed.count };
+        const lookupHealth = getStatsLookupHealthForVerificationCards();
+        const missingKnownCardStat = lookupHealth.some(item => item.cardFound && !item.statsFound);
+        if (missingKnownCardStat && isStandaloneNormalStatsCount(parsed.count)) {
+            return { invalid: true, reasonCode: 'verification_card_stats_lookup_failed', localStatsKeyCount: parsed.count, lookupHealth };
+        }
+        return { invalid: false, reasonCode: 'local_stats_ok', localStatsKeyCount: parsed.count, lookupHealth };
     }
 
     function isDangerouslyLowStatsCount(count) {
@@ -2739,11 +2907,21 @@
         return normalized;
     }
 
+    function normalizeReviewStatInPlace(stat = {}, key = '') {
+        if (!stat || typeof stat !== 'object') return stat;
+        const lastViewedAt = Number(stat.lastDate || stat.lastViewedAt || stat.lastReviewed || stat.reviewedAt || stat.updatedAt || 0) || 0;
+        const nextReviewDate = Number(stat.dueDate || stat.nextReviewDate || stat.nextReviewAt || 0) || 0;
+        if (lastViewedAt && !stat.lastDate) stat.lastDate = lastViewedAt;
+        if (nextReviewDate && !stat.dueDate) stat.dueDate = nextReviewDate;
+        if (key) stat._statsKey = key;
+        return stat;
+    }
+
     function getCurrentStudyStat(stats = getStatsStore()) {
         const card = activeDeck && activeDeck[currentIndex];
         const cardId = getCurrentCardId() || localStorage.getItem(STORAGE_KEY_CURRENT_CARD_ID);
         const found = findStatsForCard(card, stats, cardId);
-        return found.stat ? normalizeReviewStatForDisplay(found.stat, found.key) : null;
+        return found.stat ? normalizeReviewStatInPlace(found.stat, found.key) : null;
     }
 
     function logStudyStateSnapshot(context, payload = {}) {
@@ -3299,87 +3477,114 @@
         return null;
     }
 
-    function applyStartupBootstrapPayload(candidate) {
+    function applyStartupBootstrapPayload(candidate, context = {}) {
         const payload = candidate.payload || {};
         const normalized = candidate.normalized || normalizeBackupPayload(payload, 'startup-bootstrap', candidate.record && candidate.record.ts);
         const stats = candidate.stats || normalized.stats || {};
         const statsValue = JSON.stringify(stats);
+        isBootstrapRestoring = true;
+        bootstrapAllowedStatsWriteValue = statsValue;
 
-        const writeResult = safeRestoreLocalStorage(STORAGE_KEY_STATS, statsValue);
-        if (!writeResult || !writeResult.ok) {
-            console.warn('[MK_STARTUP_BOOTSTRAP_FAILED]', { reasonCode: writeResult && writeResult.reason || 'stats_write_failed', writeResult });
-            return { ok: false, reasonCode: 'storage_verification_failed' };
+        try {
+            const writeResult = safeRestoreLocalStorage(STORAGE_KEY_STATS, statsValue);
+            if (!writeResult || !writeResult.ok) {
+                console.warn('[MK_STARTUP_BOOTSTRAP_FAILED]', { reasonCode: writeResult && writeResult.reason || 'stats_write_failed', writeResult });
+                return { ok: false, reasonCode: 'storage_verification_failed' };
+            }
+
+            const keyVerification = verifyStatsKeySetExact(stats, localStorage.getItem(STORAGE_KEY_STATS), {
+                phase: 'startup-bootstrap-after-stats-write',
+                backupTimestamp: candidate.record && candidate.record.ts || null,
+                checkedKeys: [
+                    '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
+                    '6a17f7fc-d939-4ac3-b401-d165f66b62df'
+                ]
+            });
+            if (!keyVerification.ok) {
+                console.warn('[MK_STARTUP_BOOTSTRAP_FAILED]', { reasonCode: keyVerification.reasonCode, keyVerification });
+                return { ok: false, reasonCode: 'storage_verification_failed' };
+            }
+
+            beginRestoreStatsProtection(stats, {
+                backupTimestamp: candidate.record && candidate.record.ts || null,
+                checkedKeys: [
+                    '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
+                    '6a17f7fc-d939-4ac3-b401-d165f66b62df'
+                ]
+            });
+            const incomingHistory = normalized.reviewHistory || {};
+            if (incomingHistory && Object.keys(incomingHistory).length) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(incomingHistory));
+            if (hasBackupField(payload, 'notesByCardUuid')) safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(normalized.notesByCardUuid || {}));
+            if (hasBackupField(payload, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, payload.progress);
+            if (hasBackupField(payload, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, payload.filter);
+            if (hasBackupField(payload, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, payload.recentDecks);
+            if (hasBackupField(payload, 'targetRetention')) applyTargetRetentionFromBackup(payload.targetRetention, 'startup-bootstrap');
+
+            const restoredViewState = restorePosition(normalized.viewState || getBackupViewState(payload), 'startup-bootstrap');
+            const restoredUpdatedAt = Number(normalized.updatedAt) || Number(payload.localUpdatedAt || payload.updatedAt || (payload.metadata && payload.metadata.localUpdatedAt)) || Number(candidate.record && candidate.record.ts) || Date.now();
+            markLocalDataUpdated(restoredUpdatedAt);
+            rememberGoodBackupTimestamp(candidate.record && candidate.record.ts, keyVerification.localStatsKeyCount);
+            finishRestoreStatsProtection({ backupTimestamp: candidate.record && candidate.record.ts || null });
+            logStudyStateSnapshot('startup-bootstrap', { stats, reviewHistory: incomingHistory, viewState: restoredViewState });
+            try { sessionStorage.removeItem(STORAGE_KEY_BOOTSTRAP_FAILURE_NOTIFIED); } catch(e) {}
+            console.log('[MK_STARTUP_BOOTSTRAP_APPLIED]', {
+                timestamp: candidate.record && candidate.record.ts || null,
+                statsKeyCount: keyVerification.localStatsKeyCount,
+                localUpdatedAt: restoredUpdatedAt,
+                reasonCode: context.reasonCode || 'startup-bootstrap'
+            });
+            return { ok: true, restoredViewState, statsKeyCount: keyVerification.localStatsKeyCount };
+        } finally {
+            isBootstrapRestoring = false;
+            bootstrapAllowedStatsWriteValue = null;
         }
-
-        const keyVerification = verifyStatsKeySetExact(stats, localStorage.getItem(STORAGE_KEY_STATS), {
-            phase: 'startup-bootstrap-after-stats-write',
-            backupTimestamp: candidate.record && candidate.record.ts || null,
-            checkedKeys: [
-                '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
-                '6a17f7fc-d939-4ac3-b401-d165f66b62df'
-            ]
-        });
-        if (!keyVerification.ok) {
-            console.warn('[MK_STARTUP_BOOTSTRAP_FAILED]', { reasonCode: keyVerification.reasonCode, keyVerification });
-            return { ok: false, reasonCode: 'storage_verification_failed' };
-        }
-
-        beginRestoreStatsProtection(stats, {
-            backupTimestamp: candidate.record && candidate.record.ts || null,
-            checkedKeys: [
-                '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
-                '6a17f7fc-d939-4ac3-b401-d165f66b62df'
-            ]
-        });
-        const incomingHistory = normalized.reviewHistory || {};
-        if (incomingHistory && Object.keys(incomingHistory).length) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(incomingHistory));
-        if (hasBackupField(payload, 'notesByCardUuid')) safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(normalized.notesByCardUuid || {}));
-        if (hasBackupField(payload, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, payload.progress);
-        if (hasBackupField(payload, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, payload.filter);
-        if (hasBackupField(payload, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, payload.recentDecks);
-        if (hasBackupField(payload, 'targetRetention')) applyTargetRetentionFromBackup(payload.targetRetention, 'startup-bootstrap');
-
-        const restoredViewState = restorePosition(normalized.viewState || getBackupViewState(payload), 'startup-bootstrap');
-        const restoredUpdatedAt = Number(normalized.updatedAt) || Number(payload.localUpdatedAt || payload.updatedAt || (payload.metadata && payload.metadata.localUpdatedAt)) || Number(candidate.record && candidate.record.ts) || Date.now();
-        markLocalDataUpdated(restoredUpdatedAt);
-        rememberGoodBackupTimestamp(candidate.record && candidate.record.ts, keyVerification.localStatsKeyCount);
-        finishRestoreStatsProtection({ backupTimestamp: candidate.record && candidate.record.ts || null });
-        logStudyStateSnapshot('startup-bootstrap', { stats, reviewHistory: incomingHistory, viewState: restoredViewState });
-        console.log('[MK_STARTUP_BOOTSTRAP_APPLIED]', {
-            timestamp: candidate.record && candidate.record.ts || null,
-            statsKeyCount: keyVerification.localStatsKeyCount,
-            localUpdatedAt: restoredUpdatedAt
-        });
-        return { ok: true, restoredViewState, statsKeyCount: keyVerification.localStatsKeyCount };
     }
 
-    async function bootstrapStatsFromFirebaseOnEmptyLocal() {
-        if (getLocalStatsKeyCount() !== 0) return { attempted: false, ok: false, reasonCode: 'local_stats_present' };
-        console.log('[MK_STARTUP_BOOTSTRAP_START]');
+    function showStartupBootstrapFailureOnce(message, reasonCode) {
+        try {
+            const alreadyShown = sessionStorage.getItem(STORAGE_KEY_BOOTSTRAP_FAILURE_NOTIFIED);
+            if (alreadyShown === reasonCode) return;
+            sessionStorage.setItem(STORAGE_KEY_BOOTSTRAP_FAILURE_NOTIFIED, reasonCode);
+        } catch(e) {}
+        showToast(message, 'error');
+    }
+
+    async function bootstrapStatsFromFirebaseOnInvalidLocal(invalidState = null) {
+        const state = invalidState || getInvalidLocalStatsState();
+        if (!state.invalid) return { attempted: false, ok: false, reasonCode: state.reasonCode || 'local_stats_ok' };
+        const snapshotKey = saveRecoverySnapshot(state.reasonCode);
+        restoredStats = null;
+        console.log('[MK_STARTUP_BOOTSTRAP_START]', { reasonCode: state.reasonCode, localStatsKeyCount: state.localStatsKeyCount, snapshotKey });
         const candidate = await findStartupBootstrapBackup();
         if (!candidate) {
-            showToast('초기 stats 불러오기 실패: 정상 백업 없음', 'error');
+            showStartupBootstrapFailureOnce('초기 stats 불러오기 실패: 정상 백업 없음', 'no_normal_backup');
             console.warn('[MK_STARTUP_BOOTSTRAP_FAILED]', { reasonCode: 'no_normal_backup' });
             return { attempted: true, ok: false, reasonCode: 'no_normal_backup' };
         }
-        const result = applyStartupBootstrapPayload(candidate);
+        const result = applyStartupBootstrapPayload(candidate, state);
         if (!result.ok) {
-            showToast('초기 stats 불러오기 실패: 저장 검증 실패', 'error');
+            showStartupBootstrapFailureOnce('초기 stats 불러오기 실패: 저장 검증 실패', result.reasonCode || 'storage_verification_failed');
             return { attempted: true, ok: false, reasonCode: result.reasonCode || 'storage_verification_failed' };
         }
         safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(Date.now()));
         console.log('RESTORE_SOURCE startup-bootstrap');
         console.log('AUTO_SYNC_SOURCE startup-bootstrap');
         console.log('AUTO_SYNC_APPLIED', true);
-        showToast('최신 클라우드 데이터 동기화 완료', 'success');
+        if (state.reasonCode && state.reasonCode !== 'local_stats_empty') showToast('기존 기기 데이터를 정리하고 정상 학습 기록을 복구했습니다', 'success');
+        else showToast('최신 클라우드 데이터 동기화 완료', 'success');
         return { attempted: true, ok: true, ...result };
+    }
+
+    async function bootstrapStatsFromFirebaseOnEmptyLocal() {
+        return bootstrapStatsFromFirebaseOnInvalidLocal(getInvalidLocalStatsState());
     }
 
     async function syncLatestFirebaseBackupOnStartup() {
         try {
             console.log('AUTO_SYNC_START');
-            if (getLocalStatsKeyCount() === 0) {
-                const bootstrapResult = await bootstrapStatsFromFirebaseOnEmptyLocal();
+            const invalidLocalState = getInvalidLocalStatsState();
+            if (invalidLocalState.invalid) {
+                const bootstrapResult = await bootstrapStatsFromFirebaseOnInvalidLocal(invalidLocalState);
                 if (bootstrapResult.attempted) {
                     console.log('AUTO_SYNC_COMPLETE');
                     return;
@@ -4571,13 +4776,14 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             const cacheKey = String(card && card.id || '');
             if(!statsMatchCache.has(cacheKey)) {
                 const found = findStatsForCard(card, stats, cacheKey);
+                if (found && found.stat) normalizeReviewStatInPlace(found.stat, found.key);
                 statsMatchCache.set(cacheKey, found && found.stat ? found : { key: cacheKey, stat: {} });
             }
             return statsMatchCache.get(cacheKey);
         };
         const getResolvedStatForCard = (card) => {
             const match = getStatsMatchForSort(card);
-            return normalizeReviewStatForDisplay((match && match.stat) || {}, match && match.key);
+            return (match && match.stat) || {};
         };
         const getResolvedStatsKeyForCard = (card) => getStatsMatchForSort(card).key || String(card && card.id || '');
         let filtered = [...originalDeck];
@@ -4998,6 +5204,13 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
 
     async function restoreLatestGoodStatsFromCloud(reason = 'stats-guard') {
         try {
+            const invalidState = getInvalidLocalStatsState();
+            const bootstrapped = await bootstrapStatsFromFirebaseOnInvalidLocal({
+                ...invalidState,
+                invalid: true,
+                reasonCode: invalidState.reasonCode || reason || 'stats-guard-recovery'
+            });
+            if (bootstrapped && bootstrapped.ok) return true;
             const ts = await getLatestFirebaseBackupTimestamp();
             if(!ts) {
                 console.warn('STATS_RESTORE_REJECTED', { reason, message: 'no-good-backup' });
@@ -5221,7 +5434,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             data[id].interval = interval; const now = new Date(); now.setHours(0,0,0,0); data[id].dueDate = now.getTime() + (interval * 86400000);
         }
         data[id].lastDate = Date.now(); data[id].updatedAt = data[id].lastDate; guardedStatsWrite(JSON.stringify(data), 'grade'); markLocalDataUpdated(data[id].updatedAt); saveStudyState('review', { backup: true });
-        updateStatsUI(data[id]);
+        updateStatsUI(getStatsForCard(card));
         console.log('REVIEW_SAVED', { score, currentCardUuid: String(id), nextReviewDate: data[id].dueDate || null });
         if(score === 3) {
             revealAnswer();
@@ -5238,11 +5451,8 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         const debugCard = activeDeck && activeDeck[currentIndex];
         const debugStatsStore = getStatsStore();
         const debugFound = debugCard ? findStatsForCard(debugCard, debugStatsStore, debugCard.id) : { key: null, stat: null };
-        s = normalizeReviewStatForDisplay(s || {}, s && s._statsKey);
-        if((!s.lastDate || !s.dueDate) && activeDeck[currentIndex]) {
-            const resolved = getStatsForCard(activeDeck[currentIndex]);
-            if(resolved && (resolved.lastDate || resolved.dueDate)) s = { ...s, ...resolved };
-        }
+        const canonicalStat = debugCard ? getCardStat(debugCard, debugCard.id) : null;
+        s = canonicalStat || normalizeReviewStatForDisplay(s || {}, s && s._statsKey);
         {
         const rateBadge = document.getElementById('rate-badge');
         const seenBadge = document.getElementById('date-badge');
@@ -5576,7 +5786,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
 
     function getNotesByCardUuid() { return parseJSONSafe(localStorage.getItem(STORAGE_KEY_NOTES), {}); }
     function setNotesByCardUuid(notes) { if(notes && Object.keys(notes).length) { localStorage.setItem(STORAGE_KEY_NOTES, JSON.stringify(notes)); } else { localStorage.removeItem(STORAGE_KEY_NOTES); } }
-    function getStatsById(cardId) { const stats = typeof getStatsStore === 'function' ? getStatsStore() : parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {}); const found = findStatsForCard({ id: cardId }, stats, cardId); return found && found.stat ? normalizeReviewStatForDisplay(found.stat, found.key) : { correct: 0, total: 0 }; }
+    function getStatsById(cardId) { const stat = getCardStat({ id: cardId }, cardId); return stat || { correct: 0, total: 0, _statsKey: String(cardId || '') }; }
     function normalizeNotesByCardUuid(value) { const parsed = parseJSONSafe(value, {}); const result = {}; Object.entries(parsed || {}).forEach(([cardUuid, raw]) => { const noteText = typeof raw === 'string' ? raw : String(raw && raw.note || ''); const note = noteText.trim(); if(!cardUuid || !note) return; result[String(cardUuid)] = { note, deckPath: String(raw && raw.deckPath || ''), updatedAt: Number(raw && raw.updatedAt) || 0 }; }); return result; }
     function mergeNotesByUpdatedAt(localNotes, incomingNotes) { const merged = { ...normalizeNotesByCardUuid(localNotes) }; Object.entries(normalizeNotesByCardUuid(incomingNotes)).forEach(([cardUuid, incoming]) => { const current = merged[cardUuid]; if(!current || (Number(incoming.updatedAt) || 0) >= (Number(current.updatedAt) || 0)) merged[cardUuid] = incoming; }); return merged; }
     function getCurrentNoteCard() { return activeDeck && activeDeck[currentIndex] ? activeDeck[currentIndex] : null; }
@@ -5601,11 +5811,38 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     function jumpToNoteCard(cardId) { const location = findCardLocationById(cardId); if(!location || !location.card) { showToast('카드를 찾을 수 없습니다.', 'error'); return false; } selectDeck(location.deck, true); const targetId = String(cardId); let index = activeDeck.findIndex(card => String(card && card.id) === targetId || (Array.isArray(card && card.idCandidates) && card.idCandidates.map(String).includes(targetId))); if(index < 0) { originalDeck = getDeckCards(location.deck); activeDeck = [location.card].concat((activeDeck || []).filter(card => String(card && card.id) !== targetId)); index = 0; } currentIndex = Math.max(0, index); localStorage.setItem(STORAGE_KEY_LAST_DECK, location.deck); saveCurrentProgress(); persistCurrentViewState(true); showCard(); closeAllNotesModal(); showToast('카드로 이동했습니다.', 'success'); return true; }
 
     function getStatsForCard(card) {
-        const stats = getStatsStore();
-        const found = findStatsForCard(card, stats, card && card.id);
-        if(found.stat) return normalizeReviewStatForDisplay(found.stat, found.key);
+        const stat = getCardStat(card, card && card.id);
+        if(stat) return stat;
         return {correct:0, total:0, _statsKey: String(card && card.id || '')};
     }
+    window.__mkVerifyCanonicalStats = function(cardIds = [
+        '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
+        '6a17f7fc-d939-4ac3-b401-d165f66b62df'
+    ]) {
+        return cardIds.map(cardId => {
+            const card = findCardById(cardId) || { id: cardId };
+            const stats = getCanonicalStatsStore();
+            const found = findStatsForCard(card, stats, cardId);
+            const stat = found.stat ? normalizeReviewStatInPlace(found.stat, found.key) : null;
+            const accuracyStatObject = stat;
+            const dateStatObject = stat;
+            const fsrsStatObject = stat;
+            const accuracy = getAccuracyStats(found.key || cardId, stat || {});
+            return {
+                cardId,
+                canonicalLookupKey: found.key || null,
+                accuracyStatObject,
+                dateStatObject,
+                fsrsStatObject,
+                allSameReference: !!stat && accuracyStatObject === dateStatObject && dateStatObject === fsrsStatObject,
+                correct: Number(accuracy.correct) || 0,
+                total: Number(accuracy.total) || 0,
+                lastDate: Number(stat && stat.lastDate) || 0,
+                updatedAt: Number(stat && stat.updatedAt) || 0,
+                dueDate: Number(stat && stat.dueDate) || 0
+            };
+        });
+    };
     function getStats(id) { return getStatsById(id); }
     async function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; if(!await ensureStatsStoreReady('toggleTag')) return; const data = cloneStatsObject(getStatsStore()); const found = findStatsForCard(card, data, card && card.id); const id = found.key || String(card && card.id || ''); if(!id) return; if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; data[id].updatedAt = Date.now(); guardedStatsWrite(JSON.stringify(data), 'toggleTag'); markLocalDataUpdated(data[id].updatedAt); updateIconsUI(data[id]); scheduleBackup(); }
     function updateIconsUI(s) { ['mem','cmp','fav','num','date','pen'].forEach(t => document.getElementById(`${t}-btn`).classList.toggle('active', !!s[t])); }
