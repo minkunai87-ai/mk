@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.95 - startup stats bootstrap)</title>
+<title>MK (v18.5.96 - dedicated startup bootstrap)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -403,7 +403,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.95 - startup stats bootstrap)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.96 - dedicated startup bootstrap)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -647,7 +647,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.95 - startup stats bootstrap';
+    const APP_VERSION = 'v18.5.96 - dedicated startup bootstrap';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -2927,8 +2927,7 @@
             const statsResult = restoreStatsWithFallback(JSON.stringify(nextStats), {
                 baselineStatsKeyCount: options.baselineStatsKeyCount,
                 backupTimestamp: payload.timestamp || null,
-                checkedKeys: options.checkedKeys || [],
-                allowStartupBootstrap: !!options.allowStartupBootstrap
+                checkedKeys: options.checkedKeys || []
             });
             if(!statsResult || !statsResult.ok) {
                 console.warn('STATS_RESTORE_REJECTED', { source, result: statsResult });
@@ -3228,9 +3227,164 @@
         return null;
     }
 
+    async function fetchStartupBootstrapBackupCandidates(limit = 50) {
+        const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json?orderBy=%22$key%22&limitToLast=${limit}&_t=${Date.now()}`, { cache: 'no-store' });
+        if (!res.ok) return [];
+        const data = await res.json();
+        return Object.entries(data || {})
+            .filter(([ts, indexData]) => /^\d+$/.test(String(ts)) && isMkBackupRecord(indexData || {}))
+            .map(([ts, indexData]) => ({
+                ts: String(ts),
+                indexData,
+                statsKeyCount: Number(indexData && indexData.statsKeyCount) || 0
+            }))
+            .filter(record => record.ts)
+            .sort((a, b) => Number(b.ts) - Number(a.ts));
+    }
+
+    async function fetchStartupBootstrapPayload(record) {
+        const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${record.ts}.json?_t=${Date.now()}`, { cache: 'no-store' });
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (!isMkBackupRecord(data)) return null;
+        return data;
+    }
+
+    function rejectStartupBootstrapCandidate(record, reasonCode, extra = {}) {
+        console.warn('[MK_STARTUP_BOOTSTRAP_SKIP]', {
+            timestamp: record && record.ts || null,
+            statsKeyCount: record && record.statsKeyCount || 0,
+            reasonCode,
+            ...extra
+        });
+    }
+
+    async function findStartupBootstrapBackup() {
+        const records = await fetchStartupBootstrapBackupCandidates();
+        for (const record of records) {
+            if (isKnownSuspiciousStatsCount(record.statsKeyCount)) {
+                rejectStartupBootstrapCandidate(record, 'known_suspicious_stats_count');
+                continue;
+            }
+            if (!isStandaloneNormalStatsCount(record.statsKeyCount)) {
+                rejectStartupBootstrapCandidate(record, 'stats_count_below_bootstrap_min');
+                continue;
+            }
+
+            const payload = await fetchStartupBootstrapPayload(record);
+            if (!payload) {
+                rejectStartupBootstrapCandidate(record, 'payload_fetch_failed');
+                continue;
+            }
+
+            const stats = getBackupStatsCandidate(payload);
+            const payloadStatsKeyCount = getStatsKeyCount(stats);
+            if (payloadStatsKeyCount !== record.statsKeyCount) {
+                rejectStartupBootstrapCandidate(record, 'payload_index_count_mismatch', { payloadStatsKeyCount });
+                continue;
+            }
+            if (isKnownSuspiciousStatsCount(payloadStatsKeyCount) || !isStandaloneNormalStatsCount(payloadStatsKeyCount)) {
+                rejectStartupBootstrapCandidate(record, 'payload_stats_count_rejected', { payloadStatsKeyCount });
+                continue;
+            }
+
+            return {
+                record,
+                payload,
+                normalized: normalizeBackupPayload(payload, 'startup-bootstrap', record.ts),
+                stats,
+                statsKeyCount: payloadStatsKeyCount
+            };
+        }
+        return null;
+    }
+
+    function applyStartupBootstrapPayload(candidate) {
+        const payload = candidate.payload || {};
+        const normalized = candidate.normalized || normalizeBackupPayload(payload, 'startup-bootstrap', candidate.record && candidate.record.ts);
+        const stats = candidate.stats || normalized.stats || {};
+        const statsValue = JSON.stringify(stats);
+
+        const writeResult = safeRestoreLocalStorage(STORAGE_KEY_STATS, statsValue);
+        if (!writeResult || !writeResult.ok) {
+            console.warn('[MK_STARTUP_BOOTSTRAP_FAILED]', { reasonCode: writeResult && writeResult.reason || 'stats_write_failed', writeResult });
+            return { ok: false, reasonCode: 'storage_verification_failed' };
+        }
+
+        const keyVerification = verifyStatsKeySetExact(stats, localStorage.getItem(STORAGE_KEY_STATS), {
+            phase: 'startup-bootstrap-after-stats-write',
+            backupTimestamp: candidate.record && candidate.record.ts || null,
+            checkedKeys: [
+                '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
+                '6a17f7fc-d939-4ac3-b401-d165f66b62df'
+            ]
+        });
+        if (!keyVerification.ok) {
+            console.warn('[MK_STARTUP_BOOTSTRAP_FAILED]', { reasonCode: keyVerification.reasonCode, keyVerification });
+            return { ok: false, reasonCode: 'storage_verification_failed' };
+        }
+
+        beginRestoreStatsProtection(stats, {
+            backupTimestamp: candidate.record && candidate.record.ts || null,
+            checkedKeys: [
+                '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
+                '6a17f7fc-d939-4ac3-b401-d165f66b62df'
+            ]
+        });
+        const incomingHistory = normalized.reviewHistory || {};
+        if (incomingHistory && Object.keys(incomingHistory).length) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(incomingHistory));
+        if (hasBackupField(payload, 'notesByCardUuid')) safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(normalized.notesByCardUuid || {}));
+        if (hasBackupField(payload, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, payload.progress);
+        if (hasBackupField(payload, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, payload.filter);
+        if (hasBackupField(payload, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, payload.recentDecks);
+        if (hasBackupField(payload, 'targetRetention')) applyTargetRetentionFromBackup(payload.targetRetention, 'startup-bootstrap');
+
+        const restoredViewState = restorePosition(normalized.viewState || getBackupViewState(payload), 'startup-bootstrap');
+        const restoredUpdatedAt = Number(normalized.updatedAt) || Number(payload.localUpdatedAt || payload.updatedAt || (payload.metadata && payload.metadata.localUpdatedAt)) || Number(candidate.record && candidate.record.ts) || Date.now();
+        markLocalDataUpdated(restoredUpdatedAt);
+        rememberGoodBackupTimestamp(candidate.record && candidate.record.ts, keyVerification.localStatsKeyCount);
+        finishRestoreStatsProtection({ backupTimestamp: candidate.record && candidate.record.ts || null });
+        logStudyStateSnapshot('startup-bootstrap', { stats, reviewHistory: incomingHistory, viewState: restoredViewState });
+        console.log('[MK_STARTUP_BOOTSTRAP_APPLIED]', {
+            timestamp: candidate.record && candidate.record.ts || null,
+            statsKeyCount: keyVerification.localStatsKeyCount,
+            localUpdatedAt: restoredUpdatedAt
+        });
+        return { ok: true, restoredViewState, statsKeyCount: keyVerification.localStatsKeyCount };
+    }
+
+    async function bootstrapStatsFromFirebaseOnEmptyLocal() {
+        if (getLocalStatsKeyCount() !== 0) return { attempted: false, ok: false, reasonCode: 'local_stats_present' };
+        console.log('[MK_STARTUP_BOOTSTRAP_START]');
+        const candidate = await findStartupBootstrapBackup();
+        if (!candidate) {
+            showToast('초기 stats 불러오기 실패: 정상 백업 없음', 'error');
+            console.warn('[MK_STARTUP_BOOTSTRAP_FAILED]', { reasonCode: 'no_normal_backup' });
+            return { attempted: true, ok: false, reasonCode: 'no_normal_backup' };
+        }
+        const result = applyStartupBootstrapPayload(candidate);
+        if (!result.ok) {
+            showToast('초기 stats 불러오기 실패: 저장 검증 실패', 'error');
+            return { attempted: true, ok: false, reasonCode: result.reasonCode || 'storage_verification_failed' };
+        }
+        safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(Date.now()));
+        console.log('RESTORE_SOURCE startup-bootstrap');
+        console.log('AUTO_SYNC_SOURCE startup-bootstrap');
+        console.log('AUTO_SYNC_APPLIED', true);
+        showToast('최신 클라우드 데이터 동기화 완료', 'success');
+        return { attempted: true, ok: true, ...result };
+    }
+
     async function syncLatestFirebaseBackupOnStartup() {
         try {
             console.log('AUTO_SYNC_START');
+            if (getLocalStatsKeyCount() === 0) {
+                const bootstrapResult = await bootstrapStatsFromFirebaseOnEmptyLocal();
+                if (bootstrapResult.attempted) {
+                    console.log('AUTO_SYNC_COMPLETE');
+                    return;
+                }
+            }
             const localState = loadLocalStudyState();
             const cloudState = await loadCloudStudyState();
             const localUpdatedAt = Number(localState && localState.updatedAt) || 0;
@@ -3246,10 +3400,7 @@
                 console.log('AUTO_SYNC_COMPLETE');
                 return;
             }
-            const cloudStatsCount = getStatsKeyCount(cloudState && cloudState.stats);
-            const isStartupBootstrap = getLocalStatsKeyCount() === 0 && isStandaloneNormalStatsCount(cloudStatsCount) && !isKnownSuspiciousStatsCount(cloudStatsCount);
             const restoredState = applyRestoredState(cloudState, 'cloud', {
-                allowStartupBootstrap: isStartupBootstrap,
                 requireStatsLookupVerification: true,
                 checkedKeys: [
                     '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
@@ -3398,17 +3549,12 @@
             ? lastGoodCount
             : (isValidStatsBaselineCount(localCount) ? localCount : 0);
         const baselineCount = Number(options.baselineStatsKeyCount) || fallbackBaselineCount;
-        const allowStartupBootstrap = !!options.allowStartupBootstrap
-            && localCount === 0
-            && !baselineCount
-            && isStandaloneNormalStatsCount(incomingCount)
-            && !isKnownSuspiciousStatsCount(incomingCount);
-        console.log('STATS_RESTORE_COUNT', { incomingCount, localCount, lastGoodCount, allowStartupBootstrap });
+        console.log('STATS_RESTORE_COUNT', { incomingCount, localCount, lastGoodCount });
         if (
             isKnownSuspiciousStatsCount(incomingCount) ||
             isDangerouslyLowStatsCount(incomingCount) ||
-            (!baselineCount && !allowStartupBootstrap && !isStandaloneNormalStatsCount(incomingCount)) ||
-            (!allowStartupBootstrap && isSuspiciousStatsDrop(incomingCount, baselineCount))
+            (!baselineCount && !isStandaloneNormalStatsCount(incomingCount)) ||
+            isSuspiciousStatsDrop(incomingCount, baselineCount)
         ) {
             const reason = isKnownSuspiciousStatsCount(incomingCount)
                 ? 'known_suspicious_backup_stats'
