@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.97 - canonical stats self-heal)</title>
+<title>MK (v18.5.98 - review never blocks)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -403,7 +403,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.97 - canonical stats self-heal)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.98 - review never blocks)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -647,7 +647,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.97 - canonical stats self-heal';
+    const APP_VERSION = 'v18.5.98 - review never blocks';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -661,6 +661,7 @@
     let restoreStatsWriteGuard = null;
     let isBootstrapRestoring = false;
     let bootstrapAllowedStatsWriteValue = null;
+    let backgroundStatsRecoveryPromise = null;
     
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress_v2', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck';
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
@@ -676,6 +677,7 @@
     const STORAGE_KEY_LAST_GOOD_BACKUP_TIMESTAMP = 'mk_last_good_backup_timestamp';
     const STORAGE_KEY_LAST_GOOD_STATS_COUNT = 'mk_last_good_stats_count';
     const STORAGE_KEY_BOOTSTRAP_FAILURE_NOTIFIED = 'mk_bootstrap_failure_notified';
+    const STORAGE_KEY_PENDING_REVIEW_EVENTS = 'mk_pending_review_events';
     const STATS_LOW_COUNT_BLOCK = 10;
     const STATS_HEALTHY_MIN_COUNT = 1000;
     const STATS_STANDALONE_RESTORE_MIN_COUNT = 8000;
@@ -2259,6 +2261,7 @@
         try { localStorage.removeItem(STORAGE_KEY_LIBRARY); } catch(e) {}
         try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {}
         try { localStorage.removeItem(STORAGE_KEY_DECK_VIEW_STATES); } catch(e) {}
+        pruneRecoverySnapshots(1);
     }
 
     function parseJSONSafe(value, fallback) {
@@ -2368,11 +2371,13 @@
         const beforeStats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
         const beforeCount = Object.keys(beforeStats || {}).length;
         const afterCount = Object.keys(nextStats || {}).length;
-        if (isBootstrapRestoring && normalized !== bootstrapAllowedStatsWriteValue) {
+        const isReviewWrite = ['grade', 'toggleTag', 'recalcStatsFromHistory:empty', 'recalcStatsFromHistory:rebuilt'].includes(source);
+        const isAllowedBootstrapWrite = isBootstrapRestoring && normalized === bootstrapAllowedStatsWriteValue;
+        if (isBootstrapRestoring && !isReviewWrite && normalized !== bootstrapAllowedStatsWriteValue) {
             console.warn('[MK_STATS_WRITE_BLOCKED_DURING_BOOTSTRAP]', { source, beforeCount, afterCount });
             return { ok: false, blocked: true, reason: 'bootstrap_restore_in_progress', beforeCount, afterCount };
         }
-        const guardActive = isRestoreStatsWriteGuardActive();
+        const guardActive = !isAllowedBootstrapWrite && isRestoreStatsWriteGuardActive();
         if (guardActive) {
             const allowed = hasAllCanonicalStatsKeys(nextStats);
             const stack = (new Error()).stack || '';
@@ -2533,6 +2538,7 @@
     }
 
     function saveRecoverySnapshot(reasonCode = 'invalid-local-state') {
+        pruneRecoverySnapshots(2);
         const timestamp = Date.now();
         const key = `mk_recovery_snapshot_${timestamp}`;
         const values = {};
@@ -2556,6 +2562,16 @@
             console.warn('[MK_RECOVERY_SNAPSHOT_FAILED]', { reasonCode, message: e && e.message ? e.message : String(e) });
             return null;
         }
+    }
+
+    function pruneRecoverySnapshots(keepCount = 2) {
+        try {
+            const keys = Object.keys(localStorage)
+                .filter(key => key.startsWith('mk_recovery_snapshot_'))
+                .sort()
+                .reverse();
+            keys.slice(Math.max(0, keepCount)).forEach(key => localStorage.removeItem(key));
+        } catch(e) {}
     }
 
     function getCanonicalLocalKeySetMismatch() {
@@ -2600,6 +2616,98 @@
             return { invalid: true, reasonCode: 'verification_card_stats_lookup_failed', localStatsKeyCount: parsed.count, lookupHealth };
         }
         return { invalid: false, reasonCode: 'local_stats_ok', localStatsKeyCount: parsed.count, lookupHealth };
+    }
+
+    function getPendingReviewEvents() {
+        const events = parseJSONSafe(localStorage.getItem(STORAGE_KEY_PENDING_REVIEW_EVENTS), []);
+        return Array.isArray(events) ? events.filter(Boolean) : [];
+    }
+
+    function savePendingReviewEvents(events = []) {
+        if (!events.length) {
+            try { localStorage.removeItem(STORAGE_KEY_PENDING_REVIEW_EVENTS); } catch(e) {}
+            return;
+        }
+        safeRestoreLocalStorage(STORAGE_KEY_PENDING_REVIEW_EVENTS, JSON.stringify(events.slice(-200)));
+    }
+
+    function appendPendingReviewEvent(event = {}) {
+        if (!event.cardId || !event.stat) return;
+        const events = getPendingReviewEvents();
+        events.push({
+            id: event.id || `pending_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            cardId: String(event.cardId),
+            score: Number(event.score),
+            stat: cloneStatsObject({ [event.cardId]: event.stat })[event.cardId],
+            historyItem: event.historyItem || null,
+            updatedAt: Number(event.updatedAt || (event.stat && event.stat.updatedAt)) || Date.now()
+        });
+        savePendingReviewEvents(events);
+        console.warn('[MK_PENDING_REVIEW_EVENT_SAVED]', { cardId: event.cardId, updatedAt: events[events.length - 1].updatedAt });
+    }
+
+    function mergePendingReviewEventsIntoCurrentStats(source = 'pending-review-merge') {
+        const events = getPendingReviewEvents();
+        if (!events.length) return { merged: 0, statsKeyCount: getLocalStatsKeyCount() };
+        const stats = cloneStatsObject(getCanonicalStatsStore());
+        const history = getReviewHistory();
+        let merged = 0;
+        events.forEach(event => {
+            const cardId = String(event.cardId || '');
+            if (!cardId || !event.stat) return;
+            const incomingUpdatedAt = Number(event.updatedAt || event.stat.updatedAt || event.stat.lastDate) || 0;
+            const existingUpdatedAt = Number(stats[cardId] && (stats[cardId].updatedAt || stats[cardId].lastDate)) || 0;
+            if (!stats[cardId] || incomingUpdatedAt >= existingUpdatedAt) {
+                stats[cardId] = { ...(stats[cardId] || {}), ...event.stat };
+                merged++;
+            }
+            if (event.historyItem) {
+                if (!Array.isArray(history[cardId])) history[cardId] = [];
+                if (!history[cardId].some(item => item && item.id === event.historyItem.id)) {
+                    history[cardId].unshift(event.historyItem);
+                    history[cardId] = history[cardId].slice(0, 300);
+                }
+            }
+        });
+        setCanonicalStatsStore(stats, source);
+        safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(history));
+        savePendingReviewEvents([]);
+        console.warn('[MK_PENDING_REVIEW_EVENTS_MERGED]', { source, merged, statsKeyCount: Object.keys(stats || {}).length });
+        return { merged, statsKeyCount: Object.keys(stats || {}).length };
+    }
+
+    function mergeNewerLocalReviewStateIntoCurrentStats(localStats = {}, localHistory = {}, source = 'local-review-merge') {
+        const stats = cloneStatsObject(getCanonicalStatsStore());
+        let merged = 0;
+        Object.entries(localStats || {}).forEach(([cardId, localStat]) => {
+            if (!localStat || typeof localStat !== 'object') return;
+            const localUpdatedAt = Number(localStat.updatedAt || localStat.lastDate) || 0;
+            const currentUpdatedAt = Number(stats[cardId] && (stats[cardId].updatedAt || stats[cardId].lastDate)) || 0;
+            if (localUpdatedAt && (!stats[cardId] || localUpdatedAt >= currentUpdatedAt)) {
+                stats[cardId] = { ...(stats[cardId] || {}), ...localStat };
+                merged++;
+            }
+        });
+        const history = getReviewHistory();
+        Object.entries(localHistory || {}).forEach(([cardId, items]) => {
+            if (!Array.isArray(items) || !items.length) return;
+            if (!Array.isArray(history[cardId])) history[cardId] = [];
+            const seen = new Set(history[cardId].map(item => item && item.id).filter(Boolean));
+            items.forEach(item => {
+                if (item && item.id && !seen.has(item.id)) {
+                    seen.add(item.id);
+                    history[cardId].push(item);
+                }
+            });
+            history[cardId] = history[cardId]
+                .filter(Boolean)
+                .sort((a, b) => getHistoryItemTime(b) - getHistoryItemTime(a))
+                .slice(0, 300);
+        });
+        if (merged) setCanonicalStatsStore(stats, source);
+        safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(history));
+        console.warn('[MK_LOCAL_REVIEW_STATE_MERGED]', { source, merged, statsKeyCount: Object.keys(stats || {}).length });
+        return { merged, statsKeyCount: Object.keys(stats || {}).length };
     }
 
     function isDangerouslyLowStatsCount(count) {
@@ -3482,11 +3590,18 @@
         const normalized = candidate.normalized || normalizeBackupPayload(payload, 'startup-bootstrap', candidate.record && candidate.record.ts);
         const stats = candidate.stats || normalized.stats || {};
         const statsValue = JSON.stringify(stats);
+        const localStatsBeforeBootstrap = cloneStatsObject(getCanonicalStatsStore());
+        const localHistoryBeforeBootstrap = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
         isBootstrapRestoring = true;
         bootstrapAllowedStatsWriteValue = statsValue;
+        restoreStatsWriteGuard = null;
 
         try {
-            const writeResult = safeRestoreLocalStorage(STORAGE_KEY_STATS, statsValue);
+            let writeResult = safeRestoreLocalStorage(STORAGE_KEY_STATS, statsValue);
+            if (!writeResult || (!writeResult.ok && (writeResult.message === 'QuotaExceededError' || isQuotaExceededError(writeResult.error)))) {
+                freeRestorableCacheStorage();
+                writeResult = safeRestoreLocalStorage(STORAGE_KEY_STATS, statsValue);
+            }
             if (!writeResult || !writeResult.ok) {
                 console.warn('[MK_STARTUP_BOOTSTRAP_FAILED]', { reasonCode: writeResult && writeResult.reason || 'stats_write_failed', writeResult });
                 return { ok: false, reasonCode: 'storage_verification_failed' };
@@ -3505,13 +3620,6 @@
                 return { ok: false, reasonCode: 'storage_verification_failed' };
             }
 
-            beginRestoreStatsProtection(stats, {
-                backupTimestamp: candidate.record && candidate.record.ts || null,
-                checkedKeys: [
-                    '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
-                    '6a17f7fc-d939-4ac3-b401-d165f66b62df'
-                ]
-            });
             const incomingHistory = normalized.reviewHistory || {};
             if (incomingHistory && Object.keys(incomingHistory).length) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(incomingHistory));
             if (hasBackupField(payload, 'notesByCardUuid')) safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(normalized.notesByCardUuid || {}));
@@ -3520,20 +3628,33 @@
             if (hasBackupField(payload, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, payload.recentDecks);
             if (hasBackupField(payload, 'targetRetention')) applyTargetRetentionFromBackup(payload.targetRetention, 'startup-bootstrap');
 
+            const pendingMerge = mergePendingReviewEventsIntoCurrentStats('startup-bootstrap:pending-review-merge');
+            const localReviewMerge = mergeNewerLocalReviewStateIntoCurrentStats(localStatsBeforeBootstrap, localHistoryBeforeBootstrap, 'startup-bootstrap:local-review-merge');
+            const restoredStatsForProtection = (pendingMerge.merged || localReviewMerge.merged) ? getCanonicalStatsStore() : stats;
+            beginRestoreStatsProtection(restoredStatsForProtection, {
+                backupTimestamp: candidate.record && candidate.record.ts || null,
+                checkedKeys: [
+                    '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
+                    '6a17f7fc-d939-4ac3-b401-d165f66b62df'
+                ]
+            });
+
             const restoredViewState = restorePosition(normalized.viewState || getBackupViewState(payload), 'startup-bootstrap');
             const restoredUpdatedAt = Number(normalized.updatedAt) || Number(payload.localUpdatedAt || payload.updatedAt || (payload.metadata && payload.metadata.localUpdatedAt)) || Number(candidate.record && candidate.record.ts) || Date.now();
             markLocalDataUpdated(restoredUpdatedAt);
-            rememberGoodBackupTimestamp(candidate.record && candidate.record.ts, keyVerification.localStatsKeyCount);
+            rememberGoodBackupTimestamp(candidate.record && candidate.record.ts, getStatsKeyCount(restoredStatsForProtection));
             finishRestoreStatsProtection({ backupTimestamp: candidate.record && candidate.record.ts || null });
-            logStudyStateSnapshot('startup-bootstrap', { stats, reviewHistory: incomingHistory, viewState: restoredViewState });
+            logStudyStateSnapshot('startup-bootstrap', { stats: restoredStatsForProtection, reviewHistory: incomingHistory, viewState: restoredViewState });
             try { sessionStorage.removeItem(STORAGE_KEY_BOOTSTRAP_FAILURE_NOTIFIED); } catch(e) {}
             console.log('[MK_STARTUP_BOOTSTRAP_APPLIED]', {
                 timestamp: candidate.record && candidate.record.ts || null,
-                statsKeyCount: keyVerification.localStatsKeyCount,
+                statsKeyCount: getStatsKeyCount(restoredStatsForProtection),
                 localUpdatedAt: restoredUpdatedAt,
-                reasonCode: context.reasonCode || 'startup-bootstrap'
+                reasonCode: context.reasonCode || 'startup-bootstrap',
+                pendingReviewEventsMerged: pendingMerge.merged,
+                localReviewStatsMerged: localReviewMerge.merged
             });
-            return { ok: true, restoredViewState, statsKeyCount: keyVerification.localStatsKeyCount };
+            return { ok: true, restoredViewState, statsKeyCount: getStatsKeyCount(restoredStatsForProtection) };
         } finally {
             isBootstrapRestoring = false;
             bootstrapAllowedStatsWriteValue = null;
@@ -5182,19 +5303,21 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     }
 
     function recordReviewHistory(cardId, score) {
-        if (!cardId) return;
+        if (!cardId) return null;
         const history = getReviewHistory();
         if (!Array.isArray(history[cardId])) history[cardId] = [];
         const meta = getGradeMeta(score);
-        history[cardId].unshift({
+        const item = {
             id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             score,
             result: meta.key,
             type: score === 3 ? 'confirm' : meta.key,
             time: Date.now()
-        });
+        };
+        history[cardId].unshift(item);
         if (history[cardId].length > 300) history[cardId] = history[cardId].slice(0, 300);
         saveReviewHistory(history);
+        return item;
     }
 
     function formatHistoryTime(ts) {
@@ -5240,11 +5363,16 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     async function ensureStatsStoreReady(reason = 'stats-write') {
         const count = getLocalStatsKeyCount();
         if (count > STATS_LOW_COUNT_BLOCK) return true;
-        console.warn('STATS_RESTORE_REJECTED', { reason, localStatsKeyCount: count, action: 'recover-before-write' });
-        const recovered = await restoreLatestGoodStatsFromCloud(reason);
-        if (recovered && getLocalStatsKeyCount() > STATS_LOW_COUNT_BLOCK) return true;
-        showToast('Stats가 비어 있어 저장을 중단했습니다. 정상 백업 복구가 필요합니다.', 'error');
-        return false;
+        console.warn('[MK_STATS_EMPTY_REVIEW_CONTINUES]', { reason, localStatsKeyCount: count, action: 'background-recover-only' });
+        if (!backgroundStatsRecoveryPromise) {
+            backgroundStatsRecoveryPromise = restoreLatestGoodStatsFromCloud(reason)
+                .catch(error => {
+                    console.warn('[MK_BACKGROUND_STATS_RECOVERY_FAILED]', { reason, message: error && error.message ? error.message : String(error) });
+                    return false;
+                })
+                .finally(() => { backgroundStatsRecoveryPromise = null; });
+        }
+        return true;
     }
 
     async function recalcStatsFromHistory(cardId) {
@@ -5405,12 +5533,13 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         console.log('REVIEW_BUTTON_CLICK', { score, currentCardUuid: getCurrentCardId() });
         const card = activeDeck[currentIndex];
         if(!card) return;
-        if (!await ensureStatsStoreReady('grade')) return;
+        const shouldJournalReview = getLocalStatsKeyCount() <= STATS_LOW_COUNT_BLOCK;
+        await ensureStatsStoreReady('grade');
         const data = cloneStatsObject(getStatsStore());
         const foundStats = findStatsForCard(card, data, card.id);
         const id = foundStats.key || String(card.id);
         saveRecentDeck();
-        recordReviewHistory(id, score);
+        const historyItem = recordReviewHistory(id, score);
         if(!data[id]) data[id] = { correct: 0, total: 0, lastDate: 0 }; if(!data[id].fsrs) data[id].fsrs = { D: 5.0, S: 0, reps: 0 };
         let fsrs = data[id].fsrs;
 
@@ -5433,7 +5562,14 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             if (interval > 3) { let fuzz = 0; if (interval >= 4 && interval <= 7) fuzz = 1; else if (interval >= 8 && interval <= 15) fuzz = 2; else if (interval >= 16) fuzz = 3; const randomFuzz = Math.floor(Math.random() * (2 * fuzz + 1)) - fuzz; interval = Math.max(1, interval + randomFuzz); }
             data[id].interval = interval; const now = new Date(); now.setHours(0,0,0,0); data[id].dueDate = now.getTime() + (interval * 86400000);
         }
-        data[id].lastDate = Date.now(); data[id].updatedAt = data[id].lastDate; guardedStatsWrite(JSON.stringify(data), 'grade'); markLocalDataUpdated(data[id].updatedAt); saveStudyState('review', { backup: true });
+        data[id].lastDate = Date.now(); data[id].updatedAt = data[id].lastDate;
+        if (shouldJournalReview || isBootstrapRestoring) appendPendingReviewEvent({ cardId: id, score, stat: data[id], historyItem, updatedAt: data[id].updatedAt });
+        const writeResult = guardedStatsWrite(JSON.stringify(data), 'grade');
+        if (!writeResult || !writeResult.ok) {
+            setCanonicalStatsStore(data, 'grade:fallback-local-review');
+            console.warn('[MK_REVIEW_STATS_WRITE_FALLBACK]', { cardId: id, reason: writeResult && writeResult.reason || 'unknown' });
+        }
+        markLocalDataUpdated(data[id].updatedAt); saveStudyState('review', { backup: true });
         updateStatsUI(getStatsForCard(card));
         console.log('REVIEW_SAVED', { score, currentCardUuid: String(id), nextReviewDate: data[id].dueDate || null });
         if(score === 3) {
