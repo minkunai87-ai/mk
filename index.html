@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.99 - quiet startup restore)</title>
+<title>MK (v18.5.100 - simple stats restore guard)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -403,7 +403,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.99 - quiet startup restore)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.100 - simple stats restore guard)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -647,7 +647,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.99 - quiet startup restore';
+    const APP_VERSION = 'v18.5.100 - simple stats restore guard';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -680,7 +680,8 @@
     const STORAGE_KEY_PENDING_REVIEW_EVENTS = 'mk_pending_review_events';
     const STATS_LOW_COUNT_BLOCK = 10;
     const STATS_HEALTHY_MIN_COUNT = 1000;
-    const STATS_STANDALONE_RESTORE_MIN_COUNT = 8000;
+    const STATS_STANDALONE_RESTORE_MIN_COUNT = 9000;
+    const STATS_RESTORE_ALLOW_MIN_COUNT = 9000;
     const STATS_MIN_RETAIN_RATIO = 0.8;
     const STATS_KNOWN_SUSPICIOUS_COUNTS = new Set([4, 1778]);
     const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 긴급', 'none': '보조 없음', 'original': '🔄 원래순', 'unlearned': '🆕 미학습순', 'wrong': '🔥 오답순', 'number': '🔢 번호순', 'oldest': '📅 오래된순', 'recent': '🕘 최근순' };
@@ -2197,7 +2198,8 @@
             const oldCount = getStatsKeyCount(oldValue);
             const nextCount = getStatsKeyCount(normalized);
             const isAllowedBootstrapStatsWrite = isBootstrapRestoring && normalized === bootstrapAllowedStatsWriteValue;
-            if (!isAllowedBootstrapStatsWrite && (isDangerouslyLowStatsCount(nextCount) || isSuspiciousStatsDrop(nextCount, oldCount))) {
+            const isAllowedNormalStatsPayload = isAllowedStatsRestoreCount(nextCount);
+            if (!isAllowedBootstrapStatsWrite && !isAllowedNormalStatsPayload && nextCount < STATS_RESTORE_ALLOW_MIN_COUNT) {
                 console.warn('STATS_RESTORE_REJECTED', { oldCount, nextCount, reason: 'suspicious-drop' });
                 return { ok: false, rejected: true, reason: 'suspicious-drop', oldCount, nextCount };
             }
@@ -2622,6 +2624,7 @@
         const parsed = getLocalStatsParseResult();
         if (!parsed.ok) return { invalid: true, reasonCode: 'local_stats_parse_failed', localStatsKeyCount: 0 };
         if (!parsed.count) return { invalid: true, reasonCode: 'local_stats_empty', localStatsKeyCount: 0 };
+        if (!isAllowedStatsRestoreCount(parsed.count)) return { invalid: true, reasonCode: `local_stats_below_${STATS_RESTORE_ALLOW_MIN_COUNT}`, localStatsKeyCount: parsed.count };
         restoredStats = parsed.stats;
         return { invalid: false, reasonCode: 'local_stats_present', localStatsKeyCount: parsed.count };
     }
@@ -2726,6 +2729,11 @@
         return STATS_KNOWN_SUSPICIOUS_COUNTS.has(Number(count) || 0);
     }
 
+    function isAllowedStatsRestoreCount(count) {
+        count = Number(count) || 0;
+        return count >= STATS_RESTORE_ALLOW_MIN_COUNT && !isKnownSuspiciousStatsCount(count);
+    }
+
     function isSuspiciousStatsDrop(nextCount, baselineCount) {
         nextCount = Number(nextCount) || 0;
         baselineCount = Number(baselineCount) || 0;
@@ -2783,23 +2791,10 @@
         const baselineCount = Number(baselineStatsKeyCount) || 0;
         const backupCount = Number(backupStatsKeyCount) || 0;
         let reasonCode = 'allowed';
-        let allowed = true;
-        if (!backupCount) {
-            allowed = false;
-            reasonCode = 'empty_backup_stats';
-        } else if (isKnownSuspiciousStatsCount(backupCount)) {
-            allowed = false;
-            reasonCode = 'known_suspicious_backup_stats';
-        } else if (isDangerouslyLowStatsCount(backupCount)) {
-            allowed = false;
-            reasonCode = 'dangerously_low_backup_stats';
-        } else if (!baselineCount) {
-            allowed = isStandaloneNormalStatsCount(backupCount);
-            reasonCode = allowed ? 'allowed_without_baseline_healthy_backup' : 'no_valid_baseline_suspicious_backup_stats';
-        } else if (isSuspiciousStatsDrop(backupCount, baselineCount)) {
-            allowed = false;
-            reasonCode = 'suspicious_backup_stats_drop';
-        }
+        const allowed = isAllowedStatsRestoreCount(backupCount);
+        if (!allowed) reasonCode = isKnownSuspiciousStatsCount(backupCount)
+            ? 'known_suspicious_backup_stats'
+            : `backup_stats_below_${STATS_RESTORE_ALLOW_MIN_COUNT}`;
         const logData = {
             backupTimestamp,
             backupStatsKeyCount: backupCount,
@@ -3512,7 +3507,7 @@
         const remoteMaxCount = records.reduce((max, record) => Math.max(max, record.statsKeyCount || 0), 0);
         const baselineCount = Math.max(localCount, lastGoodCount, remoteMaxCount);
         for (const record of records) {
-            if (isKnownSuspiciousStatsCount(record.statsKeyCount) || isSuspiciousStatsDrop(record.statsKeyCount, baselineCount) || isDangerouslyLowStatsCount(record.statsKeyCount)) {
+            if (!isAllowedStatsRestoreCount(record.statsKeyCount)) {
                 console.warn('STATS_RESTORE_REJECTED', { timestamp: record.ts, statsKeyCount: record.statsKeyCount, baselineCount, reason: 'auto-candidate-low-count' });
                 continue;
             }
@@ -3556,12 +3551,8 @@
     async function findStartupBootstrapBackup() {
         const records = await fetchStartupBootstrapBackupCandidates();
         for (const record of records) {
-            if (isKnownSuspiciousStatsCount(record.statsKeyCount)) {
-                rejectStartupBootstrapCandidate(record, 'known_suspicious_stats_count');
-                continue;
-            }
-            if (!isStandaloneNormalStatsCount(record.statsKeyCount)) {
-                rejectStartupBootstrapCandidate(record, 'stats_count_below_bootstrap_min');
+            if (!isAllowedStatsRestoreCount(record.statsKeyCount)) {
+                rejectStartupBootstrapCandidate(record, isKnownSuspiciousStatsCount(record.statsKeyCount) ? 'known_suspicious_stats_count' : `stats_count_below_${STATS_RESTORE_ALLOW_MIN_COUNT}`);
                 continue;
             }
 
@@ -3577,7 +3568,7 @@
                 rejectStartupBootstrapCandidate(record, 'payload_index_count_mismatch', { payloadStatsKeyCount });
                 continue;
             }
-            if (isKnownSuspiciousStatsCount(payloadStatsKeyCount) || !isStandaloneNormalStatsCount(payloadStatsKeyCount)) {
+            if (!isAllowedStatsRestoreCount(payloadStatsKeyCount)) {
                 rejectStartupBootstrapCandidate(record, 'payload_stats_count_rejected', { payloadStatsKeyCount });
                 continue;
             }
@@ -3856,17 +3847,10 @@
             : (isValidStatsBaselineCount(localCount) ? localCount : 0);
         const baselineCount = Number(options.baselineStatsKeyCount) || fallbackBaselineCount;
         console.log('STATS_RESTORE_COUNT', { incomingCount, localCount, lastGoodCount });
-        if (
-            isKnownSuspiciousStatsCount(incomingCount) ||
-            isDangerouslyLowStatsCount(incomingCount) ||
-            (!baselineCount && !isStandaloneNormalStatsCount(incomingCount)) ||
-            isSuspiciousStatsDrop(incomingCount, baselineCount)
-        ) {
+        if (!isAllowedStatsRestoreCount(incomingCount)) {
             const reason = isKnownSuspiciousStatsCount(incomingCount)
                 ? 'known_suspicious_backup_stats'
-                : isDangerouslyLowStatsCount(incomingCount)
-                ? 'dangerously_low_backup_stats'
-                : (!baselineCount ? 'no_valid_baseline_suspicious_backup_stats' : 'suspicious_backup_stats_drop');
+                : `backup_stats_below_${STATS_RESTORE_ALLOW_MIN_COUNT}`;
             console.warn('STATS_RESTORE_REJECTED', { incomingCount, baselineCount, reason });
             return { ok: false, rejected: true, reason, incomingCount, baselineCount };
         }
