@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.100 - simple stats restore guard)</title>
+<title>MK (v18.5.101 - force normal stats reinstall)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -403,7 +403,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.100 - simple stats restore guard)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.101 - force normal stats reinstall)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -647,7 +647,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.100 - simple stats restore guard';
+    const APP_VERSION = 'v18.5.101 - force normal stats reinstall';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -2576,6 +2576,118 @@
         } catch(e) {}
     }
 
+    function getForceReinstallCleanupKeys() {
+        return [
+            STORAGE_KEY_STATS,
+            STORAGE_KEY_VIEW_STATE,
+            STORAGE_KEY_LEGACY_VIEW_STATE,
+            STORAGE_KEY_CURRENT_CARD_ID,
+            STORAGE_KEY_LEGACY_CURRENT_CARD_ID,
+            STORAGE_KEY_LOCAL_DATA_UPDATED_AT,
+            STORAGE_KEY_LAST_GOOD_BACKUP_TIMESTAMP,
+            STORAGE_KEY_LAST_GOOD_STATS_COUNT,
+            STORAGE_KEY_FILTER_STATE,
+            STORAGE_KEY_ACTIVE_IDS,
+            STORAGE_KEY_DECK_VIEW_STATES,
+            STORAGE_KEY_BOOTSTRAP_FAILURE_NOTIFIED,
+            'uuid_migration_backup_latest',
+            `${STORAGE_KEY_STATS}__safe_write_tmp`
+        ];
+    }
+
+    function clearMkLocalRestoreMetadataForForceReinstall() {
+        getForceReinstallCleanupKeys().forEach(key => {
+            try { localStorage.removeItem(key); } catch(e) {}
+        });
+        try { sessionStorage.removeItem(STORAGE_KEY_BOOTSTRAP_FAILURE_NOTIFIED); } catch(e) {}
+        try {
+            Object.keys(localStorage).forEach(key => {
+                if (key === STORAGE_KEY_STATS || key.startsWith('mk_recovery_snapshot_')) return;
+                if (
+                    key.startsWith('mk_bootstrap_') ||
+                    key.startsWith('mk_self_heal_') ||
+                    key.startsWith('mk_restore_') ||
+                    key.startsWith('mk_identity_') ||
+                    key.startsWith('uuid_migration_state_') ||
+                    key.endsWith('__safe_write_tmp')
+                ) {
+                    localStorage.removeItem(key);
+                }
+            });
+        } catch(e) {}
+        restoreStatsWriteGuard = null;
+        bootstrapAllowedStatsWriteValue = null;
+        isBootstrapRestoring = false;
+        restoredStats = null;
+    }
+
+    function forceReinstallNormalStatsBackup(payload = {}, source = 'force-reinstall', options = {}) {
+        const normalized = payload.normalized || normalizeBackupPayload(payload.raw || payload, source, payload.timestamp || options.backupTimestamp);
+        const raw = normalized.raw || payload.raw || payload || {};
+        const stats = normalizeStatsObject(normalized.stats || getBackupStatsCandidate(raw));
+        const statsValue = JSON.stringify(stats);
+        const statsKeyCount = getStatsKeyCount(stats);
+        if (!isAllowedStatsRestoreCount(statsKeyCount)) {
+            const reason = isKnownSuspiciousStatsCount(statsKeyCount)
+                ? 'known_suspicious_backup_stats'
+                : `backup_stats_below_${STATS_RESTORE_ALLOW_MIN_COUNT}`;
+            console.warn('[MK_FORCE_STATS_REINSTALL_REJECTED]', { source, statsKeyCount, reason });
+            return { ok: false, reason, statsKeyCount };
+        }
+
+        const backupTimestamp = normalized.timestamp || payload.timestamp || options.backupTimestamp || null;
+        const snapshotKey = saveRecoverySnapshot(`force-reinstall-${source}`);
+        clearMkLocalRestoreMetadataForForceReinstall();
+        freeRestorableCacheStorage();
+
+        try {
+            localStorage.setItem(STORAGE_KEY_STATS, statsValue);
+        } catch(e) {
+            if (isQuotaExceededError(e)) {
+                freeRestorableCacheStorage();
+                try { localStorage.setItem(STORAGE_KEY_STATS, statsValue); } catch(retryError) {
+                    return { ok: false, reason: retryError && retryError.name ? retryError.name : 'stats_write_failed', statsKeyCount };
+                }
+            } else {
+                return { ok: false, reason: e && e.name ? e.name : 'stats_write_failed', statsKeyCount };
+            }
+        }
+        restoredStats = cloneStatsObject(stats);
+
+        const keyVerification = verifyStatsKeySetExact(stats, localStorage.getItem(STORAGE_KEY_STATS), {
+            phase: `${source}-force-reinstall-after-write`,
+            backupTimestamp,
+            checkedKeys: options.checkedKeys || []
+        });
+        if (!keyVerification.ok) {
+            console.warn('[MK_FORCE_STATS_REINSTALL_FAILED]', { source, reasonCode: keyVerification.reasonCode, keyVerification });
+            return { ok: false, reason: keyVerification.reasonCode, statsKeyCount, verification: keyVerification };
+        }
+
+        const incomingHistory = normalized.reviewHistory || {};
+        if (incomingHistory && Object.keys(incomingHistory).length) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(incomingHistory));
+        if (hasBackupField(raw, 'notesByCardUuid')) safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(normalized.notesByCardUuid || {}));
+        if (hasBackupField(raw, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, raw.progress);
+        if (hasBackupField(raw, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, raw.filter);
+        if (hasBackupField(raw, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, raw.recentDecks);
+        if (hasBackupField(raw, 'targetRetention')) applyTargetRetentionFromBackup(raw.targetRetention, source);
+
+        const restoredViewState = options.deferViewState
+            ? compactViewState(normalized.viewState || getBackupViewState(raw))
+            : restorePosition(normalized.viewState || getBackupViewState(raw), source);
+        const restoredUpdatedAt = Number(normalized.updatedAt) || Number(raw.localUpdatedAt || raw.updatedAt || (raw.metadata && raw.metadata.localUpdatedAt)) || Number(backupTimestamp) || Date.now();
+        markLocalDataUpdated(restoredUpdatedAt);
+        rememberGoodBackupTimestamp(backupTimestamp, statsKeyCount);
+        beginRestoreStatsProtection(restoredStats, {
+            backupTimestamp,
+            checkedKeys: options.checkedKeys || []
+        });
+        if (!options.keepProtectionOpen) finishRestoreStatsProtection({ backupTimestamp });
+        logStudyStateSnapshot('force-reinstall', { stats: restoredStats, reviewHistory: incomingHistory, viewState: restoredViewState });
+        console.warn('[MK_FORCE_STATS_REINSTALL_APPLIED]', { source, backupTimestamp, statsKeyCount, snapshotKey });
+        return { ok: true, restoredViewState, statsKeyCount, verification: keyVerification, snapshotKey };
+    }
+
     function getCanonicalLocalKeySetMismatch() {
         if (!restoredStats) return false;
         const localKeys = getStatsKeys(localStorage.getItem(STORAGE_KEY_STATS));
@@ -3588,6 +3700,36 @@
         const payload = candidate.payload || {};
         const normalized = candidate.normalized || normalizeBackupPayload(payload, 'startup-bootstrap', candidate.record && candidate.record.ts);
         const stats = candidate.stats || normalized.stats || {};
+        const forceResult = forceReinstallNormalStatsBackup({
+            raw: payload,
+            normalized,
+            timestamp: candidate.record && candidate.record.ts
+        }, 'startup-bootstrap', {
+            backupTimestamp: candidate.record && candidate.record.ts || null,
+            checkedKeys: [
+                '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
+                '6a17f7fc-d939-4ac3-b401-d165f66b62df'
+            ]
+        });
+        if (forceResult.ok) {
+            const localStatsBeforeBootstrap = {};
+            const localHistoryBeforeBootstrap = {};
+            const pendingMerge = mergePendingReviewEventsIntoCurrentStats('startup-bootstrap:pending-review-merge');
+            const localReviewMerge = mergeNewerLocalReviewStateIntoCurrentStats(localStatsBeforeBootstrap, localHistoryBeforeBootstrap, 'startup-bootstrap:local-review-merge');
+            const restoredStatsForProtection = (pendingMerge.merged || localReviewMerge.merged) ? getCanonicalStatsStore() : restoredStats;
+            try { sessionStorage.removeItem(STORAGE_KEY_BOOTSTRAP_FAILURE_NOTIFIED); } catch(e) {}
+            console.log('[MK_STARTUP_BOOTSTRAP_APPLIED]', {
+                timestamp: candidate.record && candidate.record.ts || null,
+                statsKeyCount: getStatsKeyCount(restoredStatsForProtection),
+                localUpdatedAt: getLocalDataUpdatedAt(),
+                reasonCode: context.reasonCode || 'startup-bootstrap',
+                pendingReviewEventsMerged: pendingMerge.merged,
+                localReviewStatsMerged: localReviewMerge.merged,
+                forceReinstalled: true
+            });
+            return { ok: true, restoredViewState: forceResult.restoredViewState, statsKeyCount: getStatsKeyCount(restoredStatsForProtection), forceReinstalled: true };
+        }
+        console.warn('[MK_STARTUP_BOOTSTRAP_FORCE_REINSTALL_FAILED]', { reasonCode: forceResult.reason, statsKeyCount: forceResult.statsKeyCount });
         const statsValue = JSON.stringify(stats);
         const localStatsBeforeBootstrap = cloneStatsObject(getCanonicalStatsStore());
         const localHistoryBeforeBootstrap = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
@@ -3994,18 +4136,32 @@
 
             freeRestorableCacheStorage();
             const normalizedManualPayload = normalizeBackupPayload(targetData, 'manual-restore', ts);
-            const restoredState = applyRestoredState(normalizedManualPayload, normalizedManualPayload.source, {
-                baselineStatsKeyCount: statsRestoreGuard.baselineStatsKeyCount,
+            const forceResult = forceReinstallNormalStatsBackup({
+                raw: targetData,
+                normalized: normalizedManualPayload,
+                timestamp: ts
+            }, 'manual-restore', {
                 backupTimestamp: ts,
                 checkedKeys: [
                     '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
                     '6a17f7fc-d939-4ac3-b401-d165f66b62df'
                 ],
                 deferViewState: true,
-                deferLocalCommit: true
+                keepProtectionOpen: true
             });
-            if (!restoredState) return;
-            await finishFirebaseRestore(targetData, listUI);
+            if (forceResult.ok) {
+                await finishFirebaseRestore(targetData, listUI);
+                return;
+            }
+            console.warn('[MK_MANUAL_FORCE_REINSTALL_FAILED]', { reason: forceResult.reason, statsKeyCount: forceResult.statsKeyCount });
+            if (!isAllowedStatsRestoreCount(forceResult.statsKeyCount)) {
+                const baselineText = statsRestoreGuard.baselineStatsKeyCount || '없음';
+                showToast(`stats 복구 중단: 백업 stats ${forceResult.statsKeyCount} / 기준 ${baselineText}`, 'error');
+                if (listUI) listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">stats 복구 중단: 백업 stats ${forceResult.statsKeyCount} / 기준 ${baselineText}</div>`;
+                return;
+            }
+            showToast('stats 복구 실패: 저장 검증 실패', 'error');
+            if (listUI) listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">stats 복구 실패: 저장 검증 실패</div>`;
             return;
             persistBackupPositionState(targetData, 'backup');
 
