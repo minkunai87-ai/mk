@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.101 - force normal stats reinstall)</title>
+<title>MK (v18.5.102 - lean recovery snapshots)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -403,7 +403,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.101 - force normal stats reinstall)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.102 - lean recovery snapshots)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -647,7 +647,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.101 - force normal stats reinstall';
+    const APP_VERSION = 'v18.5.102 - lean recovery snapshots';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -1710,6 +1710,7 @@
     window.onload = async function() { 
         updateTRButton();
         cleanupOversizedViewState();
+        cleanupLegacyRecoverySnapshotsAndRestoreCache('startup');
         await autoScanGitHub(); 
         await syncLatestFirebaseBackupOnStartup();
         initApp(); 
@@ -2539,29 +2540,125 @@
         ];
     }
 
-    function saveRecoverySnapshot(reasonCode = 'invalid-local-state') {
-        pruneRecoverySnapshots(2);
+    function getLocalStorageUsageReport() {
+        const report = {
+            totalChars: 0,
+            snapshotCount: 0,
+            snapshotTotalChars: 0,
+            snapshotSizes: [],
+            statsChars: 0,
+            pendingReviewEventsChars: 0
+        };
+        try {
+            Object.keys(localStorage).forEach(key => {
+                const value = localStorage.getItem(key) || '';
+                const size = key.length + value.length;
+                report.totalChars += size;
+                if (key.startsWith('mk_recovery_snapshot_')) {
+                    report.snapshotCount++;
+                    report.snapshotTotalChars += size;
+                    report.snapshotSizes.push({ key, chars: size });
+                }
+                if (key === STORAGE_KEY_STATS) report.statsChars = value.length;
+                if (key === STORAGE_KEY_PENDING_REVIEW_EVENTS) report.pendingReviewEventsChars = value.length;
+            });
+            report.snapshotSizes.sort((a, b) => b.chars - a.chars);
+        } catch(e) {}
+        return report;
+    }
+
+    function getStatsChecksum(value) {
+        const text = value === undefined || value === null ? '' : String(value);
+        return text ? String(cyrb53(text)) : '';
+    }
+
+    function getStoredViewStateForSnapshot() {
+        return compactViewState(parseJSONSafe(localStorage.getItem(STORAGE_KEY_VIEW_STATE), {}));
+    }
+
+    function isLegacyRecoverySnapshotValue(value) {
+        const parsed = parseJSONSafe(value, null);
+        if (!parsed || typeof parsed !== 'object') return false;
+        const values = parsed.values;
+        if (!values || typeof values !== 'object') return false;
+        return !!(
+            values[STORAGE_KEY_STATS] ||
+            values.anki_final_stats ||
+            values.stats ||
+            values.cardStats
+        );
+    }
+
+    function cleanupLegacyRecoverySnapshotsAndRestoreCache(context = 'cleanup') {
+        const before = getLocalStorageUsageReport();
+        const removed = [];
+        try {
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('mk_recovery_snapshot_')) {
+                    const value = localStorage.getItem(key) || '';
+                    if (isLegacyRecoverySnapshotValue(value)) {
+                        removed.push({ key, chars: key.length + value.length, reason: 'legacy_full_stats_snapshot' });
+                        localStorage.removeItem(key);
+                    }
+                    return;
+                }
+                if (
+                    key.startsWith('mk_debug_') ||
+                    key.startsWith('mk_restore_debug_') ||
+                    key.startsWith('mk_self_heal_') ||
+                    key.startsWith('mk_bootstrap_debug_') ||
+                    key.endsWith('__safe_write_tmp')
+                ) {
+                    const value = localStorage.getItem(key) || '';
+                    removed.push({ key, chars: key.length + value.length, reason: 'restore_debug_cache' });
+                    localStorage.removeItem(key);
+                }
+            });
+        } catch(e) {
+            console.warn('[MK_STORAGE_CLEANUP_FAILED]', { context, message: e && e.message ? e.message : String(e) });
+        }
+        pruneRecoverySnapshots(1);
+        const after = getLocalStorageUsageReport();
+        console.warn('[MK_STORAGE_CLEANUP]', {
+            context,
+            before,
+            after,
+            removedCount: removed.length,
+            removed
+        });
+        return { before, after, removed };
+    }
+
+    function saveRecoverySnapshot(reasonCode = 'invalid-local-state', context = {}) {
+        cleanupLegacyRecoverySnapshotsAndRestoreCache(`before-snapshot:${reasonCode}`);
+        pruneRecoverySnapshots(0);
         const timestamp = Date.now();
         const key = `mk_recovery_snapshot_${timestamp}`;
-        const values = {};
-        getRecoverySnapshotKeys().forEach(storageKey => {
-            try { values[storageKey] = localStorage.getItem(storageKey); } catch(e) { values[storageKey] = null; }
-        });
+        const statsRaw = localStorage.getItem(STORAGE_KEY_STATS) || '';
         const snapshot = {
             reasonCode,
             createdAt: timestamp,
+            backupTimestamp: context.backupTimestamp || null,
             appVersion: APP_VERSION,
             statsKeyCount: getLocalStatsKeyCount(),
             lastGoodStatsCount: Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0,
             localUpdatedAt: localStorage.getItem(STORAGE_KEY_LOCAL_DATA_UPDATED_AT),
-            values
+            viewState: getStoredViewStateForSnapshot(),
+            statsChars: statsRaw.length,
+            statsChecksum: getStatsChecksum(statsRaw),
+            pendingReviewEventsChars: (localStorage.getItem(STORAGE_KEY_PENDING_REVIEW_EVENTS) || '').length
         };
         try {
             localStorage.setItem(key, JSON.stringify(snapshot));
-            console.warn('[MK_RECOVERY_SNAPSHOT_SAVED]', { key, reasonCode, statsKeyCount: snapshot.statsKeyCount });
+            console.warn('[MK_RECOVERY_SNAPSHOT_SAVED]', { key, reasonCode, statsKeyCount: snapshot.statsKeyCount, chars: JSON.stringify(snapshot).length });
             return key;
         } catch(e) {
-            console.warn('[MK_RECOVERY_SNAPSHOT_FAILED]', { reasonCode, message: e && e.message ? e.message : String(e) });
+            console.warn('[MK_RECOVERY_SNAPSHOT_FAILED]', {
+                reasonCode,
+                name: e && e.name,
+                message: e && e.message ? e.message : String(e),
+                usage: getLocalStorageUsageReport()
+            });
             return null;
         }
     }
@@ -2636,20 +2733,55 @@
         }
 
         const backupTimestamp = normalized.timestamp || payload.timestamp || options.backupTimestamp || null;
-        const snapshotKey = saveRecoverySnapshot(`force-reinstall-${source}`);
+        const cleanupBefore = cleanupLegacyRecoverySnapshotsAndRestoreCache(`before-force-reinstall:${source}`);
+        const snapshotKey = saveRecoverySnapshot(`force-reinstall-${source}`, { backupTimestamp });
         clearMkLocalRestoreMetadataForForceReinstall();
         freeRestorableCacheStorage();
+        const usageBeforeWrite = getLocalStorageUsageReport();
 
         try {
             localStorage.setItem(STORAGE_KEY_STATS, statsValue);
         } catch(e) {
+            console.error('[MK_FORCE_STATS_REINSTALL_WRITE_FAILED]', {
+                source,
+                name: e && e.name,
+                message: e && e.message ? e.message : String(e),
+                statsKeyCount,
+                statsChars: statsValue.length,
+                usageBeforeWrite
+            });
             if (isQuotaExceededError(e)) {
                 freeRestorableCacheStorage();
                 try { localStorage.setItem(STORAGE_KEY_STATS, statsValue); } catch(retryError) {
-                    return { ok: false, reason: retryError && retryError.name ? retryError.name : 'stats_write_failed', statsKeyCount };
+                    console.error('[MK_FORCE_STATS_REINSTALL_WRITE_RETRY_FAILED]', {
+                        source,
+                        name: retryError && retryError.name,
+                        message: retryError && retryError.message ? retryError.message : String(retryError),
+                        statsKeyCount,
+                        statsChars: statsValue.length,
+                        usageBeforeWrite,
+                        usageAfterRetryCleanup: getLocalStorageUsageReport()
+                    });
+                    return {
+                        ok: false,
+                        reason: retryError && retryError.name ? retryError.name : 'stats_write_failed',
+                        message: retryError && retryError.message ? retryError.message : String(retryError),
+                        statsKeyCount,
+                        statsChars: statsValue.length,
+                        usageBeforeWrite,
+                        usageAfterFailure: getLocalStorageUsageReport()
+                    };
                 }
             } else {
-                return { ok: false, reason: e && e.name ? e.name : 'stats_write_failed', statsKeyCount };
+                return {
+                    ok: false,
+                    reason: e && e.name ? e.name : 'stats_write_failed',
+                    message: e && e.message ? e.message : String(e),
+                    statsKeyCount,
+                    statsChars: statsValue.length,
+                    usageBeforeWrite,
+                    usageAfterFailure: getLocalStorageUsageReport()
+                };
             }
         }
         restoredStats = cloneStatsObject(stats);
@@ -2684,7 +2816,15 @@
         });
         if (!options.keepProtectionOpen) finishRestoreStatsProtection({ backupTimestamp });
         logStudyStateSnapshot('force-reinstall', { stats: restoredStats, reviewHistory: incomingHistory, viewState: restoredViewState });
-        console.warn('[MK_FORCE_STATS_REINSTALL_APPLIED]', { source, backupTimestamp, statsKeyCount, snapshotKey });
+        console.warn('[MK_FORCE_STATS_REINSTALL_APPLIED]', {
+            source,
+            backupTimestamp,
+            statsKeyCount,
+            snapshotKey,
+            cleanupBefore,
+            usageBeforeWrite,
+            usageAfterWrite: getLocalStorageUsageReport()
+        });
         return { ok: true, restoredViewState, statsKeyCount, verification: keyVerification, snapshotKey };
     }
 
@@ -4160,8 +4300,15 @@
                 if (listUI) listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">stats 복구 중단: 백업 stats ${forceResult.statsKeyCount} / 기준 ${baselineText}</div>`;
                 return;
             }
-            showToast('stats 복구 실패: 저장 검증 실패', 'error');
-            if (listUI) listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">stats 복구 실패: 저장 검증 실패</div>`;
+            const storageFailure = forceResult.reason || '저장 검증 실패';
+            const storageMessage = storageFailure === 'QuotaExceededError'
+                ? 'stats 복구 실패: 브라우저 저장공간 부족'
+                : `stats 복구 실패: ${storageFailure}`;
+            showToast(storageMessage, 'error');
+            if (listUI) {
+                const detail = forceResult.message ? `<br><small>${forceResult.message}</small>` : '';
+                listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">${storageMessage}${detail}</div>`;
+            }
             return;
             persistBackupPositionState(targetData, 'backup');
 
