@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.98 - review never blocks)</title>
+<title>MK (v18.5.99 - quiet startup restore)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -403,7 +403,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.98 - review never blocks)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.99 - quiet startup restore)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -647,7 +647,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.98 - review never blocks';
+    const APP_VERSION = 'v18.5.99 - quiet startup restore';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -2618,6 +2618,14 @@
         return { invalid: false, reasonCode: 'local_stats_ok', localStatsKeyCount: parsed.count, lookupHealth };
     }
 
+    function getStartupBootstrapState() {
+        const parsed = getLocalStatsParseResult();
+        if (!parsed.ok) return { invalid: true, reasonCode: 'local_stats_parse_failed', localStatsKeyCount: 0 };
+        if (!parsed.count) return { invalid: true, reasonCode: 'local_stats_empty', localStatsKeyCount: 0 };
+        restoredStats = parsed.stats;
+        return { invalid: false, reasonCode: 'local_stats_present', localStatsKeyCount: parsed.count };
+    }
+
     function getPendingReviewEvents() {
         const events = parseJSONSafe(localStorage.getItem(STORAGE_KEY_PENDING_REVIEW_EVENTS), []);
         return Array.isArray(events) ? events.filter(Boolean) : [];
@@ -3667,7 +3675,7 @@
             if (alreadyShown === reasonCode) return;
             sessionStorage.setItem(STORAGE_KEY_BOOTSTRAP_FAILURE_NOTIFIED, reasonCode);
         } catch(e) {}
-        showToast(message, 'error');
+        console.warn('[MK_STARTUP_BOOTSTRAP_NOTICE_SUPPRESSED]', { reasonCode, message });
     }
 
     async function bootstrapStatsFromFirebaseOnInvalidLocal(invalidState = null) {
@@ -3691,61 +3699,33 @@
         console.log('RESTORE_SOURCE startup-bootstrap');
         console.log('AUTO_SYNC_SOURCE startup-bootstrap');
         console.log('AUTO_SYNC_APPLIED', true);
-        if (state.reasonCode && state.reasonCode !== 'local_stats_empty') showToast('기존 기기 데이터를 정리하고 정상 학습 기록을 복구했습니다', 'success');
-        else showToast('최신 클라우드 데이터 동기화 완료', 'success');
         return { attempted: true, ok: true, ...result };
     }
 
     async function bootstrapStatsFromFirebaseOnEmptyLocal() {
-        return bootstrapStatsFromFirebaseOnInvalidLocal(getInvalidLocalStatsState());
+        return bootstrapStatsFromFirebaseOnInvalidLocal(getStartupBootstrapState());
     }
 
     async function syncLatestFirebaseBackupOnStartup() {
         try {
             console.log('AUTO_SYNC_START');
-            const invalidLocalState = getInvalidLocalStatsState();
-            if (invalidLocalState.invalid) {
-                const bootstrapResult = await bootstrapStatsFromFirebaseOnInvalidLocal(invalidLocalState);
+            const startupBootstrapState = getStartupBootstrapState();
+            if (startupBootstrapState.invalid) {
+                const bootstrapResult = await bootstrapStatsFromFirebaseOnInvalidLocal(startupBootstrapState);
                 if (bootstrapResult.attempted) {
                     console.log('AUTO_SYNC_COMPLETE');
                     return;
                 }
             }
             const localState = loadLocalStudyState();
-            const cloudState = await loadCloudStudyState();
             const localUpdatedAt = Number(localState && localState.updatedAt) || 0;
-            const cloudUpdatedAt = Number(cloudState && cloudState.updatedAt) || 0;
             console.log(`LOCAL_UPDATED_AT ${localUpdatedAt}`);
-            console.log(`CLOUD_UPDATED_AT ${cloudUpdatedAt}`);
-            if (!cloudState || cloudUpdatedAt <= localUpdatedAt) {
-                restorePosition(localState.viewState || {}, 'local');
-                logStudyStateSnapshot('auto-sync-local', localState);
-                console.log('RESTORE_SOURCE local');
-                console.log('AUTO_SYNC_SOURCE local');
-                console.log('AUTO_SYNC_APPLIED', false);
-                console.log('AUTO_SYNC_COMPLETE');
-                return;
-            }
-            const restoredState = applyRestoredState(cloudState, 'cloud', {
-                requireStatsLookupVerification: true,
-                checkedKeys: [
-                    '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
-                    '6a17f7fc-d939-4ac3-b401-d165f66b62df'
-                ]
-            });
-            if(!restoredState) {
-                console.log('AUTO_SYNC_SOURCE local');
-                console.log('AUTO_SYNC_APPLIED', false);
-                console.log('AUTO_SYNC_COMPLETE');
-                return;
-            }
-            safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(Date.now()));
-            console.log('RESTORE_SOURCE cloud');
-            console.log('AUTO_SYNC_SOURCE cloud');
-            console.log('AUTO_SYNC_APPLIED', true);
+            restorePosition(localState.viewState || {}, 'local');
+            logStudyStateSnapshot('auto-sync-local', localState);
+            console.log('RESTORE_SOURCE local');
+            console.log('AUTO_SYNC_SOURCE local');
+            console.log('AUTO_SYNC_APPLIED', false);
             console.log('AUTO_SYNC_COMPLETE');
-            logCurrentCardReviewState('auto-sync-after-apply');
-            showToast('최신 클라우드 데이터 동기화 완료', 'success');
         } catch(e) {
             console.error('[MK Auto Cloud Sync Error]', e);
             console.log('RESTORE_SOURCE local');
@@ -5327,12 +5307,9 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
 
     async function restoreLatestGoodStatsFromCloud(reason = 'stats-guard') {
         try {
-            const invalidState = getInvalidLocalStatsState();
-            const bootstrapped = await bootstrapStatsFromFirebaseOnInvalidLocal({
-                ...invalidState,
-                invalid: true,
-                reasonCode: invalidState.reasonCode || reason || 'stats-guard-recovery'
-            });
+            const startupState = getStartupBootstrapState();
+            if (!startupState.invalid) return false;
+            const bootstrapped = await bootstrapStatsFromFirebaseOnInvalidLocal(startupState);
             if (bootstrapped && bootstrapped.ok) return true;
             const ts = await getLatestFirebaseBackupTimestamp();
             if(!ts) {
