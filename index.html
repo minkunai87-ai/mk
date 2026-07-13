@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.102 - lean recovery snapshots)</title>
+<title>MK (v18.5.103 - IndexedDB stats storage)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -403,7 +403,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.102 - lean recovery snapshots)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.103 - IndexedDB stats storage)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -647,7 +647,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.102 - lean recovery snapshots';
+    const APP_VERSION = 'v18.5.103 - IndexedDB stats storage';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -678,12 +678,17 @@
     const STORAGE_KEY_LAST_GOOD_STATS_COUNT = 'mk_last_good_stats_count';
     const STORAGE_KEY_BOOTSTRAP_FAILURE_NOTIFIED = 'mk_bootstrap_failure_notified';
     const STORAGE_KEY_PENDING_REVIEW_EVENTS = 'mk_pending_review_events';
+    const STATS_DB_NAME = 'mk_stats_db_v1';
+    const STATS_DB_STORE = 'stats';
+    const STATS_DB_PRIMARY_KEY = STORAGE_KEY_STATS;
+    const STATS_DB_STAGING_KEY = `${STORAGE_KEY_STATS}__staging`;
     const STATS_LOW_COUNT_BLOCK = 10;
     const STATS_HEALTHY_MIN_COUNT = 1000;
     const STATS_STANDALONE_RESTORE_MIN_COUNT = 9000;
     const STATS_RESTORE_ALLOW_MIN_COUNT = 9000;
     const STATS_MIN_RETAIN_RATIO = 0.8;
     const STATS_KNOWN_SUSPICIOUS_COUNTS = new Set([4, 1778]);
+    let statsPersistenceQueue = Promise.resolve();
     const modeNames = { 'default': '📋 전체', 'due': '🎯 오늘 복습', 'mem': '🧠 암기', 'cmp': '🆚 비교', 'fav': '⭐ 중요', 'num': '🔢 숫자', 'date': '📅 날짜', 'pen': '🚨 긴급', 'none': '보조 없음', 'original': '🔄 원래순', 'unlearned': '🆕 미학습순', 'wrong': '🔥 오답순', 'number': '🔢 번호순', 'oldest': '📅 오래된순', 'recent': '🕘 최근순' };
     const filterModes = ['due', 'mem', 'cmp', 'fav', 'num', 'date', 'pen'];
 
@@ -1711,6 +1716,7 @@
         updateTRButton();
         cleanupOversizedViewState();
         cleanupLegacyRecoverySnapshotsAndRestoreCache('startup');
+        await initializeStatsStore();
         await autoScanGitHub(); 
         await syncLatestFirebaseBackupOnStartup();
         initApp(); 
@@ -1754,7 +1760,8 @@
         const metadata = getBackupMetadata();
         const localUpdatedAt = getLocalDataUpdatedAt();
         const currentCardUuid = getCurrentCardId();
-        const statsRaw = localStorage.getItem(STORAGE_KEY_STATS);
+        await statsPersistenceQueue;
+        const statsRaw = JSON.stringify(getStatsStore());
         const statsKeyCount = getStatsKeyCount(statsRaw);
         const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
         const remoteBaselineCount = await getRemoteMaxStatsKeyCount();
@@ -2195,8 +2202,7 @@
         console.log(`LOCAL_STORAGE_WRITE_SIZE key=${key} kb=${getTextSizeKB(normalized)}`);
 
         if (key === STORAGE_KEY_STATS) {
-            const oldValue = localStorage.getItem(key);
-            const oldCount = getStatsKeyCount(oldValue);
+            const oldCount = getLocalStatsKeyCount();
             const nextCount = getStatsKeyCount(normalized);
             const isAllowedBootstrapStatsWrite = isBootstrapRestoring && normalized === bootstrapAllowedStatsWriteValue;
             const isAllowedNormalStatsPayload = isAllowedStatsRestoreCount(nextCount);
@@ -2204,32 +2210,10 @@
                 console.warn('STATS_RESTORE_REJECTED', { oldCount, nextCount, reason: 'suspicious-drop' });
                 return { ok: false, rejected: true, reason: 'suspicious-drop', oldCount, nextCount };
             }
-            const tempKey = `${key}__safe_write_tmp`;
-            try {
-                localStorage.setItem(tempKey, normalized);
-                const guardedWrite = guardedStatsWrite(normalized, 'safeRestoreLocalStorage');
-                if (!guardedWrite || !guardedWrite.ok) {
-                    localStorage.removeItem(tempKey);
-                    return { ...(guardedWrite || {}), ok: false, oldCount, nextCount };
-                }
-                localStorage.removeItem(tempKey);
-                return { ok: true, oldCount, nextCount };
-            } catch (e) {
-                try {
-                    if (oldValue === null) localStorage.removeItem(key);
-                    else localStorage.setItem(key, oldValue);
-                    localStorage.removeItem(tempKey);
-                } catch(rollbackError) {}
-                console.warn('STATS_SAFE_WRITE_FAILED_KEEP_OLD', { oldCount, nextCount, message: e && e.message ? e.message : String(e) });
-                return {
-                    ok: false,
-                    keptOld: true,
-                    oldCount,
-                    nextCount,
-                    error: e,
-                    message: e && e.name ? e.name : String(e)
-                };
-            }
+            const guardedWrite = guardedStatsWrite(normalized, 'safeRestoreLocalStorage');
+            return guardedWrite && guardedWrite.ok
+                ? { ...guardedWrite, oldCount, nextCount, persistence: statsPersistenceQueue }
+                : { ...(guardedWrite || {}), ok: false, oldCount, nextCount };
         }
 
         try {
@@ -2295,9 +2279,147 @@
         return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
     }
 
+    function openStatsDatabase() {
+        return new Promise((resolve, reject) => {
+            if (!window.indexedDB) return reject(new Error('IndexedDBUnavailable'));
+            const request = indexedDB.open(STATS_DB_NAME, 1);
+            request.onupgradeneeded = () => {
+                const db = request.result;
+                if (!db.objectStoreNames.contains(STATS_DB_STORE)) db.createObjectStore(STATS_DB_STORE);
+            };
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error || new Error('IndexedDBOpenFailed'));
+            request.onblocked = () => reject(new Error('IndexedDBOpenBlocked'));
+        });
+    }
+
+    async function readStatsDatabaseValue(key = STATS_DB_PRIMARY_KEY) {
+        const db = await openStatsDatabase();
+        try {
+            return await new Promise((resolve, reject) => {
+                const request = db.transaction(STATS_DB_STORE, 'readonly').objectStore(STATS_DB_STORE).get(key);
+                request.onsuccess = () => resolve(request.result === undefined ? null : request.result);
+                request.onerror = () => reject(request.error || new Error('IndexedDBReadFailed'));
+            });
+        } finally {
+            db.close();
+        }
+    }
+
+    async function writeStatsDatabaseValue(key, value) {
+        const db = await openStatsDatabase();
+        try {
+            await new Promise((resolve, reject) => {
+                const transaction = db.transaction(STATS_DB_STORE, 'readwrite');
+                transaction.objectStore(STATS_DB_STORE).put(value, key);
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => reject(transaction.error || new Error('IndexedDBWriteFailed'));
+                transaction.onabort = () => reject(transaction.error || new Error('IndexedDBWriteAborted'));
+            });
+        } finally {
+            db.close();
+        }
+    }
+
+    async function removeStatsDatabaseValue(key) {
+        const db = await openStatsDatabase();
+        try {
+            await new Promise((resolve, reject) => {
+                const transaction = db.transaction(STATS_DB_STORE, 'readwrite');
+                transaction.objectStore(STATS_DB_STORE).delete(key);
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => reject(transaction.error || new Error('IndexedDBDeleteFailed'));
+                transaction.onabort = () => reject(transaction.error || new Error('IndexedDBDeleteAborted'));
+            });
+        } finally {
+            db.close();
+        }
+    }
+
+    async function persistStatsToIndexedDBVerified(value, context = {}) {
+        const normalized = JSON.stringify(normalizeStatsObject(value));
+        const nextCount = getStatsKeyCount(normalized);
+        const oldValue = await readStatsDatabaseValue();
+        try {
+            await writeStatsDatabaseValue(STATS_DB_STAGING_KEY, normalized);
+            const stagedValue = await readStatsDatabaseValue(STATS_DB_STAGING_KEY);
+            const stagedVerification = verifyStatsKeySetExact(normalized, stagedValue, { ...context, phase: `${context.phase || 'stats-write'}-staging` });
+            if (!stagedVerification.ok || stagedValue !== normalized) throw new Error(stagedVerification.ok ? 'stats_content_mismatch_after_staging' : stagedVerification.reasonCode);
+            await writeStatsDatabaseValue(STATS_DB_PRIMARY_KEY, stagedValue);
+            const savedValue = await readStatsDatabaseValue(STATS_DB_PRIMARY_KEY);
+            const savedVerification = verifyStatsKeySetExact(normalized, savedValue, { ...context, phase: `${context.phase || 'stats-write'}-primary` });
+            if (!savedVerification.ok || savedValue !== normalized) {
+                if (oldValue !== null) await writeStatsDatabaseValue(STATS_DB_PRIMARY_KEY, oldValue);
+                throw new Error(savedVerification.ok ? 'stats_content_mismatch_after_write' : savedVerification.reasonCode);
+            }
+            await removeStatsDatabaseValue(STATS_DB_STAGING_KEY);
+            console.log('[MK_STATS_INDEXEDDB_WRITE_VERIFIED]', { source: context.source || '', statsKeyCount: nextCount });
+            return { ok: true, statsKeyCount: nextCount, verification: savedVerification };
+        } catch (error) {
+            try { await removeStatsDatabaseValue(STATS_DB_STAGING_KEY); } catch(cleanupError) {}
+            console.error('[MK_STATS_INDEXEDDB_WRITE_FAILED_KEEP_OLD]', { source: context.source || '', statsKeyCount: nextCount, name: error && error.name, message: error && error.message ? error.message : String(error) });
+            return { ok: false, keptOld: true, reason: error && error.name ? error.name : 'IndexedDBWriteFailed', message: error && error.message ? error.message : String(error), error };
+        }
+    }
+
+    function queueStatsPersistence(value, source = 'stats-write') {
+        const snapshot = JSON.stringify(normalizeStatsObject(value));
+        statsPersistenceQueue = statsPersistenceQueue
+            .catch(() => null)
+            .then(() => persistStatsToIndexedDBVerified(snapshot, { source, phase: source }));
+        return statsPersistenceQueue;
+    }
+
+    async function initializeStatsStore() {
+        const localValue = localStorage.getItem(STORAGE_KEY_STATS);
+        let indexedValue;
+        try {
+            indexedValue = await readStatsDatabaseValue();
+        } catch (error) {
+            restoredStats = normalizeStatsObject(localValue);
+            console.error('[MK_STATS_INDEXEDDB_UNAVAILABLE_LOCAL_KEPT]', { name: error && error.name, message: error && error.message ? error.message : String(error) });
+            return { ok: false, source: 'localStorage', keptOld: true, error };
+        }
+        if (indexedValue !== null) {
+            if (localValue !== null) {
+                const localCount = getStatsKeyCount(localValue);
+                const indexedCount = getStatsKeyCount(indexedValue);
+                if (localValue === indexedValue) {
+                    localStorage.removeItem(STORAGE_KEY_STATS);
+                } else if (localCount > indexedCount) {
+                    const migration = await persistStatsToIndexedDBVerified(localValue, { source: 'localStorage-migration-newer', phase: 'migration-newer' });
+                    if (migration.ok) {
+                        indexedValue = await readStatsDatabaseValue();
+                        localStorage.removeItem(STORAGE_KEY_STATS);
+                    } else {
+                        console.warn('[MK_STATS_MIGRATION_LOCAL_KEPT]', { localCount, indexedCount, reason: migration.reason });
+                    }
+                } else {
+                    console.warn('[MK_STATS_MIGRATION_LOCAL_KEPT]', { localCount, indexedCount, reason: 'different-existing-copies' });
+                }
+            }
+            restoredStats = normalizeStatsObject(indexedValue);
+            return { ok: true, source: 'indexeddb', statsKeyCount: getStatsKeyCount(indexedValue) };
+        }
+        if (localValue !== null) {
+            const migration = await persistStatsToIndexedDBVerified(localValue, { source: 'localStorage-migration', phase: 'migration' });
+            if (!migration.ok) {
+                restoredStats = normalizeStatsObject(localValue);
+                console.warn('[MK_STATS_MIGRATION_FAILED_LOCAL_KEPT]', migration);
+                return { ...migration, source: 'localStorage' };
+            }
+            restoredStats = normalizeStatsObject(await readStatsDatabaseValue());
+            localStorage.removeItem(STORAGE_KEY_STATS);
+            console.log('[MK_STATS_MIGRATION_COMPLETE]', { statsKeyCount: migration.statsKeyCount });
+            return { ...migration, source: 'migrated' };
+        }
+        restoredStats = {};
+        return { ok: true, source: 'empty', statsKeyCount: 0 };
+    }
+
     function getCanonicalStatsStore() {
         if (restoredStats && typeof restoredStats === 'object' && !Array.isArray(restoredStats)) return restoredStats;
-        restoredStats = normalizeStatsObject(localStorage.getItem(STORAGE_KEY_STATS));
+        restoredStats = {};
         return restoredStats;
     }
 
@@ -2308,7 +2430,7 @@
     function setCanonicalStatsStore(nextStats, source = 'stats-write') {
         const stats = normalizeStatsObject(nextStats);
         restoredStats = stats;
-        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(stats));
+        queueStatsPersistence(stats, source);
         console.log('[MK_CANONICAL_STATS_SET]', { source, statsKeyCount: Object.keys(stats || {}).length });
         return stats;
     }
@@ -2371,7 +2493,7 @@
         const normalized = normalizeBackupValue(value);
         if (normalized === null) return { ok: true, skipped: true };
         const nextStats = parseJSONSafe(normalized, {});
-        const beforeStats = parseJSONSafe(localStorage.getItem(STORAGE_KEY_STATS), {});
+        const beforeStats = cloneStatsObject(getCanonicalStatsStore());
         const beforeCount = Object.keys(beforeStats || {}).length;
         const afterCount = Object.keys(nextStats || {}).length;
         const isReviewWrite = ['grade', 'toggleTag', 'recalcStatsFromHistory:empty', 'recalcStatsFromHistory:rebuilt'].includes(source);
@@ -2509,19 +2631,12 @@
     }
 
     function getLocalStatsKeyCount() {
-        return getStatsKeyCount(localStorage.getItem(STORAGE_KEY_STATS));
+        return getStatsKeyCount(getCanonicalStatsStore());
     }
 
     function getLocalStatsParseResult() {
-        const raw = localStorage.getItem(STORAGE_KEY_STATS);
-        if (!raw) return { ok: true, stats: {}, count: 0, raw };
-        try {
-            const parsed = JSON.parse(raw);
-            const ok = !!parsed && typeof parsed === 'object' && !Array.isArray(parsed);
-            return { ok, stats: ok ? parsed : {}, count: ok ? Object.keys(parsed).length : 0, raw };
-        } catch(e) {
-            return { ok: false, stats: {}, count: 0, raw, error: e && e.message ? e.message : String(e) };
-        }
+        const stats = getCanonicalStatsStore();
+        return { ok: true, stats, count: getStatsKeyCount(stats), raw: JSON.stringify(stats) };
     }
 
     function getRecoverySnapshotKeys() {
@@ -2634,7 +2749,7 @@
         pruneRecoverySnapshots(0);
         const timestamp = Date.now();
         const key = `mk_recovery_snapshot_${timestamp}`;
-        const statsRaw = localStorage.getItem(STORAGE_KEY_STATS) || '';
+        const statsRaw = JSON.stringify(getStatsStore());
         const snapshot = {
             reasonCode,
             createdAt: timestamp,
@@ -2718,7 +2833,7 @@
         restoredStats = null;
     }
 
-    function forceReinstallNormalStatsBackup(payload = {}, source = 'force-reinstall', options = {}) {
+    async function forceReinstallNormalStatsBackup(payload = {}, source = 'force-reinstall', options = {}) {
         const normalized = payload.normalized || normalizeBackupPayload(payload.raw || payload, source, payload.timestamp || options.backupTimestamp);
         const raw = normalized.raw || payload.raw || payload || {};
         const stats = normalizeStatsObject(normalized.stats || getBackupStatsCandidate(raw));
@@ -2733,60 +2848,27 @@
         }
 
         const backupTimestamp = normalized.timestamp || payload.timestamp || options.backupTimestamp || null;
+        const statsBeforeRestore = cloneStatsObject(getCanonicalStatsStore());
         const cleanupBefore = cleanupLegacyRecoverySnapshotsAndRestoreCache(`before-force-reinstall:${source}`);
         const snapshotKey = saveRecoverySnapshot(`force-reinstall-${source}`, { backupTimestamp });
-        clearMkLocalRestoreMetadataForForceReinstall();
         freeRestorableCacheStorage();
         const usageBeforeWrite = getLocalStorageUsageReport();
 
-        try {
-            localStorage.setItem(STORAGE_KEY_STATS, statsValue);
-        } catch(e) {
-            console.error('[MK_FORCE_STATS_REINSTALL_WRITE_FAILED]', {
-                source,
-                name: e && e.name,
-                message: e && e.message ? e.message : String(e),
-                statsKeyCount,
-                statsChars: statsValue.length,
-                usageBeforeWrite
-            });
-            if (isQuotaExceededError(e)) {
-                freeRestorableCacheStorage();
-                try { localStorage.setItem(STORAGE_KEY_STATS, statsValue); } catch(retryError) {
-                    console.error('[MK_FORCE_STATS_REINSTALL_WRITE_RETRY_FAILED]', {
-                        source,
-                        name: retryError && retryError.name,
-                        message: retryError && retryError.message ? retryError.message : String(retryError),
-                        statsKeyCount,
-                        statsChars: statsValue.length,
-                        usageBeforeWrite,
-                        usageAfterRetryCleanup: getLocalStorageUsageReport()
-                    });
-                    return {
-                        ok: false,
-                        reason: retryError && retryError.name ? retryError.name : 'stats_write_failed',
-                        message: retryError && retryError.message ? retryError.message : String(retryError),
-                        statsKeyCount,
-                        statsChars: statsValue.length,
-                        usageBeforeWrite,
-                        usageAfterFailure: getLocalStorageUsageReport()
-                    };
-                }
-            } else {
-                return {
-                    ok: false,
-                    reason: e && e.name ? e.name : 'stats_write_failed',
-                    message: e && e.message ? e.message : String(e),
-                    statsKeyCount,
-                    statsChars: statsValue.length,
-                    usageBeforeWrite,
-                    usageAfterFailure: getLocalStorageUsageReport()
-                };
-            }
+        const writeResult = await persistStatsToIndexedDBVerified(statsValue, {
+            source,
+            phase: `${source}-force-reinstall`,
+            backupTimestamp,
+            checkedKeys: options.checkedKeys || []
+        });
+        if (!writeResult.ok) {
+            restoredStats = statsBeforeRestore;
+            return { ...writeResult, statsKeyCount, statsChars: statsValue.length, usageBeforeWrite };
         }
-        restoredStats = cloneStatsObject(stats);
+        restoredStats = normalizeStatsObject(await readStatsDatabaseValue());
+        clearMkLocalRestoreMetadataForForceReinstall();
+        restoredStats = normalizeStatsObject(await readStatsDatabaseValue());
 
-        const keyVerification = verifyStatsKeySetExact(stats, localStorage.getItem(STORAGE_KEY_STATS), {
+        const keyVerification = verifyStatsKeySetExact(stats, restoredStats, {
             phase: `${source}-force-reinstall-after-write`,
             backupTimestamp,
             checkedKeys: options.checkedKeys || []
@@ -2829,13 +2911,6 @@
     }
 
     function getCanonicalLocalKeySetMismatch() {
-        if (!restoredStats) return false;
-        const localKeys = getStatsKeys(localStorage.getItem(STORAGE_KEY_STATS));
-        const canonicalKeys = getStatsKeys(restoredStats);
-        if (localKeys.length !== canonicalKeys.length) return true;
-        for (let i = 0; i < localKeys.length; i++) {
-            if (localKeys[i] !== canonicalKeys[i]) return true;
-        }
         return false;
     }
 
@@ -3445,7 +3520,7 @@
         return state;
     }
 
-    function applyRestoredState(payload = {}, source = 'restore', options = {}) {
+    async function applyRestoredState(payload = {}, source = 'restore', options = {}) {
         console.log('RESTORE_START', { source });
         const raw = payload.raw || payload;
         const incomingStats = payload.stats || getBackupStatsCandidate(raw);
@@ -3465,7 +3540,7 @@
         if(nextHistory && Object.keys(nextHistory).length) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(nextHistory));
         if(hasBackupField(raw, 'notesByCardUuid')) { const nextNotes = shouldMerge ? mergeNotesByUpdatedAt(getNotesByCardUuid(), incomingNotes) : incomingNotes; safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(nextNotes)); }
         if(nextStats && Object.keys(nextStats).length) {
-            const statsResult = restoreStatsWithFallback(JSON.stringify(nextStats), {
+            const statsResult = await restoreStatsWithFallback(JSON.stringify(nextStats), {
                 baselineStatsKeyCount: options.baselineStatsKeyCount,
                 backupTimestamp: payload.timestamp || null,
                 checkedKeys: options.checkedKeys || []
@@ -3679,9 +3754,9 @@
         return merged;
     }
 
-    function verifyRestoredStatsPayloadIntegrity(targetData = {}, phase = 'after-restore') {
+    async function verifyRestoredStatsPayloadIntegrity(targetData = {}, phase = 'after-restore') {
         const backupStats = getBackupStatsCandidate(targetData || {});
-        const verification = verifyStatsKeySetExact(backupStats, localStorage.getItem(STORAGE_KEY_STATS), {
+        const verification = verifyStatsKeySetExact(backupStats, await readStatsDatabaseValue(), {
             phase,
             backupTimestamp: targetData.timestamp || (targetData.metadata && targetData.metadata.timestamp) || null,
             checkedKeys: [
@@ -3836,11 +3911,11 @@
         return null;
     }
 
-    function applyStartupBootstrapPayload(candidate, context = {}) {
+    async function applyStartupBootstrapPayload(candidate, context = {}) {
         const payload = candidate.payload || {};
         const normalized = candidate.normalized || normalizeBackupPayload(payload, 'startup-bootstrap', candidate.record && candidate.record.ts);
         const stats = candidate.stats || normalized.stats || {};
-        const forceResult = forceReinstallNormalStatsBackup({
+        const forceResult = await forceReinstallNormalStatsBackup({
             raw: payload,
             normalized,
             timestamp: candidate.record && candidate.record.ts
@@ -3878,17 +3953,14 @@
         restoreStatsWriteGuard = null;
 
         try {
-            let writeResult = safeRestoreLocalStorage(STORAGE_KEY_STATS, statsValue);
-            if (!writeResult || (!writeResult.ok && (writeResult.message === 'QuotaExceededError' || isQuotaExceededError(writeResult.error)))) {
-                freeRestorableCacheStorage();
-                writeResult = safeRestoreLocalStorage(STORAGE_KEY_STATS, statsValue);
-            }
+            const writeResult = await persistStatsToIndexedDBVerified(statsValue, { source: 'startup-bootstrap-fallback', phase: 'startup-bootstrap-fallback' });
             if (!writeResult || !writeResult.ok) {
                 console.warn('[MK_STARTUP_BOOTSTRAP_FAILED]', { reasonCode: writeResult && writeResult.reason || 'stats_write_failed', writeResult });
                 return { ok: false, reasonCode: 'storage_verification_failed' };
             }
 
-            const keyVerification = verifyStatsKeySetExact(stats, localStorage.getItem(STORAGE_KEY_STATS), {
+            restoredStats = normalizeStatsObject(await readStatsDatabaseValue());
+            const keyVerification = verifyStatsKeySetExact(stats, restoredStats, {
                 phase: 'startup-bootstrap-after-stats-write',
                 backupTimestamp: candidate.record && candidate.record.ts || null,
                 checkedKeys: [
@@ -3963,7 +4035,7 @@
             console.warn('[MK_STARTUP_BOOTSTRAP_FAILED]', { reasonCode: 'no_normal_backup' });
             return { attempted: true, ok: false, reasonCode: 'no_normal_backup' };
         }
-        const result = applyStartupBootstrapPayload(candidate, state);
+        const result = await applyStartupBootstrapPayload(candidate, state);
         if (!result.ok) {
             showStartupBootstrapFailureOnce('초기 stats 불러오기 실패: 저장 검증 실패', result.reasonCode || 'storage_verification_failed');
             return { attempted: true, ok: false, reasonCode: result.reasonCode || 'storage_verification_failed' };
@@ -4120,7 +4192,7 @@
         el.innerHTML = items.map((item, index) => `<button class="recent-deck-item" onclick="openRecentDeck(${index})" title="${normalizeDeckPath(item.deck).replace(/__/g, ' › ')}">${formatRecentDeckPath(item.deck)}</button>`).join('');
     }
 
-    function restoreStatsWithFallback(value, options = {}) {
+    async function restoreStatsWithFallback(value, options = {}) {
         const incomingCount = getStatsKeyCount(value);
         const localCount = getLocalStatsKeyCount();
         const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
@@ -4136,9 +4208,10 @@
             console.warn('STATS_RESTORE_REJECTED', { incomingCount, baselineCount, reason });
             return { ok: false, rejected: true, reason, incomingCount, baselineCount };
         }
-        const verifyFullStatsWrite = (result, phase) => {
+        const verifyFullStatsWrite = async (result, phase) => {
             if (!result || !result.ok) return result;
-            const verification = verifyStatsKeySetExact(value, localStorage.getItem(STORAGE_KEY_STATS), {
+            const savedStats = await readStatsDatabaseValue();
+            const verification = verifyStatsKeySetExact(value, savedStats, {
                 phase,
                 backupTimestamp: options.backupTimestamp || null,
                 checkedKeys: options.checkedKeys || []
@@ -4159,12 +4232,12 @@
             return { ok: true, compacted: false, statsKeyCount: verification.localStatsKeyCount, verification };
         };
 
-        let result = verifyFullStatsWrite(safeRestoreLocalStorage(STORAGE_KEY_STATS, value), 'after-stats-write');
-        if (result.ok) return result;
-
-        freeRestorableCacheStorage();
-        result = verifyFullStatsWrite(safeRestoreLocalStorage(STORAGE_KEY_STATS, value), 'after-stats-write-retry');
-        if (result.ok) return { ...result, clearedCache: true };
+        const writeResult = await persistStatsToIndexedDBVerified(value, { source: options.source || 'restoreStatsWithFallback', phase: 'after-stats-write', backupTimestamp: options.backupTimestamp || null, checkedKeys: options.checkedKeys || [] });
+        let result = await verifyFullStatsWrite(writeResult, 'after-stats-write');
+        if (result.ok) {
+            restoredStats = normalizeStatsObject(await readStatsDatabaseValue());
+            return result;
+        }
 
         console.warn('STATS_SAFE_WRITE_FAILED_KEEP_OLD', { incomingCount, localCount, reason: 'full-stats-write-failed-no-compact' });
         return result;
@@ -4213,7 +4286,7 @@
     async function finishFirebaseRestore(targetData, listUI, message = '복구 완료') {
         try {
             await autoScanGitHub();
-            const statsIntegrity = verifyRestoredStatsPayloadIntegrity(targetData || {}, 'after-startup-scan');
+            const statsIntegrity = await verifyRestoredStatsPayloadIntegrity(targetData || {}, 'after-startup-scan');
             if (!statsIntegrity.ok) {
                 const errorMessage = `stats restore failed: ${statsIntegrity.reasonCode} (${statsIntegrity.localStatsKeyCount}/${statsIntegrity.payloadStatsKeyCount})`;
                 showToast(errorMessage, 'error');
@@ -4276,7 +4349,7 @@
 
             freeRestorableCacheStorage();
             const normalizedManualPayload = normalizeBackupPayload(targetData, 'manual-restore', ts);
-            const forceResult = forceReinstallNormalStatsBackup({
+            const forceResult = await forceReinstallNormalStatsBackup({
                 raw: targetData,
                 normalized: normalizedManualPayload,
                 timestamp: ts
@@ -4313,7 +4386,7 @@
             persistBackupPositionState(targetData, 'backup');
 
             const criticalResults = [
-                ['stats', restoreStatsWithFallback(JSON.stringify(getBackupStatsCandidate(targetData)))],
+                ['stats', await restoreStatsWithFallback(JSON.stringify(getBackupStatsCandidate(targetData)))],
                 ['targetRetention', safeRestoreLocalStorage('anki_target_retention', targetData.targetRetention)]
             ];
             applyTargetRetentionFromBackup(targetData.targetRetention, 'firebase');
@@ -4456,7 +4529,7 @@
                     attemptedAfterStatsKeyCount: Object.keys(savedStats || {}).length
                 });
             } else if (mergeCount > 0) {
-                safeRestoreLocalStorage(STORAGE_KEY_STATS, JSON.stringify(savedStats));
+                guardedStatsWrite(JSON.stringify(savedStats), 'autoScanGitHub:identityMigration');
                 console.log('[MK_STATS_STORE_REWRITE]', {
                     source: 'autoScanGitHub:identityMigration',
                     mergeCount,
@@ -5609,7 +5682,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             if(!isMkBackupRecord(data)) return false;
             const stats = getBackupStatsCandidate(data);
             const count = Object.keys(stats || {}).length;
-            const result = restoreStatsWithFallback(JSON.stringify(stats));
+            const result = await restoreStatsWithFallback(JSON.stringify(stats));
             if(result && result.ok) {
                 console.log('STATS_RESTORE_SOURCE', `cloud:${reason}:${ts}`);
                 console.log('STATS_RESTORE_COUNT', count);
