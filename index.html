@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.103 - IndexedDB stats storage)</title>
+<title>MK (v18.5.104 - 원래순 전체보기 토글)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -141,34 +141,6 @@
     .mem-btn.active { color: #ff8787; } .cmp-btn.active { color: #74c0fc; } .fav-btn.active { color: #ffd43b; }
     .num-btn.active { color: #66d9e8; } .date-btn.active { color: #b197fc; } .pen-btn.active { color: #ff6b6b; }
     .context-btn.active { color: #74c0fc; }
-    .context-menu {
-        position: absolute;
-        right: 20px;
-        top: 48px;
-        z-index: 9000;
-        min-width: 210px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        box-shadow: 0 10px 28px rgba(0,0,0,0.45);
-        padding: 8px;
-        display: none;
-    }
-    .context-menu.open { display: block; }
-    .context-menu-title { color: var(--text-sub); font-size: 0.78rem; font-weight: 700; padding: 6px 8px 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
-    .context-menu-item { width: 100%; border: none; background: transparent; color: var(--text); text-align: left; padding: 10px 8px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; }
-    .context-menu-item:active { background: var(--btn-hover); }
-    @media (max-width: 640px) {
-        .context-menu {
-            position: fixed;
-            left: 10px;
-            right: 10px;
-            top: auto;
-            bottom: calc(86px + env(safe-area-inset-bottom));
-            width: auto;
-        }
-    }
-
     .text-area { font-size: 1.05rem; line-height: 1.4; word-break: keep-all; white-space: normal !important; width: 100%; margin-bottom: 20px; color: var(--text) !important; position: relative; overflow-x: hidden; }
     .text-area * { color: inherit !important; max-width: 100% !important; box-sizing: border-box !important; }
     .text-area br { display: none !important; } 
@@ -403,7 +375,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.103 - IndexedDB stats storage)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.104 - 원래순 전체보기 토글)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -528,15 +500,11 @@
                                 <button class="icon-btn fav-btn" id="fav-btn" onclick="toggleTag(event, 'fav')">⭐</button>
                             </div>
                             <div class="icon-row">
-                                <button class="icon-btn context-btn" id="context-btn" onclick="toggleOriginalOrderContextMenu(event)" title="원래순 전체보기">📋</button>
+                                <button class="icon-btn context-btn" id="context-btn" onclick="toggleOriginalOrderContext(event)" title="원래순 전체보기">📋</button>
                                 <button class="icon-btn num-btn" id="num-btn" onclick="toggleTag(event, 'num')">🔢</button>
                                 <button class="icon-btn date-btn" id="date-btn" onclick="toggleTag(event, 'date')">📅</button>
                                 <button class="icon-btn pen-btn" id="pen-btn" onclick="toggleTag(event, 'pen')">🚨</button>
                             </div>
-                        </div>
-                        <div class="context-menu" id="original-order-context-menu">
-                            <div class="context-menu-title" id="original-order-context-title">현재 목록</div>
-                            <button class="context-menu-item" id="original-order-context-action" onclick="handleOriginalOrderContextAction(event)">↕ 원래순 전체보기</button>
                         </div>
                     </div>
 
@@ -647,7 +615,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.103 - IndexedDB stats storage';
+    const APP_VERSION = 'v18.5.104 - 원래순 전체보기 토글';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -5372,28 +5340,10 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         if(btn) btn.classList.toggle('active', !!(originalOrderContext && originalOrderContext.active));
     }
 
-    function closeOriginalOrderContextMenu() {
-        const menu = document.getElementById('original-order-context-menu');
-        if(menu) menu.classList.remove('open');
-    }
-
-    function toggleOriginalOrderContextMenu(event) {
-        if(event) event.stopPropagation();
-        const menu = document.getElementById('original-order-context-menu');
-        const title = document.getElementById('original-order-context-title');
-        const action = document.getElementById('original-order-context-action');
-        if(!menu || !title || !action) return;
-        const isContextMode = !!(originalOrderContext && originalOrderContext.active);
-        title.innerText = isContextMode ? '현재 상태: 원래순 전체보기' : `현재 목록: ${getOriginalOrderContextLabel()}`;
-        action.innerText = isContextMode ? '← 이전 목록으로 돌아가기' : '↕ 원래순 전체보기';
-        menu.classList.toggle('open');
-    }
-
-    function handleOriginalOrderContextAction(event) {
+    function toggleOriginalOrderContext(event) {
         if(event) event.stopPropagation();
         if(originalOrderContext && originalOrderContext.active) exitOriginalOrderContext();
         else enterOriginalOrderContext();
-        closeOriginalOrderContextMenu();
     }
 
     function enterOriginalOrderContext() {
@@ -5493,12 +5443,6 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             setTimeout(() => { const active = document.querySelector('.tree-deck.active, .tree-header.active'); if(active) active.scrollIntoView({block:'center', behavior:'smooth'}); }, 300);
         } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
     }
-
-    document.addEventListener('click', (event) => {
-        const target = event.target;
-        if(target && target.closest && (target.closest('#original-order-context-menu') || target.closest('#context-btn'))) return;
-        closeOriginalOrderContextMenu();
-    });
 
     function selectDeck(name, isRestore = false) { 
         currentDeckName = name;
