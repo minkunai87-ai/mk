@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.105 - 다른 가림 보기 토글)</title>
+<title>MK (v18.5.106 - 다른 가림 버튼 고정)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -251,38 +251,55 @@
     }
 
     .mk-io-other-masks-toggle {
-        position: absolute;
-        right: 8px;
-        bottom: 8px;
-        width: 28px;
-        height: 28px;
-        min-width: 28px;
-        min-height: 28px;
-        flex: 0 0 28px;
+        position: fixed;
+        right: 11px;
+        bottom: calc(var(--mk-footer-height, 0px) + 8px);
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        min-height: 32px;
+        flex: 0 0 32px;
         padding: 0;
-        border: 1px solid rgba(255,255,255,0.45);
+        border: 0;
         border-radius: 50%;
-        background: rgba(31,41,55,0.78);
-        color: #fff;
-        box-shadow: 0 2px 7px rgba(0,0,0,0.45);
+        background: transparent;
+        color: var(--text-sub);
+        box-shadow: none;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         touch-action: manipulation;
-        z-index: 6;
+        z-index: 20;
+    }
+
+    .mk-io-other-masks-toggle::before {
+        content: '';
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        border: 1px solid rgba(134,142,150,0.2);
+        border-radius: 50%;
+        background: rgba(31,41,55,0.16);
     }
 
     .mk-io-other-masks-toggle.active {
-        background: var(--primary);
-        border-color: rgba(255,255,255,0.85);
-        box-shadow: 0 0 0 2px rgba(51,154,240,0.28), 0 2px 7px rgba(0,0,0,0.45);
+        color: var(--primary);
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .mk-io-other-masks-toggle.active::before {
+        border-color: var(--primary);
+        background: rgba(51,154,240,0.12);
     }
 
     .mk-io-other-masks-toggle svg {
-        width: 17px;
-        height: 17px;
+        position: relative;
+        width: 16px;
+        height: 16px;
         pointer-events: none;
+        z-index: 1;
     }
 
     .mode-question .active-block > ul.children-list { display: none !important; }
@@ -414,7 +431,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.105 - 다른 가림 보기 토글)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.106 - 다른 가림 버튼 고정)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -654,10 +671,21 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.105 - 다른 가림 보기 토글';
+    const APP_VERSION = 'v18.5.106 - 다른 가림 버튼 고정';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
+
+    const footerElement = document.querySelector('.footer');
+    const syncFooterHeightCssVar = () => {
+        if (!footerElement) return;
+        document.documentElement.style.setProperty('--mk-footer-height', `${footerElement.getBoundingClientRect().height}px`);
+    };
+    syncFooterHeightCssVar();
+    if (footerElement && window.ResizeObserver) {
+        new ResizeObserver(syncFooterHeightCssVar).observe(footerElement);
+    }
+    window.addEventListener('resize', syncFooterHeightCssVar);
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
@@ -5028,11 +5056,12 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
     }
 
     function updateMkIOOtherMasksToggle(wrapper, targetMaskCount, totalMaskCount) {
-        let button = wrapper.querySelector('.mk-io-other-masks-toggle');
-        const hasOtherMasks = totalMaskCount > targetMaskCount;
+        let button = wrapper._mkIoOtherMasksToggle || null;
+        const hasOtherMasks = !!wrapper.closest('#question-section') && totalMaskCount > targetMaskCount;
 
         if (!hasOtherMasks) {
             if (button) button.remove();
+            wrapper._mkIoOtherMasksToggle = null;
             wrapper.classList.remove('mk-io-show-other-content');
             return;
         }
@@ -5052,7 +5081,8 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                 button.title = isActive ? '다른 가림 숨기기' : '다른 가림 보기';
                 button.setAttribute('aria-label', button.title);
             });
-            wrapper.appendChild(button);
+            wrapper._mkIoOtherMasksToggle = button;
+            document.body.appendChild(button);
         }
 
         const isActive = wrapper.classList.contains('mk-io-show-other-content');
@@ -5545,6 +5575,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
 
     function showCard() {
         resetZoom();
+        document.querySelectorAll('.mk-io-other-masks-toggle').forEach(button => button.remove());
         if (!activeDeck || activeDeck.length === 0) { document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub); text-align:center;'>카드가 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
         if(currentIndex >= activeDeck.length) currentIndex = 0;
         const card = activeDeck[currentIndex]; const stats = getStatsForCard(card);
