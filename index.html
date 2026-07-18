@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.106 - 다른 가림 버튼 고정)</title>
+<title>MK (v18.5.107 - 대형 덱 캐시 생략)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -431,7 +431,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.106 - 다른 가림 버튼 고정)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.107 - 대형 덱 캐시 생략)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -671,10 +671,20 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.106 - 다른 가림 버튼 고정';
+    const APP_VERSION = 'v18.5.107 - 대형 덱 캐시 생략';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
+    const startupDiagnosticEnabled = new URLSearchParams(window.location.search).get('startup_diag') === '1';
+
+    async function showStartupDiagnosticStage(message) {
+        if (!startupDiagnosticEnabled) return;
+        const loadingElement = document.getElementById('loading');
+        if (!loadingElement) return;
+        loadingElement.textContent = message;
+        loadingElement.style.display = 'block';
+        await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    }
 
     const footerElement = document.querySelector('.footer');
     const syncFooterHeightCssVar = () => {
@@ -1753,8 +1763,17 @@
         cleanupLegacyRecoverySnapshotsAndRestoreCache('startup');
         await initializeStatsStore();
         await autoScanGitHub(); 
+        await showStartupDiagnosticStage('6. Stats 복원 시작');
         await syncLatestFirebaseBackupOnStartup();
+        await showStartupDiagnosticStage('7. Stats 복원 완료');
         initApp(); 
+        await showStartupDiagnosticStage('8. 첫 카드 렌더링 완료');
+        if (startupDiagnosticEnabled) {
+            setTimeout(() => {
+                const loadingElement = document.getElementById('loading');
+                if (loadingElement) loadingElement.style.display = 'none';
+            }, 1500);
+        }
         scheduleDateDomMutationLog('after-startup-sync');
     };
 
@@ -4509,7 +4528,7 @@
             
             let newLibrary = {}; 
             
-            for (const file of files) {
+            for (const [fileIndex, file] of files.entries()) {
                 try {
                     let text = "";
                     if(ghRepoToken) {
@@ -4519,10 +4538,14 @@
                         const textRes = await fetch(file.download_url + '?t=' + Date.now()); text = await textRes.text();
                     }
                     
+                    if (fileIndex === files.length - 1) {
+                        await showStartupDiagnosticStage('1. 덱 다운로드 완료');
+                    }
                     text = text.replace(/\r\n/g, '\n'); 
                     processAnkiText(text, file.name, savedStats, newLibrary);
                 } catch(err) { console.error("File skip:", file.name); }
             }
+            await showStartupDiagnosticStage('2. 파싱 완료');
             
             let mergeCount = 0;
             for (let deckName in newLibrary) {
@@ -4580,6 +4603,7 @@
     });
 
     library = newLibrary;
+    await showStartupDiagnosticStage('3. library 구성 완료');
 
     console.log("MK_LIBRARY_ORDER", Object.fromEntries(
         Object.entries(library).map(([deckName, cards]) => [
@@ -4592,12 +4616,11 @@
         ])
     ));
 
-    try {
-        localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(library)); 
-    } catch(e) {
-        if (isQuotaExceededError(e)) console.warn('RESTORE_QUOTA_EXCEEDED key=' + STORAGE_KEY_LIBRARY, e);
-        console.warn('[MK Library Cache Save Skipped]', e);
-    }
+    await showStartupDiagnosticStage('4. library 캐시 저장 직전');
+    // 이 캐시는 현재 시작 복원 경로에서 읽히지 않는다. 전체 library 직렬화로 인한
+    // iPhone WebKit 순간 메모리 급증을 피하고, 파싱된 메모리 library를 그대로 사용한다.
+    console.info('[MK Library Cache Save Skipped] unused startup cache');
+    await showStartupDiagnosticStage('5. library 캐시 저장 생략');
     renderDeckTree(); 
 }
         } catch (e) { console.log(e); }
