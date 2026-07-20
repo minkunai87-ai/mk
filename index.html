@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.106 - 다른 가림 버튼 고정)</title>
+<title>MK (v18.5.107 - 아이폰 시작 메모리 절감)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -431,7 +431,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.106 - 다른 가림 버튼 고정)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.107 - 아이폰 시작 메모리 절감)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -671,7 +671,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.106 - 다른 가림 버튼 고정';
+    const APP_VERSION = 'v18.5.107 - 아이폰 시작 메모리 절감';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -4510,18 +4510,22 @@
             let newLibrary = {}; 
             
             for (const file of files) {
+                let text = null;
                 try {
-                    let text = "";
-                    if(ghRepoToken) {
-                        const fileRes = await fetch(file.url, { headers }); const fileJson = await fileRes.json();
-                        if(fileJson.content) text = decodeURIComponent(escape(window.atob(fileJson.content.replace(/\n/g, ''))));
-                    } else {
-                        const textRes = await fetch(file.download_url + '?t=' + Date.now()); text = await textRes.text();
+                    let textRes = null;
+                    try {
+                        textRes = await fetch(file.download_url + '?t=' + Date.now());
+                    } catch (downloadError) {}
+                    if (!textRes || !textRes.ok) {
+                        textRes = await fetch(file.url, {
+                            headers: { ...headers, 'Accept': 'application/vnd.github.raw+json' }
+                        });
                     }
-                    
-                    text = text.replace(/\r\n/g, '\n'); 
+                    if (!textRes.ok) throw new Error(`deck download failed: ${textRes.status}`);
+                    text = await textRes.text();
                     processAnkiText(text, file.name, savedStats, newLibrary);
                 } catch(err) { console.error("File skip:", file.name); }
+                finally { text = null; }
             }
             
             let mergeCount = 0;
@@ -4581,38 +4585,20 @@
 
     library = newLibrary;
 
-    console.log("MK_LIBRARY_ORDER", Object.fromEntries(
-        Object.entries(library).map(([deckName, cards]) => [
-            deckName,
-            cards.slice(0, 30).map(card => ({
-                id: card.id,
-                blockId: card.blockId,
-                sourceOrder: card.sourceOrder
-            }))
-        ])
-    ));
-
-    try {
-        localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(library)); 
-    } catch(e) {
-        if (isQuotaExceededError(e)) console.warn('RESTORE_QUOTA_EXCEEDED key=' + STORAGE_KEY_LIBRARY, e);
-        console.warn('[MK Library Cache Save Skipped]', e);
-    }
     renderDeckTree(); 
 }
         } catch (e) { console.log(e); }
         document.getElementById('loading').style.display = 'none';
     }
 
-    function parseAnkiRawData(str) {
-        const rows = []; let currentRow = []; let currentCell = ''; let cursor = 0; let inQuote = false;
+    function* iterateAnkiRows(str) {
+        let currentRow = []; let currentCell = ''; let cursor = 0; let inQuote = false;
         while (cursor < str.length) {
             const char = str[cursor]; const nextChar = str[cursor + 1];
             if (inQuote) { if (char === '"' && nextChar === '"') { currentCell += '"'; cursor += 2; } else if (char === '"') { inQuote = false; cursor++; } else { currentCell += char; cursor++; } }
-            else { if (char === '"') { inQuote = true; cursor++; } else if (char === '\t') { currentRow.push(currentCell); currentCell = ''; cursor++; } else if (char === '\n' || char === '\r') { if (char === '\r' && nextChar === '\n') cursor++; currentRow.push(currentCell); if (currentRow.length > 1 || (currentRow.length === 1 && currentRow[0].trim() !== '')) { rows.push(currentRow); } currentRow = []; currentCell = ''; cursor++; } else { currentCell += char; cursor++; } }
+            else { if (char === '"') { inQuote = true; cursor++; } else if (char === '\t') { currentRow.push(currentCell); currentCell = ''; cursor++; } else if (char === '\n' || char === '\r') { if (char === '\r' && nextChar === '\n') cursor++; currentRow.push(currentCell); if (currentRow.length > 1 || (currentRow.length === 1 && currentRow[0].trim() !== '')) { yield currentRow; } currentRow = []; currentCell = ''; cursor++; } else { currentCell += char; cursor++; } }
         }
-        if (currentRow.length > 0 || currentCell !== '') { currentRow.push(currentCell); rows.push(currentRow); }
-        return rows;
+        if (currentRow.length > 0 || currentCell !== '') { currentRow.push(currentCell); yield currentRow; }
     }
 
     function isUuid(value) {
@@ -4703,11 +4689,10 @@
     }
 
     function processAnkiText(text, filename, stats, targetLib) {
-        const rows = parseAnkiRawData(text);
         let rowOrder = 0;
         let deck = normalizeDeckPath(filename.replace('.txt', ''));
-        rows.forEach(fields => {
-            if (!fields || fields.length === 0 || fields[0].startsWith('#')) return; 
+        for (const fields of iterateAnkiRows(text)) {
+            if (!fields || fields.length === 0 || fields[0].startsWith('#')) continue;
             let deckNameInRow = null; let q = "", a = ""; let extra = "";
             let idString = ""; let blockId = ""; let breadcrumb = ""; let isLogseq = false;
             let graphName = "";
@@ -4756,7 +4741,7 @@
                 idString = q;
             }
 
-            if(!q) return;
+            if(!q) continue;
             const finalId = isLogseq ? resolveStableLogseqCardId(blockId, idString, q, stats) : resolveCardId(idString, stats);
             const sourceOrder = rowOrder++;
             
@@ -4771,7 +4756,7 @@
             }
 
             targetLib[deckNameInRow].push(cardObj);
-        });
+        }
     }
 
     function loadLocalLibrary() { 
