@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.108 - GitHub 덱 다운로드 복구)</title>
+<title>MK (v18.5.109 - GitHub 목록 API 제한 우회)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -431,7 +431,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.108 - GitHub 덱 다운로드 복구)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.109 - GitHub 목록 API 제한 우회)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -671,7 +671,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.108 - GitHub 덱 다운로드 복구';
+    const APP_VERSION = 'v18.5.109 - GitHub 목록 API 제한 우회';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -4484,26 +4484,54 @@
         } catch(e) {}
     }
 
+    function getManifestDeckFile(name) {
+        const normalizedName = String(name || '').trim();
+        if (!normalizedName || !normalizedName.endsWith('.txt') || normalizedName.includes('..') || /^[\\/]/.test(normalizedName)) return null;
+        const encodedPath = normalizedName.split('/').map(part => encodeURIComponent(part)).join('/');
+        return {
+            name: normalizedName.split('/').pop(),
+            download_url: new URL(encodedPath, document.baseURI).href,
+            fromManifest: true
+        };
+    }
+
+    async function loadDeckFileList(headers, fetchImpl = fetch) {
+        try {
+            const manifestUrl = new URL('decks-manifest.json', document.baseURI).href;
+            const manifestRes = await fetchImpl(manifestUrl, { cache: 'no-store' });
+            if (!manifestRes.ok) throw new Error(`manifest status ${manifestRes.status}`);
+            const manifest = await manifestRes.json();
+            if (!manifest || manifest.version !== 1 || !Array.isArray(manifest.files) || manifest.files.length === 0) throw new Error('invalid deck manifest');
+            const files = manifest.files.map(getManifestDeckFile);
+            if (files.some(file => !file)) throw new Error('invalid deck manifest file');
+            return { files, source: 'manifest', listResponse: null };
+        } catch (manifestError) {}
+
+        const listUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/`;
+        const listResponse = await fetchImpl(listUrl, { headers });
+        if (!listResponse.ok) return { files: null, source: 'github-api', listResponse };
+        const data = await listResponse.json();
+        if (!Array.isArray(data)) return { files: null, source: 'github-api', listResponse };
+        return { files: data.filter(file => file.name.endsWith('.txt')), source: 'github-api', listResponse };
+    }
+
     async function autoScanGitHub() {
         document.getElementById('loading').style.display = 'block';
         const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
         
         try {
-            const listUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/`;
-            const res = await fetch(listUrl, { headers });
+            const deckFileList = await loadDeckFileList(headers);
+            const res = deckFileList.listResponse;
             
-            if(!res.ok) { 
+            if(!deckFileList.files) {
                 document.getElementById('loading').style.display = 'none'; 
-                if (res.status === 403 || res.status === 429) {
+                if (res && (res.status === 403 || res.status === 429)) {
                     showToast("깃허브 접속 차단됨 (1시간). 토큰을 입력하세요!", "error");
                 }
                 return; 
             }
             
-            const data = await res.json();
-            if(!Array.isArray(data)) return;
-            
-            const files = data.filter(f => f.name.endsWith('.txt'));
+            const files = deckFileList.files;
             const savedStats = cloneStatsObject(getStatsStore());
             const savedStatsCountBeforeMigration = Object.keys(savedStats || {}).length;
             
@@ -4512,14 +4540,21 @@
             for (const file of files) {
                 let text = null;
                 try {
-                    if(ghRepoToken) {
+                    if(file.fromManifest) {
+                        const textRes = await fetch(file.download_url + '?t=' + Date.now());
+                        if (!textRes.ok) throw new Error(`deck download failed: ${textRes.status}`);
+                        text = await textRes.text();
+                    } else if(ghRepoToken) {
                         const fileRes = await fetch(file.url, { headers }); const fileJson = await fileRes.json();
                         if(fileJson.content) text = decodeURIComponent(escape(window.atob(fileJson.content.replace(/\n/g, ''))));
                     } else {
                         const textRes = await fetch(file.download_url + '?t=' + Date.now()); text = await textRes.text();
                     }
                     processAnkiText(text, file.name, savedStats, newLibrary);
-                } catch(err) { console.error("File skip:", file.name); }
+                } catch(err) {
+                    console.error("File skip:", file.name);
+                    showToast(`덱 다운로드 실패: ${file.name}`, "error");
+                }
                 finally { text = null; }
             }
             
