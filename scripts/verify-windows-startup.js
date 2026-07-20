@@ -8,6 +8,8 @@ const repoRoot = path.resolve(__dirname, '..');
 const profilePath = fs.mkdtempSync(path.join(os.tmpdir(), 'mk-edge-manifest-'));
 const edgePath = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const responses = [];
+const requests = [];
+const tokenPresent = process.argv.includes('--token-present');
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 const server = http.createServer((request, response) => {
@@ -55,6 +57,10 @@ async function main() {
                 const response = message.params.response;
                 if (/decks-manifest|\.txt(?:\?|$)|api\.github\.com/.test(response.url)) responses.push({ url: response.url, status: response.status });
             }
+            if (message.method === 'Network.requestWillBeSent' && /\.txt(?:\?|$)|api\.github\.com/.test(message.params.request.url)) {
+                const request = message.params.request;
+                requests.push({ url: request.url, hasAuthorization: !!(request.headers.Authorization || request.headers.authorization) });
+            }
         };
         const send = (method, params = {}) => new Promise(resolve => {
             const id = ++nextId;
@@ -63,13 +69,17 @@ async function main() {
         });
         await send('Network.enable');
         await send('Runtime.enable');
+        await send('Page.enable');
+        await send('Page.addScriptToEvaluateOnNewDocument', {
+            source: `${tokenPresent ? "localStorage.setItem('gh_repo_token','token-present-for-path-test');" : "localStorage.removeItem('gh_repo_token');"} window.__mkAtobCalls=0; var __mkOriginalAtob=window.atob; window.atob=(...args)=>{window.__mkAtobCalls++; return __mkOriginalAtob(...args);};`
+        });
         await send('Page.navigate', { url: 'http://127.0.0.1:8877/index.html' });
 
         let state;
         for (let attempt = 0; attempt < 60; attempt++) {
             await delay(500);
             const result = await send('Runtime.evaluate', {
-                expression: `JSON.stringify({counter:document.getElementById('card-counter')?.innerText,question:document.getElementById('question-section')?.innerText,loading:document.getElementById('loading')?.style.display,toast:document.getElementById('toast')?.innerText,deckCount:Object.keys(library||{}).length,cardCount:Object.values(library||{}).reduce((n,c)=>n+c.length,0)})`,
+                expression: `JSON.stringify({counter:document.getElementById('card-counter')?.innerText,question:document.getElementById('question-section')?.innerText,loading:document.getElementById('loading')?.style.display,toast:document.getElementById('toast')?.innerText,deckCount:Object.keys(library||{}).length,cardCount:Object.values(library||{}).reduce((n,c)=>n+c.length,0),atobCalls:window.__mkAtobCalls})`,
                 returnByValue: true
             });
             if (result.result && result.result.result && result.result.result.value) {
@@ -82,7 +92,9 @@ async function main() {
             throw new Error(`Windows startup verification failed: ${JSON.stringify({ state, responses })}`);
         }
         if (responses.some(response => response.url.includes('api.github.com'))) throw new Error('GitHub list API was called despite a valid manifest');
-        process.stdout.write(JSON.stringify({ state, responses }) + '\n');
+        if (state.atobCalls !== 0) throw new Error(`atob was called ${state.atobCalls} times`);
+        if (requests.some(request => request.hasAuthorization)) throw new Error('Authorization header was attached to a public deck request');
+        process.stdout.write(JSON.stringify({ tokenPresent, state, responses, requests }) + '\n');
     } finally {
         edge.kill();
         server.close();

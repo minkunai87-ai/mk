@@ -26,7 +26,7 @@ const context = {
     repoName: 'mk'
 };
 vm.createContext(context);
-vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('loadDeckFileList')}\nthis.loadDeckFileList = loadDeckFileList;`, context);
+vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('readRawDeckResponse')}\n${extractFunction('fetchDeckText')}\n${extractFunction('loadDeckFileList')}\nthis.loadDeckFileList = loadDeckFileList; this.fetchDeckText = fetchDeckText;`, context);
 
 (async () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'decks-manifest.json'), 'utf8'));
@@ -54,10 +54,33 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
     assert.equal(fallbackCalls.length, 2);
     assert.equal(fallbackResult.files.length, 2);
 
+    let textReads = 0;
+    const rawFallbackCalls = [];
+    const rawText = await context.fetchDeckText({
+        download_url: 'https://raw.example/deck.txt',
+        url: 'https://api.github.example/contents/deck.txt'
+    }, 'token-present', async (url, options = {}) => {
+        rawFallbackCalls.push({
+            url,
+            hasAuthorization: !!(options.headers && options.headers.Authorization),
+            accept: options.headers && options.headers.Accept
+        });
+        if (url.includes('raw.example')) return { ok: false, status: 404, headers: { get: () => 'text/plain' } };
+        return { ok: true, status: 200, headers: { get: () => 'text/plain; charset=utf-8' }, text: async () => { textReads++; return 'deck text'; } };
+    });
+    assert.equal(rawText, 'deck text');
+    assert.equal(textReads, 1);
+    assert.equal(rawFallbackCalls.length, 2);
+    assert.equal(rawFallbackCalls[0].hasAuthorization, false);
+    assert.equal(rawFallbackCalls[1].hasAuthorization, true);
+    assert.equal(rawFallbackCalls[1].accept, 'application/vnd.github.raw+json');
+
     process.stdout.write(JSON.stringify({
         manifestWithBlockedApi: 'passed',
         apiCallsWhenManifestSucceeds: 0,
         fallbackWhenManifestMissing: 'passed',
+        authenticatedRawFallback: 'passed',
+        responseTextReads: textReads,
         files: manifest.files
     }) + '\n');
 })().catch(error => {
