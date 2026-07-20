@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>MK v18.5.110 운영-origin 테스트 로딩</title>
+</head>
+<body style="margin:0;background:#121212;color:#e0e0e0;font-family:sans-serif">
+  <div id="status" style="padding:24px;text-align:center">v18.5.110 테스트판 로딩 중...</div>
+  <script>
+    (async () => {
+      const sourceUrl = 'https://raw.githubusercontent.com/minkunai87-ai/mk/068b71cca9c52c2cca5b43cb305fefaed41f5e37/index.html';
+      try {
+        const response = await fetch(sourceUrl, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`test source status ${response.status}`);
+        const html = (await response.text()).replace(/<head>/i, '<head><base href="../">');
+        document.open();
+        document.write(html);
+        document.close();
+      } catch (error) {
+        document.getElementById('status').textContent = '테스트판을 불러오지 못했습니다.';
+      }
+    })();
+  </script>
+</body>
+</html>
