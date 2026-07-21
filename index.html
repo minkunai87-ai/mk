@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.112 - 이미지 오클루전 확대 안정화)</title>
+<title>MK (v18.5.113 - iPhone 오클루전 저메모리 확대)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -150,6 +150,7 @@
     img { border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); max-width: 100% !important; height: auto !important; display: block; margin: 10px auto; image-rendering: auto !important; }
     .media-zoom-target { transition: transform 0.18s ease; will-change: transform; touch-action: manipulation; transform-origin: 0 0; backface-visibility: hidden; -webkit-transform: translateZ(0); }
     .media-zoom-target.is-media-zoomed { position: relative; z-index: 5; touch-action: none; transition: none; }
+    .mk-io-wrapper.media-zoom-target { transition: none; will-change: auto; backface-visibility: visible; -webkit-transform: none; }
     .mk-high-res-zoom-layer { position: fixed; top: 0; left: 0; z-index: 9997; pointer-events: none; transform-origin: 0 0; image-rendering: auto !important; max-width: none !important; height: auto !important; margin: 0 !important; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.45); will-change: transform; }
     .ios-statusbar-tap-zone { position: fixed; top: 0; left: 0; right: 0; height: max(32px, calc(env(safe-area-inset-top) + 8px)); z-index: 20001; background: transparent; pointer-events: auto; touch-action: manipulation; }
     
@@ -458,7 +459,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.112 - 이미지 오클루전 확대 안정화)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.113 - iPhone 오클루전 저메모리 확대)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -701,7 +702,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.112 - 이미지 오클루전 확대 안정화';
+    const APP_VERSION = 'v18.5.113 - iPhone 오클루전 저메모리 확대';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -727,7 +728,42 @@
     let previousCardIndex = null;
     let ioImageGroupCache = { cards: null, length: 0, groups: [], cardToGroup: new Map() };
     const ioImageLastVisitedCard = new Map();
-    const ioZoomDiagnostics = { logged: new Set(), lastAction: '', doubleTapRuns: 0, occlusionInitializations: 0, cardRenders: 0 };
+    const ioZoomDiagnostics = { logged: new Set(), lastAction: '', doubleTapRuns: 0, occlusionInitializations: 0, cardRenders: 0, activeObservers: 0 };
+    const IO_ZOOM_TRACE_KEY = 'mk_io_zoom_trace_v1';
+    function recordIOZoomTrace(stage, wrapper = null, state = null, input = '') {
+        try {
+            const card = activeDeck && activeDeck[currentIndex];
+            const img = wrapper && (wrapper.matches('img') ? wrapper : wrapper.querySelector('img'));
+            const records = JSON.parse(sessionStorage.getItem(IO_ZOOM_TRACE_KEY) || '[]');
+            records.push({
+                t: Date.now(),
+                card: String(card && card.id || ''),
+                index: Number(currentIndex) || 0,
+                group: String(getImageOcclusionGroupKey(card) || '').slice(0, 160),
+                size: img ? [Number(img.naturalWidth) || 0, Number(img.naturalHeight) || 0] : [0, 0],
+                stage: String(stage || '').slice(0, 48),
+                images: document.querySelectorAll('#question-section img, #answer-section img').length,
+                overlays: document.querySelectorAll('.mk-high-res-zoom-layer').length,
+                observers: ioZoomDiagnostics.activeObservers,
+                raf: state && state.raf ? 1 : 0,
+                timers: state && state.doubleTapUnlockTimer ? 1 : 0,
+                input: String(input || ioZoomDiagnostics.lastAction || '').slice(0, 32),
+                visibility: document.visibilityState
+            });
+            sessionStorage.setItem(IO_ZOOM_TRACE_KEY, JSON.stringify(records.slice(-30)));
+        } catch (_) {}
+    }
+    window.getMKIOZoomTrace = () => {
+        try { return JSON.parse(sessionStorage.getItem(IO_ZOOM_TRACE_KEY) || '[]'); }
+        catch (_) { return []; }
+    };
+    window.addEventListener('pagehide', () => recordIOZoomTrace('pagehide'));
+    window.addEventListener('pageshow', event => {
+        recordIOZoomTrace(event.persisted ? 'pageshow-bfcache' : 'pageshow');
+        const trace = window.getMKIOZoomTrace();
+        if(trace.some(item => item.stage === 'zoom-enter' || item.stage === 'zoom-apply')) console.info('MK_IO_ZOOM_TRACE', trace);
+    });
+    document.addEventListener('visibilitychange', () => recordIOZoomTrace(`visibility-${document.visibilityState}`));
     let originalOrderContext = null;
     let pendingStartupViewState = null;
     let restoredStats = null;
@@ -1162,6 +1198,10 @@
             if(wrapper._mkIoResizeObserver) {
                 wrapper._mkIoResizeObserver.disconnect();
                 wrapper._mkIoResizeObserver = null;
+                if(wrapper._mkIoObserverActive) {
+                    wrapper._mkIoObserverActive = false;
+                    ioZoomDiagnostics.activeObservers = Math.max(0, ioZoomDiagnostics.activeObservers - 1);
+                }
             }
             if(wrapper._mkIoResizeHandler) {
                 window.removeEventListener('resize', wrapper._mkIoResizeHandler);
@@ -1258,7 +1298,8 @@
                 overlayBaseScale: 1,
                 raf: null,
                 doubleTapLockedUntil: 0,
-                doubleTapUnlockTimer: null
+                doubleTapUnlockTimer: null,
+                suppressNativeGestureUntil: 0
             };
             const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
             const isFiniteNumber = value => Number.isFinite(Number(value));
@@ -1486,6 +1527,7 @@
                             wrapper.style.transform = `matrix(${state.scale}, 0, 0, ${state.scale}, ${state.translateX}, ${state.translateY})`;
                         }
                         wrapper.classList.toggle('is-media-zoomed', state.scale > 1);
+                        if(isIOZoomTarget) recordIOZoomTrace(state.scale > 1 ? 'zoom-apply' : 'zoom-reset', wrapper, state);
                         state.raf = null;
                     });
                 } catch (err) {
@@ -1656,6 +1698,8 @@
                             return;
                         }
                         lockDoubleTap(450);
+                        state.suppressNativeGestureUntil = now + 500;
+                        if(isIOZoomTarget) recordIOZoomTrace(state.scale > 1 ? 'zoom-exit' : 'zoom-enter', wrapper, state, 'touch-double-tap');
                         try {
                             if (!touch || !isFiniteNumber(touch.clientX) || !isFiniteNumber(touch.clientY)) {
                                 resetByError('INVALID_DOUBLE_TAP_TOUCH');
@@ -1718,6 +1762,7 @@
 
             wrapper.addEventListener('touchend', e => {
                 e.stopPropagation();
+                if (isIOZoomTarget && Date.now() < state.suppressNativeGestureUntil && e.cancelable) e.preventDefault();
                 state.startDist = 0;
                 if (e.touches.length === 1 && state.scale > 1) {
                     state.startX = e.touches[0].clientX;
@@ -5421,6 +5466,8 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                         observer.observe(img);
                         observer.observe(wrapper);
                         wrapper._mkIoResizeObserver = observer;
+                        wrapper._mkIoObserverActive = true;
+                        ioZoomDiagnostics.activeObservers += 1;
                     } else {
                         window.addEventListener('resize', renderMasks);
                         wrapper._mkIoResizeHandler = renderMasks;

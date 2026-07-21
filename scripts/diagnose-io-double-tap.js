@@ -83,7 +83,7 @@ async function main() {
             return {deck:entry.name,groups:groups.length,x:rect.left+rect.width/2,y:Math.min(rect.bottom-4,rect.top+Math.min(180,rect.height/2)),cardId:String(activeDeck[currentIndex].id),group:getImageOcclusionGroupKey(activeDeck[currentIndex]),image:wrapper.dataset.mkIoImage};
         })()`);
         await delay(1000);
-        const listenerCountsBefore = await evaluate(`({windowResize:(getEventListeners(window).resize||[]).length,touchstart:(getEventListeners(document.querySelector('#question-section .mk-io-wrapper')).touchstart||[]).length,resizeObservers:{...window.__mkResizeObserverDiagnostics}})`);
+        const listenerCountsBefore = await evaluate(`(() => { const wrapper=document.querySelector('#question-section .mk-io-wrapper'); return {windowResize:(getEventListeners(window).resize||[]).length,touchstart:(getEventListeners(wrapper).touchstart||[]).length,resizeObservers:{...window.__mkResizeObserverDiagnostics},images:document.images.length,ioImages:wrapper.querySelectorAll('img').length,overlays:document.querySelectorAll('.mk-high-res-zoom-layer').length,nodes:document.querySelectorAll('*').length,trace:window.getMKIOZoomTrace().length}; })()`);
         const doubleTap = async () => {
             for (let tap = 0; tap < 2; tap++) {
                 await evaluate(`(() => {
@@ -96,7 +96,7 @@ async function main() {
                 await delay(70);
             }
         };
-        for (let i = 0; i < 20; i++) { await doubleTap(); await delay(480); }
+        for (let i = 0; i < 30; i++) { await doubleTap(); await delay(480); }
         const sameImageDoubleTapStarts = consoleEvents.filter(text => text.includes('DOUBLE_TAP_START')).length;
         const afterTaps = await evaluate(`({scale:document.querySelector('#question-section .mk-io-wrapper')._mediaZoomState.scale,touchstart:(getEventListeners(document.querySelector('#question-section .mk-io-wrapper')).touchstart||[]).length})`);
         for (let i = 0; i < 12; i++) {
@@ -109,6 +109,14 @@ async function main() {
         await delay(100);
         await doubleTap();
         await delay(480);
+        await send('Emulation.setDeviceMetricsOverride', {width:844,height:390,deviceScaleFactor:3,mobile:true});
+        await evaluate(`window.dispatchEvent(new Event('orientationchange')); window.dispatchEvent(new Event('resize'));`);
+        await delay(150);
+        await doubleTap();
+        await delay(480);
+        await send('Emulation.setDeviceMetricsOverride', {width:390,height:844,deviceScaleFactor:3,mobile:true});
+        await evaluate(`document.dispatchEvent(new Event('visibilitychange'));`);
+        await delay(100);
         await evaluate(`document.getElementById('scroll-area').scrollTop=800; const toggle=document.querySelector('.mk-io-other-masks-toggle'); if(toggle&&!toggle.classList.contains('active'))toggle.click(); window.dispatchEvent(new Event('resize'));`);
         await doubleTap();
         await delay(480);
@@ -116,7 +124,7 @@ async function main() {
         await delay(100);
         await doubleTap();
         await delay(1000);
-        const listenerCountsAfter = await evaluate(`({windowResize:(getEventListeners(window).resize||[]).length,touchstart:(getEventListeners(document.querySelector('#question-section .mk-io-wrapper')).touchstart||[]).length,resizeObservers:{...window.__mkResizeObserverDiagnostics},activeCard:String(activeDeck[currentIndex].id),activeImage:document.querySelector('#question-section .mk-io-wrapper')?.dataset.mkIoImage||'',domMatches:document.querySelector('#question-section .mk-io-wrapper')?.dataset.mkIoImage===getImageOcclusionGroupKey(activeDeck[currentIndex]).replace(/^image:/,'')})`);
+        const listenerCountsAfter = await evaluate(`(() => { const wrapper=document.querySelector('#question-section .mk-io-wrapper'); return {windowResize:(getEventListeners(window).resize||[]).length,touchstart:(getEventListeners(wrapper).touchstart||[]).length,resizeObservers:{...window.__mkResizeObserverDiagnostics},activeObservers:ioZoomDiagnostics.activeObservers,activeCard:String(activeDeck[currentIndex].id),activeImage:wrapper?.dataset.mkIoImage||'',domMatches:wrapper?.dataset.mkIoImage===getImageOcclusionGroupKey(activeDeck[currentIndex]).replace(/^image:/,''),images:document.images.length,ioImages:wrapper.querySelectorAll('img').length,overlays:document.querySelectorAll('.mk-high-res-zoom-layer').length,nodes:document.querySelectorAll('*').length,raf:wrapper._mediaZoomState.raf?1:0,timers:wrapper._mediaZoomState.doubleTapUnlockTimer?1:0,trace:window.getMKIOZoomTrace()}; })()`);
         await evaluate(`(() => { const wrapper=document.querySelector('#question-section .mk-io-wrapper'); const error=new Error('diagnostic-dedupe-test'); reportIOZoomError(error,'DIAGNOSTIC_TEST',wrapper,wrapper._mediaZoomState); reportIOZoomError(error,'DIAGNOSTIC_TEST',wrapper,wrapper._mediaZoomState); })()`);
         await delay(100);
         const metrics = await send('Performance.getMetrics');
