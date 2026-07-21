@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.110 - 필터·정렬 성능 최적화)</title>
+<title>MK (v18.5.111 - 이미지 단위 이동)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -302,6 +302,33 @@
         z-index: 1;
     }
 
+    .mk-io-image-nav {
+        position: fixed;
+        top: calc(env(safe-area-inset-top) + 72px);
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        border: 1px solid rgba(134,142,150,0.35);
+        border-radius: 9px;
+        background: rgba(31,41,55,0.72);
+        color: var(--text);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.28);
+        backdrop-filter: blur(6px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        line-height: 1;
+        cursor: pointer;
+        touch-action: manipulation;
+        z-index: 19;
+    }
+    .mk-io-image-nav.visible { display: flex; }
+    .mk-io-image-nav.previous { left: 14px; }
+    .mk-io-image-nav.next { right: 14px; }
+    .mk-io-image-nav:disabled { opacity: 0.3; cursor: default; }
+    .mk-io-image-nav:not(:disabled):active { transform: scale(0.94); background: rgba(51,154,240,0.3); }
+
     .mode-question .active-block > ul.children-list { display: none !important; }
     .mode-answer .active-block > ul.children-list { display: block !important; }
 
@@ -431,7 +458,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.110 - 필터·정렬 성능 최적화)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.111 - 이미지 단위 이동)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -535,6 +562,9 @@
             <div class="filter-chip" id="filter-pen" onclick="setFilterMode('pen')">🚨 긴급</div>
         </div>
     </div>
+
+    <button type="button" id="mk-io-image-prev" class="mk-io-image-nav previous" onclick="jumpToAdjacentIOImage(-1)" aria-label="이전 이미지" title="이전 이미지">‹▧</button>
+    <button type="button" id="mk-io-image-next" class="mk-io-image-nav next" onclick="jumpToAdjacentIOImage(1)" aria-label="다음 이미지" title="다음 이미지">▧›</button>
 
     <div class="main-container">
         <div class="card">
@@ -671,7 +701,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.110 - 필터·정렬 성능 최적화';
+    const APP_VERSION = 'v18.5.111 - 이미지 단위 이동';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -686,10 +716,17 @@
         new ResizeObserver(syncFooterHeightCssVar).observe(footerElement);
     }
     window.addEventListener('resize', syncFooterHeightCssVar);
+    const headerElement = document.querySelector('.header-container');
+    if (headerElement && window.ResizeObserver) {
+        new ResizeObserver(syncIOImageNavigationPosition).observe(headerElement);
+    }
+    window.addEventListener('resize', syncIOImageNavigationPosition);
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
     let previousCardIndex = null;
+    let ioImageGroupCache = { cards: null, length: 0, groups: [], cardToGroup: new Map() };
+    const ioImageLastVisitedCard = new Map();
     let originalOrderContext = null;
     let pendingStartupViewState = null;
     let restoredStats = null;
@@ -5651,9 +5688,100 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         applyFilterAndSort(isRestore); if(!isRestore) { persistCurrentViewState(true); toggleMenu(false); }
     }
 
+    function getImageOcclusionGroupKey(card) {
+        if(!card) return '';
+        const readImageKey = value => {
+            const match = /data-mk-io-image\s*=\s*(?:"([^"]+)"|'([^']+)')/i.exec(String(value || ''));
+            return match ? String(match[1] || match[2] || '').trim() : '';
+        };
+        const imageKey = readImageKey(card.q) || readImageKey(card.a);
+        if(imageKey) return `image:${imageKey}`;
+        const sourceMatch = /^(.+)__io_\d+$/i.exec(String(card.id || ''));
+        return sourceMatch ? `source:${sourceMatch[1]}` : '';
+    }
+
+    function getIOImageGroups() {
+        if(ioImageGroupCache.cards === activeDeck && ioImageGroupCache.length === activeDeck.length) return ioImageGroupCache;
+        const groups = [];
+        const groupByKey = new Map();
+        const cardToGroup = new Map();
+        activeDeck.forEach((card, cardIndex) => {
+            const key = getImageOcclusionGroupKey(card);
+            if(!key) return;
+            let groupIndex = groupByKey.get(key);
+            if(groupIndex === undefined) {
+                groupIndex = groups.length;
+                groupByKey.set(key, groupIndex);
+                groups.push({ key, cardIndices: [] });
+            }
+            groups[groupIndex].cardIndices.push(cardIndex);
+            cardToGroup.set(cardIndex, groupIndex);
+        });
+        ioImageGroupCache = { cards: activeDeck, length: activeDeck.length, groups, cardToGroup };
+        return ioImageGroupCache;
+    }
+
+    function getIOImageVisitKey(groupKey) {
+        return `${currentDeckName || ''}\n${groupKey}`;
+    }
+
+    function syncIOImageNavigationPosition() {
+        const header = document.querySelector('.header-container');
+        if(!header) return;
+        const top = Math.round(header.getBoundingClientRect().bottom + 8);
+        document.querySelectorAll('.mk-io-image-nav').forEach(button => {
+            button.style.top = `${top}px`;
+        });
+    }
+
+    function updateIOImageNavigation(card) {
+        const previousButton = document.getElementById('mk-io-image-prev');
+        const nextButton = document.getElementById('mk-io-image-next');
+        if(!previousButton || !nextButton) return;
+        const cache = getIOImageGroups();
+        const groupIndex = cache.cardToGroup.get(currentIndex);
+        const isIOCard = !!card && groupIndex !== undefined;
+        previousButton.classList.toggle('visible', isIOCard);
+        nextButton.classList.toggle('visible', isIOCard);
+        if(!isIOCard) return;
+        const group = cache.groups[groupIndex];
+        ioImageLastVisitedCard.set(getIOImageVisitKey(group.key), String(card.id || ''));
+        previousButton.disabled = groupIndex === 0;
+        nextButton.disabled = groupIndex === cache.groups.length - 1;
+        syncIOImageNavigationPosition();
+    }
+
+    function jumpToAdjacentIOImage(direction) {
+        if(direction !== -1 && direction !== 1) return;
+        const cache = getIOImageGroups();
+        const currentGroupIndex = cache.cardToGroup.get(currentIndex);
+        if(currentGroupIndex === undefined) return;
+        const targetGroupIndex = currentGroupIndex + direction;
+        if(targetGroupIndex < 0 || targetGroupIndex >= cache.groups.length) return;
+        const currentGroup = cache.groups[currentGroupIndex];
+        const targetGroup = cache.groups[targetGroupIndex];
+        const currentCard = activeDeck[currentIndex];
+        if(currentCard) ioImageLastVisitedCard.set(getIOImageVisitKey(currentGroup.key), String(currentCard.id || ''));
+        let targetIndex = targetGroup.cardIndices[0];
+        if(direction < 0) {
+            const lastVisitedCardId = ioImageLastVisitedCard.get(getIOImageVisitKey(targetGroup.key));
+            if(lastVisitedCardId) {
+                const visitedIndex = targetGroup.cardIndices.find(index => String(activeDeck[index] && activeDeck[index].id || '') === lastVisitedCardId);
+                if(visitedIndex !== undefined) targetIndex = visitedIndex;
+            }
+        }
+        if(targetIndex === undefined || !activeDeck[targetIndex]) return;
+        previousCardIndex = currentIndex;
+        currentIndex = targetIndex;
+        saveCurrentProgress();
+        showCard();
+        scheduleDateDomMutationLog('after-card-navigation');
+    }
+
     function showCard() {
         resetZoom();
         document.querySelectorAll('.mk-io-other-masks-toggle').forEach(button => button.remove());
+        if (!activeDeck || activeDeck.length === 0) updateIOImageNavigation(null);
         if (!activeDeck || activeDeck.length === 0) { document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub); text-align:center;'>카드가 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
         if(currentIndex >= activeDeck.length) currentIndex = 0;
         const card = activeDeck[currentIndex]; const stats = getStatsForCard(card);
@@ -5693,6 +5821,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         renderMkImageOcclusions(aSection);
         bindImageZoomHandlers(qSection);
         bindImageZoomHandlers(aSection);
+        updateIOImageNavigation(card);
         scheduleDateDomMutationLog('after-final-dom-update');
     }
 
