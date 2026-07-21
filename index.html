@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.109 - GitHub 목록 API 제한 우회)</title>
+<title>MK (v18.5.110 - 필터·정렬 성능 최적화)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -431,7 +431,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.109 - GitHub 목록 API 제한 우회)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.110 - 필터·정렬 성능 최적화)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -671,7 +671,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.109 - GitHub 목록 API 제한 우회';
+    const APP_VERSION = 'v18.5.110 - 필터·정렬 성능 최적화';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -693,6 +693,12 @@
     let originalOrderContext = null;
     let pendingStartupViewState = null;
     let restoredStats = null;
+    const filterSortStatsMatchCache = new Map();
+    let filterSortStatsMatchCacheStore = null;
+    let filterSortStatsMatchCacheVersion = null;
+    let filterSortReviewHistoryVersion = null;
+    let filterSortReviewHistoryCache = {};
+    let filterSortFilteredCache = { originalDeck: null, stats: null, statsVersion: '', filterKey: '', today: 0, cards: null };
     let restoreStatsWriteGuard = null;
     let isBootstrapRestoring = false;
     let bootstrapAllowedStatsWriteValue = null;
@@ -5324,57 +5330,114 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
     function applyFilterAndSort(isRestore = false) {
         if(!currentDeckName) return;
         const stats = getStatsStore();
-        const statsMatchCache = new Map();
+        const statsVersion = localStorage.getItem(STORAGE_KEY_LOCAL_DATA_UPDATED_AT) || '';
+        if(filterSortStatsMatchCacheStore !== stats || filterSortStatsMatchCacheVersion !== statsVersion) {
+            filterSortStatsMatchCache.clear();
+            filterSortStatsMatchCacheStore = stats;
+            filterSortStatsMatchCacheVersion = statsVersion;
+        }
         const getStatsMatchForSort = (card) => {
             const cacheKey = String(card && card.id || '');
-            if(!statsMatchCache.has(cacheKey)) {
-                const found = findStatsForCard(card, stats, cacheKey);
-                if (found && found.stat) normalizeReviewStatInPlace(found.stat, found.key);
-                statsMatchCache.set(cacheKey, found && found.stat ? found : { key: cacheKey, stat: {} });
+            if(filterSortStatsMatchCache.has(cacheKey)) return filterSortStatsMatchCache.get(cacheKey);
+            const found = cacheKey && stats && stats[cacheKey]
+                ? { key: cacheKey, stat: stats[cacheKey] }
+                : findStatsForCard(card, stats, cacheKey);
+            const match = found && found.stat ? found : { key: cacheKey, stat: {} };
+            if (found && found.stat) {
+                normalizeReviewStatInPlace(found.stat, found.key);
             }
-            return statsMatchCache.get(cacheKey);
+            filterSortStatsMatchCache.set(cacheKey, match);
+            return match;
         };
         const getResolvedStatForCard = (card) => {
             const match = getStatsMatchForSort(card);
             return (match && match.stat) || {};
         };
         const getResolvedStatsKeyForCard = (card) => getStatsMatchForSort(card).key || String(card && card.id || '');
-        let filtered = [...originalDeck];
         const selectedFilters = getActiveFilterModes();
-        if(selectedFilters.length) {
-            const today = new Date();
-            today.setHours(0,0,0,0);
-            filtered = filtered.filter(c => selectedFilters.some(mode => {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const filterKey = selectedFilters.join('+') || 'default';
+        const canReuseFiltered = filterSortFilteredCache.originalDeck === originalDeck &&
+            filterSortFilteredCache.stats === stats && filterSortFilteredCache.statsVersion === statsVersion &&
+            filterSortFilteredCache.filterKey === filterKey &&
+            filterSortFilteredCache.today === today.getTime() && Array.isArray(filterSortFilteredCache.cards);
+        let filterResult;
+        if(canReuseFiltered) {
+            filterResult = filterSortFilteredCache.cards;
+        } else {
+            filterResult = selectedFilters.length ? originalDeck.filter(c => selectedFilters.some(mode => {
                 const stat = getResolvedStatForCard(c);
                 if(mode === 'due') return stat.dueDate && stat.dueDate <= today.getTime();
                 return !!stat[mode];
-            }));
+            })) : originalDeck;
+            filterSortFilteredCache = { originalDeck, stats, statsVersion, filterKey, today: today.getTime(), cards: filterResult };
         }
+        const filtered = filterResult.slice();
         if (isRestore) {
             const targetCardId = getStartupTargetCardId(getStartupViewState());
             const targetCard = originalDeck.find(c => String(c.id) === String(targetCardId));
             if (targetCard && !filtered.some(c => String(c.id) === String(targetCardId))) filtered.unshift(targetCard);
         }
 
-        const reviewHistory = JSON.parse(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY) || '{}');
+        const getReviewHistoryForSort = () => {
+            if(filterSortReviewHistoryVersion !== statsVersion) {
+                filterSortReviewHistoryCache = JSON.parse(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY) || '{}');
+                filterSortReviewHistoryVersion = statsVersion;
+            }
+            return filterSortReviewHistoryCache;
+        };
         const originalOrder = new Map();
         originalDeck.forEach((card, idx) => originalOrder.set(String(card.id), idx));
         const getOriginalOrder = (card) => originalOrder.has(String(card.id)) ? originalOrder.get(String(card.id)) : 999999;
+        const sortMetaCache = new WeakMap();
+        const getSortMeta = (card) => {
+            let meta = sortMetaCache.get(card);
+            if(!meta) {
+                const match = getStatsMatchForSort(card);
+                meta = { stat: (match && match.stat) || {}, statsKey: (match && match.key) || String(card && card.id || '') };
+                sortMetaCache.set(card, meta);
+            }
+            return meta;
+        };
+        const getAccuracyForSort = (card) => {
+            const meta = getSortMeta(card);
+            if(!meta.accuracy) {
+                const reviewHistory = getReviewHistoryForSort();
+                const items = Array.isArray(reviewHistory[String(meta.statsKey)]) ? reviewHistory[String(meta.statsKey)] : [];
+                meta.historyLength = items.length;
+                meta.accuracy = items.length ? items.reduce((acc, item) => {
+                    if (isConfirmHistoryItem(item)) return acc;
+                    const score = Number(item.score);
+                    acc.total += 1;
+                    if (score === 2) acc.correct += 1;
+                    else if (score === 1) acc.correct += 0.5;
+                    return acc;
+                }, { correct: 0, total: 0 }) : {
+                    correct: Number(meta.stat.correct) || 0,
+                    total: Number(meta.stat.total) || 0
+                };
+            }
+            return meta.accuracy;
+        };
         const isUnlearned = (card) => {
-            const stat = getResolvedStatForCard(card);
-            const statsKey = getResolvedStatsKeyForCard(card);
-            const accuracy = getAccuracyStats(statsKey, stat);
-            const history = reviewHistory[String(statsKey)];
-            return accuracy.total === 0 || !Array.isArray(history) || history.length === 0;
+            const meta = getSortMeta(card);
+            const accuracy = getAccuracyForSort(card);
+            return accuracy.total === 0 || meta.historyLength === 0;
         };
         const getWrongRate = (card) => {
-            const stat = getResolvedStatForCard(card);
-            const accuracy = getAccuracyStats(getResolvedStatsKeyForCard(card), stat);
+            const accuracy = getAccuracyForSort(card);
             return accuracy.total === 0 ? 1 : (accuracy.correct / accuracy.total);
         };
         const getLastSeen = (card) => {
-            const s = getResolvedStatForCard(card);
-            return Number(s.lastDate) || 0;
+            const meta = getSortMeta(card);
+            if(meta.lastSeen === undefined) meta.lastSeen = Number(meta.stat.lastDate) || 0;
+            return meta.lastSeen;
+        };
+        const getNumberForSort = (card) => {
+            const meta = getSortMeta(card);
+            if(meta.number === undefined) meta.number = extractNumber(card);
+            return meta.number;
         };
         const compareByMode = (a, b, mode) => {
             if(mode === 'unlearned') {
@@ -5385,7 +5448,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                 const diff = getWrongRate(a) - getWrongRate(b);
                 if(diff !== 0) return diff;
             } else if(mode === 'number') {
-                const diff = extractNumber(a) - extractNumber(b);
+                const diff = getNumberForSort(a) - getNumberForSort(b);
                 if(diff !== 0) return diff;
             } else if(mode === 'oldest') {
                 const aSeen = getLastSeen(a), bSeen = getLastSeen(b);
@@ -5419,7 +5482,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         activeDeck = filtered;
         try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {}
         currentIndex = resolveIndexForDeck(isRestore);
-        updateFilterStatusUI(); renderDeckTree(); showCard();
+        updateFilterStatusUI(); showCard();
     }
 
     function updateFilterStatusUI() {
@@ -6240,11 +6303,9 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             currentCardIndex: currentIndex,
             currentCardIndexInSelectedDeck: currentIndex,
             cardId: getCurrentCardId() || localStorage.getItem(STORAGE_KEY_CURRENT_CARD_ID) || '',
-            activeIds: activeDeck.map(c => String(c.id)),
             searchQuery: document.getElementById('search-input') ? document.getElementById('search-input').value.toLowerCase() : (localStorage.getItem('anki_search_query') || ''),
             snapshotVersion: APP_VERSION
         });
-        state.activeIds = activeDeck.map(c => String(c.id));
         if (includeCards) {
             state.currentCardUuid = state.cardId;
         }
