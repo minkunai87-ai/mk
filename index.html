@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.116 - 오늘 새로 baseline 복구)</title>
+<title>MK (v18.5.117 - 기존 New 추천 확장)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -477,7 +477,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.116 - 오늘 새로 baseline 복구)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.117 - 기존 New 추천 확장)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -752,7 +752,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.116 - 오늘 새로 baseline 복구';
+    const APP_VERSION = 'v18.5.117 - 기존 New 추천 확장';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -5879,9 +5879,19 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
     }
 
     function hasActualReviewRecord(stat, history) {
-        return (Array.isArray(history) && history.length > 0) ||
+        return (Array.isArray(history) && history.some(item =>
+                !isConfirmHistoryItem(item) && [0, 1, 2].includes(Number(item && item.score))
+            )) ||
             Number(stat && stat.total) > 0 ||
             Number(stat && stat.fsrs && stat.fsrs.reps) > 0;
+    }
+
+    function isExistingNewCardCandidate(record, stat, history) {
+        return !!(record && record.baseline) && !hasActualReviewRecord(stat, history);
+    }
+
+    function isPostBaselineNewUuid(record) {
+        return !!(record && !record.baseline);
     }
 
     function getTodayNewRecommendedCount(candidateCount, dueCount, overdue72HoursCount) {
@@ -5935,6 +5945,19 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         });
         let dueCount = 0;
         let overdue72HoursCount = 0;
+        const diagnostics = {
+            totalCards: selectedDeckCards.length,
+            actuallyEvaluatedCards: 0,
+            existingBaselineNewCards: 0,
+            postBaselineNewUuids: 0,
+            under6HoursNewUuids: 0,
+            todayEssentialExcluded: 0,
+            completedExcluded: 0,
+            hiddenOrExcluded: 0,
+            filterExcluded: 0,
+            missingUuidOrRegistry: 0,
+            finalTodayNewCandidates: 0
+        };
         const candidates = [];
         selectedDeckCards.forEach((card, originalIndex) => {
             const id = getTodayEssentialCardId(card);
@@ -5942,29 +5965,71 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             const meta = metaById.get(id) || { stat: {}, history: [] };
             const stat = meta.stat;
             if(stat.dueDate && Number(stat.dueDate) <= todayStart) dueCount++;
-            if(!record || record.baseline || completed[id]) return;
+            if(!id || !record) {
+                diagnostics.missingUuidOrRegistry++;
+                return;
+            }
+            if(hasActualReviewRecord(stat, meta.history)) {
+                diagnostics.actuallyEvaluatedCards++;
+                return;
+            }
+            const isExistingNew = isExistingNewCardCandidate(record, stat, meta.history);
+            const isPostBaselineNew = isPostBaselineNewUuid(record);
+            if(isExistingNew) diagnostics.existingBaselineNewCards++;
+            if(isPostBaselineNew) diagnostics.postBaselineNewUuids++;
+            if(!isExistingNew && !isPostBaselineNew) return;
+            if(completed[id]) {
+                diagnostics.completedExcluded++;
+                return;
+            }
+            if(stat.hidden || stat.excluded || card.hidden || card.excluded) {
+                diagnostics.hiddenOrExcluded++;
+                return;
+            }
+            if(query && !String(card.q || '').toLowerCase().includes(query) && !String(card.a || '').toLowerCase().includes(query)) {
+                diagnostics.filterExcluded++;
+                return;
+            }
+            if(activeFilters.length && !activeFilters.some(mode => !!stat[mode])) {
+                diagnostics.filterExcluded++;
+                return;
+            }
+            if(stat.dueDate && Number(stat.dueDate) <= todayStart) {
+                diagnostics.todayEssentialExcluded++;
+                return;
+            }
             const ageMs = now - Number(record.firstSeenAt || now);
-            if(ageMs < TODAY_NEW_MIN_AGE_MS || hasActualReviewRecord(stat, meta.history)) return;
-            if(stat.hidden || stat.excluded || card.hidden || card.excluded) return;
-            if(stat.dueDate && Number(stat.dueDate) <= todayStart) return;
-            if(query && !String(card.q || '').toLowerCase().includes(query) && !String(card.a || '').toLowerCase().includes(query)) return;
-            if(activeFilters.length && !activeFilters.some(mode => !!stat[mode])) return;
-            if(ageMs >= TODAY_NEW_PRIORITY_72H_MS) overdue72HoursCount++;
+            if(isPostBaselineNew && ageMs < TODAY_NEW_MIN_AGE_MS) {
+                diagnostics.under6HoursNewUuids++;
+                return;
+            }
+            if(isPostBaselineNew && ageMs >= TODAY_NEW_PRIORITY_72H_MS) overdue72HoursCount++;
             const group = getTodayNewSourceGroup(card);
             const groupStats = groupAccuracy.get(group) || { correct: 0, total: 0 };
             const groupWrongRate = groupStats.total ? 1 - (groupStats.correct / groupStats.total) : 0;
-            const ageDays = ageMs / 86400000;
-            const ageTierScore = ageMs >= TODAY_NEW_PRIORITY_72H_MS ? 60 :
-                (ageMs >= TODAY_NEW_PRIORITY_48H_MS ? 40 : (ageMs >= TODAY_NEW_PRIORITY_24H_MS ? 20 : 0));
             candidates.push({
                 card,
                 originalIndex,
                 deck: deckLookup.get(id) || currentDeckName || '',
                 group,
-                score: ageDays + ageTierScore + (stat.fav ? 30 : 0) + groupWrongRate * 20
+                isPostBaselineNew,
+                ageMs,
+                isFavorite: !!stat.fav,
+                sourcePositionPriority: selectedDeckCards.length - originalIndex,
+                groupWrongRate
             });
         });
-        candidates.sort((a, b) => (b.score - a.score) || (a.originalIndex - b.originalIndex));
+        const compareTodayNewPriority = (a, b) =>
+            (Number(b.isPostBaselineNew) - Number(a.isPostBaselineNew)) ||
+            (a.isPostBaselineNew
+                ? ((b.ageMs - a.ageMs) ||
+                    (Number(b.isFavorite) - Number(a.isFavorite)) ||
+                    (b.groupWrongRate - a.groupWrongRate))
+                : ((Number(b.isFavorite) - Number(a.isFavorite)) ||
+                    (b.sourcePositionPriority - a.sourcePositionPriority) ||
+                    (b.groupWrongRate - a.groupWrongRate))) ||
+            (a.originalIndex - b.originalIndex);
+        candidates.sort(compareTodayNewPriority);
         const deckQueues = new Map();
         candidates.forEach(item => {
             if(!deckQueues.has(item.deck)) deckQueues.set(item.deck, []);
@@ -5986,14 +6051,16 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         }
         const overflow = [];
         deckQueues.forEach(queue => overflow.push(...queue));
-        overflow.sort((a, b) => (b.score - a.score) || (a.originalIndex - b.originalIndex));
+        overflow.sort(compareTodayNewPriority);
         ranked.push(...overflow);
+        diagnostics.finalTodayNewCandidates = candidates.length;
         const recommendedCount = getTodayNewRecommendedCount(candidates.length, dueCount, overdue72HoursCount);
         console.log('[MK Today New Prepared]', {
             candidates: candidates.length,
             dueCount,
             recommendedCount,
             overdue72HoursCount,
+            diagnostics,
             elapsedMs: Math.round((performance.now() - startedAt) * 10) / 10
         });
         return {
@@ -6088,7 +6155,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         });
         document.getElementById('essential-sheet-title').textContent = recommendedStudySheetMode === 'new' ? '오늘 새로' : '오늘 필수 복습';
         document.getElementById('essential-sheet-description').textContent = recommendedStudySheetMode === 'new'
-            ? '새로 추가된 미학습 문제를 우선순위대로 골라드립니다.'
+            ? '아직 평가하지 않은 New 문제를 우선순위대로 골라드립니다.'
             : '오늘 복습 중 꼭 봐야 할 문제를 우선순위대로 골라드립니다.';
         document.getElementById('essential-start').textContent = recommendedStudySheetMode === 'new' ? '오늘 새로 시작' : '엄선 복습 시작';
         const release = document.getElementById('essential-release');
@@ -7134,8 +7201,8 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         console.log('REVIEW_SAVED', { score, currentCardUuid: String(id), nextReviewDate: data[id].dueDate || null });
         const activeRecommendedMode = todayNewState.active ? 'new' : (todayEssentialState.active ? 'required' : '');
         const activeRecommendedState = activeRecommendedMode ? getRecommendedStudyState(activeRecommendedMode) : null;
-        if(activeRecommendedMode === 'new') markTodayNewCompleted(card);
-        if(score === 3 && activeRecommendedMode !== 'new') {
+        if(activeRecommendedMode === 'new' && score !== 3) markTodayNewCompleted(card);
+        if(score === 3) {
             revealAnswer();
             return;
         }
