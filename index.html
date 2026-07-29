@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.114 - 오늘 필수 복습)</title>
+<title>MK (v18.5.115 - 오늘 새로 추천 학습)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -477,7 +477,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.114 - 오늘 필수 복습)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.115 - 오늘 새로 추천 학습)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -574,6 +574,7 @@
             <div class="filter-chip active" id="filter-default" onclick="setFilterMode('default')">📋 전체</div>
             <div class="filter-chip" id="filter-due" onclick="setFilterMode('due')">🎯 오늘 복습</div>
             <div class="filter-chip essential-chip" id="filter-essential" onclick="openTodayEssentialSheet()">오늘 필수</div>
+            <div class="filter-chip essential-chip" id="filter-today-new" onclick="openTodayNewSheet()">오늘 새로</div>
             <div class="filter-chip" id="filter-mem" onclick="setFilterMode('mem')">🧠 암기</div>
             <div class="filter-chip" id="filter-cmp" onclick="setFilterMode('cmp')">🆚 비교</div>
             <div class="filter-chip" id="filter-fav" onclick="setFilterMode('fav')">⭐ 중요</div>
@@ -648,29 +649,29 @@
     <div class="essential-sheet-overlay" id="essential-sheet-overlay" onclick="closeTodayEssentialSheet(event)">
         <div class="essential-sheet" role="dialog" aria-modal="true" aria-labelledby="essential-sheet-title">
             <h3 id="essential-sheet-title">오늘 필수 복습</h3>
-            <p class="essential-description">오늘 복습 중 꼭 봐야 할 문제를 우선순위대로 골라드립니다.</p>
+            <p class="essential-description" id="essential-sheet-description">오늘 복습 중 꼭 봐야 할 문제를 우선순위대로 골라드립니다.</p>
             <div class="essential-presets">
-                <button class="essential-preset" data-seconds="1800" onclick="selectEssentialPreset(1800)">30분 · 약 0개</button>
-                <button class="essential-preset" data-seconds="3600" onclick="selectEssentialPreset(3600)">1시간 · 약 0개</button>
-                <button class="essential-preset" data-seconds="7200" onclick="selectEssentialPreset(7200)">2시간 · 약 0개</button>
+                <button class="essential-preset" data-seconds="1800" onclick="selectRecommendedStudyPreset(1800)">30분 · 약 0개</button>
+                <button class="essential-preset" data-seconds="3600" onclick="selectRecommendedStudyPreset(3600)">1시간 · 약 0개</button>
+                <button class="essential-preset" data-seconds="7200" onclick="selectRecommendedStudyPreset(7200)">2시간 · 약 0개</button>
             </div>
             <div class="essential-selection" id="essential-selection">약 0분 · 0개</div>
-            <input class="essential-range" id="essential-range" type="range" min="0" max="0" value="0" oninput="updateEssentialSelection(this.value)">
+            <input class="essential-range" id="essential-range" type="range" min="0" max="0" value="0" oninput="updateRecommendedStudySelection(this.value)">
             <div class="essential-range-labels"><span id="essential-min-label">0개</span><span id="essential-max-label">0개</span></div>
             <div class="essential-actions">
-                <button class="essential-start" onclick="startTodayEssential()">엄선 복습 시작</button>
-                <button class="essential-release" id="essential-release" onclick="releaseTodayEssential()" style="display:none;">오늘 복습 전체로 돌아가기</button>
-                <button class="slider-back-btn" style="margin-top:0;" onclick="closeTodayEssentialSheet()">닫기</button>
+                <button class="essential-start" id="essential-start" onclick="startRecommendedStudy()">엄선 복습 시작</button>
+                <button class="essential-release" id="essential-release" onclick="releaseRecommendedStudy()" style="display:none;">오늘 복습 전체로 돌아가기</button>
+                <button class="slider-back-btn" style="margin-top:0;" onclick="closeRecommendedStudySheet()">닫기</button>
             </div>
         </div>
     </div>
 
     <div class="modal-overlay" id="essential-complete-modal">
         <div class="modal-content">
-            <h3 style="margin:0;">오늘 필수 복습을 완료했습니다.</h3>
+            <h3 id="essential-complete-title" style="margin:0;">오늘 필수 복습을 완료했습니다.</h3>
             <div class="essential-complete-actions">
                 <button class="btn-cancel" onclick="finishTodayEssential()">복습 종료</button>
-                <button class="btn-save" onclick="continueRemainingTodayReview()">남은 오늘 복습 계속</button>
+                <button class="btn-save" id="essential-complete-continue" onclick="continueRemainingRecommendedStudy()">남은 오늘 복습 계속</button>
             </div>
         </div>
     </div>
@@ -751,7 +752,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.114 - 오늘 필수 복습';
+    const APP_VERSION = 'v18.5.115 - 오늘 새로 추천 학습';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -776,9 +777,19 @@
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
     let previousCardIndex = null;
     const REVIEW_DURATION_STORAGE_KEY = 'mk_review_duration_samples_v1';
+    const TODAY_NEW_DURATION_STORAGE_KEY = 'mk_today_new_duration_samples_v1';
     const REVIEW_DURATION_DEFAULT_SECONDS = 12;
     const REVIEW_DURATION_MAX_SAMPLES = 300;
+    const TODAY_NEW_REGISTRY_STORAGE_KEY = 'mk_today_new_registry_v1';
+    const TODAY_NEW_COMPLETED_STORAGE_KEY = 'mk_today_new_completed_v1';
+    const TODAY_NEW_SELECTION_STORAGE_KEY = 'mk_today_new_selection_v1';
+    const TODAY_NEW_MIN_AGE_MS = 6 * 60 * 60 * 1000;
+    const TODAY_NEW_PRIORITY_24H_MS = 24 * 60 * 60 * 1000;
+    const TODAY_NEW_PRIORITY_48H_MS = 48 * 60 * 60 * 1000;
+    const TODAY_NEW_PRIORITY_72H_MS = 72 * 60 * 60 * 1000;
+    const TODAY_NEW_GROUP_LIMIT = 2;
     let reviewTimingState = null;
+    let recommendedStudySheetMode = 'required';
     let todayEssentialState = {
         active: false,
         prepared: null,
@@ -787,6 +798,18 @@
         processedIds: new Set(),
         todayCandidateIds: [],
         todayCandidates: [],
+        previousCardId: '',
+        preState: null,
+        completedShown: false
+    };
+    let todayNewState = {
+        active: false,
+        prepared: null,
+        selectedCount: 0,
+        selectedIds: [],
+        processedIds: new Set(),
+        candidateIds: [],
+        candidates: [],
         previousCardId: '',
         preState: null,
         completedShown: false
@@ -1975,6 +1998,7 @@
         cleanupLegacyRecoverySnapshotsAndRestoreCache('startup');
         await initializeStatsStore();
         await autoScanGitHub(); 
+        registerTodayNewCards();
         await syncLatestFirebaseBackupOnStartup();
         initApp(); 
         scheduleDateDomMutationLog('after-startup-sync');
@@ -4837,6 +4861,7 @@
 
     library = newLibrary;
 
+    registerTodayNewCards();
     renderDeckTree(); 
 }
         } catch (e) { console.log(e); }
@@ -5569,6 +5594,21 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
     }
 
+    function getRepresentativeTodayNewSeconds() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(TODAY_NEW_DURATION_STORAGE_KEY) || '[]');
+            const samples = Array.isArray(parsed)
+                ? parsed.map(Number).filter(seconds => Number.isFinite(seconds) && seconds >= 2 && seconds <= 60).slice(-REVIEW_DURATION_MAX_SAMPLES)
+                : [];
+            if(samples.length < 30) return REVIEW_DURATION_DEFAULT_SECONDS;
+            const sorted = samples.slice().sort((a, b) => a - b);
+            const middle = Math.floor(sorted.length / 2);
+            return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+        } catch(e) {
+            return REVIEW_DURATION_DEFAULT_SECONDS;
+        }
+    }
+
     function beginReviewTiming(card) {
         reviewTimingState = card ? { cardId: String(card.id), startedAt: performance.now(), invalid: document.hidden || !document.hasFocus() } : null;
     }
@@ -5587,6 +5627,14 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         samples.push(Math.round(seconds * 10) / 10);
         try {
             localStorage.setItem(REVIEW_DURATION_STORAGE_KEY, JSON.stringify(samples.slice(-REVIEW_DURATION_MAX_SAMPLES)));
+            if(todayNewState.active) {
+                const newSamples = JSON.parse(localStorage.getItem(TODAY_NEW_DURATION_STORAGE_KEY) || '[]');
+                const validNewSamples = Array.isArray(newSamples)
+                    ? newSamples.map(Number).filter(value => Number.isFinite(value) && value >= 2 && value <= 60)
+                    : [];
+                validNewSamples.push(Math.round(seconds * 10) / 10);
+                localStorage.setItem(TODAY_NEW_DURATION_STORAGE_KEY, JSON.stringify(validNewSamples.slice(-REVIEW_DURATION_MAX_SAMPLES)));
+            }
         } catch(e) {
             console.warn('[MK Today Essential Duration Save Skipped]', e);
         }
@@ -5697,11 +5745,226 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         return { candidates, ranked, representativeSeconds: getRepresentativeReviewSeconds() };
     }
 
+    function getTodayNewRegistry() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(TODAY_NEW_REGISTRY_STORAGE_KEY) || 'null');
+            return parsed && parsed.version === 1 && parsed.cards && typeof parsed.cards === 'object' ? parsed : null;
+        } catch(e) {
+            return null;
+        }
+    }
+
+    function registerTodayNewCards() {
+        const now = Date.now();
+        const existing = getTodayNewRegistry();
+        const registry = existing || { version: 1, initializedAt: now, cards: {} };
+        const isInitialBaseline = !existing;
+        let added = 0;
+        Object.entries(library || {}).forEach(([deck, cards]) => {
+            (Array.isArray(cards) ? cards : []).forEach(card => {
+                const id = getTodayEssentialCardId(card);
+                if(!id) return;
+                if(!registry.cards[id]) {
+                    registry.cards[id] = { firstSeenAt: now, firstDeck: deck, baseline: isInitialBaseline };
+                    added++;
+                }
+            });
+        });
+        if(isInitialBaseline || added > 0) {
+            try {
+                localStorage.setItem(TODAY_NEW_REGISTRY_STORAGE_KEY, JSON.stringify(registry));
+                console.log('[MK Today New Registry]', { baseline: isInitialBaseline, added, total: Object.keys(registry.cards).length });
+            } catch(e) {
+                console.warn('[MK Today New Registry Save Skipped]', e);
+            }
+        }
+        return registry;
+    }
+
+    function getTodayNewCompleted() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(TODAY_NEW_COMPLETED_STORAGE_KEY) || '{}');
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        } catch(e) {
+            return {};
+        }
+    }
+
+    function markTodayNewCompleted(card) {
+        const id = getTodayEssentialCardId(card);
+        if(!id) return;
+        const completed = getTodayNewCompleted();
+        completed[id] = Date.now();
+        try {
+            localStorage.setItem(TODAY_NEW_COMPLETED_STORAGE_KEY, JSON.stringify(completed));
+        } catch(e) {
+            console.warn('[MK Today New Completion Save Skipped]', e);
+        }
+    }
+
+    function getTodayNewDeckLookup() {
+        const lookup = new Map();
+        Object.entries(library || {}).forEach(([deck, cards]) => {
+            (Array.isArray(cards) ? cards : []).forEach(card => {
+                const id = getTodayEssentialCardId(card);
+                if(id && !lookup.has(id)) lookup.set(id, deck);
+            });
+        });
+        return lookup;
+    }
+
+    function getTodayNewSourceGroup(card) {
+        const ioGroup = getImageOcclusionGroupKey(card);
+        if(ioGroup) return ioGroup;
+        const breadcrumb = String(card && card.breadcrumb || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        if(breadcrumb) return `page:${breadcrumb}`;
+        return `card:${getTodayEssentialCardId(card)}`;
+    }
+
+    function hasActualReviewRecord(stat, history) {
+        return (Array.isArray(history) && history.length > 0) ||
+            Number(stat && stat.total) > 0 ||
+            Number(stat && stat.lastDate) > 0 ||
+            Number(stat && stat.fsrs && stat.fsrs.reps) > 0;
+    }
+
+    function getTodayNewRecommendedCount(candidateCount, dueCount, overdue72HoursCount) {
+        const base = dueCount < 300 ? 30 : (dueCount < 700 ? 20 : (dueCount < 1000 ? 10 : 5));
+        const backlogBonus = Math.min(5, Math.floor(overdue72HoursCount / 5));
+        return Math.min(30, candidateCount, base + backlogBonus);
+    }
+
+    function buildTodayNewCandidates() {
+        const startedAt = performance.now();
+        const now = Date.now();
+        const registry = registerTodayNewCards();
+        const completed = getTodayNewCompleted();
+        const statsSnapshot = getStatsStore();
+        const reviewHistorySnapshot = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+        const deckLookup = getTodayNewDeckLookup();
+        const query = String((document.getElementById('search-input') || {}).value || '').trim().toLowerCase();
+        const activeFilters = getActiveFilterModes().filter(mode => mode !== 'due');
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const todayStart = today.getTime();
+        const seenIds = new Set();
+        const selectedDeckCards = (originalDeck || []).filter(card => {
+            const id = getTodayEssentialCardId(card);
+            if(!id || seenIds.has(id)) return false;
+            seenIds.add(id);
+            return true;
+        });
+        const metaById = new Map();
+        selectedDeckCards.forEach(card => {
+            const id = getTodayEssentialCardId(card);
+            const found = id && statsSnapshot && statsSnapshot[id]
+                ? { key: id, stat: statsSnapshot[id] }
+                : findStatsForCard(card, statsSnapshot, id);
+            const statsKey = found && found.key ? String(found.key) : id;
+            metaById.set(id, {
+                stat: found && found.stat ? found.stat : {},
+                history: Array.isArray(reviewHistorySnapshot[statsKey]) ? reviewHistorySnapshot[statsKey] : []
+            });
+        });
+        const groupAccuracy = new Map();
+        selectedDeckCards.forEach(card => {
+            const meta = metaById.get(getTodayEssentialCardId(card)) || { stat: {}, history: [] };
+            const accuracy = getTodayEssentialAccuracy(meta.stat, meta.history);
+            if(!accuracy.total) return;
+            const group = getTodayNewSourceGroup(card);
+            const current = groupAccuracy.get(group) || { correct: 0, total: 0 };
+            current.correct += accuracy.correct;
+            current.total += accuracy.total;
+            groupAccuracy.set(group, current);
+        });
+        let dueCount = 0;
+        let overdue72HoursCount = 0;
+        const candidates = [];
+        selectedDeckCards.forEach((card, originalIndex) => {
+            const id = getTodayEssentialCardId(card);
+            const record = registry.cards[id];
+            const meta = metaById.get(id) || { stat: {}, history: [] };
+            const stat = meta.stat;
+            if(stat.dueDate && Number(stat.dueDate) <= todayStart) dueCount++;
+            if(!record || record.baseline || completed[id]) return;
+            const ageMs = now - Number(record.firstSeenAt || now);
+            if(ageMs < TODAY_NEW_MIN_AGE_MS || hasActualReviewRecord(stat, meta.history)) return;
+            if(stat.hidden || stat.excluded || card.hidden || card.excluded) return;
+            if(stat.dueDate && Number(stat.dueDate) <= todayStart) return;
+            if(query && !String(card.q || '').toLowerCase().includes(query) && !String(card.a || '').toLowerCase().includes(query)) return;
+            if(activeFilters.length && !activeFilters.some(mode => !!stat[mode])) return;
+            if(ageMs >= TODAY_NEW_PRIORITY_72H_MS) overdue72HoursCount++;
+            const group = getTodayNewSourceGroup(card);
+            const groupStats = groupAccuracy.get(group) || { correct: 0, total: 0 };
+            const groupWrongRate = groupStats.total ? 1 - (groupStats.correct / groupStats.total) : 0;
+            const ageDays = ageMs / 86400000;
+            const ageTierScore = ageMs >= TODAY_NEW_PRIORITY_72H_MS ? 60 :
+                (ageMs >= TODAY_NEW_PRIORITY_48H_MS ? 40 : (ageMs >= TODAY_NEW_PRIORITY_24H_MS ? 20 : 0));
+            candidates.push({
+                card,
+                originalIndex,
+                deck: deckLookup.get(id) || currentDeckName || '',
+                group,
+                score: ageDays + ageTierScore + (stat.fav ? 30 : 0) + groupWrongRate * 20
+            });
+        });
+        candidates.sort((a, b) => (b.score - a.score) || (a.originalIndex - b.originalIndex));
+        const deckQueues = new Map();
+        candidates.forEach(item => {
+            if(!deckQueues.has(item.deck)) deckQueues.set(item.deck, []);
+            deckQueues.get(item.deck).push(item);
+        });
+        const ranked = [];
+        const groupCounts = new Map();
+        let progressed = true;
+        while(progressed) {
+            progressed = false;
+            deckQueues.forEach(queue => {
+                const nextIndex = queue.findIndex(item => (groupCounts.get(item.group) || 0) < TODAY_NEW_GROUP_LIMIT);
+                if(nextIndex < 0) return;
+                const item = queue.splice(nextIndex, 1)[0];
+                ranked.push(item);
+                groupCounts.set(item.group, (groupCounts.get(item.group) || 0) + 1);
+                progressed = true;
+            });
+        }
+        const overflow = [];
+        deckQueues.forEach(queue => overflow.push(...queue));
+        overflow.sort((a, b) => (b.score - a.score) || (a.originalIndex - b.originalIndex));
+        ranked.push(...overflow);
+        const recommendedCount = getTodayNewRecommendedCount(candidates.length, dueCount, overdue72HoursCount);
+        console.log('[MK Today New Prepared]', {
+            candidates: candidates.length,
+            dueCount,
+            recommendedCount,
+            overdue72HoursCount,
+            elapsedMs: Math.round((performance.now() - startedAt) * 10) / 10
+        });
+        return {
+            candidates: candidates.map(item => item.card),
+            ranked,
+            representativeSeconds: getRepresentativeTodayNewSeconds(),
+            recommendedCount
+        };
+    }
+
     function getEssentialCountOptions(total) {
         if(total <= 0) return [];
         const min = total < 10 ? total : 10;
         const values = [];
         for(let value = min; value <= Math.min(200, total); value += 10) values.push(value);
+        if(total > 200) {
+            for(let value = 225; value <= total; value += 25) values.push(value);
+        }
+        if(!values.includes(total)) values.push(total);
+        return [...new Set(values)].sort((a, b) => a - b);
+    }
+
+    function getTodayNewCountOptions(total) {
+        if(total <= 0) return [];
+        const values = [];
+        for(let value = 1; value <= Math.min(10, total); value++) values.push(value);
+        for(let value = 20; value <= Math.min(200, total); value += 10) values.push(value);
         if(total > 200) {
             for(let value = 225; value <= total; value += 25) values.push(value);
         }
@@ -5726,17 +5989,34 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         return rest ? `${hours}시간 ${rest}분` : `${hours}시간`;
     }
 
-    function openTodayEssentialSheet() {
-        const prepared = buildTodayEssentialCandidates();
+    function getRecommendedStudyState(mode = recommendedStudySheetMode) {
+        return mode === 'new' ? todayNewState : todayEssentialState;
+    }
+
+    function openRecommendedStudySheet({ mode = 'required' } = {}) {
+        recommendedStudySheetMode = mode === 'new' ? 'new' : 'required';
+        const state = getRecommendedStudyState();
+        const prepared = recommendedStudySheetMode === 'new' ? buildTodayNewCandidates() : buildTodayEssentialCandidates();
         if(!prepared.candidates.length) {
-            showToast('오늘 복습할 문제가 없습니다.');
+            showToast(recommendedStudySheetMode === 'new' ? '오늘 새로 학습할 문제가 없습니다.' : '오늘 복습할 문제가 없습니다.');
             return;
         }
-        prepared.options = getEssentialCountOptions(prepared.candidates.length);
-        todayEssentialState.prepared = prepared;
-        const desired = todayEssentialState.active
-            ? Math.min(todayEssentialState.selectedCount, prepared.candidates.length)
-            : Math.min(prepared.candidates.length, Math.floor(1800 / prepared.representativeSeconds));
+        prepared.options = recommendedStudySheetMode === 'new'
+            ? getTodayNewCountOptions(prepared.candidates.length)
+            : getEssentialCountOptions(prepared.candidates.length);
+        state.prepared = prepared;
+        let savedCount = 0;
+        if(recommendedStudySheetMode === 'new') {
+            try {
+                const saved = JSON.parse(localStorage.getItem(TODAY_NEW_SELECTION_STORAGE_KEY) || '{}');
+                savedCount = Number(saved[currentDeckName]) || 0;
+            } catch(e) {}
+        }
+        const desired = state.active
+            ? Math.min(state.selectedCount, prepared.candidates.length)
+            : (recommendedStudySheetMode === 'new'
+                ? Math.min(prepared.candidates.length, savedCount || prepared.recommendedCount)
+                : Math.min(prepared.candidates.length, Math.floor(1800 / prepared.representativeSeconds)));
         const range = document.getElementById('essential-range');
         range.min = 0;
         range.max = Math.max(0, prepared.options.length - 1);
@@ -5750,33 +6030,60 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             button.textContent = `${seconds === 1800 ? '30분' : (seconds === 3600 ? '1시간' : '2시간')} · 약 ${count}개`;
             button.classList.remove('active');
         });
-        document.getElementById('essential-release').style.display = todayEssentialState.active ? 'block' : 'none';
-        updateEssentialSelection(range.value);
+        document.getElementById('essential-sheet-title').textContent = recommendedStudySheetMode === 'new' ? '오늘 새로' : '오늘 필수 복습';
+        document.getElementById('essential-sheet-description').textContent = recommendedStudySheetMode === 'new'
+            ? '새로 추가된 미학습 문제를 우선순위대로 골라드립니다.'
+            : '오늘 복습 중 꼭 봐야 할 문제를 우선순위대로 골라드립니다.';
+        document.getElementById('essential-start').textContent = recommendedStudySheetMode === 'new' ? '오늘 새로 시작' : '엄선 복습 시작';
+        const release = document.getElementById('essential-release');
+        release.style.display = state.active ? 'block' : 'none';
+        release.textContent = recommendedStudySheetMode === 'new' ? '오늘 새로 해제' : '오늘 복습 전체로 돌아가기';
+        updateRecommendedStudySelection(range.value);
         document.getElementById('essential-sheet-overlay').classList.add('open');
     }
 
-    function closeTodayEssentialSheet(event) {
-        if(event && event.target !== document.getElementById('essential-sheet-overlay')) return;
-        document.getElementById('essential-sheet-overlay').classList.remove('open');
-        todayEssentialState.prepared = null;
+    function openTodayEssentialSheet() {
+        openRecommendedStudySheet({ mode: 'required' });
     }
 
-    function selectEssentialPreset(seconds) {
-        const prepared = todayEssentialState.prepared;
+    function openTodayNewSheet() {
+        openRecommendedStudySheet({ mode: 'new' });
+    }
+
+    function closeRecommendedStudySheet(event) {
+        if(event && event.target !== document.getElementById('essential-sheet-overlay')) return;
+        document.getElementById('essential-sheet-overlay').classList.remove('open');
+        getRecommendedStudyState().prepared = null;
+    }
+
+    function closeTodayEssentialSheet(event) {
+        closeRecommendedStudySheet(event);
+    }
+
+    function selectRecommendedStudyPreset(seconds) {
+        const prepared = getRecommendedStudyState().prepared;
         if(!prepared) return;
         const target = Math.min(prepared.candidates.length, Math.floor(seconds / prepared.representativeSeconds));
         const index = getNearestEssentialOptionIndex(target, prepared.options);
         document.getElementById('essential-range').value = index;
-        updateEssentialSelection(index);
+        updateRecommendedStudySelection(index);
         document.querySelectorAll('.essential-preset').forEach(button => button.classList.toggle('active', Number(button.dataset.seconds) === Number(seconds)));
     }
 
-    function updateEssentialSelection(optionIndex) {
-        const prepared = todayEssentialState.prepared;
+    function selectEssentialPreset(seconds) {
+        selectRecommendedStudyPreset(seconds);
+    }
+
+    function updateRecommendedStudySelection(optionIndex) {
+        const prepared = getRecommendedStudyState().prepared;
         if(!prepared || !prepared.options.length) return;
         const count = prepared.options[Math.max(0, Math.min(prepared.options.length - 1, Number(optionIndex) || 0))];
         document.getElementById('essential-selection').textContent = `약 ${formatEssentialMinutes(count * prepared.representativeSeconds)} · ${count}개`;
         document.querySelectorAll('.essential-preset').forEach(button => button.classList.remove('active'));
+    }
+
+    function updateEssentialSelection(optionIndex) {
+        updateRecommendedStudySelection(optionIndex);
     }
 
     function getTodayEssentialPreState() {
@@ -5785,35 +6092,53 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             sort: currentSortMode,
             secondarySort: currentSecondarySortMode,
             cardId: getCurrentCardId(),
-            index: currentIndex
+            index: currentIndex,
+            activeCards: activeDeck.slice()
         };
     }
 
-    function startTodayEssential() {
-        const prepared = todayEssentialState.prepared;
+    function startRecommendedStudy() {
+        const state = getRecommendedStudyState();
+        const prepared = state.prepared;
         if(!prepared) return;
         const optionIndex = Number(document.getElementById('essential-range').value) || 0;
         const selectedCount = prepared.options[optionIndex];
         const selectedCards = prepared.ranked.slice(0, selectedCount).map(item => item.card);
-        const previousPreState = todayEssentialState.active ? todayEssentialState.preState : getTodayEssentialPreState();
-        const activeFilters = getActiveFilterModes();
-        if(!activeFilters.includes('due')) {
-            currentFilterMode = [...activeFilters, 'due'];
-            saveFilterState();
-            highlightFilter();
+        const previousPreState = state.active ? state.preState : getTodayEssentialPreState();
+        if(recommendedStudySheetMode === 'required') {
+            const activeFilters = getActiveFilterModes();
+            if(!activeFilters.includes('due')) {
+                currentFilterMode = [...activeFilters, 'due'];
+                saveFilterState();
+                highlightFilter();
+            }
         }
-        todayEssentialState = {
+        const nextState = {
             active: true,
             prepared: null,
             selectedCount,
             selectedIds: selectedCards.map(getTodayEssentialCardId),
             processedIds: new Set(),
-            todayCandidateIds: prepared.candidates.map(getTodayEssentialCardId),
-            todayCandidates: prepared.candidates.slice(),
+            candidateIds: prepared.candidates.map(getTodayEssentialCardId),
+            candidates: prepared.candidates.slice(),
             previousCardId: activeDeck[currentIndex] ? getTodayEssentialCardId(activeDeck[currentIndex]) : '',
             preState: previousPreState,
             completedShown: false
         };
+        if(recommendedStudySheetMode === 'required') {
+            nextState.todayCandidateIds = nextState.candidateIds;
+            nextState.todayCandidates = nextState.candidates;
+            todayEssentialState = nextState;
+            todayNewState.active = false;
+        } else {
+            todayNewState = nextState;
+            todayEssentialState.active = false;
+            try {
+                const saved = JSON.parse(localStorage.getItem(TODAY_NEW_SELECTION_STORAGE_KEY) || '{}');
+                saved[currentDeckName] = selectedCount;
+                localStorage.setItem(TODAY_NEW_SELECTION_STORAGE_KEY, JSON.stringify(saved));
+            } catch(e) {}
+        }
         activeDeck = selectedCards;
         currentIndex = 0;
         previousCardIndex = null;
@@ -5823,11 +6148,36 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         showCard();
     }
 
-    function releaseTodayEssential() {
-        const cards = todayEssentialState.todayCandidates.slice();
-        const previousCardId = todayEssentialState.previousCardId;
-        todayEssentialState.active = false;
-        todayEssentialState.prepared = null;
+    function startTodayEssential() {
+        recommendedStudySheetMode = 'required';
+        startRecommendedStudy();
+    }
+
+    function releaseRecommendedStudy() {
+        const state = getRecommendedStudyState();
+        if(recommendedStudySheetMode === 'new') {
+            const snapshot = state.preState;
+            state.active = false;
+            state.prepared = null;
+            document.getElementById('essential-sheet-overlay').classList.remove('open');
+            if(snapshot) {
+                currentFilterMode = getFilterStateForStorage(snapshot.filter);
+                currentSortMode = snapshot.sort || 'original';
+                currentSecondarySortMode = snapshot.secondarySort || 'none';
+                saveFilterState();
+                highlightFilter();
+                activeDeck = Array.isArray(snapshot.activeCards) ? snapshot.activeCards.slice() : originalDeck.slice();
+                const restoredIndex = activeDeck.findIndex(card => getTodayEssentialCardId(card) === snapshot.cardId);
+                currentIndex = restoredIndex >= 0 ? restoredIndex : Math.min(snapshot.index || 0, Math.max(0, activeDeck.length - 1));
+            }
+            updateFilterStatusUI();
+            showCard();
+            return;
+        }
+        const cards = (state.todayCandidates || state.candidates || []).slice();
+        const previousCardId = state.previousCardId;
+        state.active = false;
+        state.prepared = null;
         activeDeck = cards;
         const restoredIndex = cards.findIndex(card => getTodayEssentialCardId(card) === previousCardId);
         currentIndex = restoredIndex >= 0 ? restoredIndex : Math.min(currentIndex, Math.max(0, cards.length - 1));
@@ -5836,28 +6186,52 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         showCard();
     }
 
-    function showTodayEssentialCompletion() {
-        if(!todayEssentialState.active || todayEssentialState.completedShown) return;
-        todayEssentialState.completedShown = true;
+    function releaseTodayEssential() {
+        recommendedStudySheetMode = 'required';
+        releaseRecommendedStudy();
+    }
+
+    function showRecommendedStudyCompletion(mode) {
+        const state = getRecommendedStudyState(mode);
+        if(!state.active || state.completedShown) return;
+        state.completedShown = true;
+        document.getElementById('essential-complete-title').textContent = mode === 'new'
+            ? '오늘 새로 학습을 완료했습니다.'
+            : '오늘 필수 복습을 완료했습니다.';
+        document.getElementById('essential-complete-continue').textContent = mode === 'new'
+            ? '남은 오늘 새로 계속'
+            : '남은 오늘 복습 계속';
         document.getElementById('essential-complete-modal').style.display = 'flex';
+    }
+
+    function showTodayEssentialCompletion() {
+        showRecommendedStudyCompletion('required');
     }
 
     function finishTodayEssential() {
         document.getElementById('essential-complete-modal').style.display = 'none';
         todayEssentialState.active = false;
+        todayNewState.active = false;
         updateFilterStatusUI();
     }
 
-    function continueRemainingTodayReview() {
-        const processed = todayEssentialState.processedIds;
-        activeDeck = todayEssentialState.todayCandidates.filter(card => !processed.has(getTodayEssentialCardId(card)));
-        todayEssentialState.active = false;
+    function continueRemainingRecommendedStudy() {
+        const mode = todayNewState.active ? 'new' : 'required';
+        const state = getRecommendedStudyState(mode);
+        const processed = state.processedIds;
+        const candidates = state.todayCandidates || state.candidates || [];
+        activeDeck = candidates.filter(card => !processed.has(getTodayEssentialCardId(card)));
+        state.active = false;
         document.getElementById('essential-complete-modal').style.display = 'none';
         currentIndex = 0;
         previousCardIndex = null;
         updateFilterStatusUI();
         showCard();
-        if(!activeDeck.length) showToast('남은 오늘 복습 문제가 없습니다.');
+        if(!activeDeck.length) showToast(mode === 'new' ? '남은 오늘 새로 문제가 없습니다.' : '남은 오늘 복습 문제가 없습니다.');
+    }
+
+    function continueRemainingTodayReview() {
+        continueRemainingRecommendedStudy();
     }
 
     function applyFilterAndSort(isRestore = false) {
@@ -6026,6 +6400,16 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             statusEl.innerText = `오늘 필수 ${todayEssentialState.selectedCount}`;
             const essentialChip = document.getElementById('filter-essential');
             if(essentialChip) essentialChip.classList.add('active');
+            const todayNewChip = document.getElementById('filter-today-new');
+            if(todayNewChip) todayNewChip.classList.remove('active');
+            return;
+        }
+        if(todayNewState.active) {
+            statusEl.innerText = `오늘 새로 ${todayNewState.selectedCount}`;
+            const todayNewChip = document.getElementById('filter-today-new');
+            if(todayNewChip) todayNewChip.classList.add('active');
+            const essentialChip = document.getElementById('filter-essential');
+            if(essentialChip) essentialChip.classList.remove('active');
             return;
         }
         if(originalOrderContext && originalOrderContext.active) {
@@ -6035,6 +6419,8 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         statusEl.innerText = `${modeNames[currentSortMode] || '🔄 원래순'}${secondaryText} & ${getFilterLabel()}`;
         const essentialChip = document.getElementById('filter-essential');
         if(essentialChip) essentialChip.classList.remove('active');
+        const todayNewChip = document.getElementById('filter-today-new');
+        if(todayNewChip) todayNewChip.classList.remove('active');
     }
 
     function isAnswerCurrentlyRevealed() {
@@ -6135,6 +6521,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
     }
     function setFilterMode(mode) {
         todayEssentialState.active = false;
+        todayNewState.active = false;
         if(mode === 'default') {
             currentFilterMode = 'default';
         } else {
@@ -6143,9 +6530,9 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         }
         saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true);
     }
-    function setSortMode(mode) { todayEssentialState.active = false; currentSortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
-    function setSecondarySortMode(mode) { todayEssentialState.active = false; currentSecondarySortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
-    function resetFilters() { todayEssentialState.active = false; currentFilterMode = 'default'; currentSortMode = 'original'; currentSecondarySortMode = 'none'; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
+    function setSortMode(mode) { todayEssentialState.active = false; todayNewState.active = false; currentSortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
+    function setSecondarySortMode(mode) { todayEssentialState.active = false; todayNewState.active = false; currentSecondarySortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
+    function resetFilters() { todayEssentialState.active = false; todayNewState.active = false; currentFilterMode = 'default'; currentSortMode = 'original'; currentSecondarySortMode = 'none'; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
     function saveFilterState() { localStorage.setItem(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: getFilterStateForStorage(), sort: currentSortMode, secondarySort: currentSecondarySortMode })); }
     function highlightFilter() {
         document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
@@ -6162,6 +6549,8 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         if(secondarySelect) secondarySelect.value = currentSecondarySortMode;
         const essentialChip = document.getElementById('filter-essential');
         if(essentialChip) essentialChip.classList.toggle('active', todayEssentialState.active);
+        const todayNewChip = document.getElementById('filter-today-new');
+        if(todayNewChip) todayNewChip.classList.toggle('active', todayNewState.active);
     }
     function toggleFilterBar() { document.getElementById('filter-bar').classList.toggle('open'); }
 
@@ -6177,6 +6566,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 
     function selectDeck(name, isRestore = false) { 
         todayEssentialState.active = false;
+        todayNewState.active = false;
         currentDeckName = name;
 originalDeck = getDeckCards(name);
 localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
@@ -6187,6 +6577,7 @@ localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
 
     function selectDeckGroup(prefix, isRestore = false) {
         todayEssentialState.active = false;
+        todayNewState.active = false;
         let merged = getDeckGroupCards(prefix);
         if (!merged.length) { alert("하위 덱이 없습니다."); return; }
         currentDeckName = normalizeDeckPath(prefix);
@@ -6685,17 +7076,20 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         markLocalDataUpdated(data[id].updatedAt); saveStudyState('review', { backup: true });
         updateStatsUI(getStatsForCard(card));
         console.log('REVIEW_SAVED', { score, currentCardUuid: String(id), nextReviewDate: data[id].dueDate || null });
-        if(score === 3) {
+        const activeRecommendedMode = todayNewState.active ? 'new' : (todayEssentialState.active ? 'required' : '');
+        const activeRecommendedState = activeRecommendedMode ? getRecommendedStudyState(activeRecommendedMode) : null;
+        if(activeRecommendedMode === 'new') markTodayNewCompleted(card);
+        if(score === 3 && activeRecommendedMode !== 'new') {
             revealAnswer();
             return;
         }
-        if(todayEssentialState.active) todayEssentialState.processedIds.add(getTodayEssentialCardId(card));
+        if(activeRecommendedState) activeRecommendedState.processedIds.add(getTodayEssentialCardId(card));
         console.log('NEXT_CARD_START', { fromIndex: currentIndex });
-        if(todayEssentialState.active) {
+        if(activeRecommendedState) {
             let nextUnprocessedIndex = -1;
             for(let offset = 1; offset <= activeDeck.length; offset++) {
                 const candidateIndex = (currentIndex + offset) % activeDeck.length;
-                if(!todayEssentialState.processedIds.has(getTodayEssentialCardId(activeDeck[candidateIndex]))) {
+                if(!activeRecommendedState.processedIds.has(getTodayEssentialCardId(activeDeck[candidateIndex]))) {
                     nextUnprocessedIndex = candidateIndex;
                     break;
                 }
@@ -6706,7 +7100,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
                 saveCurrentProgress();
                 showCard();
             } else {
-                showTodayEssentialCompletion();
+                showRecommendedStudyCompletion(activeRecommendedMode);
             }
             console.log('NEXT_CARD_SUCCESS', { currentCardUuid: getCurrentCardId(), currentCardIndex: currentIndex });
             return;
@@ -7114,7 +7508,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     function getStats(id) { return getStatsById(id); }
     async function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; if(!await ensureStatsStoreReady('toggleTag')) return; const data = cloneStatsObject(getStatsStore()); const found = findStatsForCard(card, data, card && card.id); const id = found.key || String(card && card.id || ''); if(!id) return; if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; data[id].updatedAt = Date.now(); guardedStatsWrite(JSON.stringify(data), 'toggleTag'); markLocalDataUpdated(data[id].updatedAt); updateIconsUI(data[id]); scheduleBackup(); }
     function updateIconsUI(s) { ['mem','cmp','fav','num','date','pen'].forEach(t => document.getElementById(`${t}-btn`).classList.toggle('active', !!s[t])); }
-    function filterCards() { todayEssentialState.active = false; const q = document.getElementById('search-input').value.toLowerCase(); localStorage.setItem('anki_search_query', q); if(!q) { applyFilterAndSort(true); persistCurrentViewState(true); return; } activeDeck = originalDeck.filter(c => c.q.toLowerCase().includes(q) || c.a.toLowerCase().includes(q)); currentIndex = 0; try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {} showCard(); persistCurrentViewState(true); }
+    function filterCards() { todayEssentialState.active = false; todayNewState.active = false; const q = document.getElementById('search-input').value.toLowerCase(); localStorage.setItem('anki_search_query', q); if(!q) { applyFilterAndSort(true); persistCurrentViewState(true); return; } activeDeck = originalDeck.filter(c => c.q.toLowerCase().includes(q) || c.a.toLowerCase().includes(q)); currentIndex = 0; try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {} showCard(); persistCurrentViewState(true); }
 
     function toggleSliderPanel() {
         const panel = document.getElementById('slider-panel');
