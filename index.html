@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.117 - 기존 New 추천 확장)</title>
+<title>MK (v18.5.118 - 카드 실제 덱 전체 경로)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -25,11 +25,15 @@
     body { font-family: 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
     
     .header-container { background: var(--surface); border-bottom: 1px solid var(--border); z-index: 20; flex-shrink: 0; transition: all 0.3s ease; position: relative; }
-    .header { padding: 0 15px; padding-top: calc(env(safe-area-inset-top) + 15px); padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
-    .header-left { display: flex; gap: 15px; align-items: center; }
+    .header { padding: 0 15px; padding-top: calc(env(safe-area-inset-top) + 15px); padding-bottom: 15px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+    .header-left { display: flex; gap: 15px; align-items: center; min-width: 0; }
     
-    .header-center { display: flex; flex-direction: column; align-items: center; max-width: 50vw; }
-    .header-title { font-weight: bold; font-size: 1.1rem; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
+    .header-center { display: flex; flex-direction: column; align-items: center; min-width: 0; max-width: 100%; }
+    .header-title { width: 100%; min-width: 0; font-weight: bold; font-size: clamp(0.72rem, 2.8vw, 1rem); line-height: 1.25; color: var(--text); white-space: normal; overflow: hidden; overflow-wrap: anywhere; word-break: keep-all; text-align: center; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    #deck-title-text { min-width: 0; max-width: 100%; flex: 1 1 auto; }
+    .deck-title-path { width: 100%; min-width: 0; max-width: 100%; display: block; overflow-wrap: anywhere; }
+    .deck-path-segment { display: inline; overflow-wrap: anywhere; }
+    .deck-path-segment + .deck-path-segment::before { content: "\00a0>\00a0"; white-space: nowrap; }
     .filter-status-text { font-size: 0.75rem; color: var(--primary); margin-top: 2px; opacity: 0.9; white-space: nowrap; font-weight: bold; }
 
     .cloud-icon { font-size: 0.8rem; opacity: 0.5; transition: 0.3s; }
@@ -38,11 +42,17 @@
     .cloud-icon.error { color: #fa5252; opacity: 1; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
 
-    .header-controls { display: flex; gap: 10px; align-items: center; }
+    .header-controls { display: flex; gap: 10px; align-items: center; min-width: 0; }
     .menu-btn, .filter-toggle-btn { font-size: 1.5rem; cursor: pointer; background: none; border: none; padding: 0; color: var(--text); display: flex; align-items: center; justify-content: center; }
     .filter-toggle-btn { color: var(--primary); } 
     .counter { font-size: 0.85rem; font-weight: bold; color: var(--text-sub); background: var(--input-bg); padding: 5px 12px; border-radius: 15px; cursor: pointer; transition: 0.2s; user-select: none; }
     .counter:active { transform: scale(0.96); }
+    @media (max-width: 480px) {
+        .header { padding-left: 10px; padding-right: 10px; gap: 6px; }
+        .header-left { gap: 8px; }
+        .counter { font-size: 0.75rem; padding: 4px 7px; }
+        .cloud-icon { flex: 0 0 auto; }
+    }
 
     .slider-panel {
         position: fixed;
@@ -477,7 +487,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.117 - 기존 New 추천 확장)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.118 - 카드 실제 덱 전체 경로)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -752,7 +762,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.117 - 기존 New 추천 확장';
+    const APP_VERSION = 'v18.5.118 - 카드 실제 덱 전체 경로';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -4964,7 +4974,11 @@
             const normalizedDeckPath = normalizeDeckPath(deckPath);
             if (!normalizedDeckPath) return;
             if (!normalizedLibrary[normalizedDeckPath]) normalizedLibrary[normalizedDeckPath] = [];
-            normalizedLibrary[normalizedDeckPath].push(...(Array.isArray(cards) ? cards : []));
+            (Array.isArray(cards) ? cards : []).forEach(card => {
+                if (!card || typeof card !== 'object') return;
+                card.deck = normalizeDeckPath(card.deck, normalizedDeckPath) || normalizedDeckPath;
+                normalizedLibrary[normalizedDeckPath].push(card);
+            });
         });
 
         return normalizedLibrary;
@@ -5030,7 +5044,7 @@
             if(!targetLib[deckNameInRow]) targetLib[deckNameInRow] = [];
             
             const existingCardIndex = targetLib[deckNameInRow].findIndex(c => c.id === finalId);
-            const cardObj = { id: finalId, q, a, isLogseq, blockId, breadcrumb, extra, graphName, sourceOrder };
+            const cardObj = { id: finalId, q, a, isLogseq, blockId, breadcrumb, extra, graphName, sourceOrder, deck: deckNameInRow };
             if (graphName) rememberLogseqGraphName(graphName, 'import');
 
             if (existingCardIndex !== -1) {
@@ -6694,7 +6708,6 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 originalDeck = getDeckCards(name);
 localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
         if(!isRestore) restoreDeckViewState(name);
-        document.getElementById('deck-title-text').innerText = name.split('__').pop();
         applyFilterAndSort(isRestore); if(!isRestore) { persistCurrentViewState(true); toggleMenu(false); }
     }
 
@@ -6707,7 +6720,6 @@ localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
 
 originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName);
         if(!isRestore) restoreDeckViewState(currentDeckName);
-        document.getElementById('deck-title-text').innerText = currentDeckName.split('__').pop() + " (전체)";
         applyFilterAndSort(isRestore); if(!isRestore) { persistCurrentViewState(true); toggleMenu(false); }
     }
 
@@ -6802,6 +6814,47 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         scheduleDateDomMutationLog('after-card-navigation');
     }
 
+    function updateDeckPathTitle(card) {
+        const titleText = document.getElementById('deck-title-text');
+        if(!titleText) return;
+        const deckPath = normalizeDeckPath(card && card.deck, currentDeckName || '');
+        const parts = deckPath.split('__').map(part => part.trim()).filter(Boolean);
+        const displayPath = parts.join(' > ') || 'MK';
+        const path = document.createElement('span');
+        path.className = 'deck-title-path';
+        parts.forEach(part => {
+            const segment = document.createElement('span');
+            segment.className = 'deck-path-segment';
+            segment.textContent = part;
+            path.appendChild(segment);
+        });
+        if(!parts.length) path.textContent = displayPath;
+        titleText.replaceChildren(path);
+        titleText.title = displayPath;
+        titleText.setAttribute('aria-label', `현재 카드 덱: ${displayPath}`);
+        fitDeckPathTitle();
+    }
+
+    function fitDeckPathTitle() {
+        const title = document.getElementById('deck-title');
+        const path = title && title.querySelector('.deck-title-path');
+        if(!title || !path) return;
+        title.style.fontSize = '';
+        requestAnimationFrame(() => {
+            let size = parseFloat(getComputedStyle(title).fontSize) || 16;
+            const fitsTwoLines = () => {
+                const lineHeight = parseFloat(getComputedStyle(title).lineHeight) || (size * 1.25);
+                return path.getBoundingClientRect().height <= (lineHeight * 2) + 1;
+            };
+            while(size > 8 && !fitsTwoLines()) {
+                size -= 0.5;
+                title.style.fontSize = `${size}px`;
+            }
+        });
+    }
+
+    window.addEventListener('resize', fitDeckPathTitle);
+
     function showCard() {
         ioZoomDiagnostics.cardRenders += 1;
         resetZoom();
@@ -6809,9 +6862,10 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         disposeCardMediaResources(document.getElementById('answer-section'));
         document.querySelectorAll('.mk-io-other-masks-toggle').forEach(button => button.remove());
         if (!activeDeck || activeDeck.length === 0) updateIOImageNavigation(null);
-        if (!activeDeck || activeDeck.length === 0) { reviewTimingState = null; document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub); text-align:center;'>카드가 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
+        if (!activeDeck || activeDeck.length === 0) { reviewTimingState = null; updateDeckPathTitle(null); document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub); text-align:center;'>카드가 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
         if(currentIndex >= activeDeck.length) currentIndex = 0;
         const card = activeDeck[currentIndex]; const stats = getStatsForCard(card);
+        updateDeckPathTitle(card);
         beginReviewTiming(card);
         localStorage.setItem(STORAGE_KEY_CURRENT_CARD_ID, String(card.id));
         updateOriginalOrderContextButton();
