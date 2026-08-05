@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.121 - 링크 줄바꿈 회귀 수정)</title>
+<title>MK (v18.5.122 - Logseq 콘텐츠 구조 복원)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -486,7 +486,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.121 - 링크 줄바꿈 회귀 수정)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.122 - Logseq 콘텐츠 구조 복원)</div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -761,7 +761,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.121 - 링크 줄바꿈 회귀 수정';
+    const APP_VERSION = 'v18.5.122 - Logseq 콘텐츠 구조 복원';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -5240,10 +5240,34 @@
         return false;
     }
 
-    function removeGeneratedLinkFormattingBreaks(root) {
+    function normalizeGeneratedCardMarkup(root) {
         if(!root) return root;
+        const isFormattingWhitespace = node => node && node.nodeType === Node.TEXT_NODE && !String(node.nodeValue || '').trim();
+        const blockTags = new Set(['ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DIV', 'DL', 'FIELDSET', 'FIGURE', 'FOOTER', 'FORM', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HEADER', 'HR', 'LI', 'MAIN', 'NAV', 'OL', 'P', 'PRE', 'SECTION', 'TABLE', 'UL']);
+
+        root.querySelectorAll('br').forEach(br => {
+            const previous = br.previousSibling;
+            const next = br.nextSibling;
+            const touchesTemplateIndent = isFormattingWhitespace(previous) || isFormattingWhitespace(next);
+            const touchesBlockBoundary = (previous && previous.nodeType === Node.ELEMENT_NODE && blockTags.has(previous.tagName))
+                || (next && next.nodeType === Node.ELEMENT_NODE && blockTags.has(next.tagName));
+            if(touchesTemplateIndent || touchesBlockBoundary) br.remove();
+        });
+
+        root.querySelectorAll('span').forEach(span => {
+            const nextContentNode = Array.from((span.parentNode && span.parentNode.childNodes) || [])
+                .slice(Array.prototype.indexOf.call(span.parentNode.childNodes, span) + 1)
+                .find(node => !isFormattingWhitespace(node));
+            if(!nextContentNode || nextContentNode.nodeType !== Node.ELEMENT_NODE || !blockTags.has(nextContentNode.tagName)) return;
+            let tail = span.lastChild;
+            while(tail && (isFormattingWhitespace(tail) || tail.nodeName === 'BR')) {
+                const previous = tail.previousSibling;
+                tail.remove();
+                tail = previous;
+            }
+        });
+
         root.querySelectorAll('.block-ref').forEach(link => {
-            const isFormattingWhitespace = node => node && node.nodeType === Node.TEXT_NODE && !String(node.nodeValue || '').trim();
             const edgeNode = fromStart => {
                 const nodes = Array.from(link.childNodes);
                 return (fromStart ? nodes : nodes.reverse()).find(node => !isFormattingWhitespace(node)) || null;
@@ -5271,6 +5295,12 @@
                     tail = previous;
                 }
             }
+        });
+
+        root.querySelectorAll('*').forEach(element => {
+            Array.from(element.childNodes).forEach(node => {
+                if(isFormattingWhitespace(node) && /[\r\n]/.test(String(node.nodeValue || ''))) node.nodeValue = ' ';
+            });
         });
         return root;
     }
@@ -5310,6 +5340,7 @@ function preserveCardContentLineBreaks(root) {
     function getCardContentPlainText(html) {
         const temp = document.createElement('div');
         temp.innerHTML = String(html || '');
+        normalizeGeneratedCardMarkup(temp);
         preserveCardContentLineBreaks(temp);
         temp.querySelectorAll('br').forEach(br => br.replaceWith(document.createTextNode('\n')));
         return String(temp.textContent || '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
@@ -5412,7 +5443,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             }
         });
 
-        removeGeneratedLinkFormattingBreaks(wrap);
+        normalizeGeneratedCardMarkup(wrap);
         return preserveCardContentLineBreaks(wrap);
     }
 
