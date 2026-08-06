@@ -39,6 +39,10 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
     assert.equal(manifestResult.source, 'manifest');
     assert.equal(manifestCalls.length, 1);
     assert.deepEqual(Array.from(manifestResult.files, file => file.name), manifest.files);
+    if (typeof manifest.version === 'string') {
+        assert.equal(manifestResult.publishVersion, manifest.version);
+        assert.equal(manifestResult.files.every(file => file.download_url.endsWith(`?v=${manifest.version}`)), true);
+    }
 
     const fallbackCalls = [];
     const fallbackResult = await context.loadDeckFileList({}, async (url) => {
@@ -52,7 +56,7 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
     });
     assert.equal(fallbackResult.source, 'github-api');
     assert.equal(fallbackCalls.length, 2);
-    assert.equal(fallbackResult.files.length, 2);
+    assert.equal(fallbackResult.files.length, manifest.files.length);
 
     process.stdout.write(JSON.stringify({
         manifestWithBlockedApi: 'passed',
