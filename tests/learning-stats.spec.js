@@ -73,9 +73,13 @@ function getBackupStatsCandidate(raw) { return parseJSONSafe(raw && raw.stats, {
 function renderLearningStats() { favoriteRenderCount++; }
 function parseJSONSafe(value, fallback) { try { return typeof value === 'string' ? JSON.parse(value) : (value === undefined || value === null ? fallback : value); } catch(e) { return fallback; } }
 function hasBackupField(data, field) { return !!data && Object.prototype.hasOwnProperty.call(data, field); }
+function hasBackupLearningStats(data) { return hasBackupField(data, LEARNING_STATS_STORAGE_KEY) || !!(data && data.learningStatsPresent); }
+function hasBackupLearningStatsFavorites(data) { return hasBackupField(data, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY) || !!(data && data.favoritesPresent); }
 function safeRestoreLocalStorage(key, value) { try { localStorage.setItem(key, value); return { ok:true }; } catch(e) { return { ok:false }; } }
 function cyrb53(value) { return String(value).split('').reduce((hash, char) => ((hash * 33) ^ char.charCodeAt(0)) >>> 0, 5381); }
 function getBackupGroupUpdatedAt(raw, group) { return Number(group === 'learningStats' ? raw.learningStatsUpdatedAt : raw.favoritesUpdatedAt) || 0; }
+function getLearningStatsSyncTrace() { return {}; }
+function refreshLearningStatsAfterCloudRestore() { learningStatsModelCache = null; }
 `, context);
 
 [
@@ -86,7 +90,7 @@ function getBackupGroupUpdatedAt(raw, group) { return Number(group === 'learning
     'normalizeLearningStatsFavoriteDecksBackupPayload', 'getLearningStatsFavoriteDecksBackupPayload',
     'stableBackupJson', 'getBackupFieldChecksum', 'verifyLearningStatsBackupPayloadIntegrity', 'restoreLearningStatsBackupFields',
     'verifyCoreBackupPayloadIntegrity',
-    'getStartupSyncDecision',
+    'getStartupSyncDecision', 'getLocalGroupUpdatedAt',
     'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'getCurrentDeckRecommendedStudyCards', 'buildLearningStatsModel',
     'getLearningStatsImmediateChildren', 'getLearningStatsFavoriteDecks', 'saveLearningStatsFavoriteDecks', 'toggleLearningStatsFavorite'
 ].forEach(name => vm.runInContext(readFunction(name), context));
@@ -141,13 +145,26 @@ assert.strictEqual(storage.get('ankiReviewHistory'), '{"history-sentinel":[{"sco
 const tamperedBackup = JSON.parse(JSON.stringify(supplementalBackup));
 tamperedBackup.mk_learning_stats_favorite_decks_v1.push('Tampered');
 assert.strictEqual(context.verifyLearningStatsBackupPayloadIntegrity(tamperedBackup).ok, false, 'supplemental backup checksum detects mutation');
+const firebaseNormalizedStats = context.normalizeLearningStatsBackupPayload({ version:1, days:{ '2026-08-11':{ requiredDone:['A'], newDone:[], otherDone:[], allDone:['A'], trackedDone:['A'] } } });
+const firebaseRoundTrip = JSON.parse(JSON.stringify(firebaseNormalizedStats));
+delete firebaseRoundTrip.days['2026-08-11'].newDone;
+delete firebaseRoundTrip.days['2026-08-11'].otherDone;
+const firebaseRoundTripPayload = { mk_learning_stats_v1:firebaseRoundTrip, integrity:{ mk_learning_stats_v1:context.getBackupFieldChecksum(firebaseNormalizedStats) } };
+assert.strictEqual(context.verifyLearningStatsBackupPayloadIntegrity(firebaseRoundTripPayload).ok, true, 'Firebase omission of empty arrays is canonicalized before checksum verification');
+const emptyFavoritesPayload = { favoritesPresent:true, favoritesUpdatedAt:200, integrity:{ mk_learning_stats_favorite_decks_v1:context.getBackupFieldChecksum([]) } };
+context.saveLearningStatsFavoriteDecks(['Must__Be__Deleted']);
+context.restoreLearningStatsBackupFields(emptyFavoritesPayload, ['favorites']);
+assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], [], 'an explicitly backed-up empty favorite array replaces older device favorites');
 const coreBackup = { stats:'{}', reviewHistory:'{}', integrity:{ stats:context.getBackupFieldChecksum({}), reviewHistory:context.getBackupFieldChecksum({}) } };
 assert.strictEqual(context.verifyCoreBackupPayloadIntegrity(coreBackup).ok, true, 'Stats/history checksums accept an intact backup');
 coreBackup.reviewHistory = '{"changed":[]}';
 assert.strictEqual(context.verifyCoreBackupPayloadIntegrity(coreBackup).ok, false, 'a corrupted newest backup is rejected before selection');
 assert.deepStrictEqual({ ...context.getStartupSyncDecision({ study:100, learningStats:100, favorites:100 }, { study:110, learningStats:110, favorites:110 }) }, { study:'cloud', learningStats:'cloud', favorites:'cloud' }, 'newer verified Firebase groups are selected');
 assert.deepStrictEqual({ ...context.getStartupSyncDecision({ study:110, learningStats:110, favorites:110 }, { study:100, learningStats:100, favorites:100 }) }, { study:'local', learningStats:'local', favorites:'local' }, 'newer local groups are protected');
-assert.deepStrictEqual({ ...context.getStartupSyncDecision({ study:110, learningStats:110, favorites:110 }, { study:110, learningStats:110, favorites:110 }) }, { study:'local', learningStats:'local', favorites:'local' }, 'equal timestamps avoid unnecessary restore');
+assert.deepStrictEqual({ ...context.getStartupSyncDecision({ study:110, learningStats:110, favorites:110 }, { study:110, learningStats:110, favorites:110 }) }, { study:'same', learningStats:'same', favorites:'same' }, 'equal timestamps avoid unnecessary restore');
+storage.delete(context.STORAGE_KEY_LEARNING_STATS_UPDATED_AT);
+storage.set(context.LEARNING_STATS_STORAGE_KEY, JSON.stringify({ version:1, days:{} }));
+assert.strictEqual(context.getLocalGroupUpdatedAt(context.STORAGE_KEY_LEARNING_STATS_UPDATED_AT, context.LEARNING_STATS_STORAGE_KEY), 0, 'an existing empty learning-stats key never inherits the Stats timestamp');
 context.saveLearningStatsFavoriteDecks(['ParentA__01','ParentB__01']);
 assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['ParentA__01','ParentB__01'], 'same leaf names under different canonical paths remain distinct');
 ['A','B','C','A'].forEach(id => context.recordLearningStatsReview(byId[id], 'required'));

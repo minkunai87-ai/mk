@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.134 - 시작 시 최신 데이터 자동 선택)</title>
+<title>MK (v18.5.135 - PWA 학습 통계 복원 보강)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -518,7 +518,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.134 - 시작 시 최신 데이터 자동 선택)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.135 - PWA 학습 통계 복원 보강)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -812,7 +812,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.134 - 시작 시 최신 데이터 자동 선택';
+    const APP_VERSION = 'v18.5.135 - PWA 학습 통계 복원 보강';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -2166,6 +2166,8 @@
             notesByCardUuid: localStorage.getItem(STORAGE_KEY_NOTES) || '{}',
             [LEARNING_STATS_STORAGE_KEY]: learningStatsBackup,
             [LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: learningStatsFavoriteDecksBackup,
+            learningStatsPresent: true,
+            favoritesPresent: true,
             targetRetention: localStorage.getItem('anki_target_retention') || String(targetRetention),
             searchQuery: localStorage.getItem('anki_search_query') || '',
             timestamp: metadata.backupAt,
@@ -2174,6 +2176,8 @@
             statsUpdatedAt: localUpdatedAt,
             learningStatsUpdatedAt,
             favoritesUpdatedAt,
+            learningStatsPresent: true,
+            favoritesPresent: true,
             metadata: { ...metadata, localUpdatedAt, dataUpdatedAt, statsUpdatedAt:localUpdatedAt, learningStatsUpdatedAt, favoritesUpdatedAt }
         };
         data.integrity = {
@@ -2183,6 +2187,11 @@
             [LEARNING_STATS_STORAGE_KEY]: getBackupFieldChecksum(learningStatsBackup),
             [LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: getBackupFieldChecksum(learningStatsFavoriteDecksBackup)
         };
+        console.log('[MK_PWA_BACKUP_LEARNING_STATS]', {
+            ...getLearningStatsSyncTrace(localStorage.getItem(LEARNING_STATS_STORAGE_KEY), localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY)),
+            learningStatsUpdatedAt,
+            favoritesUpdatedAt
+        });
         const payloadText = JSON.stringify(data);
         const payloadBreakdownKB = getBackupPayloadBreakdownKB(data);
         const backupIndexData = {
@@ -3570,7 +3579,7 @@
     function getLocalGroupUpdatedAt(storageKey, dataStorageKey) {
         const explicit = Number(localStorage.getItem(storageKey)) || 0;
         if(explicit) return explicit;
-        return localStorage.getItem(dataStorageKey) ? getLocalDataUpdatedAt() : 0;
+        return 0;
     }
 
     function getLearningStatsUpdatedAt() {
@@ -3585,8 +3594,8 @@
         const metadata = data && data.metadata || {};
         const fallback = getBackupUpdatedAt(data, ts);
         if(group === 'study') return Number(data && (data.statsUpdatedAt || data.localUpdatedAt) || metadata.statsUpdatedAt || metadata.localUpdatedAt) || fallback;
-        if(group === 'learningStats') return Number(data && data.learningStatsUpdatedAt || metadata.learningStatsUpdatedAt) || (hasBackupField(data, LEARNING_STATS_STORAGE_KEY) ? fallback : 0);
-        if(group === 'favorites') return Number(data && data.favoritesUpdatedAt || metadata.favoritesUpdatedAt) || (hasBackupField(data, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY) ? fallback : 0);
+        if(group === 'learningStats') return Number(data && data.learningStatsUpdatedAt || metadata.learningStatsUpdatedAt) || (hasBackupLearningStats(data) ? fallback : 0);
+        if(group === 'favorites') return Number(data && data.favoritesUpdatedAt || metadata.favoritesUpdatedAt) || (hasBackupLearningStatsFavorites(data) ? fallback : 0);
         return Number(data && data.dataUpdatedAt || metadata.dataUpdatedAt) || fallback;
     }
 
@@ -3681,6 +3690,14 @@
 
     function hasBackupField(data, field) {
         return !!data && Object.prototype.hasOwnProperty.call(data, field) && data[field] !== undefined && data[field] !== null;
+    }
+
+    function hasBackupLearningStats(data) {
+        return hasBackupField(data, LEARNING_STATS_STORAGE_KEY) || !!(data && data.learningStatsPresent);
+    }
+
+    function hasBackupLearningStatsFavorites(data) {
+        return hasBackupField(data, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY) || !!(data && data.favoritesPresent);
     }
 
     function getStudyEnvironment() {
@@ -4484,11 +4501,36 @@
     }
 
     function getStartupSyncDecision(localTimes, cloudTimes) {
+        const select = (local, cloud) => Number(cloud) > Number(local) ? 'cloud' : (Number(local) > Number(cloud) ? 'local' : 'same');
         return {
-            study: Number(cloudTimes.study) > Number(localTimes.study) ? 'cloud' : 'local',
-            learningStats: Number(cloudTimes.learningStats) > Number(localTimes.learningStats) ? 'cloud' : 'local',
-            favorites: Number(cloudTimes.favorites) > Number(localTimes.favorites) ? 'cloud' : 'local'
+            study: select(localTimes.study, cloudTimes.study),
+            learningStats: select(localTimes.learningStats, cloudTimes.learningStats),
+            favorites: select(localTimes.favorites, cloudTimes.favorites)
         };
+    }
+
+    function getLearningStatsSyncTrace(value, favoritesValue) {
+        const stats = normalizeLearningStatsBackupPayload(value);
+        const favorites = normalizeLearningStatsFavoriteDecksBackupPayload(favoritesValue);
+        const currentKey = getLearningStatsDateKey();
+        const day = stats.days[currentKey] || {};
+        return {
+            learningStatsExists: value !== null && value !== undefined,
+            learningStatsDayKeys: Object.keys(stats.days).length,
+            currentLearningDayKey: currentKey,
+            requiredDone: Array.isArray(day.requiredDone) ? day.requiredDone.length : 0,
+            newDone: Array.isArray(day.newDone) ? day.newDone.length : 0,
+            otherDone: Array.isArray(day.otherDone) ? day.otherDone.length : 0,
+            allDone: Array.isArray(day.allDone) ? day.allDone.length : 0,
+            favoritesExists: favoritesValue !== null && favoritesValue !== undefined,
+            favoritesCount: favorites.length
+        };
+    }
+
+    function refreshLearningStatsAfterCloudRestore() {
+        learningStatsModelCache = null;
+        const modal = document.getElementById('learning-stats-modal');
+        if(modal && modal.style.display === 'flex') renderLearningStats();
     }
 
     async function getStartupCloudCandidateWithTimeout(timeoutMs = 2500) {
@@ -4530,7 +4572,23 @@
                     favorites: getBackupGroupUpdatedAt(candidate.payload, 'favorites', candidate.record.ts)
                 };
                 const decision = getStartupSyncDecision(localTimes, cloudTimes);
-                console.log('[MK_STARTUP_LATEST_COMPARISON]', { localTimes, cloudTimes, decision, backupTimestamp:candidate.record.ts });
+                const localTrace = getLearningStatsSyncTrace(
+                    localStorage.getItem(LEARNING_STATS_STORAGE_KEY),
+                    localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY)
+                );
+                const cloudTrace = getLearningStatsSyncTrace(
+                    hasBackupLearningStats(candidate.payload) ? candidate.payload[LEARNING_STATS_STORAGE_KEY] : null,
+                    hasBackupLearningStatsFavorites(candidate.payload) ? (candidate.payload[LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY] || []) : null
+                );
+                console.log('[MK_STARTUP_LATEST_COMPARISON]', {
+                    appVersion:APP_VERSION,
+                    standalone:!!getStudyEnvironment().isPWA,
+                    local:{ ...localTimes, ...localTrace },
+                    cloud:{ ...cloudTimes, ...cloudTrace },
+                    selection:decision,
+                    cloudLearningDayKeys:Object.keys(normalizeLearningStatsBackupPayload(candidate.payload[LEARNING_STATS_STORAGE_KEY]).days),
+                    backupTimestamp:candidate.record.ts
+                });
                 const localSupplement = {
                     learningStats: localStorage.getItem(LEARNING_STATS_STORAGE_KEY),
                     learningStatsUpdatedAt: localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT),
@@ -4559,7 +4617,7 @@
                     }
                 }
                 if(cloudApplied) {
-                    learningStatsModelCache = null;
+                    refreshLearningStatsAfterCloudRestore();
                     safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(Date.now()));
                     console.log('RESTORE_SOURCE cloud');
                     console.log('AUTO_SYNC_SOURCE cloud');
@@ -4567,7 +4625,7 @@
                     console.log('AUTO_SYNC_COMPLETE');
                     return;
                 }
-                if(Object.values(decision).every(source => source === 'local') && Math.max(...Object.values(localTimes)) > Math.max(...Object.values(cloudTimes))) {
+                if(!Object.values(decision).includes('cloud') && Math.max(...Object.values(localTimes)) > Math.max(...Object.values(cloudTimes))) {
                     isDataChanged = true;
                     setTimeout(() => flushBackupToFirebase(true), 0);
                 }
@@ -5249,10 +5307,14 @@
         raw = raw || {};
         const integrity = raw && raw.integrity && typeof raw.integrity === 'object' ? raw.integrity : {};
         for(const key of [LEARNING_STATS_STORAGE_KEY, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]) {
-            if(!hasBackupField(raw, key)) continue;
+            const present = key === LEARNING_STATS_STORAGE_KEY ? hasBackupLearningStats(raw) : hasBackupLearningStatsFavorites(raw);
+            if(!present) continue;
             const expected = integrity[key];
             if(expected === undefined || expected === null) continue;
-            if(String(expected) !== getBackupFieldChecksum(raw[key])) {
+            const canonicalValue = key === LEARNING_STATS_STORAGE_KEY
+                ? normalizeLearningStatsBackupPayload(raw[key])
+                : normalizeLearningStatsFavoriteDecksBackupPayload(raw[key]);
+            if(String(expected) !== getBackupFieldChecksum(canonicalValue)) {
                 return { ok:false, reason:`${key}_checksum_mismatch`, key };
             }
         }
@@ -5285,23 +5347,39 @@
         const integrity = verifyLearningStatsBackupPayloadIntegrity(raw);
         if(!integrity.ok) throw new Error(integrity.reason);
         const restored = [];
-        if((!selected || selected.has('learningStats')) && hasBackupField(raw, LEARNING_STATS_STORAGE_KEY)) {
+        if((!selected || selected.has('learningStats')) && hasBackupLearningStats(raw)) {
+            const beforeValue = localStorage.getItem(LEARNING_STATS_STORAGE_KEY);
             const value = normalizeLearningStatsBackupPayload(raw[LEARNING_STATS_STORAGE_KEY]);
             const result = safeRestoreLocalStorage(LEARNING_STATS_STORAGE_KEY, JSON.stringify(value));
             if(!result.ok) throw new Error(`${LEARNING_STATS_STORAGE_KEY}_restore_failed`);
             if(getBackupFieldChecksum(getLearningStatsBackupPayload()) !== getBackupFieldChecksum(value)) throw new Error(`${LEARNING_STATS_STORAGE_KEY}_restore_integrity_failed`);
             restored.push(LEARNING_STATS_STORAGE_KEY);
             localStorage.setItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, String(getBackupGroupUpdatedAt(raw, 'learningStats')));
+            console.log('[MK_PWA_RESTORE_WRITE]', {
+                group:'learningStats',
+                before:getLearningStatsSyncTrace(beforeValue, null),
+                cloud:getLearningStatsSyncTrace(raw[LEARNING_STATS_STORAGE_KEY], null),
+                after:getLearningStatsSyncTrace(localStorage.getItem(LEARNING_STATS_STORAGE_KEY), null),
+                restoredUpdatedAt:Number(localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT)) || 0
+            });
         }
-        if((!selected || selected.has('favorites')) && hasBackupField(raw, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY)) {
+        if((!selected || selected.has('favorites')) && hasBackupLearningStatsFavorites(raw)) {
+            const beforeValue = localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY);
             const value = normalizeLearningStatsFavoriteDecksBackupPayload(raw[LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]);
             const result = safeRestoreLocalStorage(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY, JSON.stringify(value));
             if(!result.ok) throw new Error(`${LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY}_restore_failed`);
             if(getBackupFieldChecksum(getLearningStatsFavoriteDecksBackupPayload()) !== getBackupFieldChecksum(value)) throw new Error(`${LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY}_restore_integrity_failed`);
             restored.push(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY);
             localStorage.setItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT, String(getBackupGroupUpdatedAt(raw, 'favorites')));
+            console.log('[MK_PWA_RESTORE_WRITE]', {
+                group:'favorites',
+                before:getLearningStatsSyncTrace(null, beforeValue),
+                cloud:getLearningStatsSyncTrace(null, raw[LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]),
+                after:getLearningStatsSyncTrace(null, localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY)),
+                restoredUpdatedAt:Number(localStorage.getItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT)) || 0
+            });
         }
-        if(restored.length) learningStatsModelCache = null;
+        if(restored.length) refreshLearningStatsAfterCloudRestore();
         return { ok:true, restored };
     }
 
