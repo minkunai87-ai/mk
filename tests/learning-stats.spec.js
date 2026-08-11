@@ -38,9 +38,12 @@ const context = {
     String,
     Array,
     Math,
+    performance: { now: () => Number(process.hrtime.bigint()) / 1e6 },
     currentDeckName: 'A',
     LEARNING_STATS_STORAGE_KEY: 'mk_learning_stats_v1',
     LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY: 'mk_learning_stats_favorite_decks_v1',
+    learningStatsLibraryRevision: 0,
+    learningStatsCardIndexCache: null,
     localStorage: {
         getItem: key => storage.has(key) ? storage.get(key) : null,
         setItem: (key, value) => storage.set(key, String(value))
@@ -60,6 +63,7 @@ function normalizeDeckPath(value, fallback='') { return String(value || fallback
 function getVirtualDate(ts) { const d = new Date(ts); if(d.getHours() < 4) d.setDate(d.getDate()-1); d.setHours(0,0,0,0); return d; }
 function getTodayEssentialCardId(card) { return String(card && card.id || ''); }
 function getReviewHistory() { return reviewHistory; }
+function getStatsStore() { return {}; }
 function renderLearningStats() { favoriteRenderCount++; }
 `, context);
 
@@ -166,6 +170,10 @@ const statsTargetFunction = readFunction('getCurrentLearningStatsFilterTargets')
     assert(!statsTargetFunction.includes(code), `statistics target calculation must not mutate ${code}`);
 });
 assert(!readFunction('buildLearningStatsModel').includes('guardedStatsWrite'), 'opening stats never writes Stats');
+assert(!readFunction('openLearningStats').includes('learningStatsModelCache = null'), 'opening statistics preserves the warm model cache');
+assert(!readFunction('closeLearningStats').includes('learningStatsModelCache = null'), 'closing statistics preserves the warm model cache');
+assert(readFunction('getLearningStatsCardLookup').includes('learningStatsCardIndexCache'), 'UUID to deck and ancestor index is cached by library revision');
+assert(html.includes("if(window.__MK_STATS_LOOKUP_DEBUG__)"), 'per-card Stats lookup logging is disabled outside explicit debug mode');
 assert(!readFunction('renderLearningStats').includes("['필수'"), 'learning statistics user label is review, not required');
 assert(html.includes('learning-stats-progress') && html.includes('learning-stats-denominator'), 'progress and denominator use separate typography');
 assert(html.includes('.learning-stats-denominator { font-weight:400;'), 'denominator is not bold');

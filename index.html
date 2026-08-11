@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.131 - 통계 UI와 덱 즐겨찾기)</title>
+<title>MK (v18.5.132 - 학습 통계 속도 최적화)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -518,7 +518,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.131 - 통계 UI와 덱 즐겨찾기)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.132 - 학습 통계 속도 최적화)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -812,7 +812,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.131 - 통계 UI와 덱 즐겨찾기';
+    const APP_VERSION = 'v18.5.132 - 학습 통계 속도 최적화';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -883,6 +883,10 @@
     let learningStatsViewPath = '';
     let learningStatsHistoryActive = false;
     let learningStatsModelCache = null;
+    let learningStatsLibraryRevision = 0;
+    let learningStatsStatsRevision = 0;
+    let learningStatsCardIndexCache = null;
+    let learningStatsEligibilityTimer = null;
     let ioImageGroupCache = { cards: null, length: 0, groups: [], cardToGroup: new Map() };
     const ioImageLastVisitedCard = new Map();
     const ioZoomDiagnostics = { logged: new Set(), lastAction: '', doubleTapRuns: 0, occlusionInitializations: 0, cardRenders: 0, activeObservers: 0 };
@@ -2789,6 +2793,8 @@
     function setCanonicalStatsStore(nextStats, source = 'stats-write') {
         const stats = normalizeStatsObject(nextStats);
         restoredStats = stats;
+        learningStatsStatsRevision++;
+        learningStatsModelCache = null;
         queueStatsPersistence(stats, source);
         console.log('[MK_CANONICAL_STATS_SET]', { source, statsKeyCount: Object.keys(stats || {}).length });
         return stats;
@@ -3680,17 +3686,18 @@
     }
 
     function findStatsForCard(card, stats = getStatsStore(), fallbackId = '') {
-        const sourceKeys = Object.keys(stats || {});
         const keys = getStatsLookupKeysForCard(card, fallbackId);
         if(card && card.q) {
             const resolved = resolveCardId(card.q, stats || {});
             if(resolved && !keys.includes(String(resolved))) keys.push(String(resolved));
         }
         const foundKey = keys.find(key => stats && stats[key]);
-        console.log('STATS_SOURCE_KEYS', sourceKeys.slice(0, 20));
-        console.log('CURRENT_CARD_KEYS', keys);
-        console.log('STATS_LOOKUP_TRIED_KEYS', keys);
-        console.log('STATS_LOOKUP_FOUND_KEY', foundKey || null);
+        if(window.__MK_STATS_LOOKUP_DEBUG__) {
+            console.log('STATS_SOURCE_KEYS', Object.keys(stats || {}).slice(0, 20));
+            console.log('CURRENT_CARD_KEYS', keys);
+            console.log('STATS_LOOKUP_TRIED_KEYS', keys);
+            console.log('STATS_LOOKUP_FOUND_KEY', foundKey || null);
+        }
         return foundKey ? { key: foundKey, stat: stats[foundKey] } : { key: null, stat: null };
     }
 
@@ -4943,6 +4950,9 @@
     });
 
     library = newLibrary;
+    learningStatsLibraryRevision++;
+    learningStatsCardIndexCache = null;
+    learningStatsModelCache = null;
 
     registerTodayNewCards();
     renderDeckTree(); 
@@ -5082,8 +5092,12 @@
     }
 
     function getLearningStatsCardLookup() {
+        if(learningStatsCardIndexCache && learningStatsCardIndexCache.libraryRevision === learningStatsLibraryRevision) {
+            return learningStatsCardIndexCache;
+        }
         const canonicalByAlias = new Map();
         const deckByCard = new Map();
+        const ancestorByDeck = new Map();
         Object.entries(library || {}).forEach(([deck, cards]) => {
             (Array.isArray(cards) ? cards : []).forEach(card => {
                 const canonical = getTodayEssentialCardId(card);
@@ -5093,7 +5107,18 @@
                     .map(value => String(value || '')).filter(Boolean).forEach(alias => canonicalByAlias.set(alias, canonical));
             });
         });
-        return { canonicalByAlias, deckByCard };
+        [...new Set(deckByCard.values())].forEach(deck => {
+            const parts = deck.split('__');
+            ancestorByDeck.set(deck, parts.map((_, index) => parts.slice(0, index + 1).join('__')));
+        });
+        learningStatsCardIndexCache = {
+            libraryRevision: learningStatsLibraryRevision,
+            canonicalByAlias,
+            deckByCard,
+            ancestorByDeck,
+            deckPaths: Object.keys(library || {}).map(normalizeDeckPath).filter(Boolean)
+        };
+        return learningStatsCardIndexCache;
     }
 
     function restoreTodayLearningStatsTotal(day, lookup) {
@@ -5147,24 +5172,65 @@
         };
     }
 
-    function getCurrentLearningStatsFilterTargets() {
+    function getLearningStatsModelCacheKey() {
+        const query = String((document.getElementById('search-input') || {}).value || '').trim().toLowerCase();
+        const filterModes = getActiveFilterModes().filter(mode => mode !== 'due').slice().sort().join(',');
+        return [getLearningStatsDateKey(), learningStatsLibraryRevision, learningStatsStatsRevision, query, filterModes].join('|');
+    }
+
+    function getCurrentLearningStatsFilterTargets(profile = null) {
+        profile = profile || {};
+        let startedAt = performance.now();
         const scope = getRecommendedStudyCandidateScope();
+        profile.cardCollectionMs = performance.now() - startedAt;
+        profile.cardCount = scope.cards.length;
+        startedAt = performance.now();
+        scope.statsSnapshot = getStatsStore();
+        scope.reviewHistorySnapshot = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+        scope.cardMetaById = new Map();
+        scope.cards.forEach(card => {
+            const id = getTodayEssentialCardId(card);
+            if(!id || scope.cardMetaById.has(id)) return;
+            const found = scope.statsSnapshot[id]
+                ? { key: id, stat: scope.statsSnapshot[id] }
+                : findStatsForCard(card, scope.statsSnapshot, id);
+            const statsKey = found && found.key ? String(found.key) : id;
+            scope.cardMetaById.set(id, {
+                stat: found && found.stat ? found.stat : {},
+                history: Array.isArray(scope.reviewHistorySnapshot[statsKey]) ? scope.reviewHistorySnapshot[statsKey] : []
+            });
+        });
+        profile.candidateMetadataMs = performance.now() - startedAt;
+        startedAt = performance.now();
         const requiredPrepared = buildTodayEssentialCandidates(scope);
+        profile.requiredCandidatesMs = performance.now() - startedAt;
+        startedAt = performance.now();
         const newPrepared = buildTodayNewCandidates(scope);
+        profile.newCandidatesMs = performance.now() - startedAt;
         const requiredCards = Array.isArray(requiredPrepared && requiredPrepared.candidates) ? requiredPrepared.candidates : [];
         const newCards = Array.isArray(newPrepared && newPrepared.candidates) ? newPrepared.candidates : [];
         return { requiredCards, newCards };
     }
 
-    function buildLearningStatsModel(filterTargets = getCurrentLearningStatsFilterTargets()) {
+    function buildLearningStatsModel(filterTargets = null, profile = null) {
+        profile = profile || {};
+        const modelStartedAt = performance.now();
+        if(!filterTargets) filterTargets = getCurrentLearningStatsFilterTargets(profile);
+        let startedAt = performance.now();
         const store = getLearningStatsStore();
         const dateKey = getLearningStatsDateKey();
         const day = normalizeLearningStatsDay(store.days[dateKey]);
+        profile.completedSetsMs = performance.now() - startedAt;
+        startedAt = performance.now();
         const lookup = getLearningStatsCardLookup();
+        profile.cardIdentityAndDeckMapMs = performance.now() - startedAt;
+        profile.cardIndexCacheHit = !!(learningStatsCardIndexCache && learningStatsCardIndexCache === lookup && profile.cardIdentityAndDeckMapMs < 1);
+        startedAt = performance.now();
         restoreTodayLearningStatsTotal(day, lookup);
         lookup.deckByCard.forEach((deck, id) => { if(!day.deckByCard[id]) day.deckByCard[id] = deck; });
         store.days[dateKey] = day;
         saveLearningStatsStore(store);
+        profile.historyRestoreAndPersistenceMs = performance.now() - startedAt;
 
         const sets = {
             requiredTarget: new Set((filterTargets.requiredCards || []).map(getTodayEssentialCardId).filter(Boolean)),
@@ -5180,19 +5246,37 @@
             });
             return aggregates.get(path);
         };
+        startedAt = performance.now();
         Object.entries(sets).forEach(([metric, ids]) => ids.forEach(id => {
             const deck = normalizeDeckPath(day.deckByCard[id] || lookup.deckByCard.get(id) || '');
             if(!deck) return;
-            const parts = deck.split('__');
-            for(let depth = 1; depth <= parts.length; depth++) ensureAggregate(parts.slice(0, depth).join('__'))[metric].add(id);
+            const ancestors = lookup.ancestorByDeck.get(deck) || [deck];
+            ancestors.forEach(path => ensureAggregate(path)[metric].add(id));
         }));
+        profile.aggregateSetsMs = performance.now() - startedAt;
+        profile.ancestorCacheEntries = lookup.ancestorByDeck.size;
+        profile.statsCount = Object.keys(getStatsStore() || {}).length;
+        profile.modelBuildMs = performance.now() - modelStartedAt;
         console.log('[MK Learning Stats Filter Count Match]', {
             requiredFilterCount: (filterTargets.requiredCards || []).length,
             requiredStatsDenominator: sets.requiredTarget.size,
             newFilterCount: (filterTargets.newCards || []).length,
             newStatsDenominator: sets.newTarget.size
         });
-        return { day, sets, aggregates, deckPaths: Object.keys(library || {}).map(normalizeDeckPath).filter(Boolean) };
+        return { day, sets, aggregates, deckPaths: lookup.deckPaths };
+    }
+
+    function getOrBuildLearningStatsModel(profile = {}) {
+        const cacheKey = getLearningStatsModelCacheKey();
+        if(learningStatsModelCache && learningStatsModelCache.key === cacheKey) {
+            profile.cacheHit = true;
+            profile.modelBuildMs = 0;
+            return learningStatsModelCache.model;
+        }
+        profile.cacheHit = false;
+        const model = buildLearningStatsModel(null, profile);
+        learningStatsModelCache = { key:cacheKey, model };
+        return model;
     }
 
     function getLearningStatsImmediateChildren(model, parentPath = '') {
@@ -5279,13 +5363,16 @@
         return `<div class="learning-stats-row" role="button" tabindex="0" data-path="${escapedPath}" onclick="navigateLearningStats(this.dataset.path)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateLearningStats(this.dataset.path)}"><div class="learning-stats-row-top"><span class="learning-stats-deck">${escapeLearningStatsHtml(label)}</span><button type="button" class="learning-stats-favorite" aria-label="${isFavorite ? '즐겨찾기 해제' : '즐겨찾기 등록'}" aria-pressed="${isFavorite}" data-path="${escapedPath}" onclick="toggleLearningStatsFavorite(event,this.dataset.path)">${isFavorite ? '★' : '☆'}</button><span class="learning-stats-chevron">${hasChildren ? '›' : ''}</span></div><div class="learning-stats-meta">${renderLearningStatsMetric('복습', metric.requiredDone.size, metric.requiredTarget.size, 'review')}<span class="learning-stats-separator">·</span>${renderLearningStatsMetric('새로', metric.newDone.size, metric.newTarget.size, 'new')}<span class="learning-stats-separator">·</span>${renderLearningStatsMetric('기타', metric.otherDone.size, null, 'other')}<span class="learning-stats-separator">·</span>${renderLearningStatsMetric('총', metric.allDone.size, null, 'total')}</div></div>`;
     }
 
-    function renderLearningStats() {
-        const model = learningStatsModelCache || (learningStatsModelCache = buildLearningStatsModel());
+    function renderLearningStats(profile = null) {
+        profile = profile || {};
+        const renderStartedAt = performance.now();
+        const model = getOrBuildLearningStatsModel(profile);
+        let startedAt = performance.now();
         const requiredDone = model.sets.requiredDone.size;
         const newDone = model.sets.newDone.size;
         const requiredTarget = model.sets.requiredTarget.size;
         const newTarget = model.sets.newTarget.size;
-        document.getElementById('learning-stats-summary').innerHTML = [
+        const summaryHtml = [
             ['복습', requiredDone, requiredTarget, `${Math.max(0, requiredTarget - requiredDone)} 남음`, 'review'],
             ['새로', newDone, newTarget, `${Math.max(0, newTarget - newDone)} 남음`, 'new'],
             ['기타 학습', model.sets.otherDone.size, null, '', 'other'],
@@ -5293,33 +5380,50 @@
         ].map(row => `<div class="learning-stats-summary-row"><span class="learning-stats-label learning-stats-${row[4]}">${row[0]}</span><span class="learning-stats-${row[4]}"><strong class="learning-stats-progress">${row[1]}</strong>${row[2] === null ? '' : `<span class="learning-stats-denominator"> / ${row[2]}</span>`}</span><span class="learning-stats-remain">${row[3]}</span></div>`).join('');
         const parts = learningStatsViewPath ? learningStatsViewPath.split('__') : [];
         const crumbs = [{ label:'전체', path:'' }].concat(parts.map((label, index) => ({ label, path:parts.slice(0, index + 1).join('__') })));
-        document.getElementById('learning-stats-breadcrumb').innerHTML = crumbs.map((crumb, index) =>
+        const breadcrumbHtml = crumbs.map((crumb, index) =>
             `${index ? '<span>〉</span>' : ''}<button class="learning-stats-crumb" data-path="${escapeLearningStatsHtml(crumb.path)}" onclick="navigateLearningStats(this.dataset.path)">${escapeLearningStatsHtml(crumb.label)}</button>`
         ).join('');
-        const favoriteSection = document.getElementById('learning-stats-favorites');
+        const favoritesStartedAt = performance.now();
         const favoriteDecks = getLearningStatsFavoriteDecks().filter(path => model.deckPaths.some(deck => deck === path || deck.startsWith(path + '__')));
         const favoriteSet = new Set(favoriteDecks);
-        favoriteSection.style.display = !learningStatsViewPath && favoriteDecks.length ? 'block' : 'none';
-        document.getElementById('learning-stats-favorite-decks').innerHTML = !learningStatsViewPath
+        const favoriteHtml = !learningStatsViewPath
             ? favoriteDecks.map(path => renderLearningStatsDeckRow(model, path, { favoriteSet, showFullPath:true })).join('')
             : '';
+        profile.favoriteModelMs = performance.now() - favoritesStartedAt;
         const children = getLearningStatsImmediateChildren(model, learningStatsViewPath);
-        document.getElementById('learning-stats-decks').innerHTML = children.length
+        const decksHtml = children.length
             ? children.map(path => renderLearningStatsDeckRow(model, path, { favoriteSet })).join('')
             : '<div class="learning-stats-empty">하위 덱이 없습니다.</div>';
+        profile.domGenerationMs = performance.now() - startedAt;
+        startedAt = performance.now();
+        document.getElementById('learning-stats-summary').innerHTML = summaryHtml;
+        document.getElementById('learning-stats-breadcrumb').innerHTML = breadcrumbHtml;
+        const favoriteSection = document.getElementById('learning-stats-favorites');
+        favoriteSection.style.display = !learningStatsViewPath && favoriteDecks.length ? 'block' : 'none';
+        document.getElementById('learning-stats-favorite-decks').innerHTML = favoriteHtml;
+        document.getElementById('learning-stats-decks').innerHTML = decksHtml;
+        profile.domInsertionMs = performance.now() - startedAt;
+        profile.renderTotalMs = performance.now() - renderStartedAt;
+        profile.renderedDirectChildren = children.length;
+        return profile;
     }
 
     function navigateLearningStats(path) {
+        const startedAt = performance.now();
         learningStatsViewPath = normalizeDeckPath(path);
-        renderLearningStats();
+        const profile = renderLearningStats({ interaction:'drill-down' });
+        profile.e2eMs = performance.now() - startedAt;
+        console.log('[MK Learning Stats Performance]', profile);
     }
 
     function openLearningStats() {
+        const startedAt = performance.now();
         toggleMenu(false);
         learningStatsViewPath = '';
-        learningStatsModelCache = null;
-        renderLearningStats();
+        const profile = renderLearningStats({ interaction:'open' });
         document.getElementById('learning-stats-modal').style.display = 'flex';
+        profile.e2eMs = performance.now() - startedAt;
+        console.log('[MK Learning Stats Performance]', profile);
         if(!learningStatsHistoryActive) {
             history.pushState({ mkLearningStats:true }, '');
             learningStatsHistoryActive = true;
@@ -5329,7 +5433,6 @@
     function closeLearningStats(fromHistory = false) {
         document.getElementById('learning-stats-modal').style.display = 'none';
         learningStatsViewPath = '';
-        learningStatsModelCache = null;
         if(learningStatsHistoryActive && !fromHistory) history.back();
         learningStatsHistoryActive = false;
     }
@@ -6235,8 +6338,8 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 
     function buildTodayEssentialCandidates(options = {}) {
         const startedAt = performance.now();
-        const statsSnapshot = getStatsStore();
-        const reviewHistorySnapshot = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+        const statsSnapshot = options.statsSnapshot || getStatsStore();
+        const reviewHistorySnapshot = options.reviewHistorySnapshot || parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
         const today = new Date();
         today.setHours(0,0,0,0);
         const todayStart = today.getTime();
@@ -6254,8 +6357,8 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             seenIds.add(id);
             return true;
         });
-        const cardMeta = new Map();
-        existingOrder.forEach(card => {
+        const cardMeta = options.cardMetaById instanceof Map ? options.cardMetaById : new Map();
+        if(!(options.cardMetaById instanceof Map)) existingOrder.forEach(card => {
             const id = getTodayEssentialCardId(card);
             const found = id && statsSnapshot && statsSnapshot[id]
                 ? { key: id, stat: statsSnapshot[id] }
@@ -6378,6 +6481,18 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                 console.warn('[MK Today New Registry Save Skipped]', e);
             }
         }
+        if(learningStatsEligibilityTimer) clearTimeout(learningStatsEligibilityTimer);
+        const nextEligibilityAt = Object.values(registry.cards).reduce((next, record) => {
+            if(!record || record.baseline) return next;
+            const eligibleAt = Number(record.firstSeenAt || 0) + TODAY_NEW_MIN_AGE_MS;
+            return eligibleAt > now && (!next || eligibleAt < next) ? eligibleAt : next;
+        }, 0);
+        if(nextEligibilityAt) {
+            learningStatsEligibilityTimer = setTimeout(() => {
+                learningStatsModelCache = null;
+                learningStatsEligibilityTimer = null;
+            }, Math.min(2147483647, Math.max(1, nextEligibilityAt - Date.now() + 25)));
+        }
         return registry;
     }
 
@@ -6448,8 +6563,8 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         const now = Date.now();
         const registry = registerTodayNewCards();
         const completed = getTodayNewCompleted();
-        const statsSnapshot = getStatsStore();
-        const reviewHistorySnapshot = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+        const statsSnapshot = options.statsSnapshot || getStatsStore();
+        const reviewHistorySnapshot = options.reviewHistorySnapshot || parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
         const deckLookup = getTodayNewDeckLookup();
         const query = typeof options.query === 'string'
             ? options.query.trim().toLowerCase()
@@ -6468,8 +6583,8 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             seenIds.add(id);
             return true;
         });
-        const metaById = new Map();
-        selectedDeckCards.forEach(card => {
+        const metaById = options.cardMetaById instanceof Map ? options.cardMetaById : new Map();
+        if(!(options.cardMetaById instanceof Map)) selectedDeckCards.forEach(card => {
             const id = getTodayEssentialCardId(card);
             const found = id && statsSnapshot && statsSnapshot[id]
                 ? { key: id, stat: statsSnapshot[id] }
