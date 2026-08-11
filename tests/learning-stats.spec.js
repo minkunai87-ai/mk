@@ -40,6 +40,7 @@ const context = {
     Math,
     currentDeckName: 'A',
     LEARNING_STATS_STORAGE_KEY: 'mk_learning_stats_v1',
+    LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY: 'mk_learning_stats_favorite_decks_v1',
     localStorage: {
         getItem: key => storage.has(key) ? storage.get(key) : null,
         setItem: (key, value) => storage.set(key, String(value))
@@ -50,7 +51,8 @@ const context = {
         B__child: [{ id:'G', deck:'B__child' }, { id:'H', deck:'B__child' }]
     },
     originalDeck: [],
-    reviewHistory: {}
+    reviewHistory: {},
+    favoriteRenderCount: 0
 };
 vm.createContext(context);
 vm.runInContext(`
@@ -58,6 +60,7 @@ function normalizeDeckPath(value, fallback='') { return String(value || fallback
 function getVirtualDate(ts) { const d = new Date(ts); if(d.getHours() < 4) d.setDate(d.getDate()-1); d.setHours(0,0,0,0); return d; }
 function getTodayEssentialCardId(card) { return String(card && card.id || ''); }
 function getReviewHistory() { return reviewHistory; }
+function renderLearningStats() { favoriteRenderCount++; }
 `, context);
 
 [
@@ -65,7 +68,7 @@ function getReviewHistory() { return reviewHistory; }
     'getLearningStatsStore', 'saveLearningStatsStore', 'updateLearningStatsDay',
     'rememberLearningStatsDeck', 'recordLearningStatsReview',
     'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'getCurrentDeckRecommendedStudyCards', 'buildLearningStatsModel',
-    'getLearningStatsImmediateChildren'
+    'getLearningStatsImmediateChildren', 'getLearningStatsFavoriteDecks', 'saveLearningStatsFavoriteDecks', 'toggleLearningStatsFavorite'
 ].forEach(name => vm.runInContext(readFunction(name), context));
 
 const cards = Object.values(context.library).flat();
@@ -80,6 +83,20 @@ assert.deepStrictEqual([...context.getCurrentDeckRecommendedStudyCards()].map(ca
 assert(!context.getCurrentDeckRecommendedStudyCards().some(card => String(card.deck).startsWith('B__')), 'cards outside the selected deck scope are excluded');
 context.originalDeck = context.getAllRecommendedStudyCards();
 assert.strictEqual(context.getCurrentDeckRecommendedStudyCards().length, 8, 'all-deck scope includes every unique card');
+
+assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], [], 'favorite section starts empty');
+const favoriteEvent = { prevented:false, stopped:false, preventDefault(){ this.prevented=true; }, stopPropagation(){ this.stopped=true; } };
+context.toggleLearningStatsFavorite(favoriteEvent, 'A__deep__leaf');
+context.toggleLearningStatsFavorite(favoriteEvent, 'B__child');
+assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['A__deep__leaf','B__child'], 'favorites preserve canonical paths and registration order');
+assert(favoriteEvent.prevented && favoriteEvent.stopped, 'favorite click prevents row drill-down');
+assert.strictEqual(context.favoriteRenderCount, 2, 'favorite state rerenders immediately');
+context.toggleLearningStatsFavorite(favoriteEvent, 'A__deep__leaf');
+assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['B__child'], 'favorite toggles off immediately');
+const reloadedFavoriteContext = JSON.parse(storage.get(context.LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY));
+assert.deepStrictEqual(reloadedFavoriteContext, ['B__child'], 'favorites persist across reload/PWA restart storage reads');
+context.saveLearningStatsFavoriteDecks(['ParentA__01','ParentB__01']);
+assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['ParentA__01','ParentB__01'], 'same leaf names under different canonical paths remain distinct');
 ['A','B','C','A'].forEach(id => context.recordLearningStatsReview(byId[id], 'required'));
 ['D','E','D'].forEach(id => context.recordLearningStatsReview(byId[id], 'new'));
 ['F','G','H','F'].forEach(id => context.recordLearningStatsReview(byId[id], 'other'));
@@ -149,5 +166,10 @@ const statsTargetFunction = readFunction('getCurrentLearningStatsFilterTargets')
     assert(!statsTargetFunction.includes(code), `statistics target calculation must not mutate ${code}`);
 });
 assert(!readFunction('buildLearningStatsModel').includes('guardedStatsWrite'), 'opening stats never writes Stats');
+assert(!readFunction('renderLearningStats').includes("['필수'"), 'learning statistics user label is review, not required');
+assert(html.includes('learning-stats-progress') && html.includes('learning-stats-denominator'), 'progress and denominator use separate typography');
+assert(html.includes('.learning-stats-denominator { font-weight:400;'), 'denominator is not bold');
+assert(html.includes('.learning-stats-favorite { width:40px; height:40px;'), 'favorite touch target is at least 40 by 40 pixels');
+assert(!html.includes('learning-stats-progress-bar'), 'no statistics progress bar is added');
 
 console.log('learning stats scenarios passed');

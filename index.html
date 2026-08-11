@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.130 - 오늘 새로 덱 범위)</title>
+<title>MK (v18.5.131 - 통계 UI와 덱 즐겨찾기)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -450,14 +450,26 @@
     .learning-stats-heading { margin:0 0 10px; font-size:0.95rem; color:var(--text); }
     .learning-stats-summary-row { display:grid; grid-template-columns:72px 1fr auto; gap:8px; padding:7px 0; align-items:center; font-size:0.9rem; }
     .learning-stats-summary-row + .learning-stats-summary-row { border-top:1px solid var(--border); }
-    .learning-stats-value { font-weight:800; }
+    .learning-stats-label, .learning-stats-metric { font-weight:600; }
+    .learning-stats-progress { font-weight:800; }
+    .learning-stats-denominator { font-weight:400; color:var(--text); }
+    .learning-stats-review { color:#74a7d8; }
+    .learning-stats-new { color:#6fb58b; }
+    .learning-stats-other { color:#d3a15d; }
+    .learning-stats-total { color:#a78bd4; }
     .learning-stats-remain { color:var(--text-sub); font-size:0.8rem; }
     .learning-stats-breadcrumb { display:flex; flex-wrap:wrap; gap:5px; align-items:center; margin:4px 0 10px; font-size:0.84rem; }
     .learning-stats-crumb { border:0; background:none; color:var(--primary); padding:4px 1px; cursor:pointer; }
-    .learning-stats-row { width:100%; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--text); padding:12px; margin-bottom:8px; text-align:left; cursor:pointer; display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center; }
+    .learning-stats-section-title { margin:14px 0 9px; color:var(--text); font-size:0.9rem; }
+    .learning-stats-favorites { margin-bottom:14px; }
+    .learning-stats-row { width:100%; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--text); padding:8px 8px 10px 12px; margin-bottom:8px; text-align:left; cursor:pointer; }
+    .learning-stats-row-top { min-height:40px; display:grid; grid-template-columns:minmax(0, 1fr) 40px 32px; gap:2px; align-items:center; }
     .learning-stats-deck { font-weight:800; overflow-wrap:anywhere; }
-    .learning-stats-meta { color:var(--text-sub); font-size:0.78rem; line-height:1.45; margin-top:5px; }
-    .learning-stats-chevron { color:var(--text-sub); font-size:1.2rem; }
+    .learning-stats-meta { display:flex; flex-wrap:wrap; gap:3px 6px; color:var(--text-sub); font-size:0.78rem; line-height:1.45; padding-right:4px; }
+    .learning-stats-separator { color:var(--text-sub); opacity:0.65; }
+    .learning-stats-favorite { width:40px; height:40px; border:0; border-radius:8px; background:transparent; color:#d3a15d; font-size:1.15rem; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .learning-stats-favorite:active { background:var(--input-bg); }
+    .learning-stats-chevron { color:var(--text-sub); font-size:1.2rem; width:32px; text-align:center; }
     .learning-stats-empty { color:var(--text-sub); text-align:center; padding:22px 8px; }
 
 </style>
@@ -506,7 +518,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.130 - 오늘 새로 덱 범위)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.131 - 통계 UI와 덱 즐겨찾기)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -518,6 +530,10 @@
             <section class="learning-stats-card">
                 <h3 class="learning-stats-heading">오늘</h3>
                 <div id="learning-stats-summary"></div>
+            </section>
+            <section class="learning-stats-favorites" id="learning-stats-favorites" style="display:none;">
+                <h3 class="learning-stats-section-title">즐겨찾는 덱</h3>
+                <div id="learning-stats-favorite-decks"></div>
             </section>
             <nav class="learning-stats-breadcrumb" id="learning-stats-breadcrumb" aria-label="덱 위치"></nav>
             <div id="learning-stats-decks"></div>
@@ -796,7 +812,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.130 - 오늘 새로 덱 범위';
+    const APP_VERSION = 'v18.5.131 - 통계 UI와 덱 즐겨찾기';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -828,6 +844,7 @@
     const TODAY_NEW_COMPLETED_STORAGE_KEY = 'mk_today_new_completed_v1';
     const TODAY_NEW_SELECTION_STORAGE_KEY = 'mk_today_new_selection_v1';
     const LEARNING_STATS_STORAGE_KEY = 'mk_learning_stats_v1';
+    const LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY = 'mk_learning_stats_favorite_decks_v1';
     const TODAY_NEW_MIN_AGE_MS = 6 * 60 * 60 * 1000;
     const TODAY_NEW_PRIORITY_24H_MS = 24 * 60 * 60 * 1000;
     const TODAY_NEW_PRIORITY_48H_MS = 48 * 60 * 60 * 1000;
@@ -5194,6 +5211,74 @@
         return String(value || '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
     }
 
+    function getLearningStatsFavoriteDecks() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY) || '[]');
+            if(!Array.isArray(parsed)) return [];
+            const seen = new Set();
+            return parsed.map(normalizeDeckPath).filter(path => {
+                if(!path || seen.has(path)) return false;
+                seen.add(path);
+                return true;
+            });
+        } catch(e) {
+            return [];
+        }
+    }
+
+    function saveLearningStatsFavoriteDecks(paths) {
+        const normalized = [];
+        const seen = new Set();
+        (Array.isArray(paths) ? paths : []).map(normalizeDeckPath).forEach(path => {
+            if(!path || seen.has(path)) return;
+            seen.add(path);
+            normalized.push(path);
+        });
+        try {
+            localStorage.setItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY, JSON.stringify(normalized));
+            return true;
+        } catch(e) {
+            console.warn('[MK Learning Stats Favorite Save Skipped]', e);
+            return false;
+        }
+    }
+
+    function toggleLearningStatsFavorite(event, path) {
+        if(event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        const normalizedPath = normalizeDeckPath(path);
+        const favorites = getLearningStatsFavoriteDecks();
+        const index = favorites.indexOf(normalizedPath);
+        if(index >= 0) favorites.splice(index, 1);
+        else if(normalizedPath) favorites.push(normalizedPath);
+        saveLearningStatsFavoriteDecks(favorites);
+        renderLearningStats();
+    }
+
+    function getLearningStatsMetric(model, path) {
+        return model.aggregates.get(path) || {
+            requiredTarget:new Set(), newTarget:new Set(), requiredDone:new Set(),
+            newDone:new Set(), otherDone:new Set(), allDone:new Set()
+        };
+    }
+
+    function renderLearningStatsMetric(label, done, target, type) {
+        const denominator = target === null ? '' : `<span class="learning-stats-denominator">/${target}</span>`;
+        return `<span class="learning-stats-metric learning-stats-${type}">${label} <strong class="learning-stats-progress">${done}</strong>${denominator}</span>`;
+    }
+
+    function renderLearningStatsDeckRow(model, path, options = {}) {
+        const metric = getLearningStatsMetric(model, path);
+        const favorites = options.favoriteSet || new Set(getLearningStatsFavoriteDecks());
+        const isFavorite = favorites.has(path);
+        const label = options.showFullPath ? path.split('__').join(' 〉 ') : path.split('__').pop();
+        const hasChildren = getLearningStatsImmediateChildren(model, path).length > 0;
+        const escapedPath = escapeLearningStatsHtml(path);
+        return `<div class="learning-stats-row" role="button" tabindex="0" data-path="${escapedPath}" onclick="navigateLearningStats(this.dataset.path)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateLearningStats(this.dataset.path)}"><div class="learning-stats-row-top"><span class="learning-stats-deck">${escapeLearningStatsHtml(label)}</span><button type="button" class="learning-stats-favorite" aria-label="${isFavorite ? '즐겨찾기 해제' : '즐겨찾기 등록'}" aria-pressed="${isFavorite}" data-path="${escapedPath}" onclick="toggleLearningStatsFavorite(event,this.dataset.path)">${isFavorite ? '★' : '☆'}</button><span class="learning-stats-chevron">${hasChildren ? '›' : ''}</span></div><div class="learning-stats-meta">${renderLearningStatsMetric('복습', metric.requiredDone.size, metric.requiredTarget.size, 'review')}<span class="learning-stats-separator">·</span>${renderLearningStatsMetric('새로', metric.newDone.size, metric.newTarget.size, 'new')}<span class="learning-stats-separator">·</span>${renderLearningStatsMetric('기타', metric.otherDone.size, null, 'other')}<span class="learning-stats-separator">·</span>${renderLearningStatsMetric('총', metric.allDone.size, null, 'total')}</div></div>`;
+    }
+
     function renderLearningStats() {
         const model = learningStatsModelCache || (learningStatsModelCache = buildLearningStatsModel());
         const requiredDone = model.sets.requiredDone.size;
@@ -5201,23 +5286,27 @@
         const requiredTarget = model.sets.requiredTarget.size;
         const newTarget = model.sets.newTarget.size;
         document.getElementById('learning-stats-summary').innerHTML = [
-            ['필수', `${requiredDone} / ${requiredTarget}`, `${Math.max(0, requiredTarget - requiredDone)} 남음`],
-            ['새로', `${newDone} / ${newTarget}`, `${Math.max(0, newTarget - newDone)} 남음`],
-            ['기타 학습', String(model.sets.otherDone.size), ''],
-            ['총 학습', String(model.sets.allDone.size), '']
-        ].map(row => `<div class="learning-stats-summary-row"><span>${row[0]}</span><span class="learning-stats-value">${row[1]}</span><span class="learning-stats-remain">${row[2]}</span></div>`).join('');
+            ['복습', requiredDone, requiredTarget, `${Math.max(0, requiredTarget - requiredDone)} 남음`, 'review'],
+            ['새로', newDone, newTarget, `${Math.max(0, newTarget - newDone)} 남음`, 'new'],
+            ['기타 학습', model.sets.otherDone.size, null, '', 'other'],
+            ['총 학습', model.sets.allDone.size, null, '', 'total']
+        ].map(row => `<div class="learning-stats-summary-row"><span class="learning-stats-label learning-stats-${row[4]}">${row[0]}</span><span class="learning-stats-${row[4]}"><strong class="learning-stats-progress">${row[1]}</strong>${row[2] === null ? '' : `<span class="learning-stats-denominator"> / ${row[2]}</span>`}</span><span class="learning-stats-remain">${row[3]}</span></div>`).join('');
         const parts = learningStatsViewPath ? learningStatsViewPath.split('__') : [];
         const crumbs = [{ label:'전체', path:'' }].concat(parts.map((label, index) => ({ label, path:parts.slice(0, index + 1).join('__') })));
         document.getElementById('learning-stats-breadcrumb').innerHTML = crumbs.map((crumb, index) =>
             `${index ? '<span>〉</span>' : ''}<button class="learning-stats-crumb" data-path="${escapeLearningStatsHtml(crumb.path)}" onclick="navigateLearningStats(this.dataset.path)">${escapeLearningStatsHtml(crumb.label)}</button>`
         ).join('');
+        const favoriteSection = document.getElementById('learning-stats-favorites');
+        const favoriteDecks = getLearningStatsFavoriteDecks().filter(path => model.deckPaths.some(deck => deck === path || deck.startsWith(path + '__')));
+        const favoriteSet = new Set(favoriteDecks);
+        favoriteSection.style.display = !learningStatsViewPath && favoriteDecks.length ? 'block' : 'none';
+        document.getElementById('learning-stats-favorite-decks').innerHTML = !learningStatsViewPath
+            ? favoriteDecks.map(path => renderLearningStatsDeckRow(model, path, { favoriteSet, showFullPath:true })).join('')
+            : '';
         const children = getLearningStatsImmediateChildren(model, learningStatsViewPath);
-        document.getElementById('learning-stats-decks').innerHTML = children.length ? children.map(path => {
-            const metric = model.aggregates.get(path) || { requiredTarget:new Set(), newTarget:new Set(), requiredDone:new Set(), newDone:new Set(), otherDone:new Set(), allDone:new Set() };
-            const label = path.split('__').pop();
-            const hasChildren = getLearningStatsImmediateChildren(model, path).length > 0;
-            return `<button class="learning-stats-row" data-path="${escapeLearningStatsHtml(path)}" onclick="navigateLearningStats(this.dataset.path)"><span><span class="learning-stats-deck">${escapeLearningStatsHtml(label)}</span><span class="learning-stats-meta">필수 ${metric.requiredDone.size}/${metric.requiredTarget.size} · 새로 ${metric.newDone.size}/${metric.newTarget.size} · 기타 ${metric.otherDone.size} · 총 ${metric.allDone.size}</span></span><span class="learning-stats-chevron">${hasChildren ? '›' : ''}</span></button>`;
-        }).join('') : '<div class="learning-stats-empty">하위 덱이 없습니다.</div>';
+        document.getElementById('learning-stats-decks').innerHTML = children.length
+            ? children.map(path => renderLearningStatsDeckRow(model, path, { favoriteSet })).join('')
+            : '<div class="learning-stats-empty">하위 덱이 없습니다.</div>';
     }
 
     function navigateLearningStats(path) {
