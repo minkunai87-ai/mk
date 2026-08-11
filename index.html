@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.132 - 학습 통계 속도 최적화)</title>
+<title>MK (v18.5.133 - 학습 통계 백업 확장)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -518,7 +518,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.132 - 학습 통계 속도 최적화)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.133 - 학습 통계 백업 확장)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -812,7 +812,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.132 - 학습 통계 속도 최적화';
+    const APP_VERSION = 'v18.5.133 - 학습 통계 백업 확장';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -2136,6 +2136,8 @@
             if(!isAuto) showToast('Stats 개수가 비정상적으로 낮아 백업을 중단했습니다.', 'error');
             return false;
         }
+        const learningStatsBackup = getLearningStatsBackupPayload();
+        const learningStatsFavoriteDecksBackup = getLearningStatsFavoriteDecksBackupPayload();
         const data = {
             appId: 'mk',
             appVersion: APP_VERSION,
@@ -2157,11 +2159,18 @@
             deckViewStates: localStorage.getItem(STORAGE_KEY_DECK_VIEW_STATES),
             reviewHistory: localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY),
             notesByCardUuid: localStorage.getItem(STORAGE_KEY_NOTES) || '{}',
+            [LEARNING_STATS_STORAGE_KEY]: learningStatsBackup,
+            [LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: learningStatsFavoriteDecksBackup,
             targetRetention: localStorage.getItem('anki_target_retention') || String(targetRetention),
             searchQuery: localStorage.getItem('anki_search_query') || '',
             timestamp: metadata.backupAt,
             localUpdatedAt,
             metadata: { ...metadata, localUpdatedAt }
+        };
+        data.integrity = {
+            ...(data.integrity || {}),
+            [LEARNING_STATS_STORAGE_KEY]: getBackupFieldChecksum(learningStatsBackup),
+            [LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: getBackupFieldChecksum(learningStatsFavoriteDecksBackup)
         };
         const payloadText = JSON.stringify(data);
         const payloadBreakdownKB = getBackupPayloadBreakdownKB(data);
@@ -3201,6 +3210,8 @@
     async function forceReinstallNormalStatsBackup(payload = {}, source = 'force-reinstall', options = {}) {
         const normalized = payload.normalized || normalizeBackupPayload(payload.raw || payload, source, payload.timestamp || options.backupTimestamp);
         const raw = normalized.raw || payload.raw || payload || {};
+        const supplementalIntegrity = verifyLearningStatsBackupPayloadIntegrity(raw);
+        if(!supplementalIntegrity.ok) return { ok:false, reason:supplementalIntegrity.reason, statsKeyCount:0 };
         const stats = normalizeStatsObject(normalized.stats || getBackupStatsCandidate(raw));
         const statsValue = JSON.stringify(stats);
         const statsKeyCount = getStatsKeyCount(stats);
@@ -3250,6 +3261,7 @@
         if (hasBackupField(raw, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, raw.filter);
         if (hasBackupField(raw, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, raw.recentDecks);
         if (hasBackupField(raw, 'targetRetention')) applyTargetRetentionFromBackup(raw.targetRetention, source);
+        restoreLearningStatsBackupFields(raw);
 
         const restoredViewState = options.deferViewState
             ? compactViewState(normalized.viewState || getBackupViewState(raw))
@@ -3889,6 +3901,12 @@
     async function applyRestoredState(payload = {}, source = 'restore', options = {}) {
         console.log('RESTORE_START', { source });
         const raw = payload.raw || payload;
+        const supplementalIntegrity = verifyLearningStatsBackupPayloadIntegrity(raw);
+        if(!supplementalIntegrity.ok) {
+            console.warn('BACKUP_SUPPLEMENT_INTEGRITY_REJECTED', supplementalIntegrity);
+            showToast(`백업 무결성 검증 실패: ${supplementalIntegrity.key}`, 'error');
+            return null;
+        }
         const incomingStats = payload.stats || getBackupStatsCandidate(raw);
         const incomingHistory = payload.reviewHistory || parseJSONSafe(raw && raw.reviewHistory, {});
         const incomingNotes = payload.notesByCardUuid || normalizeNotesByCardUuid(raw && raw.notesByCardUuid);
@@ -3949,6 +3967,7 @@
         if(hasBackupField(raw, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, raw.filter);
         if(hasBackupField(raw, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, raw.recentDecks);
         if(hasBackupField(raw, 'targetRetention')) applyTargetRetentionFromBackup(raw.targetRetention, source);
+        restoreLearningStatsBackupFields(raw);
         const restoredViewState = options.deferViewState
             ? compactViewState(payload.viewState || getBackupViewState(raw))
             : restorePosition(payload.viewState || getBackupViewState(raw), source);
@@ -4346,6 +4365,7 @@
             if (hasBackupField(payload, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, payload.filter);
             if (hasBackupField(payload, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, payload.recentDecks);
             if (hasBackupField(payload, 'targetRetention')) applyTargetRetentionFromBackup(payload.targetRetention, 'startup-bootstrap');
+            restoreLearningStatsBackupFields(payload);
 
             const pendingMerge = mergePendingReviewEventsIntoCurrentStats('startup-bootstrap:pending-review-merge');
             const localReviewMerge = mergeNewerLocalReviewStateIntoCurrentStats(localStatsBeforeBootstrap, localHistoryBeforeBootstrap, 'startup-bootstrap:local-review-merge');
@@ -5056,6 +5076,89 @@
             console.warn('[MK Learning Stats Save Skipped]', e);
             return false;
         }
+    }
+
+    const LEARNING_STATS_BACKUP_DAY_KEYS = ['requiredDone', 'newDone', 'otherDone', 'allDone', 'trackedDone'];
+
+    function normalizeLearningStatsBackupPayload(value) {
+        const parsed = parseJSONSafe(value, value && typeof value === 'object' ? value : {});
+        const days = parsed && parsed.days && typeof parsed.days === 'object' && !Array.isArray(parsed.days) ? parsed.days : {};
+        return {
+            version: 1,
+            days: Object.fromEntries(Object.entries(days).map(([dateKey, rawDay]) => {
+                const day = rawDay && typeof rawDay === 'object' && !Array.isArray(rawDay) ? rawDay : {};
+                return [String(dateKey), Object.fromEntries(LEARNING_STATS_BACKUP_DAY_KEYS.map(key => [
+                    key,
+                    [...new Set((Array.isArray(day[key]) ? day[key] : []).map(String).filter(Boolean))]
+                ]))];
+            }))
+        };
+    }
+
+    function getLearningStatsBackupPayload() {
+        return normalizeLearningStatsBackupPayload(localStorage.getItem(LEARNING_STATS_STORAGE_KEY));
+    }
+
+    function normalizeLearningStatsFavoriteDecksBackupPayload(value) {
+        const parsed = parseJSONSafe(value, Array.isArray(value) ? value : []);
+        if(!Array.isArray(parsed)) return [];
+        const seen = new Set();
+        return parsed.map(path => normalizeDeckPath(String(path || ''))).filter(path => {
+            if(!path || seen.has(path)) return false;
+            seen.add(path);
+            return true;
+        });
+    }
+
+    function getLearningStatsFavoriteDecksBackupPayload() {
+        return normalizeLearningStatsFavoriteDecksBackupPayload(localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY));
+    }
+
+    function stableBackupJson(value) {
+        if(Array.isArray(value)) return `[${value.map(stableBackupJson).join(',')}]`;
+        if(value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableBackupJson(value[key])}`).join(',')}}`;
+        return JSON.stringify(value);
+    }
+
+    function getBackupFieldChecksum(value) {
+        return String(cyrb53(stableBackupJson(value)));
+    }
+
+    function verifyLearningStatsBackupPayloadIntegrity(raw) {
+        raw = raw || {};
+        const integrity = raw && raw.integrity && typeof raw.integrity === 'object' ? raw.integrity : {};
+        for(const key of [LEARNING_STATS_STORAGE_KEY, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]) {
+            if(!hasBackupField(raw, key)) continue;
+            const expected = integrity[key];
+            if(expected === undefined || expected === null) continue;
+            if(String(expected) !== getBackupFieldChecksum(raw[key])) {
+                return { ok:false, reason:`${key}_checksum_mismatch`, key };
+            }
+        }
+        return { ok:true };
+    }
+
+    function restoreLearningStatsBackupFields(raw) {
+        raw = raw || {};
+        const integrity = verifyLearningStatsBackupPayloadIntegrity(raw);
+        if(!integrity.ok) throw new Error(integrity.reason);
+        const restored = [];
+        if(hasBackupField(raw, LEARNING_STATS_STORAGE_KEY)) {
+            const value = normalizeLearningStatsBackupPayload(raw[LEARNING_STATS_STORAGE_KEY]);
+            const result = safeRestoreLocalStorage(LEARNING_STATS_STORAGE_KEY, JSON.stringify(value));
+            if(!result.ok) throw new Error(`${LEARNING_STATS_STORAGE_KEY}_restore_failed`);
+            if(getBackupFieldChecksum(getLearningStatsBackupPayload()) !== getBackupFieldChecksum(value)) throw new Error(`${LEARNING_STATS_STORAGE_KEY}_restore_integrity_failed`);
+            restored.push(LEARNING_STATS_STORAGE_KEY);
+        }
+        if(hasBackupField(raw, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY)) {
+            const value = normalizeLearningStatsFavoriteDecksBackupPayload(raw[LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]);
+            const result = safeRestoreLocalStorage(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY, JSON.stringify(value));
+            if(!result.ok) throw new Error(`${LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY}_restore_failed`);
+            if(getBackupFieldChecksum(getLearningStatsFavoriteDecksBackupPayload()) !== getBackupFieldChecksum(value)) throw new Error(`${LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY}_restore_integrity_failed`);
+            restored.push(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY);
+        }
+        if(restored.length) learningStatsModelCache = null;
+        return { ok:true, restored };
     }
 
     function updateLearningStatsDay(mutator) {

@@ -42,6 +42,7 @@ const context = {
     currentDeckName: 'A',
     LEARNING_STATS_STORAGE_KEY: 'mk_learning_stats_v1',
     LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY: 'mk_learning_stats_favorite_decks_v1',
+    LEARNING_STATS_BACKUP_DAY_KEYS: ['requiredDone', 'newDone', 'otherDone', 'allDone', 'trackedDone'],
     learningStatsLibraryRevision: 0,
     learningStatsCardIndexCache: null,
     localStorage: {
@@ -65,12 +66,19 @@ function getTodayEssentialCardId(card) { return String(card && card.id || ''); }
 function getReviewHistory() { return reviewHistory; }
 function getStatsStore() { return {}; }
 function renderLearningStats() { favoriteRenderCount++; }
+function parseJSONSafe(value, fallback) { try { return typeof value === 'string' ? JSON.parse(value) : (value === undefined || value === null ? fallback : value); } catch(e) { return fallback; } }
+function hasBackupField(data, field) { return !!data && Object.prototype.hasOwnProperty.call(data, field); }
+function safeRestoreLocalStorage(key, value) { try { localStorage.setItem(key, value); return { ok:true }; } catch(e) { return { ok:false }; } }
+function cyrb53(value) { return String(value).split('').reduce((hash, char) => ((hash * 33) ^ char.charCodeAt(0)) >>> 0, 5381); }
 `, context);
 
 [
     'getLearningStatsDateKey', 'getEmptyLearningStatsDay', 'normalizeLearningStatsDay',
     'getLearningStatsStore', 'saveLearningStatsStore', 'updateLearningStatsDay',
     'rememberLearningStatsDeck', 'recordLearningStatsReview',
+    'normalizeLearningStatsBackupPayload', 'getLearningStatsBackupPayload',
+    'normalizeLearningStatsFavoriteDecksBackupPayload', 'getLearningStatsFavoriteDecksBackupPayload',
+    'stableBackupJson', 'getBackupFieldChecksum', 'verifyLearningStatsBackupPayloadIntegrity', 'restoreLearningStatsBackupFields',
     'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'getCurrentDeckRecommendedStudyCards', 'buildLearningStatsModel',
     'getLearningStatsImmediateChildren', 'getLearningStatsFavoriteDecks', 'saveLearningStatsFavoriteDecks', 'toggleLearningStatsFavorite'
 ].forEach(name => vm.runInContext(readFunction(name), context));
@@ -99,6 +107,32 @@ context.toggleLearningStatsFavorite(favoriteEvent, 'A__deep__leaf');
 assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['B__child'], 'favorite toggles off immediately');
 const reloadedFavoriteContext = JSON.parse(storage.get(context.LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY));
 assert.deepStrictEqual(reloadedFavoriteContext, ['B__child'], 'favorites persist across reload/PWA restart storage reads');
+
+const backupStatsPayload = context.normalizeLearningStatsBackupPayload({ version:1, days:{ '2000-01-01':{
+    requiredDone:['R1'], newDone:['N1'], otherDone:['O1'], allDone:['R1','N1','O1'], trackedDone:['R1','N1','O1'],
+    requiredTarget:['derived-review'], newTarget:['derived-new'], deckByCard:{ R1:'A__one' }, aggregate:{ A:3 }
+} } });
+const backupDay = backupStatsPayload.days['2000-01-01'];
+assert.deepStrictEqual(Object.keys(backupDay).sort(), ['allDone','newDone','otherDone','requiredDone','trackedDone'].sort(), 'backup contains only dated completion-source UUID arrays');
+assert(!('requiredTarget' in backupDay) && !('newTarget' in backupDay) && !('deckByCard' in backupDay), 'target snapshots and derived deck data are excluded from backup');
+const supplementalBackup = {
+    mk_learning_stats_v1: backupStatsPayload,
+    mk_learning_stats_favorite_decks_v1: ['Second__Deck', 'First__Deck']
+};
+supplementalBackup.integrity = {
+    mk_learning_stats_v1: context.getBackupFieldChecksum(supplementalBackup.mk_learning_stats_v1),
+    mk_learning_stats_favorite_decks_v1: context.getBackupFieldChecksum(supplementalBackup.mk_learning_stats_favorite_decks_v1)
+};
+storage.set('ankiStats', '{"stats-sentinel":{"total":7,"fsrs":{"reps":4}}}');
+storage.set('ankiReviewHistory', '{"history-sentinel":[{"score":2}]}');
+context.saveLearningStatsFavoriteDecks(['Deleted__MustNotReturn', 'Local__Only']);
+context.restoreLearningStatsBackupFields(supplementalBackup);
+assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['Second__Deck','First__Deck'], 'favorite restore replaces local state in backup order without union');
+assert.strictEqual(storage.get('ankiStats'), '{"stats-sentinel":{"total":7,"fsrs":{"reps":4}}}', 'learning-stats restore does not touch Stats or FSRS');
+assert.strictEqual(storage.get('ankiReviewHistory'), '{"history-sentinel":[{"score":2}]}', 'learning-stats restore does not touch review history');
+const tamperedBackup = JSON.parse(JSON.stringify(supplementalBackup));
+tamperedBackup.mk_learning_stats_favorite_decks_v1.push('Tampered');
+assert.strictEqual(context.verifyLearningStatsBackupPayloadIntegrity(tamperedBackup).ok, false, 'supplemental backup checksum detects mutation');
 context.saveLearningStatsFavoriteDecks(['ParentA__01','ParentB__01']);
 assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['ParentA__01','ParentB__01'], 'same leaf names under different canonical paths remain distinct');
 ['A','B','C','A'].forEach(id => context.recordLearningStatsReview(byId[id], 'required'));
@@ -158,6 +192,8 @@ assert.strictEqual(model.aggregates.get('B').newTarget.size, 2, 'sibling deck de
 const sourceHook = html.match(/const learningStatsSource = ([^;]+);/);
 assert(sourceHook && sourceHook[1].includes("'new'") && sourceHook[1].includes("'required'") && sourceHook[1].includes("'other'"), 'grade captures all three sources before saving');
 assert(html.includes('recordLearningStatsReview(card, learningStatsSource);'), 'grade records the captured source');
+assert(html.includes('[LEARNING_STATS_STORAGE_KEY]: learningStatsBackup'), 'Firebase payload includes the compact learning-stats field under its local key');
+assert(html.includes('[LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: learningStatsFavoriteDecksBackup'), 'Firebase payload includes favorite deck paths under its local key');
 assert(!html.includes('unionLearningStatsTargets'), 'snapshot/union targets are removed from denominator flow');
 assert(readFunction('getCurrentLearningStatsFilterTargets').includes('buildTodayEssentialCandidates(scope)'), 'stats directly runs the existing required selector with the full scope');
 assert(readFunction('getCurrentLearningStatsFilterTargets').includes('buildTodayNewCandidates(scope)'), 'stats directly runs the existing new selector with the full scope');
