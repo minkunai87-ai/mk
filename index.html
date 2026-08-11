@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.125 - 버전 고정 덱 로딩)</title>
+<title>MK (v18.5.126 - 학습 통계)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -441,6 +441,24 @@
     .note-meta { color:var(--text-sub); font-size:0.78rem; margin-bottom:8px; }
     .note-body { color:var(--text); white-space:pre-wrap; word-break:break-word; line-height:1.45; font-size:0.92rem; margin-bottom:10px; }
     .note-jump-btn { border:0; border-radius:8px; padding:8px 12px; background:var(--primary); color:#111; font-weight:700; cursor:pointer; }
+    .learning-stats-modal { align-items:stretch; justify-content:center; padding:0; }
+    .learning-stats-panel { width:min(100%, 560px); height:100dvh; max-height:none; border-radius:0; padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 18px); overflow:auto; background:var(--bg); }
+    .learning-stats-header { display:flex; align-items:center; gap:10px; position:sticky; top:calc(-1 * env(safe-area-inset-top) - 14px); margin:-14px -16px 14px; padding:calc(env(safe-area-inset-top) + 14px) 16px 12px; background:var(--surface); border-bottom:1px solid var(--border); z-index:2; }
+    .learning-stats-back { border:0; background:none; color:var(--text); font-size:1.45rem; cursor:pointer; padding:2px 8px 2px 0; }
+    .learning-stats-title { margin:0; font-size:1.08rem; }
+    .learning-stats-card { border:1px solid var(--border); border-radius:12px; background:var(--surface); padding:14px; margin-bottom:14px; }
+    .learning-stats-heading { margin:0 0 10px; font-size:0.95rem; color:var(--text); }
+    .learning-stats-summary-row { display:grid; grid-template-columns:72px 1fr auto; gap:8px; padding:7px 0; align-items:center; font-size:0.9rem; }
+    .learning-stats-summary-row + .learning-stats-summary-row { border-top:1px solid var(--border); }
+    .learning-stats-value { font-weight:800; }
+    .learning-stats-remain { color:var(--text-sub); font-size:0.8rem; }
+    .learning-stats-breadcrumb { display:flex; flex-wrap:wrap; gap:5px; align-items:center; margin:4px 0 10px; font-size:0.84rem; }
+    .learning-stats-crumb { border:0; background:none; color:var(--primary); padding:4px 1px; cursor:pointer; }
+    .learning-stats-row { width:100%; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--text); padding:12px; margin-bottom:8px; text-align:left; cursor:pointer; display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center; }
+    .learning-stats-deck { font-weight:800; overflow-wrap:anywhere; }
+    .learning-stats-meta { color:var(--text-sub); font-size:0.78rem; line-height:1.45; margin-top:5px; }
+    .learning-stats-chevron { color:var(--text-sub); font-size:1.2rem; }
+    .learning-stats-empty { color:var(--text-sub); text-align:center; padding:22px 8px; }
 
 </style>
 </head>
@@ -468,6 +486,7 @@
         <div class="menu-section">
             <span class="menu-label">최근 학습</span>
             <div class="recent-decks" id="recent-decks-ui"></div>
+            <button class="btn-sub" onclick="openLearningStats()">📊 학습 통계</button>
         </div>
         <div class="menu-section">
             <span class="menu-label">덱 관리</span>
@@ -487,7 +506,22 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.125 - 버전 고정 덱 로딩)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.126 - 학습 통계)</div>
+    </div>
+
+    <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
+        <div class="modal-content learning-stats-panel">
+            <div class="learning-stats-header">
+                <button class="learning-stats-back" onclick="closeLearningStats()" aria-label="닫기">‹</button>
+                <h2 class="learning-stats-title">학습 통계</h2>
+            </div>
+            <section class="learning-stats-card">
+                <h3 class="learning-stats-heading">오늘</h3>
+                <div id="learning-stats-summary"></div>
+            </section>
+            <nav class="learning-stats-breadcrumb" id="learning-stats-breadcrumb" aria-label="덱 위치"></nav>
+            <div id="learning-stats-decks"></div>
+        </div>
     </div>
 
     <div class="modal-overlay" id="tr-modal">
@@ -762,7 +796,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.125 - 버전 고정 덱 로딩';
+    const APP_VERSION = 'v18.5.126 - 학습 통계';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -793,6 +827,7 @@
     const TODAY_NEW_REGISTRY_STORAGE_KEY = 'mk_today_new_registry_v1';
     const TODAY_NEW_COMPLETED_STORAGE_KEY = 'mk_today_new_completed_v1';
     const TODAY_NEW_SELECTION_STORAGE_KEY = 'mk_today_new_selection_v1';
+    const LEARNING_STATS_STORAGE_KEY = 'mk_learning_stats_v1';
     const TODAY_NEW_MIN_AGE_MS = 6 * 60 * 60 * 1000;
     const TODAY_NEW_PRIORITY_24H_MS = 24 * 60 * 60 * 1000;
     const TODAY_NEW_PRIORITY_48H_MS = 48 * 60 * 60 * 1000;
@@ -828,6 +863,9 @@
         preState: null,
         completedShown: false
     };
+    let learningStatsViewPath = '';
+    let learningStatsHistoryActive = false;
+    let learningStatsModelCache = null;
     let ioImageGroupCache = { cards: null, length: 0, groups: [], cardToGroup: new Map() };
     const ioImageLastVisitedCard = new Map();
     const ioZoomDiagnostics = { logged: new Set(), lastAction: '', doubleTapRuns: 0, occlusionInitializations: 0, cardRenders: 0, activeObservers: 0 };
@@ -4947,6 +4985,225 @@
         return stableId || resolveCardId(idString || q, stats);
     }
 
+    function getLearningStatsDateKey(timestamp = Date.now()) {
+        const day = getVirtualDate(timestamp);
+        return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+    }
+
+    function getEmptyLearningStatsDay() {
+        return {
+            requiredTarget: [], newTarget: [], requiredDone: [], newDone: [],
+            otherDone: [], allDone: [], trackedDone: [], deckByCard: {}
+        };
+    }
+
+    function normalizeLearningStatsDay(value) {
+        const empty = getEmptyLearningStatsDay();
+        const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+        Object.keys(empty).forEach(key => {
+            if(key === 'deckByCard') return;
+            empty[key] = [...new Set((Array.isArray(source[key]) ? source[key] : []).map(String).filter(Boolean))];
+        });
+        empty.deckByCard = source.deckByCard && typeof source.deckByCard === 'object' && !Array.isArray(source.deckByCard)
+            ? Object.fromEntries(Object.entries(source.deckByCard).map(([id, deck]) => [String(id), normalizeDeckPath(deck)]))
+            : {};
+        return empty;
+    }
+
+    function getLearningStatsStore() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(LEARNING_STATS_STORAGE_KEY) || '{}');
+            return parsed && parsed.version === 1 && parsed.days && typeof parsed.days === 'object'
+                ? parsed
+                : { version: 1, days: {} };
+        } catch(e) {
+            return { version: 1, days: {} };
+        }
+    }
+
+    function saveLearningStatsStore(store) {
+        try {
+            localStorage.setItem(LEARNING_STATS_STORAGE_KEY, JSON.stringify(store));
+            return true;
+        } catch(e) {
+            console.warn('[MK Learning Stats Save Skipped]', e);
+            return false;
+        }
+    }
+
+    function updateLearningStatsDay(mutator) {
+        const store = getLearningStatsStore();
+        const dateKey = getLearningStatsDateKey();
+        const day = normalizeLearningStatsDay(store.days[dateKey]);
+        mutator(day);
+        store.days[dateKey] = normalizeLearningStatsDay(day);
+        saveLearningStatsStore(store);
+        return store.days[dateKey];
+    }
+
+    function rememberLearningStatsDeck(day, card, fallbackDeck = '') {
+        const id = getTodayEssentialCardId(card);
+        if(id) day.deckByCard[id] = normalizeDeckPath(card && card.deck, fallbackDeck || currentDeckName || '');
+    }
+
+    function snapshotLearningStatsTargets(mode, cards) {
+        const key = mode === 'new' ? 'newTarget' : 'requiredTarget';
+        updateLearningStatsDay(day => {
+            const target = new Set(day[key]);
+            (Array.isArray(cards) ? cards : []).forEach(card => {
+                const id = getTodayEssentialCardId(card);
+                if(!id) return;
+                target.add(id);
+                rememberLearningStatsDeck(day, card);
+            });
+            day[key] = [...target];
+        });
+    }
+
+    function recordLearningStatsReview(card, source) {
+        const id = getTodayEssentialCardId(card);
+        if(!id) return;
+        updateLearningStatsDay(day => {
+            const allDone = new Set(day.allDone);
+            const trackedDone = new Set(day.trackedDone);
+            allDone.add(id);
+            trackedDone.add(id);
+            day.allDone = [...allDone];
+            day.trackedDone = [...trackedDone];
+            if(source === 'required') day.requiredDone = [...new Set([...day.requiredDone, id])];
+            else if(source === 'new') day.newDone = [...new Set([...day.newDone, id])];
+            else day.otherDone = [...new Set([...day.otherDone, id])];
+            rememberLearningStatsDeck(day, card);
+        });
+    }
+
+    function getLearningStatsCardLookup() {
+        const canonicalByAlias = new Map();
+        const deckByCard = new Map();
+        Object.entries(library || {}).forEach(([deck, cards]) => {
+            (Array.isArray(cards) ? cards : []).forEach(card => {
+                const canonical = getTodayEssentialCardId(card);
+                if(!canonical) return;
+                deckByCard.set(canonical, normalizeDeckPath(card.deck, deck));
+                [canonical, card.blockId, card.sourceUuid, card.originalUuid, ...(Array.isArray(card.idCandidates) ? card.idCandidates : [])]
+                    .map(value => String(value || '')).filter(Boolean).forEach(alias => canonicalByAlias.set(alias, canonical));
+            });
+        });
+        return { canonicalByAlias, deckByCard };
+    }
+
+    function restoreTodayLearningStatsTotal(day, lookup) {
+        const todayKey = getLearningStatsDateKey();
+        const allDone = new Set(day.allDone);
+        const history = getReviewHistory();
+        Object.entries(history || {}).forEach(([historyId, items]) => {
+            if(!(Array.isArray(items) && items.some(item => getLearningStatsDateKey(Number(item && item.time) || 0) === todayKey))) return;
+            allDone.add(lookup.canonicalByAlias.get(String(historyId)) || String(historyId));
+        });
+        day.allDone = [...allDone];
+    }
+
+    function buildLearningStatsModel() {
+        const store = getLearningStatsStore();
+        const dateKey = getLearningStatsDateKey();
+        const day = normalizeLearningStatsDay(store.days[dateKey]);
+        const lookup = getLearningStatsCardLookup();
+        restoreTodayLearningStatsTotal(day, lookup);
+        lookup.deckByCard.forEach((deck, id) => { if(!day.deckByCard[id]) day.deckByCard[id] = deck; });
+        store.days[dateKey] = day;
+        saveLearningStatsStore(store);
+
+        const sets = {};
+        ['requiredTarget', 'newTarget', 'requiredDone', 'newDone', 'otherDone', 'allDone'].forEach(key => { sets[key] = new Set(day[key]); });
+        sets.otherDone = new Set([...sets.otherDone].filter(id => !sets.requiredDone.has(id) && !sets.newDone.has(id)));
+        const aggregates = new Map();
+        const ensureAggregate = path => {
+            if(!aggregates.has(path)) aggregates.set(path, {
+                requiredTarget:new Set(), newTarget:new Set(), requiredDone:new Set(),
+                newDone:new Set(), otherDone:new Set(), allDone:new Set()
+            });
+            return aggregates.get(path);
+        };
+        Object.entries(sets).forEach(([metric, ids]) => ids.forEach(id => {
+            const deck = normalizeDeckPath(day.deckByCard[id] || lookup.deckByCard.get(id) || '');
+            if(!deck) return;
+            const parts = deck.split('__');
+            for(let depth = 1; depth <= parts.length; depth++) ensureAggregate(parts.slice(0, depth).join('__'))[metric].add(id);
+        }));
+        return { day, sets, aggregates, deckPaths: Object.keys(library || {}).map(normalizeDeckPath).filter(Boolean) };
+    }
+
+    function getLearningStatsImmediateChildren(model, parentPath = '') {
+        const children = new Set();
+        model.deckPaths.forEach(path => {
+            if(parentPath && path !== parentPath && !path.startsWith(parentPath + '__')) return;
+            if(parentPath && path === parentPath) return;
+            const rest = parentPath ? path.slice(parentPath.length + 2) : path;
+            const childName = rest.split('__')[0];
+            if(childName) children.add(parentPath ? `${parentPath}__${childName}` : childName);
+        });
+        return [...children].sort((a, b) => a.localeCompare(b, 'ko'));
+    }
+
+    function escapeLearningStatsHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
+    }
+
+    function renderLearningStats() {
+        const model = learningStatsModelCache || (learningStatsModelCache = buildLearningStatsModel());
+        const requiredDone = model.sets.requiredDone.size;
+        const newDone = model.sets.newDone.size;
+        const requiredTarget = model.sets.requiredTarget.size;
+        const newTarget = model.sets.newTarget.size;
+        document.getElementById('learning-stats-summary').innerHTML = [
+            ['필수', `${requiredDone} / ${requiredTarget}`, `${Math.max(0, requiredTarget - requiredDone)} 남음`],
+            ['새로', `${newDone} / ${newTarget}`, `${Math.max(0, newTarget - newDone)} 남음`],
+            ['기타 학습', String(model.sets.otherDone.size), ''],
+            ['총 학습', String(model.sets.allDone.size), '']
+        ].map(row => `<div class="learning-stats-summary-row"><span>${row[0]}</span><span class="learning-stats-value">${row[1]}</span><span class="learning-stats-remain">${row[2]}</span></div>`).join('');
+        const parts = learningStatsViewPath ? learningStatsViewPath.split('__') : [];
+        const crumbs = [{ label:'전체', path:'' }].concat(parts.map((label, index) => ({ label, path:parts.slice(0, index + 1).join('__') })));
+        document.getElementById('learning-stats-breadcrumb').innerHTML = crumbs.map((crumb, index) =>
+            `${index ? '<span>〉</span>' : ''}<button class="learning-stats-crumb" data-path="${escapeLearningStatsHtml(crumb.path)}" onclick="navigateLearningStats(this.dataset.path)">${escapeLearningStatsHtml(crumb.label)}</button>`
+        ).join('');
+        const children = getLearningStatsImmediateChildren(model, learningStatsViewPath);
+        document.getElementById('learning-stats-decks').innerHTML = children.length ? children.map(path => {
+            const metric = model.aggregates.get(path) || { requiredTarget:new Set(), newTarget:new Set(), requiredDone:new Set(), newDone:new Set(), otherDone:new Set(), allDone:new Set() };
+            const label = path.split('__').pop();
+            const hasChildren = getLearningStatsImmediateChildren(model, path).length > 0;
+            return `<button class="learning-stats-row" data-path="${escapeLearningStatsHtml(path)}" onclick="navigateLearningStats(this.dataset.path)"><span><span class="learning-stats-deck">${escapeLearningStatsHtml(label)}</span><span class="learning-stats-meta">필수 ${metric.requiredDone.size}/${metric.requiredTarget.size} · 새로 ${metric.newDone.size}/${metric.newTarget.size} · 기타 ${metric.otherDone.size} · 총 ${metric.allDone.size}</span></span><span class="learning-stats-chevron">${hasChildren ? '›' : ''}</span></button>`;
+        }).join('') : '<div class="learning-stats-empty">하위 덱이 없습니다.</div>';
+    }
+
+    function navigateLearningStats(path) {
+        learningStatsViewPath = normalizeDeckPath(path);
+        renderLearningStats();
+    }
+
+    function openLearningStats() {
+        toggleMenu(false);
+        learningStatsViewPath = '';
+        learningStatsModelCache = null;
+        renderLearningStats();
+        document.getElementById('learning-stats-modal').style.display = 'flex';
+        if(!learningStatsHistoryActive) {
+            history.pushState({ mkLearningStats:true }, '');
+            learningStatsHistoryActive = true;
+        }
+    }
+
+    function closeLearningStats(fromHistory = false) {
+        document.getElementById('learning-stats-modal').style.display = 'none';
+        learningStatsViewPath = '';
+        learningStatsModelCache = null;
+        if(learningStatsHistoryActive && !fromHistory) history.back();
+        learningStatsHistoryActive = false;
+    }
+
+    window.addEventListener('popstate', () => {
+        if(learningStatsHistoryActive) closeLearningStats(true);
+    });
+
     function normalizeDeckPath(value, fallback = '') {
         const normalized = String(value || fallback || '')
             .replace(/\//g, '__')
@@ -6374,6 +6631,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         const optionIndex = Number(document.getElementById('essential-range').value) || 0;
         const selectedCount = prepared.options[optionIndex];
         const selectedCards = prepared.ranked.slice(0, selectedCount).map(item => item.card);
+        snapshotLearningStatsTargets(recommendedStudySheetMode, selectedCards);
         const previousPreState = state.active ? state.preState : getTodayEssentialPreState();
         if(recommendedStudySheetMode === 'required') {
             const activeFilters = getActiveFilterModes();
@@ -7346,6 +7604,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         console.log('REVIEW_BUTTON_CLICK', { score, currentCardUuid: getCurrentCardId() });
         const card = activeDeck[currentIndex];
         if(!card) return;
+        const learningStatsSource = todayNewState.active ? 'new' : (todayEssentialState.active ? 'required' : 'other');
         recordReviewDuration(card);
         const shouldJournalReview = getLocalStatsKeyCount() <= STATS_LOW_COUNT_BLOCK;
         await ensureStatsStoreReady('grade');
@@ -7384,6 +7643,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             console.warn('[MK_REVIEW_STATS_WRITE_FALLBACK]', { cardId: id, reason: writeResult && writeResult.reason || 'unknown' });
         }
         markLocalDataUpdated(data[id].updatedAt); saveStudyState('review', { backup: true });
+        recordLearningStatsReview(card, learningStatsSource);
         updateStatsUI(getStatsForCard(card));
         console.log('REVIEW_SAVED', { score, currentCardUuid: String(id), nextReviewDate: data[id].dueDate || null });
         const activeRecommendedMode = todayNewState.active ? 'new' : (todayEssentialState.active ? 'required' : '');
