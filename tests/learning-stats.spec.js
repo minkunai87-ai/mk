@@ -43,6 +43,10 @@ const context = {
     LEARNING_STATS_STORAGE_KEY: 'mk_learning_stats_v1',
     LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY: 'mk_learning_stats_favorite_decks_v1',
     LEARNING_STATS_BACKUP_DAY_KEYS: ['requiredDone', 'newDone', 'otherDone', 'allDone', 'trackedDone'],
+    STORAGE_KEY_LEARNING_STATS_UPDATED_AT: 'mk_learning_stats_updated_at',
+    STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT: 'mk_learning_stats_favorites_updated_at',
+    STORAGE_KEY_REVIEW_HISTORY: 'anki_final_review_history_v1',
+    isDataChanged: false,
     learningStatsLibraryRevision: 0,
     learningStatsCardIndexCache: null,
     localStorage: {
@@ -65,11 +69,13 @@ function getVirtualDate(ts) { const d = new Date(ts); if(d.getHours() < 4) d.set
 function getTodayEssentialCardId(card) { return String(card && card.id || ''); }
 function getReviewHistory() { return reviewHistory; }
 function getStatsStore() { return {}; }
+function getBackupStatsCandidate(raw) { return parseJSONSafe(raw && raw.stats, {}); }
 function renderLearningStats() { favoriteRenderCount++; }
 function parseJSONSafe(value, fallback) { try { return typeof value === 'string' ? JSON.parse(value) : (value === undefined || value === null ? fallback : value); } catch(e) { return fallback; } }
 function hasBackupField(data, field) { return !!data && Object.prototype.hasOwnProperty.call(data, field); }
 function safeRestoreLocalStorage(key, value) { try { localStorage.setItem(key, value); return { ok:true }; } catch(e) { return { ok:false }; } }
 function cyrb53(value) { return String(value).split('').reduce((hash, char) => ((hash * 33) ^ char.charCodeAt(0)) >>> 0, 5381); }
+function getBackupGroupUpdatedAt(raw, group) { return Number(group === 'learningStats' ? raw.learningStatsUpdatedAt : raw.favoritesUpdatedAt) || 0; }
 `, context);
 
 [
@@ -79,6 +85,8 @@ function cyrb53(value) { return String(value).split('').reduce((hash, char) => (
     'normalizeLearningStatsBackupPayload', 'getLearningStatsBackupPayload',
     'normalizeLearningStatsFavoriteDecksBackupPayload', 'getLearningStatsFavoriteDecksBackupPayload',
     'stableBackupJson', 'getBackupFieldChecksum', 'verifyLearningStatsBackupPayloadIntegrity', 'restoreLearningStatsBackupFields',
+    'verifyCoreBackupPayloadIntegrity',
+    'getStartupSyncDecision',
     'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'getCurrentDeckRecommendedStudyCards', 'buildLearningStatsModel',
     'getLearningStatsImmediateChildren', 'getLearningStatsFavoriteDecks', 'saveLearningStatsFavoriteDecks', 'toggleLearningStatsFavorite'
 ].forEach(name => vm.runInContext(readFunction(name), context));
@@ -133,6 +141,13 @@ assert.strictEqual(storage.get('ankiReviewHistory'), '{"history-sentinel":[{"sco
 const tamperedBackup = JSON.parse(JSON.stringify(supplementalBackup));
 tamperedBackup.mk_learning_stats_favorite_decks_v1.push('Tampered');
 assert.strictEqual(context.verifyLearningStatsBackupPayloadIntegrity(tamperedBackup).ok, false, 'supplemental backup checksum detects mutation');
+const coreBackup = { stats:'{}', reviewHistory:'{}', integrity:{ stats:context.getBackupFieldChecksum({}), reviewHistory:context.getBackupFieldChecksum({}) } };
+assert.strictEqual(context.verifyCoreBackupPayloadIntegrity(coreBackup).ok, true, 'Stats/history checksums accept an intact backup');
+coreBackup.reviewHistory = '{"changed":[]}';
+assert.strictEqual(context.verifyCoreBackupPayloadIntegrity(coreBackup).ok, false, 'a corrupted newest backup is rejected before selection');
+assert.deepStrictEqual({ ...context.getStartupSyncDecision({ study:100, learningStats:100, favorites:100 }, { study:110, learningStats:110, favorites:110 }) }, { study:'cloud', learningStats:'cloud', favorites:'cloud' }, 'newer verified Firebase groups are selected');
+assert.deepStrictEqual({ ...context.getStartupSyncDecision({ study:110, learningStats:110, favorites:110 }, { study:100, learningStats:100, favorites:100 }) }, { study:'local', learningStats:'local', favorites:'local' }, 'newer local groups are protected');
+assert.deepStrictEqual({ ...context.getStartupSyncDecision({ study:110, learningStats:110, favorites:110 }, { study:110, learningStats:110, favorites:110 }) }, { study:'local', learningStats:'local', favorites:'local' }, 'equal timestamps avoid unnecessary restore');
 context.saveLearningStatsFavoriteDecks(['ParentA__01','ParentB__01']);
 assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['ParentA__01','ParentB__01'], 'same leaf names under different canonical paths remain distinct');
 ['A','B','C','A'].forEach(id => context.recordLearningStatsReview(byId[id], 'required'));

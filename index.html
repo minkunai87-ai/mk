@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.133 - 학습 통계 백업 확장)</title>
+<title>MK (v18.5.134 - 시작 시 최신 데이터 자동 선택)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -518,7 +518,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.133 - 학습 통계 백업 확장)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.134 - 시작 시 최신 데이터 자동 선택)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -812,7 +812,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.133 - 학습 통계 백업 확장';
+    const APP_VERSION = 'v18.5.134 - 시작 시 최신 데이터 자동 선택';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -949,6 +949,8 @@
     const STORAGE_KEY_LOGSEQ_GRAPH_NAME = 'mk_logseq_graph_name';
     const STORAGE_KEY_NOTES = 'mk_notes_by_card_uuid_v1';
     const STORAGE_KEY_LOCAL_DATA_UPDATED_AT = 'mk_local_data_updated_at';
+    const STORAGE_KEY_LEARNING_STATS_UPDATED_AT = 'mk_learning_stats_updated_at';
+    const STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT = 'mk_learning_stats_favorites_updated_at';
     const STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT = 'mk_last_auto_cloud_sync_at';
     const STORAGE_KEY_LAST_GOOD_BACKUP_TIMESTAMP = 'mk_last_good_backup_timestamp';
     const STORAGE_KEY_LAST_GOOD_STATS_COUNT = 'mk_last_good_stats_count';
@@ -2138,6 +2140,9 @@
         }
         const learningStatsBackup = getLearningStatsBackupPayload();
         const learningStatsFavoriteDecksBackup = getLearningStatsFavoriteDecksBackupPayload();
+        const learningStatsUpdatedAt = getLearningStatsUpdatedAt();
+        const favoritesUpdatedAt = getLearningStatsFavoritesUpdatedAt();
+        const dataUpdatedAt = Math.max(localUpdatedAt, learningStatsUpdatedAt, favoritesUpdatedAt);
         const data = {
             appId: 'mk',
             appVersion: APP_VERSION,
@@ -2165,10 +2170,16 @@
             searchQuery: localStorage.getItem('anki_search_query') || '',
             timestamp: metadata.backupAt,
             localUpdatedAt,
-            metadata: { ...metadata, localUpdatedAt }
+            dataUpdatedAt,
+            statsUpdatedAt: localUpdatedAt,
+            learningStatsUpdatedAt,
+            favoritesUpdatedAt,
+            metadata: { ...metadata, localUpdatedAt, dataUpdatedAt, statsUpdatedAt:localUpdatedAt, learningStatsUpdatedAt, favoritesUpdatedAt }
         };
         data.integrity = {
             ...(data.integrity || {}),
+            stats: getBackupFieldChecksum(parseJSONSafe(statsRaw, {})),
+            reviewHistory: getBackupFieldChecksum(parseJSONSafe(data.reviewHistory, {})),
             [LEARNING_STATS_STORAGE_KEY]: getBackupFieldChecksum(learningStatsBackup),
             [LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: getBackupFieldChecksum(learningStatsFavoriteDecksBackup)
         };
@@ -2181,6 +2192,10 @@
             metadata: data.metadata,
             statsKeyCount,
             localUpdatedAt,
+            dataUpdatedAt,
+            statsUpdatedAt: localUpdatedAt,
+            learningStatsUpdatedAt,
+            favoritesUpdatedAt,
             createdAt: Date.now()
         };
         console.log('[MK Backup Payload Breakdown KB]', payloadBreakdownKB);
@@ -3210,7 +3225,7 @@
     async function forceReinstallNormalStatsBackup(payload = {}, source = 'force-reinstall', options = {}) {
         const normalized = payload.normalized || normalizeBackupPayload(payload.raw || payload, source, payload.timestamp || options.backupTimestamp);
         const raw = normalized.raw || payload.raw || payload || {};
-        const supplementalIntegrity = verifyLearningStatsBackupPayloadIntegrity(raw);
+        const supplementalIntegrity = verifyCoreBackupPayloadIntegrity(raw);
         if(!supplementalIntegrity.ok) return { ok:false, reason:supplementalIntegrity.reason, statsKeyCount:0 };
         const stats = normalizeStatsObject(normalized.stats || getBackupStatsCandidate(raw));
         const statsValue = JSON.stringify(stats);
@@ -3255,7 +3270,9 @@
         }
 
         const incomingHistory = normalized.reviewHistory || {};
-        if (incomingHistory && Object.keys(incomingHistory).length) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(incomingHistory));
+        if(hasBackupField(raw, 'reviewHistory')) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(incomingHistory));
+        const restoredCoreIntegrity = verifyRestoredCoreBackupIntegrity(raw);
+        if(!restoredCoreIntegrity.ok) return { ok:false, reason:restoredCoreIntegrity.reason, statsKeyCount };
         if (hasBackupField(raw, 'notesByCardUuid')) safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(normalized.notesByCardUuid || {}));
         if (hasBackupField(raw, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, raw.progress);
         if (hasBackupField(raw, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, raw.filter);
@@ -3548,6 +3565,29 @@
 
     function markLocalDataUpdated(time = Date.now()) {
         try { localStorage.setItem(STORAGE_KEY_LOCAL_DATA_UPDATED_AT, String(time)); } catch(e) {}
+    }
+
+    function getLocalGroupUpdatedAt(storageKey, dataStorageKey) {
+        const explicit = Number(localStorage.getItem(storageKey)) || 0;
+        if(explicit) return explicit;
+        return localStorage.getItem(dataStorageKey) ? getLocalDataUpdatedAt() : 0;
+    }
+
+    function getLearningStatsUpdatedAt() {
+        return getLocalGroupUpdatedAt(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, LEARNING_STATS_STORAGE_KEY);
+    }
+
+    function getLearningStatsFavoritesUpdatedAt() {
+        return getLocalGroupUpdatedAt(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY);
+    }
+
+    function getBackupGroupUpdatedAt(data, group, ts = 0) {
+        const metadata = data && data.metadata || {};
+        const fallback = getBackupUpdatedAt(data, ts);
+        if(group === 'study') return Number(data && (data.statsUpdatedAt || data.localUpdatedAt) || metadata.statsUpdatedAt || metadata.localUpdatedAt) || fallback;
+        if(group === 'learningStats') return Number(data && data.learningStatsUpdatedAt || metadata.learningStatsUpdatedAt) || (hasBackupField(data, LEARNING_STATS_STORAGE_KEY) ? fallback : 0);
+        if(group === 'favorites') return Number(data && data.favoritesUpdatedAt || metadata.favoritesUpdatedAt) || (hasBackupField(data, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY) ? fallback : 0);
+        return Number(data && data.dataUpdatedAt || metadata.dataUpdatedAt) || fallback;
     }
 
     function getHistoryItemTime(item) {
@@ -3901,7 +3941,7 @@
     async function applyRestoredState(payload = {}, source = 'restore', options = {}) {
         console.log('RESTORE_START', { source });
         const raw = payload.raw || payload;
-        const supplementalIntegrity = verifyLearningStatsBackupPayloadIntegrity(raw);
+        const supplementalIntegrity = verifyCoreBackupPayloadIntegrity(raw);
         if(!supplementalIntegrity.ok) {
             console.warn('BACKUP_SUPPLEMENT_INTEGRITY_REJECTED', supplementalIntegrity);
             showToast(`백업 무결성 검증 실패: ${supplementalIntegrity.key}`, 'error');
@@ -4237,10 +4277,11 @@
             .map(([ts, indexData]) => ({
                 ts: String(ts),
                 indexData,
-                statsKeyCount: Number(indexData && indexData.statsKeyCount) || 0
+                statsKeyCount: Number(indexData && indexData.statsKeyCount) || 0,
+                dataUpdatedAt: getBackupGroupUpdatedAt(indexData, 'all', ts)
             }))
             .filter(record => record.ts)
-            .sort((a, b) => Number(b.ts) - Number(a.ts));
+            .sort((a, b) => (b.dataUpdatedAt - a.dataUpdatedAt) || (Number(b.ts) - Number(a.ts)));
     }
 
     async function fetchStartupBootstrapPayload(record) {
@@ -4271,6 +4312,11 @@
             const payload = await fetchStartupBootstrapPayload(record);
             if (!payload) {
                 rejectStartupBootstrapCandidate(record, 'payload_fetch_failed');
+                continue;
+            }
+            const supplementalIntegrity = verifyCoreBackupPayloadIntegrity(payload);
+            if(!supplementalIntegrity.ok) {
+                rejectStartupBootstrapCandidate(record, supplementalIntegrity.reason);
                 continue;
             }
 
@@ -4415,7 +4461,7 @@
         const snapshotKey = saveRecoverySnapshot(state.reasonCode);
         restoredStats = null;
         console.log('[MK_STARTUP_BOOTSTRAP_START]', { reasonCode: state.reasonCode, localStatsKeyCount: state.localStatsKeyCount, snapshotKey });
-        const candidate = await findStartupBootstrapBackup();
+        const candidate = await getStartupCloudCandidateWithTimeout();
         if (!candidate) {
             showStartupBootstrapFailureOnce('초기 stats 불러오기 실패: 정상 백업 없음', 'no_normal_backup');
             console.warn('[MK_STARTUP_BOOTSTRAP_FAILED]', { reasonCode: 'no_normal_backup' });
@@ -4437,6 +4483,26 @@
         return bootstrapStatsFromFirebaseOnInvalidLocal(getStartupBootstrapState());
     }
 
+    function getStartupSyncDecision(localTimes, cloudTimes) {
+        return {
+            study: Number(cloudTimes.study) > Number(localTimes.study) ? 'cloud' : 'local',
+            learningStats: Number(cloudTimes.learningStats) > Number(localTimes.learningStats) ? 'cloud' : 'local',
+            favorites: Number(cloudTimes.favorites) > Number(localTimes.favorites) ? 'cloud' : 'local'
+        };
+    }
+
+    async function getStartupCloudCandidateWithTimeout(timeoutMs = 2500) {
+        let timer = null;
+        try {
+            return await Promise.race([
+                findStartupBootstrapBackup(),
+                new Promise(resolve => { timer = setTimeout(() => resolve(null), timeoutMs); })
+            ]);
+        } finally {
+            if(timer) clearTimeout(timer);
+        }
+    }
+
     async function syncLatestFirebaseBackupOnStartup() {
         try {
             console.log('AUTO_SYNC_START');
@@ -4451,6 +4517,61 @@
             const localState = loadLocalStudyState();
             const localUpdatedAt = Number(localState && localState.updatedAt) || 0;
             console.log(`LOCAL_UPDATED_AT ${localUpdatedAt}`);
+            const candidate = await getStartupCloudCandidateWithTimeout();
+            if(candidate) {
+                const localTimes = {
+                    study: localUpdatedAt,
+                    learningStats: getLearningStatsUpdatedAt(),
+                    favorites: getLearningStatsFavoritesUpdatedAt()
+                };
+                const cloudTimes = {
+                    study: getBackupGroupUpdatedAt(candidate.payload, 'study', candidate.record.ts),
+                    learningStats: getBackupGroupUpdatedAt(candidate.payload, 'learningStats', candidate.record.ts),
+                    favorites: getBackupGroupUpdatedAt(candidate.payload, 'favorites', candidate.record.ts)
+                };
+                const decision = getStartupSyncDecision(localTimes, cloudTimes);
+                console.log('[MK_STARTUP_LATEST_COMPARISON]', { localTimes, cloudTimes, decision, backupTimestamp:candidate.record.ts });
+                const localSupplement = {
+                    learningStats: localStorage.getItem(LEARNING_STATS_STORAGE_KEY),
+                    learningStatsUpdatedAt: localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT),
+                    favorites: localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY),
+                    favoritesUpdatedAt: localStorage.getItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT)
+                };
+                let cloudApplied = false;
+                if(decision.study === 'cloud') {
+                    const result = await applyStartupBootstrapPayload(candidate, { reasonCode:'newer-normal-cloud-backup' });
+                    if(result && result.ok) {
+                        cloudApplied = true;
+                        if(decision.learningStats === 'local' && localSupplement.learningStats !== null) {
+                            safeRestoreLocalStorage(LEARNING_STATS_STORAGE_KEY, localSupplement.learningStats);
+                            if(localSupplement.learningStatsUpdatedAt !== null) safeRestoreLocalStorage(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, localSupplement.learningStatsUpdatedAt);
+                        }
+                        if(decision.favorites === 'local' && localSupplement.favorites !== null) {
+                            safeRestoreLocalStorage(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY, localSupplement.favorites);
+                            if(localSupplement.favoritesUpdatedAt !== null) safeRestoreLocalStorage(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT, localSupplement.favoritesUpdatedAt);
+                        }
+                    }
+                } else {
+                    const supplementalGroups = ['learningStats', 'favorites'].filter(group => decision[group] === 'cloud');
+                    if(supplementalGroups.length) {
+                        restoreLearningStatsBackupFields(candidate.payload, supplementalGroups);
+                        cloudApplied = true;
+                    }
+                }
+                if(cloudApplied) {
+                    learningStatsModelCache = null;
+                    safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(Date.now()));
+                    console.log('RESTORE_SOURCE cloud');
+                    console.log('AUTO_SYNC_SOURCE cloud');
+                    console.log('AUTO_SYNC_APPLIED', true);
+                    console.log('AUTO_SYNC_COMPLETE');
+                    return;
+                }
+                if(Object.values(decision).every(source => source === 'local') && Math.max(...Object.values(localTimes)) > Math.max(...Object.values(cloudTimes))) {
+                    isDataChanged = true;
+                    setTimeout(() => flushBackupToFirebase(true), 0);
+                }
+            }
             restorePosition(localState.viewState || {}, 'local');
             logStudyStateSnapshot('auto-sync-local', localState);
             console.log('RESTORE_SOURCE local');
@@ -5138,24 +5259,47 @@
         return { ok:true };
     }
 
-    function restoreLearningStatsBackupFields(raw) {
+    function verifyCoreBackupPayloadIntegrity(raw) {
         raw = raw || {};
+        const integrity = raw.integrity && typeof raw.integrity === 'object' ? raw.integrity : {};
+        if(integrity.stats !== undefined && String(integrity.stats) !== getBackupFieldChecksum(getBackupStatsCandidate(raw))) {
+            return { ok:false, reason:'stats_checksum_mismatch', key:'stats' };
+        }
+        if(integrity.reviewHistory !== undefined && String(integrity.reviewHistory) !== getBackupFieldChecksum(parseJSONSafe(raw.reviewHistory, {}))) {
+            return { ok:false, reason:'review_history_checksum_mismatch', key:'reviewHistory' };
+        }
+        return verifyLearningStatsBackupPayloadIntegrity(raw);
+    }
+
+    function verifyRestoredCoreBackupIntegrity(raw) {
+        raw = raw || {};
+        const integrity = raw.integrity && typeof raw.integrity === 'object' ? raw.integrity : {};
+        if(integrity.stats !== undefined && String(integrity.stats) !== getBackupFieldChecksum(getStatsStore())) return { ok:false, reason:'restored_stats_checksum_mismatch' };
+        if(integrity.reviewHistory !== undefined && String(integrity.reviewHistory) !== getBackupFieldChecksum(parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {}))) return { ok:false, reason:'restored_review_history_checksum_mismatch' };
+        return { ok:true };
+    }
+
+    function restoreLearningStatsBackupFields(raw, groups) {
+        raw = raw || {};
+        const selected = Array.isArray(groups) ? new Set(groups) : null;
         const integrity = verifyLearningStatsBackupPayloadIntegrity(raw);
         if(!integrity.ok) throw new Error(integrity.reason);
         const restored = [];
-        if(hasBackupField(raw, LEARNING_STATS_STORAGE_KEY)) {
+        if((!selected || selected.has('learningStats')) && hasBackupField(raw, LEARNING_STATS_STORAGE_KEY)) {
             const value = normalizeLearningStatsBackupPayload(raw[LEARNING_STATS_STORAGE_KEY]);
             const result = safeRestoreLocalStorage(LEARNING_STATS_STORAGE_KEY, JSON.stringify(value));
             if(!result.ok) throw new Error(`${LEARNING_STATS_STORAGE_KEY}_restore_failed`);
             if(getBackupFieldChecksum(getLearningStatsBackupPayload()) !== getBackupFieldChecksum(value)) throw new Error(`${LEARNING_STATS_STORAGE_KEY}_restore_integrity_failed`);
             restored.push(LEARNING_STATS_STORAGE_KEY);
+            localStorage.setItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, String(getBackupGroupUpdatedAt(raw, 'learningStats')));
         }
-        if(hasBackupField(raw, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY)) {
+        if((!selected || selected.has('favorites')) && hasBackupField(raw, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY)) {
             const value = normalizeLearningStatsFavoriteDecksBackupPayload(raw[LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]);
             const result = safeRestoreLocalStorage(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY, JSON.stringify(value));
             if(!result.ok) throw new Error(`${LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY}_restore_failed`);
             if(getBackupFieldChecksum(getLearningStatsFavoriteDecksBackupPayload()) !== getBackupFieldChecksum(value)) throw new Error(`${LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY}_restore_integrity_failed`);
             restored.push(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY);
+            localStorage.setItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT, String(getBackupGroupUpdatedAt(raw, 'favorites')));
         }
         if(restored.length) learningStatsModelCache = null;
         return { ok:true, restored };
@@ -5168,6 +5312,7 @@
         mutator(day);
         store.days[dateKey] = normalizeLearningStatsDay(day);
         saveLearningStatsStore(store);
+        localStorage.setItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, String(Date.now()));
         learningStatsModelCache = null;
         return store.days[dateKey];
     }
@@ -5423,6 +5568,8 @@
         });
         try {
             localStorage.setItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY, JSON.stringify(normalized));
+            localStorage.setItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT, String(Date.now()));
+            isDataChanged = true;
             return true;
         } catch(e) {
             console.warn('[MK Learning Stats Favorite Save Skipped]', e);
