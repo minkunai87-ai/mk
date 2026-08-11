@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.128 - 필터 기준 학습 통계)</title>
+<title>MK (v18.5.129 - 전체 대상 학습 통계)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -506,7 +506,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.128 - 필터 기준 학습 통계)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.129 - 전체 대상 학습 통계)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -796,7 +796,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.128 - 필터 기준 학습 통계';
+    const APP_VERSION = 'v18.5.129 - 전체 대상 학습 통계';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -5090,9 +5090,32 @@
         day.allDone = [...allDone];
     }
 
+    function getAllRecommendedStudyCards() {
+        const seenIds = new Set();
+        const cards = [];
+        Object.values(library || {}).forEach(deckCards => {
+            (Array.isArray(deckCards) ? deckCards : []).forEach(card => {
+                const id = getTodayEssentialCardId(card);
+                if(!id || seenIds.has(id)) return;
+                seenIds.add(id);
+                cards.push(card);
+            });
+        });
+        return cards;
+    }
+
+    function getRecommendedStudyCandidateScope() {
+        return {
+            cards: getAllRecommendedStudyCards(),
+            query: String((document.getElementById('search-input') || {}).value || '').trim().toLowerCase(),
+            filterModes: getActiveFilterModes().filter(mode => mode !== 'due')
+        };
+    }
+
     function getCurrentLearningStatsFilterTargets() {
-        const requiredPrepared = buildTodayEssentialCandidates();
-        const newPrepared = buildTodayNewCandidates();
+        const scope = getRecommendedStudyCandidateScope();
+        const requiredPrepared = buildTodayEssentialCandidates(scope);
+        const newPrepared = buildTodayNewCandidates(scope);
         const requiredCards = Array.isArray(requiredPrepared && requiredPrepared.candidates) ? requiredPrepared.candidates : [];
         const newCards = Array.isArray(newPrepared && newPrepared.candidates) ? newPrepared.candidates : [];
         return { requiredCards, newCards };
@@ -6103,17 +6126,22 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         };
     }
 
-    function buildTodayEssentialCandidates() {
+    function buildTodayEssentialCandidates(options = {}) {
         const startedAt = performance.now();
         const statsSnapshot = getStatsStore();
         const reviewHistorySnapshot = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
         const today = new Date();
         today.setHours(0,0,0,0);
         const todayStart = today.getTime();
-        const query = String((document.getElementById('search-input') || {}).value || '').trim().toLowerCase();
-        const otherFilters = getActiveFilterModes().filter(mode => mode !== 'due');
+        const query = typeof options.query === 'string'
+            ? options.query.trim().toLowerCase()
+            : String((document.getElementById('search-input') || {}).value || '').trim().toLowerCase();
+        const otherFilters = Array.isArray(options.filterModes)
+            ? options.filterModes.filter(mode => mode !== 'due')
+            : getActiveFilterModes().filter(mode => mode !== 'due');
         const seenIds = new Set();
-        const existingOrder = [...(activeDeck || []), ...(originalDeck || [])].filter(card => {
+        const sourceCards = Array.isArray(options.cards) ? options.cards : [...(activeDeck || []), ...(originalDeck || [])];
+        const existingOrder = sourceCards.filter(card => {
             const id = getTodayEssentialCardId(card);
             if(seenIds.has(id)) return false;
             seenIds.add(id);
@@ -6308,7 +6336,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         return Math.min(30, candidateCount, base + backlogBonus);
     }
 
-    function buildTodayNewCandidates() {
+    function buildTodayNewCandidates(options = {}) {
         const startedAt = performance.now();
         const now = Date.now();
         const registry = registerTodayNewCards();
@@ -6316,13 +6344,18 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         const statsSnapshot = getStatsStore();
         const reviewHistorySnapshot = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
         const deckLookup = getTodayNewDeckLookup();
-        const query = String((document.getElementById('search-input') || {}).value || '').trim().toLowerCase();
-        const activeFilters = getActiveFilterModes().filter(mode => mode !== 'due');
+        const query = typeof options.query === 'string'
+            ? options.query.trim().toLowerCase()
+            : String((document.getElementById('search-input') || {}).value || '').trim().toLowerCase();
+        const activeFilters = Array.isArray(options.filterModes)
+            ? options.filterModes.filter(mode => mode !== 'due')
+            : getActiveFilterModes().filter(mode => mode !== 'due');
         const today = new Date();
         today.setHours(0,0,0,0);
         const todayStart = today.getTime();
         const seenIds = new Set();
-        const selectedDeckCards = (originalDeck || []).filter(card => {
+        const sourceCards = Array.isArray(options.cards) ? options.cards : (originalDeck || []);
+        const selectedDeckCards = sourceCards.filter(card => {
             const id = getTodayEssentialCardId(card);
             if(!id || seenIds.has(id)) return false;
             seenIds.add(id);
@@ -6527,7 +6560,8 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
     function openRecommendedStudySheet({ mode = 'required' } = {}) {
         recommendedStudySheetMode = mode === 'new' ? 'new' : 'required';
         const state = getRecommendedStudyState();
-        const prepared = recommendedStudySheetMode === 'new' ? buildTodayNewCandidates() : buildTodayEssentialCandidates();
+        const scope = getRecommendedStudyCandidateScope();
+        const prepared = recommendedStudySheetMode === 'new' ? buildTodayNewCandidates(scope) : buildTodayEssentialCandidates(scope);
         if(!prepared.candidates.length) {
             showToast(recommendedStudySheetMode === 'new' ? '오늘 새로 학습할 문제가 없습니다.' : '오늘 복습할 문제가 없습니다.');
             return;

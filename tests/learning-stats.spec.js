@@ -63,12 +63,13 @@ function getReviewHistory() { return reviewHistory; }
     'getLearningStatsDateKey', 'getEmptyLearningStatsDay', 'normalizeLearningStatsDay',
     'getLearningStatsStore', 'saveLearningStatsStore', 'updateLearningStatsDay',
     'rememberLearningStatsDeck', 'recordLearningStatsReview',
-    'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'buildLearningStatsModel',
+    'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'buildLearningStatsModel',
     'getLearningStatsImmediateChildren'
 ].forEach(name => vm.runInContext(readFunction(name), context));
 
 const cards = Object.values(context.library).flat();
 const byId = Object.fromEntries(cards.map(card => [card.id, card]));
+assert.strictEqual(context.getAllRecommendedStudyCards().length, 8, 'statistics can obtain every unique library card before any filter is used');
 ['A','B','C','A'].forEach(id => context.recordLearningStatsReview(byId[id], 'required'));
 ['D','E','D'].forEach(id => context.recordLearningStatsReview(byId[id], 'new'));
 ['F','G','H','F'].forEach(id => context.recordLearningStatsReview(byId[id], 'other'));
@@ -127,8 +128,16 @@ const sourceHook = html.match(/const learningStatsSource = ([^;]+);/);
 assert(sourceHook && sourceHook[1].includes("'new'") && sourceHook[1].includes("'required'") && sourceHook[1].includes("'other'"), 'grade captures all three sources before saving');
 assert(html.includes('recordLearningStatsReview(card, learningStatsSource);'), 'grade records the captured source');
 assert(!html.includes('unionLearningStatsTargets'), 'snapshot/union targets are removed from denominator flow');
-assert(readFunction('getCurrentLearningStatsFilterTargets').includes('buildTodayEssentialCandidates()'), 'stats reuses the existing required filter builder');
-assert(readFunction('getCurrentLearningStatsFilterTargets').includes('buildTodayNewCandidates()'), 'stats reuses the existing new filter builder');
+assert(readFunction('getCurrentLearningStatsFilterTargets').includes('buildTodayEssentialCandidates(scope)'), 'stats directly runs the existing required selector with the full scope');
+assert(readFunction('getCurrentLearningStatsFilterTargets').includes('buildTodayNewCandidates(scope)'), 'stats directly runs the existing new selector with the full scope');
+assert(html.includes('const scope = getRecommendedStudyCandidateScope();\n        const prepared = recommendedStudySheetMode'), 'the real filter UI uses the same candidate scope');
+assert(html.includes('buildTodayNewCandidates(scope) : buildTodayEssentialCandidates(scope)'), 'filter UI and statistics call identical selectors');
+assert(html.includes('const sourceCards = Array.isArray(options.cards) ? options.cards : [...(activeDeck || []), ...(originalDeck || [])]'), 'required selector accepts cards without activeDeck dependency');
+assert(html.includes('const sourceCards = Array.isArray(options.cards) ? options.cards : (originalDeck || [])'), 'new selector accepts cards without originalDeck dependency');
+const statsTargetFunction = readFunction('getCurrentLearningStatsFilterTargets');
+['activeDeck =', 'originalDeck =', 'currentIndex =', 'currentFilterMode =', 'currentSortMode ='].forEach(code => {
+    assert(!statsTargetFunction.includes(code), `statistics target calculation must not mutate ${code}`);
+});
 assert(!readFunction('buildLearningStatsModel').includes('guardedStatsWrite'), 'opening stats never writes Stats');
 
 console.log('learning stats scenarios passed');
