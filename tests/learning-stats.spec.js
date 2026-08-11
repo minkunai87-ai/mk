@@ -49,6 +49,7 @@ const context = {
         A__deep__leaf: [{ id:'C', deck:'A__deep__leaf' }, { id:'E', deck:'A__deep__leaf' }],
         B__child: [{ id:'G', deck:'B__child' }, { id:'H', deck:'B__child' }]
     },
+    originalDeck: [],
     reviewHistory: {}
 };
 vm.createContext(context);
@@ -63,13 +64,22 @@ function getReviewHistory() { return reviewHistory; }
     'getLearningStatsDateKey', 'getEmptyLearningStatsDay', 'normalizeLearningStatsDay',
     'getLearningStatsStore', 'saveLearningStatsStore', 'updateLearningStatsDay',
     'rememberLearningStatsDeck', 'recordLearningStatsReview',
-    'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'buildLearningStatsModel',
+    'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'getCurrentDeckRecommendedStudyCards', 'buildLearningStatsModel',
     'getLearningStatsImmediateChildren'
 ].forEach(name => vm.runInContext(readFunction(name), context));
 
 const cards = Object.values(context.library).flat();
 const byId = Object.fromEntries(cards.map(card => [card.id, card]));
 assert.strictEqual(context.getAllRecommendedStudyCards().length, 8, 'statistics can obtain every unique library card before any filter is used');
+context.originalDeck = [byId.A, byId.B, byId.A];
+assert.deepStrictEqual([...context.getCurrentDeckRecommendedStudyCards()].map(card => card.id), ['A','B'], 'leaf filter scope contains only the selected deck and removes UUID duplicates');
+context.originalDeck = [...context.library.A__deep__leaf];
+assert.deepStrictEqual([...context.getCurrentDeckRecommendedStudyCards()].map(card => card.id), ['C','E'], 'middle deck scope contains only its descendant-expanded cards');
+context.originalDeck = [...context.library.A__one, ...context.library.A__deep__leaf];
+assert.deepStrictEqual([...context.getCurrentDeckRecommendedStudyCards()].map(card => card.id), ['A','B','D','F','C','E'], 'parent filter scope uses the existing descendant-expanded originalDeck');
+assert(!context.getCurrentDeckRecommendedStudyCards().some(card => String(card.deck).startsWith('B__')), 'cards outside the selected deck scope are excluded');
+context.originalDeck = context.getAllRecommendedStudyCards();
+assert.strictEqual(context.getCurrentDeckRecommendedStudyCards().length, 8, 'all-deck scope includes every unique card');
 ['A','B','C','A'].forEach(id => context.recordLearningStatsReview(byId[id], 'required'));
 ['D','E','D'].forEach(id => context.recordLearningStatsReview(byId[id], 'new'));
 ['F','G','H','F'].forEach(id => context.recordLearningStatsReview(byId[id], 'other'));
@@ -130,8 +140,8 @@ assert(html.includes('recordLearningStatsReview(card, learningStatsSource);'), '
 assert(!html.includes('unionLearningStatsTargets'), 'snapshot/union targets are removed from denominator flow');
 assert(readFunction('getCurrentLearningStatsFilterTargets').includes('buildTodayEssentialCandidates(scope)'), 'stats directly runs the existing required selector with the full scope');
 assert(readFunction('getCurrentLearningStatsFilterTargets').includes('buildTodayNewCandidates(scope)'), 'stats directly runs the existing new selector with the full scope');
-assert(html.includes('const scope = getRecommendedStudyCandidateScope();\n        const prepared = recommendedStudySheetMode'), 'the real filter UI uses the same candidate scope');
-assert(html.includes('buildTodayNewCandidates(scope) : buildTodayEssentialCandidates(scope)'), 'filter UI and statistics call identical selectors');
+assert(html.includes('const scope = getCurrentDeckRecommendedStudyScope();\n        const prepared = recommendedStudySheetMode'), 'the real filter UI uses the current selected deck scope');
+assert(html.includes('buildTodayNewCandidates(scope) : buildTodayEssentialCandidates(scope)'), 'today new and today review use the scoped selector input');
 assert(html.includes('const sourceCards = Array.isArray(options.cards) ? options.cards : [...(activeDeck || []), ...(originalDeck || [])]'), 'required selector accepts cards without activeDeck dependency');
 assert(html.includes('const sourceCards = Array.isArray(options.cards) ? options.cards : (originalDeck || [])'), 'new selector accepts cards without originalDeck dependency');
 const statsTargetFunction = readFunction('getCurrentLearningStatsFilterTargets');
