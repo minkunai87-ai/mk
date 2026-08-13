@@ -443,16 +443,16 @@
 .mk-pdf-annotation-icon {
   display: block !important;
   visibility: visible !important;
-  flex: 0 0 18px !important;
-  width: 18px !important;
-  height: 18px !important;
-  min-width: 18px !important;
-  min-height: 18px !important;
+  flex: 0 0 16px !important;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
   margin: 2px 0 0 0;
-  color: #ff3b30 !important;
-  stroke: #ff3b30 !important;
+  color: currentColor !important;
+  stroke: currentColor !important;
   fill: none !important;
-  opacity: 1 !important;
+  opacity: 0.75 !important;
   overflow: visible;
   position: relative;
   z-index: 2;
@@ -851,7 +851,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.142 - iOS PDF Helper 연결';
+    const APP_VERSION = 'v18.5.143 - PDF annotation 전체 연결';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -5097,7 +5097,7 @@
             const response = await fetchImpl(url.href, { cache: 'no-store' });
             if (!response.ok) throw new Error(`PDF annotation index status ${response.status}`);
             const payload = await response.json();
-            if (!payload || payload.schemaVersion !== 1 || !payload.annotations) throw new Error('invalid PDF annotation index');
+            if (!payload || ![1, 2].includes(payload.schemaVersion) || !payload.annotations) throw new Error('invalid PDF annotation index');
             pdfAnnotationSourceIndex = new Map(Object.entries(payload.annotations).map(([uuid, data]) => [uuid.toLowerCase(), data]));
             console.log('[PDF-BLOCKREF] source index loaded:', pdfAnnotationSourceIndex.size);
         } catch(error) {
@@ -6298,7 +6298,7 @@ function preserveCardContentLineBreaks(root) {
         return platform === 'iPhone' || platform === 'iPad';
     }
 
-    function buildPdfAnnotationIOSUrl(annotationData) {
+    function buildPdfHelperDeepLink(annotationData) {
         if(!annotationData || !annotationData.pdfFileName || !Number.isFinite(annotationData.page)) return false;
         const params = new URLSearchParams();
         params.set('file', annotationData.pdfFileName);
@@ -6310,8 +6310,10 @@ function preserveCardContentLineBreaks(root) {
         return `mkpdf://open?${params.toString()}`;
     }
 
+    const buildPdfAnnotationIOSUrl = buildPdfHelperDeepLink;
+
     function openPdfAnnotationOnIOS(annotationData) {
-        const url = buildPdfAnnotationIOSUrl(annotationData);
+        const url = buildPdfHelperDeepLink(annotationData);
         if(!url) return false;
         window.location.href = url;
         return true;
@@ -6331,8 +6333,8 @@ function preserveCardContentLineBreaks(root) {
         const icon = document.createElementNS(svgNamespace, 'svg');
         icon.setAttribute('class', 'mk-pdf-annotation-icon');
         icon.setAttribute('viewBox', '0 0 24 24');
-        icon.setAttribute('width', '18');
-        icon.setAttribute('height', '18');
+        icon.setAttribute('width', '16');
+        icon.setAttribute('height', '16');
         icon.setAttribute('fill', 'none');
         icon.setAttribute('stroke', 'currentColor');
         icon.setAttribute('aria-hidden', 'true');
@@ -6340,6 +6342,15 @@ function preserveCardContentLineBreaks(root) {
         icon.innerHTML = '<path d="M6 2.5h8l4 4V21H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 2.5V7h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>';
         bindPdfAnnotationIconAction(icon, annotationData);
         return icon;
+    }
+
+    function bindPdfAnnotationRegionAction(element, annotationData) {
+        if(!element || element.dataset.mkPdfRegionBound === '1') return;
+        element.dataset.mkPdfRegionBound = '1';
+        element.addEventListener('click', event => {
+            if(!isIOSDevice() || !openPdfAnnotationOnIOS(annotationData)) return;
+            event.preventDefault(); event.stopPropagation();
+        });
     }
 
     function decoratePdfAnnotationBlockRefs(root) {
@@ -6371,6 +6382,7 @@ function preserveCardContentLineBreaks(root) {
             console.log('[PDF-BLOCKREF] pdf:', annotationData.pdfFileName);
             const icon = createPdfAnnotationSvg(annotationData);
             element.classList.add('mk-pdf-annotation-ref');
+            bindPdfAnnotationRegionAction(element, annotationData);
             element.insertBefore(icon, element.firstChild);
             console.log('[PDF-BLOCKREF] icon inserted:', icon.parentNode === element);
         });
@@ -6422,12 +6434,15 @@ function preserveCardContentLineBreaks(root) {
             console.log('[PDF-ANNOTATION-LIVE] detected = true');
 
             const linkData = getPdfAnnotationLinkData(pageElement, card);
+            const indexedSource = linkData.annotationId ? pdfAnnotationSourceIndex.get(String(linkData.annotationId).toLowerCase()) : null;
             const annotationData = {
-                pdfFileName,
-                page: Number(pageMatch[1]),
+                pdfFileName: indexedSource?.pdfFileName || pdfFileName,
+                page: Number.isFinite(indexedSource?.page) ? indexedSource.page : Number(pageMatch[1]),
                 annotationId: linkData.annotationId,
                 sourceUuid: linkData.annotationId,
-                rawHref: linkData.rawHref
+                rawHref: linkData.rawHref,
+                x: indexedSource?.x, y: indexedSource?.y, width: indexedSource?.width, height: indexedSource?.height,
+                sourceWidth: indexedSource?.sourceWidth, sourceHeight: indexedSource?.sourceHeight
             };
 
             console.log('[PDF-ANNOTATION] before:', pageElement.parentElement ? pageElement.parentElement.outerHTML : pageElement.outerHTML);
@@ -6438,7 +6453,7 @@ function preserveCardContentLineBreaks(root) {
             const icon = createPdfAnnotationSvg(annotationData);
 
             const annotationRoot = pageElement.parentElement;
-            if(annotationRoot) annotationRoot.classList.add('mk-pdf-annotation');
+            if(annotationRoot) { annotationRoot.classList.add('mk-pdf-annotation'); bindPdfAnnotationRegionAction(annotationRoot, annotationData); }
             markerNode.parentNode.insertBefore(icon, markerNode);
             markerNode.remove();
             pageElement.hidden = true;

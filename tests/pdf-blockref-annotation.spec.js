@@ -7,7 +7,10 @@ const path = require('node:path');
 const repoRoot = path.resolve(__dirname, '..');
 const externalBaseUrl = process.env.MK_TEST_BASE_URL || '';
 const profilePath = fs.mkdtempSync(path.join(os.tmpdir(), 'mk-pdf-blockref-'));
-const edgePath = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+const browserPaths = process.platform === 'darwin'
+    ? ['/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
+    : ['C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'];
+const edgePath = browserPaths.find(candidate => fs.existsSync(candidate));
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const server = http.createServer((request, response) => {
     const relative = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname).replace(/^\/+/, '') || 'index.html';
@@ -19,6 +22,7 @@ const server = http.createServer((request, response) => {
 });
 
 async function main() {
+    if(!edgePath) throw new Error('Chromium browser unavailable');
     if(!externalBaseUrl) await new Promise(resolve => server.listen(8878, '127.0.0.1', resolve));
     const edge = childProcess.spawn(edgePath, ['--headless', '--disable-gpu', '--no-first-run', `--user-data-dir=${profilePath}`, '--remote-debugging-port=9334', 'about:blank'], { stdio: 'ignore' });
     try {
@@ -90,7 +94,7 @@ async function main() {
         if(result.annotation.annotationId !== '6a58769d-6bdc-454b-b744-ef8e39bc9354' || result.annotation.page !== 40) throw new Error(`metadata mismatch: ${JSON.stringify(result)}`);
         if(!result.annotation.pdfFileName.endsWith('.pdf')) throw new Error(`PDF filename missing: ${JSON.stringify(result)}`);
         if(!result.onclick || !result.onclick.includes('block-id=6a58769d-6bdc-454b-b744-ef8e39bc9354')) throw new Error(`block-ref click changed: ${JSON.stringify(result)}`);
-        if(result.color !== 'rgb(255, 59, 48)' || result.width !== '18px' || result.height !== '18px') throw new Error(`debug style mismatch: ${JSON.stringify(result)}`);
+        if(result.width !== '16px' || result.height !== '16px') throw new Error(`final icon style mismatch: ${JSON.stringify(result)}`);
         const deepLink = new URL(result.iosDeepLink);
         if(deepLink.protocol !== 'mkpdf:' || deepLink.hostname !== 'open' || deepLink.searchParams.get('page') !== '40' || Math.abs(Number(deepLink.searchParams.get('sourceWidth')) - 944) > 0.001) throw new Error(`iOS deep link mismatch: ${JSON.stringify(result)}`);
         if(result.ordinaryBlockRefIconCount !== 0) throw new Error(`ordinary block-ref false positive: ${JSON.stringify(result)}`);
