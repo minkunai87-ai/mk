@@ -1,0 +1,121 @@
+const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const http = require('node:http');
+const os = require('node:os');
+const path = require('node:path');
+
+const root = path.resolve(__dirname, '..');
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'mk-pdf-card-wide-'));
+const candidates = process.platform === 'darwin'
+    ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge']
+    : ['C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'];
+const browser = candidates.find(file => fs.existsSync(file));
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const server = http.createServer((request, response) => {
+    const relative = decodeURIComponent(new URL(request.url, 'http://localhost').pathname).replace(/^\/+/, '') || 'index.html';
+    const file = path.resolve(root, relative);
+    if(!file.startsWith(root) || !fs.existsSync(file)) return response.writeHead(404).end();
+    response.writeHead(200, { 'Content-Type': file.endsWith('.json') ? 'application/json' : file.endsWith('.txt') ? 'text/plain' : 'text/html' });
+    fs.createReadStream(file).pipe(response);
+});
+
+async function main() {
+    if(!browser) throw new Error('Chromium browser unavailable');
+    await new Promise(resolve => server.listen(8879, '127.0.0.1', resolve));
+    const processHandle = childProcess.spawn(browser, ['--headless', '--disable-gpu', '--no-first-run', '--js-flags=--expose-gc', `--user-data-dir=${profile}`, '--remote-debugging-port=9335', 'about:blank'], { stdio: 'ignore' });
+    try {
+        let target;
+        for(let i = 0; i < 40 && !target; i++) {
+            try { target = (await (await fetch('http://127.0.0.1:9335/json/list')).json()).find(item => item.type === 'page'); } catch {}
+            if(!target) await delay(200);
+        }
+        if(!target) throw new Error('browser debugging target unavailable');
+        const socket = new WebSocket(target.webSocketDebuggerUrl);
+        await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
+        let id = 0; const pending = new Map();
+        socket.onmessage = event => { const message = JSON.parse(event.data); if(message.id && pending.has(message.id)) { pending.get(message.id)(message); pending.delete(message.id); } };
+        const send = (method, params = {}) => new Promise(resolve => { const requestId = ++id; pending.set(requestId, resolve); socket.send(JSON.stringify({ id: requestId, method, params })); });
+        await send('Runtime.enable');
+        await send('Page.navigate', { url: 'http://127.0.0.1:8879/index.html' });
+        let value;
+        for(let attempt = 0; attempt < 100 && !value; attempt++) {
+            await delay(400);
+            const result = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+                if(typeof library === 'undefined' || !library || !pdfAnnotationSourceIndex.size) return null;
+                const cards = Object.values(library).flat();
+                if(!cards.length) return null;
+                const stats = { cards: cards.length, question: { found: 0, decorated: 0, handlers: 0, failed: 0 }, answer: { found: 0, decorated: 0, handlers: 0, failed: 0 }, outside: { found: 0, decorated: 0, handlers: 0, failed: 0 }, direct: { found: 0, decorated: 0, handlers: 0, failed: 0 }, area: { found: 0, decorated: 0, handlers: 0, failed: 0 }, ordinaryDecorated: 0, deepLinkFailures: 0, metadataFailures: 0 };
+                const scan = (card, position) => {
+                    const rendered = createDOM(card, position === 'answer');
+                    rendered.querySelectorAll('.block-ref').forEach(element => {
+                        const link = extractBlockRefUuid(element); const source = link && link.uuid ? pdfAnnotationSourceIndex.get(link.uuid) : null;
+                        if(!source || source.lsType !== 'annotation') { if(element.classList.contains('mk-pdf-annotation-ref')) stats.ordinaryDecorated++; return; }
+                        const occurrencePosition = element.closest('.mk-extra-content, .ls-header') ? 'outside' : position;
+                        const group = stats[occurrencePosition]; group.found++;
+                        const icon = element.querySelector(':scope > .mk-pdf-annotation-icon');
+                        const decorated = !!icon && element.dataset.mkPdfAnnotationDecorated === '1';
+                        const handled = element.dataset.mkPdfRegionBound === '1';
+                        if(decorated) group.decorated++; if(handled) group.handlers++; if(!decorated || !handled) group.failed++;
+                        const data = icon && JSON.parse(icon.dataset.annotation || 'null');
+                        if(!data || data.sourceUuid !== link.uuid || data.page !== source.page || data.pdfFileName !== source.pdfFileName) stats.metadataFailures++;
+                        const deepLink = data && buildPdfHelperDeepLink(data); if(!deepLink || !deepLink.startsWith('mkpdf://open?')) stats.deepLinkFailures++;
+                        if(source.annotationType === 'area') { stats.area.found++; if(decorated) stats.area.decorated++; if(handled) stats.area.handlers++; if(!decorated || !handled) stats.area.failed++; }
+                    });
+                    rendered.querySelectorAll('b[data-mk-pdf-annotation-decorated="1"]').forEach(page => {
+                        stats.direct.found++; const wrapper = page.parentElement; const icon = wrapper && wrapper.querySelector(':scope > .mk-pdf-annotation-icon');
+                        const decorated = !!icon; const handled = !!wrapper && wrapper.dataset.mkPdfRegionBound === '1';
+                        if(decorated) stats.direct.decorated++; if(handled) stats.direct.handlers++; if(!decorated || !handled) stats.direct.failed++;
+                        if(wrapper && wrapper.querySelector('.mk-pdf-annotation-content img')) { stats.area.found++; if(decorated) stats.area.decorated++; if(handled) stats.area.handlers++; if(!decorated || !handled) stats.area.failed++; }
+                    });
+                };
+                const canContainAnnotation = html => /block-ref|🔵/.test(html || '');
+                for(let cardIndex = 0; cardIndex < cards.length; cardIndex++) {
+                    const card = cards[cardIndex];
+                    if(canContainAnnotation(card.q) || canContainAnnotation(card.extra)) scan(card, 'question');
+                    if(card.a && card.a !== card.q && (canContainAnnotation(card.a) || canContainAnnotation(card.extra))) scan(card, 'answer');
+                    if(cardIndex % 500 === 499) { if(typeof gc === 'function') gc(); await new Promise(resolve => setTimeout(resolve, 0)); }
+                }
+
+                const ids = [...pdfAnnotationSourceIndex.keys()].slice(0, 3); const ref = uuid => '<span class="block-ref" onclick="window.open(\\'logseq://graph/logseq?block-id=' + uuid + '\\')">' + uuid.slice(0, 4) + '</span>';
+                const fixture = (q, a = q, extra = '') => ({ id: crypto.randomUUID(), q, a, extra, breadcrumb: '', blockId: '', isLogseq: false });
+                const fixtureCases = {
+                    A: fixture('general :-> ' + ref(ids[0])),
+                    B: fixture(ref(ids[0]) + ' :-> general'),
+                    C: fixture(ref(ids[0]) + ' :-> ' + ref(ids[1])),
+                    D: fixture('general ' + ref(ids[0]) + ' general'),
+                    E: fixture(ref(ids[0]) + ' and ' + ref(ids[1]) + ' :-> ' + ref(ids[2])),
+                    F: fixture('<a href="sample.pdf">source</a><span>🔵<b>P4</b> direct text</span>'),
+                    G: fixture('<a href="sample.pdf">source</a><span>🔵<b>P4</b><img src="area.png"></span>')
+                };
+                const fixtures = {};
+                for(const [name, card] of Object.entries(fixtureCases)) {
+                    const rendered = createDOM(card, false); const icons = [...rendered.querySelectorAll('.mk-pdf-annotation-icon')];
+                    fixtures[name] = { icons: icons.length, handlers: rendered.querySelectorAll('[data-mk-pdf-region-bound="1"]').length,
+                        ids: icons.map(icon => JSON.parse(icon.dataset.annotation || '{}').sourceUuid || null), area: !!rendered.querySelector('.mk-pdf-annotation-content img') };
+                }
+                const repeated = createDOM(fixture(ref(ids[0]) + ' ' + ref(ids[0])), false);
+                fixtures.repeated = { icons: repeated.querySelectorAll('.mk-pdf-annotation-icon').length, handlers: repeated.querySelectorAll('[data-mk-pdf-region-bound="1"]').length };
+                const answerOnly = createDOM(fixture('general', ref(ids[0])), true);
+                fixtures.answer = { icons: answerOnly.querySelectorAll('.mk-pdf-annotation-icon').length, handlers: answerOnly.querySelectorAll('[data-mk-pdf-region-bound="1"]').length };
+                const outside = createDOM(fixture('general', 'general', ref(ids[0])), true);
+                fixtures.outside = { icons: outside.querySelectorAll('.mk-extra-content .mk-pdf-annotation-icon').length, handlers: outside.querySelectorAll('.mk-extra-content[data-mk-pdf-region-bound="1"], .mk-extra-content [data-mk-pdf-region-bound="1"]').length };
+                return { stats, fixtures };
+            })()` });
+            if(result.result?.exceptionDetails) throw new Error(result.result.exceptionDetails.exception?.description || 'evaluation failed');
+            value = result.result?.result?.value;
+        }
+        socket.close();
+        if(!value) throw new Error('MK library unavailable');
+        const { stats, fixtures } = value;
+        for(const position of ['question', 'answer']) if(stats[position].failed || stats[position].found !== stats[position].decorated || stats[position].found !== stats[position].handlers) throw new Error(`${position} failures: ${JSON.stringify(stats)}`);
+        if(stats.ordinaryDecorated || stats.deepLinkFailures || stats.metadataFailures || stats.direct.failed || stats.area.failed) throw new Error(`render failures: ${JSON.stringify(stats)}`);
+        const expected = { A: 1, B: 1, C: 2, D: 1, E: 3, F: 1, G: 1 };
+        for(const [name, count] of Object.entries(expected)) if(fixtures[name].icons !== count || fixtures[name].handlers !== count) throw new Error(`fixture ${name}: ${JSON.stringify(fixtures[name])}`);
+        if(!fixtures.G.area || fixtures.repeated.icons !== 2 || fixtures.repeated.handlers !== 2 || fixtures.answer.icons !== 1 || fixtures.answer.handlers !== 1 || fixtures.outside.icons !== 1 || fixtures.outside.handlers !== 1) throw new Error(`area/position/repeated fixture: ${JSON.stringify(fixtures)}`);
+        console.log(JSON.stringify(value, null, 2));
+    } finally {
+        processHandle.kill(); server.close(); await delay(300); fs.rmSync(profile, { recursive: true, force: true });
+    }
+}
+
+main().catch(error => { console.error(error); process.exitCode = 1; });

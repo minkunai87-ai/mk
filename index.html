@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.143 - PDF annotation 전체 연결)</title>
+<title>MK (v18.5.144 - PDF annotation 카드 전체 적용)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -557,7 +557,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.143 - PDF annotation 전체 연결)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.144 - PDF annotation 카드 전체 적용)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -851,7 +851,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.143 - PDF annotation 전체 연결';
+    const APP_VERSION = 'v18.5.144 - PDF annotation 카드 전체 적용';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -6355,7 +6355,7 @@ function preserveCardContentLineBreaks(root) {
 
     function decoratePdfAnnotationBlockRefs(root) {
         root.querySelectorAll('.block-ref').forEach(element => {
-            if(element.querySelector(':scope > .mk-pdf-annotation-icon')) return;
+            if(element.dataset.mkPdfAnnotationDecorated === '1') return;
             const linkData = extractBlockRefUuid(element);
             if(!linkData || !linkData.uuid) return;
             console.log('[PDF-BLOCKREF] ref found');
@@ -6365,6 +6365,7 @@ function preserveCardContentLineBreaks(root) {
             const isPdfAnnotation = !!source && source.lsType === 'annotation';
             console.log('[PDF-BLOCKREF] isPdfAnnotation:', isPdfAnnotation);
             if(!isPdfAnnotation) return;
+            element.dataset.mkPdfAnnotationDecorated = '1';
             const annotationData = {
                 pdfFileName: source.pdfFileName || null,
                 page: Number.isFinite(source.page) ? source.page : null,
@@ -6414,6 +6415,7 @@ function preserveCardContentLineBreaks(root) {
         }
 
         root.querySelectorAll('b').forEach(pageElement => {
+            if(pageElement.dataset.mkPdfAnnotationDecorated === '1') return;
             const pageMatch = String(pageElement.textContent || '').trim().match(/^P(\d+)$/i);
             if(!pageMatch) return;
 
@@ -6426,6 +6428,7 @@ function preserveCardContentLineBreaks(root) {
             if(!markerNode || markerNode.nodeType !== Node.TEXT_NODE) return;
             const marker = String(markerNode.nodeValue || '').trim();
             if(!PDF_ANNOTATION_MARKERS.has(marker)) return;
+            pageElement.dataset.mkPdfAnnotationDecorated = '1';
             logPdfCardTrace(trace, 'TRACE-3 matched pattern', {
                 marker,
                 page: Number(pageMatch[1]),
@@ -6539,8 +6542,6 @@ function createDOM(card, isAnswer, trace) {
                 && PDF_ANNOTATION_MARKERS.has(String(markerNode.nodeValue || '').trim());
         });
         if(hasPdfAnnotationCandidate) console.log('[PDF-ANNOTATION-LIVE] render start', { cardId: card.id, isAnswer });
-        decoratePdfAnnotations(temp, card, trace);
-        decoratePdfAnnotationBlockRefs(temp);
         wrap.appendChild(temp);
 
         // 3. 추가 해설(Extra) 조립
@@ -6559,6 +6560,10 @@ function createDOM(card, isAnswer, trace) {
             extraDiv.innerHTML = `<span class="extra-label">💡 추가 해설</span>${extraText}`;
             wrap.appendChild(extraDiv);
         }
+
+        // Decorate the completed card DOM, independent of question/answer position or :-> ordering.
+        decoratePdfAnnotations(wrap, card, trace);
+        decoratePdfAnnotationBlockRefs(wrap);
 
         // 🔥 [진짜 흑막 체포] 🔥
         // 상위 목차, 본문, 추가해설까지 싹 다 모아놓고, 한 번에 이미지 주소를 깃허브로 싹 다 변환!
