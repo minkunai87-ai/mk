@@ -8,7 +8,7 @@ final class PDFOpenRequestTests: XCTestCase {
         XCTAssertEqual(request.fileName, "2027 정태성 말랑말랑 소방학개론 기본서.pdf")
         XCTAssertEqual(request.page, 40)
         XCTAssertEqual(request.annotationId, "6a58769d-6bdc-454b-b744-ef8e39bc9354")
-        XCTAssertEqual(request.rect?.origin.x, 175.03675589337945, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(request.rect).origin.x, 175.03675589337945, accuracy: 0.0001)
     }
 
     func testRejectsMissingRequiredValues() {
