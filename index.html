@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.137 - PDF annotation 아이콘 표시 보강)</title>
+<title>MK (v18.5.138 - 실제 PDF annotation 렌더링 수정)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -535,7 +535,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.137 - PDF annotation 아이콘 표시 보강)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.138 - 실제 PDF annotation 렌더링 수정)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -829,7 +829,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.137 - PDF annotation 아이콘 표시 보강';
+    const APP_VERSION = 'v18.5.138 - 실제 PDF annotation 렌더링 수정';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -6246,11 +6246,12 @@ function preserveCardContentLineBreaks(root) {
 
     function decoratePdfAnnotations(root, card) {
         const pdfFileName = extractPdfAnnotationFileName(card);
-        if(!pdfFileName) return;
 
         root.querySelectorAll('b').forEach(pageElement => {
             const pageMatch = String(pageElement.textContent || '').trim().match(/^P(\d+)$/i);
             if(!pageMatch) return;
+
+            console.log('[PDF-ANNOTATION-LIVE] candidate found');
 
             let markerNode = pageElement.previousSibling;
             while(markerNode && markerNode.nodeType === Node.TEXT_NODE && !String(markerNode.nodeValue || '').trim()) {
@@ -6259,6 +6260,7 @@ function preserveCardContentLineBreaks(root) {
             if(!markerNode || markerNode.nodeType !== Node.TEXT_NODE) return;
             const marker = String(markerNode.nodeValue || '').trim();
             if(!PDF_ANNOTATION_MARKERS.has(marker)) return;
+            console.log('[PDF-ANNOTATION-LIVE] detected = true');
 
             const linkData = getPdfAnnotationLinkData(pageElement, card);
             const annotationData = {
@@ -6292,6 +6294,7 @@ function preserveCardContentLineBreaks(root) {
             console.log('[PDF-ANNOTATION] icon inserted:', icon.isConnected || icon.parentNode !== null);
             console.log('[PDF-ANNOTATION] icon outerHTML:', icon.outerHTML);
             console.log('[PDF-ANNOTATION] after:', annotationRoot ? annotationRoot.outerHTML : icon.parentElement.outerHTML);
+            console.log('[PDF-ANNOTATION-LIVE] icon inserted');
             requestAnimationFrame(() => {
                 if(!icon.isConnected) return;
                 const style = getComputedStyle(icon);
@@ -6357,6 +6360,13 @@ function createDOM(card, isAnswer) {
         
         // 2. 본문(Main Text) 조립
         const temp = document.createElement('div'); temp.innerHTML = txt;
+        const hasPdfAnnotationCandidate = Array.from(temp.querySelectorAll('b')).some(pageElement => {
+            if(!/^P\d+$/i.test(String(pageElement.textContent || '').trim())) return false;
+            const markerNode = pageElement.previousSibling;
+            return markerNode && markerNode.nodeType === Node.TEXT_NODE
+                && PDF_ANNOTATION_MARKERS.has(String(markerNode.nodeValue || '').trim());
+        });
+        if(hasPdfAnnotationCandidate) console.log('[PDF-ANNOTATION-LIVE] render start', { cardId: card.id, isAnswer });
         decoratePdfAnnotations(temp, card);
         wrap.appendChild(temp);
 
@@ -6413,7 +6423,13 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         });
 
         normalizeGeneratedCardMarkup(wrap);
-        return preserveCardContentLineBreaks(wrap);
+        const renderedCard = preserveCardContentLineBreaks(wrap);
+        if(hasPdfAnnotationCandidate) {
+            requestAnimationFrame(() => {
+                console.log('[PDF-ANNOTATION-LIVE] icons after full render =', renderedCard.querySelectorAll('.mk-pdf-annotation-icon').length);
+            });
+        }
+        return renderedCard;
     }
 
     function updateMkIOOtherMasksToggle(wrapper, targetMaskCount, totalMaskCount) {
