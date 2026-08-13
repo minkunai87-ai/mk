@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.145 -->
+<!-- deployment: v18.5.146 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.145 - PDF annotation 공통 렌더)</title>
+<title>MK (v18.5.146 - ref PDF annotation 연결)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -558,7 +558,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.145 - PDF annotation 공통 렌더)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.146 - ref PDF annotation 연결)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -852,7 +852,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.145 - PDF annotation 공통 렌더';
+    const APP_VERSION = 'v18.5.146 - ref PDF annotation 연결';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -6401,6 +6401,22 @@ function preserveCardContentLineBreaks(root) {
         return true;
     }
 
+    function preservePdfRefDisplayRegion(element, annotationData) {
+        if(!element || !element.parentNode || !annotationData) return element;
+        const previous = element.previousSibling;
+        if(!previous || previous.nodeType !== Node.TEXT_NODE) return element;
+        const match = String(previous.nodeValue || '').match(/(?:^|\s)(ref\.\s*)$/i);
+        if(!match) return element;
+        const region = document.createElement('span');
+        region.className = 'mk-pdf-ref-text';
+        region.dataset.sourceUuid = annotationData.sourceUuid || annotationData.annotationId || '';
+        previous.nodeValue = String(previous.nodeValue || '').slice(0, -match[1].length);
+        element.parentNode.insertBefore(region, element);
+        region.appendChild(document.createTextNode(match[1]));
+        region.appendChild(element);
+        return region;
+    }
+
     function snapshotPdfTraceHtml(node) {
         return node ? String(node.innerHTML || node.outerHTML || '') : '';
     }
@@ -6522,7 +6538,10 @@ function preserveCardContentLineBreaks(root) {
                 applyPdfAnnotationUi(region, annotationData, content);
             } else {
                 if(element.classList.contains('block-ref')) element.classList.add('mk-pdf-annotation-ref');
-                applyPdfAnnotationUi(element, annotationData);
+                const region = element.classList.contains('block-ref')
+                    ? preservePdfRefDisplayRegion(element, annotationData)
+                    : element;
+                applyPdfAnnotationUi(region, annotationData);
             }
         });
     }
