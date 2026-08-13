@@ -99,6 +99,14 @@ async function main() {
                 fixtures.answer = { icons: answerOnly.querySelectorAll('.mk-pdf-annotation-icon').length, handlers: answerOnly.querySelectorAll('[data-mk-pdf-region-bound="1"]').length };
                 const outside = createDOM(fixture('general', 'general', ref(ids[0])), true);
                 fixtures.outside = { icons: outside.querySelectorAll('.mk-extra-content .mk-pdf-annotation-icon').length, handlers: outside.querySelectorAll('.mk-extra-content[data-mk-pdf-region-bound="1"], .mk-extra-content [data-mk-pdf-region-bound="1"]').length };
+                const visibleAreaUuid = '6a69ef21-c0f1-4182-a125-f34e23de8d0e';
+                const visibleArea = createDOM(fixture('<img src="178_' + visibleAreaUuid + '_1785327393144.png">'), false);
+                fixtures.visibleArea = { icons: visibleArea.querySelectorAll('.mk-pdf-annotation-icon').length, handlers: visibleArea.querySelectorAll('[data-mk-pdf-region-bound="1"]').length, uuid: visibleArea.querySelector('.mk-pdf-annotation')?.dataset.mkPdfAnnotationSourceUuid || null };
+                const fireSafetyUuid = '6a69ea3c-f982-4696-9b6c-aac4c22c3cc0';
+                const fireSafety = createDOM(fixture('ref. ' + ref(fireSafetyUuid)), false);
+                fixtures.fireSafety = { icons: fireSafety.querySelectorAll('.mk-pdf-annotation-icon').length, handlers: fireSafety.querySelectorAll('[data-mk-pdf-region-bound="1"]').length, uuid: fireSafety.querySelector('.mk-pdf-annotation')?.dataset.mkPdfAnnotationSourceUuid || null };
+                const dynamic = document.createElement('div'); dynamic.innerHTML = '<img src="178_' + visibleAreaUuid + '_dynamic.png">'; decorateDynamicPdfAnnotationSubtree(dynamic);
+                fixtures.dynamic = { icons: dynamic.querySelectorAll('.mk-pdf-annotation-icon').length, handlers: dynamic.querySelectorAll('[data-mk-pdf-region-bound="1"]').length };
                 return { stats, fixtures };
             })()` });
             if(result.result?.exceptionDetails) throw new Error(result.result.exceptionDetails.exception?.description || 'evaluation failed');
@@ -111,7 +119,7 @@ async function main() {
         if(stats.ordinaryDecorated || stats.deepLinkFailures || stats.metadataFailures || stats.direct.failed || stats.area.failed) throw new Error(`render failures: ${JSON.stringify(stats)}`);
         const expected = { A: 1, B: 1, C: 2, D: 1, E: 3, F: 1, G: 1 };
         for(const [name, count] of Object.entries(expected)) if(fixtures[name].icons !== count || fixtures[name].handlers !== count) throw new Error(`fixture ${name}: ${JSON.stringify(fixtures[name])}`);
-        if(!fixtures.G.area || fixtures.repeated.icons !== 2 || fixtures.repeated.handlers !== 2 || fixtures.answer.icons !== 1 || fixtures.answer.handlers !== 1 || fixtures.outside.icons !== 1 || fixtures.outside.handlers !== 1) throw new Error(`area/position/repeated fixture: ${JSON.stringify(fixtures)}`);
+        if(!fixtures.G.area || fixtures.repeated.icons !== 2 || fixtures.repeated.handlers !== 2 || fixtures.answer.icons !== 1 || fixtures.answer.handlers !== 1 || fixtures.outside.icons !== 1 || fixtures.outside.handlers !== 1 || fixtures.visibleArea.icons !== 1 || fixtures.visibleArea.handlers !== 1 || fixtures.visibleArea.uuid !== '6a69ef21-c0f1-4182-a125-f34e23de8d0e' || fixtures.fireSafety.icons !== 1 || fixtures.fireSafety.handlers !== 1 || fixtures.fireSafety.uuid !== '6a69ea3c-f982-4696-9b6c-aac4c22c3cc0' || fixtures.dynamic.icons !== 1 || fixtures.dynamic.handlers !== 1) throw new Error(`area/position/dynamic/repeated fixture: ${JSON.stringify(fixtures)}`);
         console.log(JSON.stringify(value, null, 2));
     } finally {
         processHandle.kill(); server.close(); await delay(300); fs.rmSync(profile, { recursive: true, force: true });

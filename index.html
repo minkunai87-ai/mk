@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.144 -->
+<!-- deployment: v18.5.145 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.144 - PDF annotation 카드 전체 적용)</title>
+<title>MK (v18.5.145 - PDF annotation 공통 렌더)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -558,7 +558,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.144 - PDF annotation 카드 전체 적용)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.145 - PDF annotation 공통 렌더)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -852,7 +852,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.144 - PDF annotation 카드 전체 적용';
+    const APP_VERSION = 'v18.5.145 - PDF annotation 공통 렌더';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -6354,40 +6354,51 @@ function preserveCardContentLineBreaks(root) {
         });
     }
 
-    function decoratePdfAnnotationBlockRefs(root) {
-        root.querySelectorAll('.block-ref').forEach(element => {
-            if(element.dataset.mkPdfAnnotationDecorated === '1') return;
-            const linkData = extractBlockRefUuid(element);
-            if(!linkData || !linkData.uuid) return;
-            console.log('[PDF-BLOCKREF] ref found');
-            console.log('[PDF-BLOCKREF] uuid:', linkData.uuid);
-            const source = pdfAnnotationSourceIndex.get(linkData.uuid) || null;
-            console.log('[PDF-BLOCKREF] source found:', !!source);
-            const isPdfAnnotation = !!source && source.lsType === 'annotation';
-            console.log('[PDF-BLOCKREF] isPdfAnnotation:', isPdfAnnotation);
-            if(!isPdfAnnotation) return;
-            element.dataset.mkPdfAnnotationDecorated = '1';
-            const annotationData = {
-                pdfFileName: source.pdfFileName || null,
-                page: Number.isFinite(source.page) ? source.page : null,
-                annotationId: linkData.uuid,
-                sourceUuid: linkData.uuid,
-                rawHref: linkData.rawHref,
-                x: Number.isFinite(source.x) ? source.x : null,
-                y: Number.isFinite(source.y) ? source.y : null,
-                width: Number.isFinite(source.width) ? source.width : null,
-                height: Number.isFinite(source.height) ? source.height : null,
-                sourceWidth: Number.isFinite(source.sourceWidth) ? source.sourceWidth : null,
-                sourceHeight: Number.isFinite(source.sourceHeight) ? source.sourceHeight : null
-            };
-            console.log('[PDF-BLOCKREF] page:', annotationData.page);
-            console.log('[PDF-BLOCKREF] pdf:', annotationData.pdfFileName);
-            const icon = createPdfAnnotationSvg(annotationData);
-            element.classList.add('mk-pdf-annotation-ref');
-            bindPdfAnnotationRegionAction(element, annotationData);
-            element.insertBefore(icon, element.firstChild);
-            console.log('[PDF-BLOCKREF] icon inserted:', icon.parentNode === element);
-        });
+    function getIndexedPdfAnnotationData(uuid, rawHref = null) {
+        const normalizedUuid = String(uuid || '').toLowerCase();
+        const source = normalizedUuid ? pdfAnnotationSourceIndex.get(normalizedUuid) : null;
+        if(!source || source.lsType !== 'annotation') return null;
+        return {
+            pdfFileName: source.pdfFileName || null,
+            page: Number.isFinite(source.page) ? source.page : null,
+            annotationId: normalizedUuid,
+            sourceUuid: normalizedUuid,
+            rawHref,
+            x: Number.isFinite(source.x) ? source.x : null,
+            y: Number.isFinite(source.y) ? source.y : null,
+            width: Number.isFinite(source.width) ? source.width : null,
+            height: Number.isFinite(source.height) ? source.height : null,
+            sourceWidth: Number.isFinite(source.sourceWidth) ? source.sourceWidth : null,
+            sourceHeight: Number.isFinite(source.sourceHeight) ? source.sourceHeight : null
+        };
+    }
+
+    function extractPdfAnnotationUuidFromElement(element) {
+        if(!element) return null;
+        const values = [
+            element.dataset?.annotationUuid,
+            element.dataset?.sourceUuid,
+            element.getAttribute?.('href'),
+            element.getAttribute?.('onclick'),
+            element.getAttribute?.('src')
+        ];
+        for(const value of values) {
+            const match = String(value || '').match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+            if(match) return match[0].toLowerCase();
+        }
+        return null;
+    }
+
+    function applyPdfAnnotationUi(region, annotationData, contentElement = null) {
+        if(!region || !annotationData || region.dataset.mkPdfAnnotationDecorated === '1') return false;
+        region.dataset.mkPdfAnnotationDecorated = '1';
+        region.dataset.mkPdfAnnotationSourceUuid = annotationData.sourceUuid || annotationData.annotationId || '';
+        region.classList.add('mk-pdf-annotation');
+        bindPdfAnnotationRegionAction(region, annotationData);
+        const icon = createPdfAnnotationSvg(annotationData);
+        if(contentElement && contentElement.parentNode === region) region.insertBefore(icon, contentElement);
+        else region.insertBefore(icon, region.firstChild);
+        return true;
     }
 
     function snapshotPdfTraceHtml(node) {
@@ -6400,7 +6411,8 @@ function preserveCardContentLineBreaks(root) {
         console.log(`[${label}]`, value);
     }
 
-    function decoratePdfAnnotations(root, card, trace) {
+    function decorateAllVisiblePdfAnnotations(root, card = {}, trace = null) {
+        if(!root || !root.querySelectorAll) return;
         const pdfFileName = extractPdfAnnotationFileName(card);
 
         if(trace) {
@@ -6429,7 +6441,6 @@ function preserveCardContentLineBreaks(root) {
             if(!markerNode || markerNode.nodeType !== Node.TEXT_NODE) return;
             const marker = String(markerNode.nodeValue || '').trim();
             if(!PDF_ANNOTATION_MARKERS.has(marker)) return;
-            pageElement.dataset.mkPdfAnnotationDecorated = '1';
             logPdfCardTrace(trace, 'TRACE-3 matched pattern', {
                 marker,
                 page: Number(pageMatch[1]),
@@ -6454,17 +6465,17 @@ function preserveCardContentLineBreaks(root) {
             console.log('[PDF-ANNOTATION] page:', annotationData.page);
             console.log('[PDF-ANNOTATION] pdf:', annotationData.pdfFileName);
 
-            const icon = createPdfAnnotationSvg(annotationData);
-
             const annotationRoot = pageElement.parentElement;
-            if(annotationRoot) { annotationRoot.classList.add('mk-pdf-annotation'); bindPdfAnnotationRegionAction(annotationRoot, annotationData); }
-            markerNode.parentNode.insertBefore(icon, markerNode);
+            if(!annotationRoot || annotationRoot.dataset.mkPdfAnnotationDecorated === '1') return;
             markerNode.remove();
             pageElement.hidden = true;
             const content = document.createElement('span');
             content.className = 'mk-pdf-annotation-content';
             while(pageElement.nextSibling) content.appendChild(pageElement.nextSibling);
             pageElement.parentNode.appendChild(content);
+            pageElement.dataset.mkPdfAnnotationDecorated = '1';
+            applyPdfAnnotationUi(annotationRoot, annotationData, content);
+            const icon = annotationRoot.querySelector(':scope > .mk-pdf-annotation-icon');
             console.log('[PDF-ANNOTATION] icon inserted:', icon.isConnected || icon.parentNode !== null);
             console.log('[PDF-ANNOTATION] icon outerHTML:', icon.outerHTML);
             console.log('[PDF-ANNOTATION] after:', annotationRoot ? annotationRoot.outerHTML : icon.parentElement.outerHTML);
@@ -6490,6 +6501,50 @@ function preserveCardContentLineBreaks(root) {
                 });
             });
         });
+
+        const candidateSelector = '.block-ref, img, [data-annotation-uuid], [data-source-uuid]';
+        const candidates = [...(root.matches?.(candidateSelector) ? [root] : []), ...root.querySelectorAll(candidateSelector)];
+        candidates.forEach(element => {
+            if(element.closest('[data-mk-pdf-annotation-decorated="1"]')) return;
+            const uuid = element.classList.contains('block-ref')
+                ? extractBlockRefUuid(element)?.uuid
+                : extractPdfAnnotationUuidFromElement(element);
+            const rawHref = element.getAttribute('href') || element.getAttribute('onclick') || element.getAttribute('src') || null;
+            const annotationData = getIndexedPdfAnnotationData(uuid, rawHref);
+            if(!annotationData) return;
+            if(element.tagName === 'IMG') {
+                const region = document.createElement('span');
+                const content = document.createElement('span');
+                content.className = 'mk-pdf-annotation-content';
+                element.parentNode.insertBefore(region, element);
+                content.appendChild(element);
+                region.appendChild(content);
+                applyPdfAnnotationUi(region, annotationData, content);
+            } else {
+                if(element.classList.contains('block-ref')) element.classList.add('mk-pdf-annotation-ref');
+                applyPdfAnnotationUi(element, annotationData);
+            }
+        });
+    }
+
+    function decorateDynamicPdfAnnotationSubtree(root) {
+        const card = activeDeck && activeDeck[currentIndex] ? activeDeck[currentIndex] : {};
+        decorateAllVisiblePdfAnnotations(root, card);
+    }
+
+    let pdfAnnotationDomObserver = null;
+    function observeDynamicPdfAnnotations() {
+        if(pdfAnnotationDomObserver) return;
+        const cardRoots = ['question-section', 'answer-section'].map(id => document.getElementById(id)).filter(Boolean);
+        if(!cardRoots.length) return;
+        pdfAnnotationDomObserver = new MutationObserver(mutations => mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
+                if(node.nodeType !== Node.ELEMENT_NODE) return;
+                const selector = '.block-ref, img, [data-annotation-uuid], [data-source-uuid], b';
+                if(node.matches(selector) || node.querySelector(selector)) decorateDynamicPdfAnnotationSubtree(node);
+            });
+        }));
+        cardRoots.forEach(cardRoot => pdfAnnotationDomObserver.observe(cardRoot, { childList: true, subtree: true }));
     }
 
 function createDOM(card, isAnswer, trace) {
@@ -6563,8 +6618,7 @@ function createDOM(card, isAnswer, trace) {
         }
 
         // Decorate the completed card DOM, independent of question/answer position or :-> ordering.
-        decoratePdfAnnotations(wrap, card, trace);
-        decoratePdfAnnotationBlockRefs(wrap);
+        decorateAllVisiblePdfAnnotations(wrap, card, trace);
 
         // 🔥 [진짜 흑막 체포] 🔥
         // 상위 목차, 본문, 추가해설까지 싹 다 모아놓고, 한 번에 이미지 주소를 깃허브로 싹 다 변환!
@@ -8215,6 +8269,8 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
 
         renderMkImageOcclusions(qSection);
         renderMkImageOcclusions(aSection);
+        decorateAllVisiblePdfAnnotations(qSection, card, currentCardPdfTrace);
+        decorateAllVisiblePdfAnnotations(aSection, card);
         bindImageZoomHandlers(qSection);
         bindImageZoomHandlers(aSection);
         updateIOImageNavigation(card);
@@ -8224,6 +8280,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             currentCardPdfTrace.finalIconCount = qSection.querySelectorAll('.mk-pdf-annotation-icon').length;
             console.log('[CURRENT-CARD] final PDF icon count:', currentCardPdfTrace.finalIconCount);
         });
+        observeDynamicPdfAnnotations();
         scheduleDateDomMutationLog('after-final-dom-update');
     }
 
@@ -8247,6 +8304,9 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
 
         renderMkImageOcclusions(qDiv);
         renderMkImageOcclusions(aDiv);
+        const card = activeDeck && activeDeck[currentIndex] ? activeDeck[currentIndex] : {};
+        decorateAllVisiblePdfAnnotations(qDiv, card);
+        decorateAllVisiblePdfAnnotations(aDiv, card);
         bindImageZoomHandlers(qDiv);
         bindImageZoomHandlers(aDiv);
         persistCurrentViewState(false);
