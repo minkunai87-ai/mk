@@ -19,8 +19,16 @@ jobs:
           echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
       - name: Build and test
         run: |
+          set +e
           xcodebuild test \
             -project ios/MKPDFHelper/MKPDFHelper.xcodeproj \
             -scheme MKPDFHelper \
             -destination "platform=iOS Simulator,id=$DEVICE_ID" \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            grep -E 'error:|Testing failed|The following build commands failed|TEST FAILED' xcodebuild.log | tail -100 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+          fi
+          exit "$STATUS"
