@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.140 - 현재 PDF 카드 추적)</title>
+<title>MK (v18.5.141 - block-ref PDF annotation 식별)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -433,6 +433,13 @@
   max-width: 100%;
   vertical-align: baseline;
 }
+.block-ref.mk-pdf-annotation-ref {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 100%;
+  vertical-align: baseline;
+}
 .mk-pdf-annotation-icon {
   display: block !important;
   visibility: visible !important;
@@ -550,7 +557,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.140 - 현재 PDF 카드 추적)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.141 - block-ref PDF annotation 식별)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -844,7 +851,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.140 - 현재 PDF 카드 추적';
+    const APP_VERSION = 'v18.5.141 - block-ref PDF annotation 식별';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -866,6 +873,7 @@
     window.addEventListener('resize', syncIOImageNavigationPosition);
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
+    let pdfAnnotationSourceIndex = new Map();
     let currentFilterMode = 'default', currentSortMode = 'original', currentSecondarySortMode = 'none', imageMap = new Map();
     let previousCardIndex = null;
     const REVIEW_DURATION_STORAGE_KEY = 'mk_review_duration_samples_v1';
@@ -5082,11 +5090,28 @@
         return { files: data.filter(file => file.name.endsWith('.txt')), source: 'github-api', listResponse };
     }
 
+    async function loadPdfAnnotationSourceIndex(fetchImpl = fetch) {
+        try {
+            const url = new URL('pdf-annotations.json', document.baseURI);
+            url.searchParams.set('v', APP_VERSION);
+            const response = await fetchImpl(url.href, { cache: 'no-store' });
+            if (!response.ok) throw new Error(`PDF annotation index status ${response.status}`);
+            const payload = await response.json();
+            if (!payload || payload.schemaVersion !== 1 || !payload.annotations) throw new Error('invalid PDF annotation index');
+            pdfAnnotationSourceIndex = new Map(Object.entries(payload.annotations).map(([uuid, data]) => [uuid.toLowerCase(), data]));
+            console.log('[PDF-BLOCKREF] source index loaded:', pdfAnnotationSourceIndex.size);
+        } catch(error) {
+            pdfAnnotationSourceIndex = new Map();
+            console.warn('[PDF-BLOCKREF] source index unavailable:', error);
+        }
+    }
+
     async function autoScanGitHub() {
         document.getElementById('loading').style.display = 'block';
         const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
         
         try {
+            await loadPdfAnnotationSourceIndex();
             const deckFileList = await loadDeckFileList(headers);
             const res = deckFileList.listResponse;
             
@@ -6259,6 +6284,62 @@ function preserveCardContentLineBreaks(root) {
         return { annotationId, rawHref };
     }
 
+    function extractBlockRefUuid(element) {
+        if(!element) return null;
+        const rawHref = element.getAttribute('href')
+            || (String(element.getAttribute('onclick') || '').match(/(?:window\.open|window\.location\.href\s*=)\s*\(?['"]([^'"]+)['"]/i) || [])[1]
+            || null;
+        const match = String(rawHref || '').match(/[?&]block-id=([0-9a-f-]{36})/i);
+        return { uuid: match ? match[1].toLowerCase() : null, rawHref };
+    }
+
+    function createPdfAnnotationSvg(annotationData) {
+        const svgNamespace = 'http://www.w3.org/2000/svg';
+        const icon = document.createElementNS(svgNamespace, 'svg');
+        icon.setAttribute('class', 'mk-pdf-annotation-icon');
+        icon.setAttribute('viewBox', '0 0 24 24');
+        icon.setAttribute('width', '18');
+        icon.setAttribute('height', '18');
+        icon.setAttribute('fill', 'none');
+        icon.setAttribute('stroke', 'currentColor');
+        icon.setAttribute('aria-hidden', 'true');
+        icon.dataset.annotation = JSON.stringify(annotationData);
+        icon.innerHTML = '<path d="M6 2.5h8l4 4V21H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 2.5V7h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>';
+        return icon;
+    }
+
+    function decoratePdfAnnotationBlockRefs(root) {
+        root.querySelectorAll('.block-ref').forEach(element => {
+            if(element.querySelector(':scope > .mk-pdf-annotation-icon')) return;
+            const linkData = extractBlockRefUuid(element);
+            if(!linkData || !linkData.uuid) return;
+            console.log('[PDF-BLOCKREF] ref found');
+            console.log('[PDF-BLOCKREF] uuid:', linkData.uuid);
+            const source = pdfAnnotationSourceIndex.get(linkData.uuid) || null;
+            console.log('[PDF-BLOCKREF] source found:', !!source);
+            const isPdfAnnotation = !!source && source.lsType === 'annotation';
+            console.log('[PDF-BLOCKREF] isPdfAnnotation:', isPdfAnnotation);
+            if(!isPdfAnnotation) return;
+            const annotationData = {
+                pdfFileName: source.pdfFileName || null,
+                page: Number.isFinite(source.page) ? source.page : null,
+                annotationId: linkData.uuid,
+                sourceUuid: linkData.uuid,
+                rawHref: linkData.rawHref,
+                x: Number.isFinite(source.x) ? source.x : null,
+                y: Number.isFinite(source.y) ? source.y : null,
+                width: Number.isFinite(source.width) ? source.width : null,
+                height: Number.isFinite(source.height) ? source.height : null
+            };
+            console.log('[PDF-BLOCKREF] page:', annotationData.page);
+            console.log('[PDF-BLOCKREF] pdf:', annotationData.pdfFileName);
+            const icon = createPdfAnnotationSvg(annotationData);
+            element.classList.add('mk-pdf-annotation-ref');
+            element.insertBefore(icon, element.firstChild);
+            console.log('[PDF-BLOCKREF] icon inserted:', icon.parentNode === element);
+        });
+    }
+
     function snapshotPdfTraceHtml(node) {
         return node ? String(node.innerHTML || node.outerHTML || '') : '';
     }
@@ -6318,17 +6399,7 @@ function preserveCardContentLineBreaks(root) {
             console.log('[PDF-ANNOTATION] page:', annotationData.page);
             console.log('[PDF-ANNOTATION] pdf:', annotationData.pdfFileName);
 
-            const svgNamespace = 'http://www.w3.org/2000/svg';
-            const icon = document.createElementNS(svgNamespace, 'svg');
-            icon.setAttribute('class', 'mk-pdf-annotation-icon');
-            icon.setAttribute('viewBox', '0 0 24 24');
-            icon.setAttribute('width', '18');
-            icon.setAttribute('height', '18');
-            icon.setAttribute('fill', 'none');
-            icon.setAttribute('stroke', 'currentColor');
-            icon.setAttribute('aria-hidden', 'true');
-            icon.dataset.annotation = JSON.stringify(annotationData);
-            icon.innerHTML = '<path d="M6 2.5h8l4 4V21H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 2.5V7h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>';
+            const icon = createPdfAnnotationSvg(annotationData);
 
             const annotationRoot = pageElement.parentElement;
             if(annotationRoot) annotationRoot.classList.add('mk-pdf-annotation');
@@ -6418,6 +6489,7 @@ function createDOM(card, isAnswer, trace) {
         });
         if(hasPdfAnnotationCandidate) console.log('[PDF-ANNOTATION-LIVE] render start', { cardId: card.id, isAnswer });
         decoratePdfAnnotations(temp, card, trace);
+        decoratePdfAnnotationBlockRefs(temp);
         wrap.appendChild(temp);
 
         // 3. 추가 해설(Extra) 조립
