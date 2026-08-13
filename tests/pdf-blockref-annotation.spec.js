@@ -53,6 +53,7 @@ async function main() {
                     const ref = document.querySelector('.block-ref.mk-pdf-annotation-ref');
                     const icon = ref && ref.querySelector(':scope > .mk-pdf-annotation-icon');
                     const style = icon && getComputedStyle(icon);
+                    const iosDeepLink = icon && buildPdfAnnotationIOSUrl(JSON.parse(icon.dataset.annotation));
                     const allCards = Object.values(library || {}).flat();
                     const ordinaryCard = allCards.find(item => {
                         const holder = document.createElement('div'); holder.innerHTML = item.q || '';
@@ -73,6 +74,7 @@ async function main() {
                         color: style && style.color,
                         width: style && style.width,
                         height: style && style.height,
+                        iosDeepLink,
                         ordinaryBlockRefIconCount: ordinaryRoot ? ordinaryRoot.querySelectorAll('.block-ref > .mk-pdf-annotation-icon').length : null,
                         directAnnotationIconCount: directRoot ? directRoot.querySelectorAll('.mk-pdf-annotation-icon').length : null
                     };
@@ -89,6 +91,8 @@ async function main() {
         if(!result.annotation.pdfFileName.endsWith('.pdf')) throw new Error(`PDF filename missing: ${JSON.stringify(result)}`);
         if(!result.onclick || !result.onclick.includes('block-id=6a58769d-6bdc-454b-b744-ef8e39bc9354')) throw new Error(`block-ref click changed: ${JSON.stringify(result)}`);
         if(result.color !== 'rgb(255, 59, 48)' || result.width !== '18px' || result.height !== '18px') throw new Error(`debug style mismatch: ${JSON.stringify(result)}`);
+        const deepLink = new URL(result.iosDeepLink);
+        if(deepLink.protocol !== 'mkpdf:' || deepLink.hostname !== 'open' || deepLink.searchParams.get('page') !== '40' || Math.abs(Number(deepLink.searchParams.get('sourceWidth')) - 944) > 0.001) throw new Error(`iOS deep link mismatch: ${JSON.stringify(result)}`);
         if(result.ordinaryBlockRefIconCount !== 0) throw new Error(`ordinary block-ref false positive: ${JSON.stringify(result)}`);
         if(!result.directAnnotationIconCount) throw new Error(`direct annotation regression: ${JSON.stringify(result)}`);
         console.log(JSON.stringify(result, null, 2));

@@ -29,6 +29,8 @@ for (const name of fs.readdirSync(assetsDir)) {
         const y = numberFrom(block, 'y1');
         const x2 = numberFrom(block, 'x2');
         const y2 = numberFrom(block, 'y2');
+        const sourceWidth = numberFrom(block, 'width');
+        const sourceHeight = numberFrom(block, 'height');
         annotations[uuid] = {
             lsType: 'annotation',
             pdfFileName,
@@ -36,7 +38,9 @@ for (const name of fs.readdirSync(assetsDir)) {
             x,
             y,
             width: Number.isFinite(x) && Number.isFinite(x2) ? x2 - x : null,
-            height: Number.isFinite(y) && Number.isFinite(y2) ? y2 - y : null
+            height: Number.isFinite(y) && Number.isFinite(y2) ? y2 - y : null,
+            sourceWidth,
+            sourceHeight
         };
     });
 }

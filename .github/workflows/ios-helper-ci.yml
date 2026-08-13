@@ -1,0 +1,26 @@
+name: iOS Helper CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/MKPDFHelper/**'
+      - '.github/workflows/ios-helper-ci.yml'
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select simulator
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for runtime in d.values() for x in runtime if x["name"].startswith("iPhone")))')
+          echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+      - name: Build and test
+        run: |
+          xcodebuild test \
+            -project ios/MKPDFHelper/MKPDFHelper.xcodeproj \
+            -scheme MKPDFHelper \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            CODE_SIGNING_ALLOWED=NO
