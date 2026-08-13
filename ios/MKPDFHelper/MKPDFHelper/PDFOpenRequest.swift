@@ -22,7 +22,7 @@ struct PDFOpenRequest: Equatable {
         annotationId = values["annotation"]
 
         func number(_ key: String) -> CGFloat? {
-            values[key].flatMap(Double.init).map(CGFloat.init)
+            values[key].flatMap { Double($0) }.map { CGFloat($0) }
         }
         if let x = number("x"), let y = number("y"), let width = number("width"), let height = number("height"),
            width > 0, height > 0 {
