@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.151-learning-stats-checksum-compat -->
+<!-- deployment: v18.5.152-learning-stats-indexeddb -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.151 - 학습통계 체크섬 호환)</title>
+<title>MK (v18.5.152 - 학습통계 IndexedDB 보호)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -559,7 +559,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.151 - 학습통계 체크섬 호환)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.152 - 학습통계 IndexedDB 보호)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -853,7 +853,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.151 - 학습통계 체크섬 호환';
+    const APP_VERSION = 'v18.5.152 - 학습통계 IndexedDB 보호';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -930,6 +930,15 @@
     let learningStatsCardIndexCache = null;
     let learningStatsEligibilityTimer = null;
     let learningStatsReady = false;
+    let learningStatsRestoreState = 'pending';
+    let learningStatsRestoreFailure = null;
+    let learningStatsMemoryStore = { version: 1, days: {} };
+    let learningStatsMemoryUpdatedAt = 0;
+    let learningStatsReviewDeltaQueue = [];
+    let learningStatsPersistenceQueue = Promise.resolve({ ok:true, skipped:true });
+    let learningStatsStartupSyncInProgress = false;
+    let learningStatsFavoriteDecksMemory = [];
+    let learningStatsFavoritesUpdatedAt = 0;
     let ioImageGroupCache = { cards: null, length: 0, groups: [], cardToGroup: new Map() };
     const ioImageLastVisitedCard = new Map();
     const ioZoomDiagnostics = { logged: new Set(), lastAction: '', doubleTapRuns: 0, occlusionInitializations: 0, cardRenders: 0, activeObservers: 0 };
@@ -1003,6 +1012,13 @@
     const STATS_DB_STORE = 'stats';
     const STATS_DB_PRIMARY_KEY = STORAGE_KEY_STATS;
     const STATS_DB_STAGING_KEY = `${STORAGE_KEY_STATS}__staging`;
+    const LEARNING_STATS_DB_PRIMARY_KEY = 'mk_learning_stats_v1';
+    const LEARNING_STATS_DB_STAGING_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__staging`;
+    const LEARNING_STATS_DB_UPDATED_AT_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__updated_at`;
+    const LEARNING_STATS_DB_DELTA_QUEUE_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__review_delta_queue`;
+    const LEARNING_STATS_DB_FAVORITES_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__favorite_decks`;
+    const LEARNING_STATS_DB_FAVORITES_STAGING_KEY = `${LEARNING_STATS_DB_FAVORITES_KEY}__staging`;
+    const LEARNING_STATS_DB_FAVORITES_UPDATED_AT_KEY = `${LEARNING_STATS_DB_FAVORITES_KEY}__updated_at`;
     const STATS_LOW_COUNT_BLOCK = 10;
     const STATS_HEALTHY_MIN_COUNT = 1000;
     const STATS_STANDALONE_RESTORE_MIN_COUNT = 9000;
@@ -2123,11 +2139,12 @@
         cleanupOversizedViewState();
         cleanupLegacyRecoverySnapshotsAndRestoreCache('startup');
         await initializeStatsStore();
+        await initializeLearningStatsStore();
         await loadTodayNewBaselineSnapshot();
         await autoScanGitHub(); 
         registerTodayNewCards();
         await syncLatestFirebaseBackupOnStartup();
-        learningStatsReady = true;
+        learningStatsReady = learningStatsRestoreState === 'success';
         initApp(); 
         scheduleDateDomMutationLog('after-startup-sync');
     };
@@ -2149,6 +2166,15 @@
 
     async function flushBackupToFirebase(isAuto = true, options = {}) {
         if (!isDataChanged || isBackupInFlight) return false;
+        if (learningStatsRestoreState !== 'success' || learningStatsStartupSyncInProgress) {
+            console.warn('[MK_BACKUP_BLOCKED_LEARNING_STATS_NOT_RESTORED]', {
+                state: learningStatsRestoreState,
+                startupSyncInProgress: learningStatsStartupSyncInProgress,
+                queuedReviewDeltas: learningStatsReviewDeltaQueue.length
+            });
+            if(!isAuto) showToast('학습통계 복원이 완료되지 않아 백업을 중단했습니다.', 'error');
+            return false;
+        }
         if (backupTimer) {
             clearTimeout(backupTimer);
             backupTimer = null;
@@ -2170,6 +2196,12 @@
         const localUpdatedAt = getLocalDataUpdatedAt();
         const currentCardUuid = getCurrentCardId();
         await statsPersistenceQueue;
+        const learningPersistence = await learningStatsPersistenceQueue;
+        if(learningPersistence && learningPersistence.ok === false) {
+            console.warn('[MK_BACKUP_BLOCKED_LEARNING_STATS_PERSISTENCE_FAILED]', learningPersistence);
+            updateCloudIcon('error');
+            return false;
+        }
         const statsRaw = JSON.stringify(getStatsStore());
         const statsKeyCount = getStatsKeyCount(statsRaw);
         const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
@@ -2232,7 +2264,7 @@
             [LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: getBackupFieldChecksum(learningStatsFavoriteDecksBackup)
         };
         console.log('[MK_PWA_BACKUP_LEARNING_STATS]', {
-            ...getLearningStatsSyncTrace(localStorage.getItem(LEARNING_STATS_STORAGE_KEY), localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY)),
+            ...getLearningStatsSyncTrace(learningStatsBackup, learningStatsFavoriteDecksMemory),
             learningStatsUpdatedAt,
             favoritesUpdatedAt
         });
@@ -2249,6 +2281,8 @@
             statsUpdatedAt: localUpdatedAt,
             learningStatsUpdatedAt,
             favoritesUpdatedAt,
+            learningStatsDayCount: Object.keys(learningStatsBackup.days || {}).length,
+            learningStatsEntryCount: getLearningStatsEntryCount(learningStatsBackup),
             createdAt: Date.now()
         };
         console.log('[MK Backup Payload Breakdown KB]', payloadBreakdownKB);
@@ -3339,7 +3373,7 @@
         if (hasBackupField(raw, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, raw.filter);
         if (hasBackupField(raw, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, raw.recentDecks);
         if (hasBackupField(raw, 'targetRetention')) applyTargetRetentionFromBackup(raw.targetRetention, source);
-        restoreLearningStatsBackupFields(raw);
+        if(options.learningStatsGroups !== false) await restoreLearningStatsBackupFields(raw, options.learningStatsGroups);
 
         const restoredViewState = options.deferViewState
             ? compactViewState(normalized.viewState || getBackupViewState(raw))
@@ -3635,11 +3669,18 @@
     }
 
     function getLearningStatsUpdatedAt() {
-        return getLocalGroupUpdatedAt(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, LEARNING_STATS_STORAGE_KEY);
+        if(learningStatsRestoreState !== 'success') return 0;
+        return Math.max(
+            Number(learningStatsMemoryUpdatedAt) || 0,
+            getLocalGroupUpdatedAt(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, LEARNING_STATS_STORAGE_KEY)
+        );
     }
 
     function getLearningStatsFavoritesUpdatedAt() {
-        return getLocalGroupUpdatedAt(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY);
+        return Math.max(
+            Number(learningStatsFavoritesUpdatedAt) || 0,
+            getLocalGroupUpdatedAt(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY)
+        );
     }
 
     function getBackupGroupUpdatedAt(data, group, ts = 0) {
@@ -4076,7 +4117,7 @@
         if(hasBackupField(raw, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, raw.filter);
         if(hasBackupField(raw, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, raw.recentDecks);
         if(hasBackupField(raw, 'targetRetention')) applyTargetRetentionFromBackup(raw.targetRetention, source);
-        restoreLearningStatsBackupFields(raw);
+        await restoreLearningStatsBackupFields(raw);
         const restoredViewState = options.deferViewState
             ? compactViewState(payload.viewState || getBackupViewState(raw))
             : restorePosition(payload.viewState || getBackupViewState(raw), source);
@@ -4256,7 +4297,8 @@
             checkedKeys: [
                 '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
                 '6a17f7fc-d939-4ac3-b401-d165f66b62df'
-            ]
+            ],
+            learningStatsGroups: context.learningStatsGroups
         });
         if (!verification.ok) {
             console.error('[MK_STATS_RESTORE_VERIFY_FAILED]', {
@@ -4347,6 +4389,8 @@
                 ts: String(ts),
                 indexData,
                 statsKeyCount: Number(indexData && indexData.statsKeyCount) || 0,
+                learningStatsDayCount: Number(indexData && indexData.learningStatsDayCount) || 0,
+                learningStatsEntryCount: Number(indexData && indexData.learningStatsEntryCount) || 0,
                 dataUpdatedAt: getBackupGroupUpdatedAt(indexData, 'all', ts)
             }))
             .filter(record => record.ts)
@@ -4372,6 +4416,7 @@
 
     async function findStartupBootstrapBackup() {
         const records = await fetchStartupBootstrapBackupCandidates();
+        const learningStatsEntryBaseline = records.reduce((max, record) => Math.max(max, record.learningStatsEntryCount || 0), 0);
         for (const record of records) {
             if (!isAllowedStatsRestoreCount(record.statsKeyCount)) {
                 rejectStartupBootstrapCandidate(record, isKnownSuspiciousStatsCount(record.statsKeyCount) ? 'known_suspicious_stats_count' : `stats_count_below_${STATS_RESTORE_ALLOW_MIN_COUNT}`);
@@ -4386,6 +4431,26 @@
             const supplementalIntegrity = verifyCoreBackupPayloadIntegrity(payload);
             if(!supplementalIntegrity.ok) {
                 rejectStartupBootstrapCandidate(record, supplementalIntegrity.reason);
+                continue;
+            }
+            const learningStatsHealth = evaluateLearningStatsBackupHealth(payload);
+            if(!learningStatsHealth.ok) {
+                rejectStartupBootstrapCandidate(record, learningStatsHealth.reason, learningStatsHealth);
+                continue;
+            }
+            if(record.learningStatsDayCount && record.learningStatsDayCount !== learningStatsHealth.dayCount) {
+                rejectStartupBootstrapCandidate(record, 'learning_stats_payload_index_day_count_mismatch', learningStatsHealth);
+                continue;
+            }
+            if(record.learningStatsEntryCount && record.learningStatsEntryCount !== learningStatsHealth.entryCount) {
+                rejectStartupBootstrapCandidate(record, 'learning_stats_payload_index_entry_count_mismatch', learningStatsHealth);
+                continue;
+            }
+            if(learningStatsEntryBaseline && learningStatsHealth.entryCount < Math.ceil(learningStatsEntryBaseline * 0.8)) {
+                rejectStartupBootstrapCandidate(record, 'learning_stats_entry_count_sudden_drop', {
+                    ...learningStatsHealth,
+                    learningStatsEntryBaseline
+                });
                 continue;
             }
 
@@ -4480,7 +4545,7 @@
             if (hasBackupField(payload, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, payload.filter);
             if (hasBackupField(payload, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, payload.recentDecks);
             if (hasBackupField(payload, 'targetRetention')) applyTargetRetentionFromBackup(payload.targetRetention, 'startup-bootstrap');
-            restoreLearningStatsBackupFields(payload);
+            await restoreLearningStatsBackupFields(payload, context.learningStatsGroups);
 
             const pendingMerge = mergePendingReviewEventsIntoCurrentStats('startup-bootstrap:pending-review-merge');
             const localReviewMerge = mergeNewerLocalReviewStateIntoCurrentStats(localStatsBeforeBootstrap, localHistoryBeforeBootstrap, 'startup-bootstrap:local-review-merge');
@@ -4598,6 +4663,8 @@
     }
 
     async function syncLatestFirebaseBackupOnStartup() {
+        learningStatsStartupSyncInProgress = true;
+        learningStatsReady = false;
         try {
             console.log('AUTO_SYNC_START');
             const startupBootstrapState = getStartupBootstrapState();
@@ -4625,8 +4692,8 @@
                 };
                 const decision = getStartupSyncDecision(localTimes, cloudTimes);
                 const localTrace = getLearningStatsSyncTrace(
-                    localStorage.getItem(LEARNING_STATS_STORAGE_KEY),
-                    localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY)
+                    learningStatsMemoryStore,
+                    learningStatsFavoriteDecksMemory
                 );
                 const cloudTrace = getLearningStatsSyncTrace(
                     hasBackupLearningStats(candidate.payload) ? candidate.payload[LEARNING_STATS_STORAGE_KEY] : null,
@@ -4642,29 +4709,46 @@
                     backupTimestamp:candidate.record.ts
                 });
                 const localSupplement = {
-                    learningStats: localStorage.getItem(LEARNING_STATS_STORAGE_KEY),
-                    learningStatsUpdatedAt: localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT),
-                    favorites: localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY),
-                    favoritesUpdatedAt: localStorage.getItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT)
+                    learningStats: getLearningStatsStore(),
+                    learningStatsUpdatedAt: getLearningStatsUpdatedAt(),
+                    favorites: [...learningStatsFavoriteDecksMemory],
+                    favoritesUpdatedAt: getLearningStatsFavoritesUpdatedAt()
                 };
                 let cloudApplied = false;
                 if(decision.study === 'cloud') {
-                    const result = await applyStartupBootstrapPayload(candidate, { reasonCode:'newer-normal-cloud-backup' });
+                    const cloudSupplementalGroups = ['learningStats', 'favorites'].filter(group => decision[group] === 'cloud');
+                    const result = await applyStartupBootstrapPayload(candidate, {
+                        reasonCode:'newer-normal-cloud-backup',
+                        learningStatsGroups:cloudSupplementalGroups
+                    });
                     if(result && result.ok) {
                         cloudApplied = true;
                         if(decision.learningStats === 'local' && localSupplement.learningStats !== null) {
-                            safeRestoreLocalStorage(LEARNING_STATS_STORAGE_KEY, localSupplement.learningStats);
-                            if(localSupplement.learningStatsUpdatedAt !== null) safeRestoreLocalStorage(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, localSupplement.learningStatsUpdatedAt);
+                            const localLearningResult = await persistLearningStatsToIndexedDBVerified(
+                                localSupplement.learningStats,
+                                localSupplement.learningStatsUpdatedAt,
+                                'startup-keep-newer-local-learning-stats'
+                            );
+                            if(!localLearningResult.ok) throw new Error(`${LEARNING_STATS_STORAGE_KEY}_local_restore_failed`);
+                            learningStatsMemoryStore = localLearningResult.store;
+                            learningStatsMemoryUpdatedAt = localLearningResult.updatedAt;
+                            setLearningStatsRestoreState('success', { source:'startup-keep-newer-local-learning-stats' });
                         }
-                        if(decision.favorites === 'local' && localSupplement.favorites !== null) {
-                            safeRestoreLocalStorage(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY, localSupplement.favorites);
-                            if(localSupplement.favoritesUpdatedAt !== null) safeRestoreLocalStorage(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT, localSupplement.favoritesUpdatedAt);
+                        if(decision.favorites === 'local') {
+                            const localFavoritesResult = await persistLearningStatsFavoritesToIndexedDBVerified(
+                                localSupplement.favorites,
+                                localSupplement.favoritesUpdatedAt,
+                                'startup-keep-newer-local-favorites'
+                            );
+                            if(!localFavoritesResult.ok) throw new Error(`${LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY}_local_restore_failed`);
+                            learningStatsFavoriteDecksMemory = localFavoritesResult.favorites;
+                            learningStatsFavoritesUpdatedAt = localFavoritesResult.updatedAt;
                         }
                     }
                 } else {
                     const supplementalGroups = ['learningStats', 'favorites'].filter(group => decision[group] === 'cloud');
                     if(supplementalGroups.length) {
-                        restoreLearningStatsBackupFields(candidate.payload, supplementalGroups);
+                        await restoreLearningStatsBackupFields(candidate.payload, supplementalGroups);
                         cloudApplied = true;
                     }
                 }
@@ -4690,10 +4774,19 @@
             console.log('AUTO_SYNC_COMPLETE');
         } catch(e) {
             console.error('[MK Auto Cloud Sync Error]', e);
+            if(learningStatsRestoreState === 'pending') {
+                setLearningStatsRestoreState('failed', {
+                    source:'startup-cloud-sync',
+                    reason:e && e.message ? e.message : String(e)
+                });
+            }
             console.log('RESTORE_SOURCE local');
             console.log('AUTO_SYNC_SOURCE local');
             console.log('AUTO_SYNC_APPLIED', false);
             console.log('AUTO_SYNC_COMPLETE');
+        } finally {
+            learningStatsStartupSyncInProgress = false;
+            learningStatsReady = learningStatsRestoreState === 'success';
         }
     }
 
@@ -4939,6 +5032,7 @@
     async function restoreFromFirebase(ts) {
         const listUI = document.getElementById('fb-list-ui');
         learningStatsReady = false;
+        setLearningStatsRestoreState('pending', { source:'manual-restore', backupTimestamp:String(ts) });
         try {
             console.log('RESTORE_START');
             const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${ts}.json?_t=${Date.now()}`);
@@ -5045,11 +5139,12 @@
             await finishFirebaseRestore(targetData, listUI);
         } catch(e) {
             const message = e && e.message ? e.message : String(e);
+            setLearningStatsRestoreState('failed', { source:'manual-restore', backupTimestamp:String(ts), reason:message });
             console.error(`RESTORE_FAILED reason=${message}`, e);
             ensureVisibleCard();
             listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">Restore failed.<br><small>${message}</small></div>`;
         } finally {
-            learningStatsReady = true;
+            learningStatsReady = learningStatsRestoreState === 'success';
         }
     }
 
@@ -5308,24 +5403,160 @@
         return empty;
     }
 
+    function normalizeLearningStatsPersistentStore(value) {
+        const parsed = parseJSONSafe(value, value && typeof value === 'object' ? value : {});
+        const days = parsed && parsed.version === 1 && parsed.days && typeof parsed.days === 'object' && !Array.isArray(parsed.days)
+            ? parsed.days
+            : {};
+        return {
+            version: 1,
+            days: Object.fromEntries(Object.entries(days).map(([dateKey, day]) => [String(dateKey), normalizeLearningStatsDay(day)]))
+        };
+    }
+
     function getLearningStatsStore() {
+        return normalizeLearningStatsPersistentStore(learningStatsMemoryStore);
+    }
+
+    function getLearningStatsRawSnapshot() {
+        return JSON.stringify(getLearningStatsStore());
+    }
+
+    function setLearningStatsRestoreState(state, context = {}) {
+        learningStatsRestoreState = state;
+        learningStatsReady = state === 'success' && !learningStatsStartupSyncInProgress;
+        learningStatsRestoreFailure = state === 'failed' ? (context.reason || context.message || 'restore_failed') : null;
+        console.log('[MK_LEARNING_STATS_RESTORE_STATE]', {
+            state,
+            reason: learningStatsRestoreFailure,
+            dayCount: Object.keys(learningStatsMemoryStore.days || {}).length,
+            entryCount: getLearningStatsEntryCount(learningStatsMemoryStore),
+            queuedReviewDeltas: learningStatsReviewDeltaQueue.length,
+            ...context
+        });
+    }
+
+    async function persistLearningStatsToIndexedDBVerified(store, updatedAt, source = 'learning-stats-write') {
+        const normalized = normalizeLearningStatsPersistentStore(store);
+        const value = JSON.stringify(normalized);
+        const oldValue = await readStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY);
+        const oldUpdatedAt = await readStatsDatabaseValue(LEARNING_STATS_DB_UPDATED_AT_KEY);
         try {
-            const parsed = JSON.parse(localStorage.getItem(LEARNING_STATS_STORAGE_KEY) || '{}');
-            return parsed && parsed.version === 1 && parsed.days && typeof parsed.days === 'object'
-                ? parsed
-                : { version: 1, days: {} };
-        } catch(e) {
-            return { version: 1, days: {} };
+            await writeStatsDatabaseValue(LEARNING_STATS_DB_STAGING_KEY, value);
+            const staged = await readStatsDatabaseValue(LEARNING_STATS_DB_STAGING_KEY);
+            if(staged !== value) throw new Error('learning_stats_staging_content_mismatch');
+            await writeStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY, value);
+            await writeStatsDatabaseValue(LEARNING_STATS_DB_UPDATED_AT_KEY, String(Number(updatedAt) || 0));
+            const saved = await readStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY);
+            if(saved !== value) {
+                if(oldValue !== null) await writeStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY, oldValue);
+                if(oldUpdatedAt !== null) await writeStatsDatabaseValue(LEARNING_STATS_DB_UPDATED_AT_KEY, oldUpdatedAt);
+                throw new Error('learning_stats_primary_content_mismatch');
+            }
+            await removeStatsDatabaseValue(LEARNING_STATS_DB_STAGING_KEY);
+            console.log('[MK_LEARNING_STATS_INDEXEDDB_WRITE_VERIFIED]', {
+                source,
+                dayCount: Object.keys(normalized.days).length,
+                entryCount: getLearningStatsEntryCount(normalized),
+                updatedAt:Number(updatedAt) || 0
+            });
+            return { ok:true, store:normalized, updatedAt:Number(updatedAt) || 0 };
+        } catch(error) {
+            try { await removeStatsDatabaseValue(LEARNING_STATS_DB_STAGING_KEY); } catch(cleanupError) {}
+            console.error('[MK_LEARNING_STATS_INDEXEDDB_WRITE_FAILED_KEEP_OLD]', {
+                source,
+                name:error && error.name,
+                message:error && error.message ? error.message : String(error)
+            });
+            return { ok:false, keptOld:true, reason:error && error.message ? error.message : 'IndexedDBWriteFailed', error };
         }
     }
 
-    function saveLearningStatsStore(store) {
+    function queueLearningStatsPersistence(store, updatedAt, source = 'learning-stats-write') {
+        const snapshot = normalizeLearningStatsPersistentStore(store);
+        learningStatsPersistenceQueue = learningStatsPersistenceQueue
+            .catch(() => null)
+            .then(() => persistLearningStatsToIndexedDBVerified(snapshot, updatedAt, source))
+            .then(result => {
+                if(!result.ok) setLearningStatsRestoreState('failed', { reason:result.reason, source });
+                return result;
+            });
+        return learningStatsPersistenceQueue;
+    }
+
+    function saveLearningStatsStore(store, options = {}) {
+        if(learningStatsRestoreState !== 'success' && !options.allowDuringRestore) return false;
+        const normalized = normalizeLearningStatsPersistentStore(store);
+        const updatedAt = Number(options.updatedAt) || Date.now();
+        learningStatsMemoryStore = normalized;
+        learningStatsMemoryUpdatedAt = updatedAt;
+        queueLearningStatsPersistence(normalized, updatedAt, options.source || 'learning-stats-save');
+        try { localStorage.setItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, String(updatedAt)); } catch(e) {}
+        return true;
+    }
+
+    async function persistLearningStatsFavoritesToIndexedDBVerified(favorites, updatedAt, source = 'learning-stats-favorites-write') {
+        const normalized = normalizeLearningStatsFavoriteDecksBackupPayload(favorites);
+        const value = JSON.stringify(normalized);
+        const oldValue = await readStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_KEY);
+        const oldUpdatedAt = await readStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_UPDATED_AT_KEY);
         try {
-            localStorage.setItem(LEARNING_STATS_STORAGE_KEY, JSON.stringify(store));
-            return true;
-        } catch(e) {
-            console.warn('[MK Learning Stats Save Skipped]', e);
-            return false;
+            await writeStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_STAGING_KEY, value);
+            if((await readStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_STAGING_KEY)) !== value) throw new Error('learning_stats_favorites_staging_content_mismatch');
+            await writeStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_KEY, value);
+            await writeStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_UPDATED_AT_KEY, String(Number(updatedAt) || 0));
+            if((await readStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_KEY)) !== value) {
+                if(oldValue !== null) await writeStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_KEY, oldValue);
+                if(oldUpdatedAt !== null) await writeStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_UPDATED_AT_KEY, oldUpdatedAt);
+                throw new Error('learning_stats_favorites_primary_content_mismatch');
+            }
+            await removeStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_STAGING_KEY);
+            return { ok:true, favorites:normalized, updatedAt:Number(updatedAt) || 0 };
+        } catch(error) {
+            try { await removeStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_STAGING_KEY); } catch(cleanupError) {}
+            console.error('[MK_LEARNING_STATS_FAVORITES_INDEXEDDB_WRITE_FAILED_KEEP_OLD]', { source, message:error && error.message ? error.message : String(error) });
+            return { ok:false, keptOld:true, reason:error && error.message ? error.message : 'IndexedDBWriteFailed', error };
+        }
+    }
+
+    async function initializeLearningStatsStore() {
+        setLearningStatsRestoreState('pending', { source:'startup-hydration' });
+        try {
+            const [indexedValue, indexedUpdatedAt, queuedDeltas, indexedFavorites, indexedFavoritesUpdatedAt] = await Promise.all([
+                readStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY),
+                readStatsDatabaseValue(LEARNING_STATS_DB_UPDATED_AT_KEY),
+                readStatsDatabaseValue(LEARNING_STATS_DB_DELTA_QUEUE_KEY),
+                readStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_KEY),
+                readStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_UPDATED_AT_KEY)
+            ]);
+            learningStatsReviewDeltaQueue = parseJSONSafe(queuedDeltas, []);
+            if(!Array.isArray(learningStatsReviewDeltaQueue)) learningStatsReviewDeltaQueue = [];
+            const legacyFavorites = localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY);
+            learningStatsFavoriteDecksMemory = normalizeLearningStatsFavoriteDecksBackupPayload(indexedFavorites !== null ? indexedFavorites : legacyFavorites);
+            learningStatsFavoritesUpdatedAt = Number(indexedFavoritesUpdatedAt || localStorage.getItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT)) || 0;
+            if(indexedFavorites === null && legacyFavorites !== null) {
+                const favoritesMigration = await persistLearningStatsFavoritesToIndexedDBVerified(learningStatsFavoriteDecksMemory, learningStatsFavoritesUpdatedAt, 'legacy-favorites-localstorage-migration');
+                if(!favoritesMigration.ok) throw favoritesMigration.error || new Error(favoritesMigration.reason || 'learning_stats_favorites_migration_failed');
+            }
+            const legacyValue = localStorage.getItem(LEARNING_STATS_STORAGE_KEY);
+            const sourceValue = indexedValue !== null ? indexedValue : legacyValue;
+            const hydrated = normalizeLearningStatsPersistentStore(sourceValue);
+            if(Object.keys(hydrated.days).length) {
+                learningStatsMemoryStore = hydrated;
+                learningStatsMemoryUpdatedAt = Number(indexedUpdatedAt || localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT)) || 0;
+                if(indexedValue === null) {
+                    const migrationResult = await persistLearningStatsToIndexedDBVerified(hydrated, learningStatsMemoryUpdatedAt, 'legacy-localstorage-migration');
+                    if(!migrationResult.ok) throw migrationResult.error || new Error(migrationResult.reason || 'learning_stats_migration_failed');
+                }
+                setLearningStatsRestoreState('success', { source:indexedValue === null ? 'legacy-localstorage' : 'indexeddb' });
+                return { ok:true, source:indexedValue === null ? 'legacy-localstorage' : 'indexeddb' };
+            }
+            learningStatsMemoryStore = { version:1, days:{} };
+            learningStatsMemoryUpdatedAt = Number(indexedUpdatedAt || localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT)) || 0;
+            return { ok:true, source:'empty', pending:true };
+        } catch(error) {
+            setLearningStatsRestoreState('failed', { source:'startup-hydration', reason:error && error.message ? error.message : String(error) });
+            return { ok:false, error };
         }
     }
 
@@ -5357,8 +5588,23 @@
         return keys.sort((a, b) => Number(a) - Number(b)).map(key => value[key]);
     }
 
+    function getLearningStatsEntryCount(value) {
+        const normalized = normalizeLearningStatsBackupPayload(value);
+        return Object.values(normalized.days || {}).reduce((sum, day) => sum + day.allDone.length, 0);
+    }
+
+    function evaluateLearningStatsBackupHealth(raw) {
+        if(!hasBackupLearningStats(raw)) return { ok:true, present:false, dayCount:0, entryCount:0 };
+        const normalized = normalizeLearningStatsBackupPayload(raw[LEARNING_STATS_STORAGE_KEY]);
+        const dayCount = Object.keys(normalized.days || {}).length;
+        const entryCount = getLearningStatsEntryCount(normalized);
+        if(!dayCount) return { ok:false, present:true, dayCount, entryCount, reason:'learning_stats_has_no_days' };
+        if(!entryCount) return { ok:false, present:true, dayCount, entryCount, reason:'learning_stats_has_no_entries' };
+        return { ok:true, present:true, dayCount, entryCount };
+    }
+
     function getLearningStatsBackupPayload() {
-        return normalizeLearningStatsBackupPayload(localStorage.getItem(LEARNING_STATS_STORAGE_KEY));
+        return normalizeLearningStatsBackupPayload(learningStatsMemoryStore);
     }
 
     function normalizeLearningStatsFavoriteDecksBackupPayload(value) {
@@ -5373,7 +5619,7 @@
     }
 
     function getLearningStatsFavoriteDecksBackupPayload() {
-        return normalizeLearningStatsFavoriteDecksBackupPayload(localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY));
+        return normalizeLearningStatsFavoriteDecksBackupPayload(learningStatsFavoriteDecksMemory);
     }
 
     function stableBackupJson(value) {
@@ -5428,42 +5674,128 @@
         return { ok:true };
     }
 
-    function restoreLearningStatsBackupFields(raw, groups) {
+    function createLearningStatsReviewDelta(card, source) {
+        const cardId = getTodayEssentialCardId(card);
+        if(!cardId) return null;
+        return {
+            id:`learning_delta_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            dateKey:getLearningStatsDateKey(),
+            cardId:String(cardId),
+            source:source === 'required' || source === 'new' ? source : 'other',
+            deck:normalizeDeckPath(card && card.deck, currentDeckName || ''),
+            updatedAt:Date.now()
+        };
+    }
+
+    function persistLearningStatsReviewDeltaQueue() {
+        const value = JSON.stringify(learningStatsReviewDeltaQueue.slice(-500));
+        learningStatsPersistenceQueue = learningStatsPersistenceQueue
+            .catch(() => null)
+            .then(async () => {
+                await writeStatsDatabaseValue(LEARNING_STATS_DB_DELTA_QUEUE_KEY, value);
+                const saved = await readStatsDatabaseValue(LEARNING_STATS_DB_DELTA_QUEUE_KEY);
+                if(saved !== value) throw new Error('learning_stats_delta_queue_verify_failed');
+                return { ok:true, queuedReviewDeltas:learningStatsReviewDeltaQueue.length };
+            })
+            .catch(error => {
+                console.error('[MK_LEARNING_STATS_DELTA_QUEUE_WRITE_FAILED]', error);
+                return { ok:false, reason:error && error.message ? error.message : String(error) };
+            });
+        return learningStatsPersistenceQueue;
+    }
+
+    function queueLearningStatsReviewDelta(card, source) {
+        const delta = createLearningStatsReviewDelta(card, source);
+        if(!delta) return null;
+        learningStatsReviewDeltaQueue.push(delta);
+        persistLearningStatsReviewDeltaQueue();
+        console.warn('[MK_LEARNING_STATS_REVIEW_DELTA_QUEUED]', {
+            state:learningStatsRestoreState,
+            cardId:delta.cardId,
+            source:delta.source,
+            queuedReviewDeltas:learningStatsReviewDeltaQueue.length
+        });
+        return delta;
+    }
+
+    function applyLearningStatsReviewDeltas(store, deltas = []) {
+        const merged = normalizeLearningStatsPersistentStore(store);
+        deltas.forEach(delta => {
+            if(!delta || !delta.cardId || !delta.dateKey) return;
+            const day = normalizeLearningStatsDay(merged.days[delta.dateKey]);
+            day.allDone = [...new Set([...day.allDone, String(delta.cardId)])];
+            day.trackedDone = [...new Set([...day.trackedDone, String(delta.cardId)])];
+            if(delta.source === 'required') day.requiredDone = [...new Set([...day.requiredDone, String(delta.cardId)])];
+            else if(delta.source === 'new') day.newDone = [...new Set([...day.newDone, String(delta.cardId)])];
+            else day.otherDone = [...new Set([...day.otherDone, String(delta.cardId)])];
+            if(delta.deck) day.deckByCard[String(delta.cardId)] = normalizeDeckPath(delta.deck);
+            merged.days[delta.dateKey] = day;
+        });
+        return merged;
+    }
+
+    async function restoreLearningStatsBackupFields(raw, groups) {
         raw = raw || {};
+        await learningStatsPersistenceQueue.catch(() => null);
         const selected = Array.isArray(groups) ? new Set(groups) : null;
         const integrity = verifyLearningStatsBackupPayloadIntegrity(raw);
-        if(!integrity.ok) throw new Error(integrity.reason);
+        if(!integrity.ok) {
+            setLearningStatsRestoreState('failed', { reason:integrity.reason, source:'backup-integrity' });
+            throw new Error(integrity.reason);
+        }
         const restored = [];
         if((!selected || selected.has('learningStats')) && hasBackupLearningStats(raw)) {
-            const beforeValue = localStorage.getItem(LEARNING_STATS_STORAGE_KEY);
-            const value = normalizeLearningStatsBackupPayload(raw[LEARNING_STATS_STORAGE_KEY]);
-            const result = safeRestoreLocalStorage(LEARNING_STATS_STORAGE_KEY, JSON.stringify(value));
-            if(!result.ok) throw new Error(`${LEARNING_STATS_STORAGE_KEY}_restore_failed`);
-            if(getBackupFieldChecksum(getLearningStatsBackupPayload()) !== getBackupFieldChecksum(value)) throw new Error(`${LEARNING_STATS_STORAGE_KEY}_restore_integrity_failed`);
+            setLearningStatsRestoreState('pending', { source:'cloud-restore' });
+            const beforeValue = learningStatsMemoryStore;
+            const value = normalizeLearningStatsPersistentStore(normalizeLearningStatsBackupPayload(raw[LEARNING_STATS_STORAGE_KEY]));
+            const cloudUpdatedAt = getBackupGroupUpdatedAt(raw, 'learningStats');
+            const withDeltas = applyLearningStatsReviewDeltas(value, learningStatsReviewDeltaQueue);
+            const mergedUpdatedAt = Math.max(cloudUpdatedAt, ...learningStatsReviewDeltaQueue.map(delta => Number(delta.updatedAt) || 0));
+            const result = await persistLearningStatsToIndexedDBVerified(withDeltas, mergedUpdatedAt, 'cloud-learning-stats-restore');
+            if(!result.ok) {
+                setLearningStatsRestoreState('failed', { reason:result.reason, source:'cloud-learning-stats-restore' });
+                throw new Error(`${LEARNING_STATS_STORAGE_KEY}_restore_failed`);
+            }
+            learningStatsMemoryStore = result.store;
+            learningStatsMemoryUpdatedAt = result.updatedAt;
+            if(getBackupFieldChecksum(getLearningStatsBackupPayload()) !== getBackupFieldChecksum(normalizeLearningStatsBackupPayload(withDeltas))) {
+                setLearningStatsRestoreState('failed', { reason:`${LEARNING_STATS_STORAGE_KEY}_restore_integrity_failed`, source:'cloud-learning-stats-restore' });
+                throw new Error(`${LEARNING_STATS_STORAGE_KEY}_restore_integrity_failed`);
+            }
+            if(learningStatsReviewDeltaQueue.length) {
+                learningStatsReviewDeltaQueue = [];
+                await writeStatsDatabaseValue(LEARNING_STATS_DB_DELTA_QUEUE_KEY, '[]');
+            }
+            try { localStorage.setItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, String(mergedUpdatedAt)); } catch(e) {}
+            setLearningStatsRestoreState('success', { source:'cloud-learning-stats-restore', restoredUpdatedAt:mergedUpdatedAt });
             restored.push(LEARNING_STATS_STORAGE_KEY);
-            localStorage.setItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, String(getBackupGroupUpdatedAt(raw, 'learningStats')));
             console.log('[MK_PWA_RESTORE_WRITE]', {
                 group:'learningStats',
                 before:getLearningStatsSyncTrace(beforeValue, null),
                 cloud:getLearningStatsSyncTrace(raw[LEARNING_STATS_STORAGE_KEY], null),
-                after:getLearningStatsSyncTrace(localStorage.getItem(LEARNING_STATS_STORAGE_KEY), null),
-                restoredUpdatedAt:Number(localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT)) || 0
+                after:getLearningStatsSyncTrace(learningStatsMemoryStore, null),
+                restoredUpdatedAt:learningStatsMemoryUpdatedAt,
+                persistence:'indexeddb'
             });
         }
         if((!selected || selected.has('favorites')) && hasBackupLearningStatsFavorites(raw)) {
-            const beforeValue = localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY);
+            const beforeValue = [...learningStatsFavoriteDecksMemory];
             const value = normalizeLearningStatsFavoriteDecksBackupPayload(raw[LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]);
-            const result = safeRestoreLocalStorage(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY, JSON.stringify(value));
+            const favoritesUpdatedAt = getBackupGroupUpdatedAt(raw, 'favorites');
+            const result = await persistLearningStatsFavoritesToIndexedDBVerified(value, favoritesUpdatedAt, 'cloud-learning-stats-favorites-restore');
             if(!result.ok) throw new Error(`${LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY}_restore_failed`);
+            learningStatsFavoriteDecksMemory = result.favorites;
+            learningStatsFavoritesUpdatedAt = result.updatedAt;
             if(getBackupFieldChecksum(getLearningStatsFavoriteDecksBackupPayload()) !== getBackupFieldChecksum(value)) throw new Error(`${LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY}_restore_integrity_failed`);
             restored.push(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY);
-            localStorage.setItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT, String(getBackupGroupUpdatedAt(raw, 'favorites')));
+            try { localStorage.setItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT, String(favoritesUpdatedAt)); } catch(e) {}
             console.log('[MK_PWA_RESTORE_WRITE]', {
                 group:'favorites',
                 before:getLearningStatsSyncTrace(null, beforeValue),
                 cloud:getLearningStatsSyncTrace(null, raw[LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]),
-                after:getLearningStatsSyncTrace(null, localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY)),
-                restoredUpdatedAt:Number(localStorage.getItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT)) || 0
+                after:getLearningStatsSyncTrace(null, learningStatsFavoriteDecksMemory),
+                restoredUpdatedAt:learningStatsFavoritesUpdatedAt,
+                persistence:'indexeddb'
             });
         }
         if(restored.length) refreshLearningStatsAfterCloudRestore();
@@ -5471,8 +5803,8 @@
     }
 
     function updateLearningStatsDay(mutator) {
-        if(!learningStatsReady) {
-            console.warn('[MK_LEARNING_STATS_WRITE_BLOCKED_NOT_READY]');
+        if(!learningStatsReady || learningStatsRestoreState !== 'success' || learningStatsStartupSyncInProgress) {
+            console.warn('[MK_LEARNING_STATS_WRITE_BLOCKED_NOT_RESTORED]', { state:learningStatsRestoreState });
             return null;
         }
         const store = getLearningStatsStore();
@@ -5484,7 +5816,6 @@
             console.error('[MK_LEARNING_STATS_WRITE_FAILED_OLD_VALUE_KEPT]');
             return null;
         }
-        localStorage.setItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, String(Date.now()));
         learningStatsModelCache = null;
         return store.days[dateKey];
     }
@@ -5497,6 +5828,10 @@
     function recordLearningStatsReview(card, source) {
         const id = getTodayEssentialCardId(card);
         if(!id) return;
+        if(learningStatsRestoreState !== 'success' || learningStatsStartupSyncInProgress) {
+            queueLearningStatsReviewDelta(card, source);
+            return;
+        }
         updateLearningStatsDay(day => {
             const allDone = new Set(day.allDone);
             const trackedDone = new Set(day.trackedDone);
@@ -5716,18 +6051,7 @@
     }
 
     function getLearningStatsFavoriteDecks() {
-        try {
-            const parsed = JSON.parse(localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY) || '[]');
-            if(!Array.isArray(parsed)) return [];
-            const seen = new Set();
-            return parsed.map(normalizeDeckPath).filter(path => {
-                if(!path || seen.has(path)) return false;
-                seen.add(path);
-                return true;
-            });
-        } catch(e) {
-            return [];
-        }
+        return normalizeLearningStatsFavoriteDecksBackupPayload(learningStatsFavoriteDecksMemory);
     }
 
     function saveLearningStatsFavoriteDecks(paths) {
@@ -5738,15 +6062,19 @@
             seen.add(path);
             normalized.push(path);
         });
-        try {
-            localStorage.setItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY, JSON.stringify(normalized));
-            localStorage.setItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT, String(Date.now()));
-            isDataChanged = true;
-            return true;
-        } catch(e) {
-            console.warn('[MK Learning Stats Favorite Save Skipped]', e);
-            return false;
-        }
+        const updatedAt = Date.now();
+        learningStatsFavoriteDecksMemory = normalized;
+        learningStatsFavoritesUpdatedAt = updatedAt;
+        learningStatsPersistenceQueue = learningStatsPersistenceQueue
+            .catch(() => null)
+            .then(() => persistLearningStatsFavoritesToIndexedDBVerified(normalized, updatedAt, 'learning-stats-favorites-save'))
+            .then(result => {
+                if(!result.ok) setLearningStatsRestoreState('failed', { reason:result.reason, source:'learning-stats-favorites-save' });
+                return result;
+            });
+        try { localStorage.setItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT, String(updatedAt)); } catch(e) {}
+        isDataChanged = true;
+        return true;
     }
 
     function toggleLearningStatsFavorite(event, path) {

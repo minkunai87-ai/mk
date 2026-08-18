@@ -6,12 +6,14 @@ const path = require('node:path');
 
 const repoRoot = path.resolve(__dirname, '..');
 const externalBaseUrl = process.env.MK_TEST_BASE_URL || '';
+const suppliedProfilePath = process.env.MK_TEST_PROFILE_PATH || '';
+const localIndexOverride = process.env.MK_TEST_INDEX_OVERRIDE || '';
 const recoveryId = process.env.MK_RECOVERY_ID;
 if(!recoveryId) throw new Error('MK_RECOVERY_ID is required for the isolated live lifecycle test');
-const profilePath = fs.mkdtempSync(path.join(os.tmpdir(), 'mk-learning-stats-lifecycle-'));
-const edgePath = process.platform === 'darwin'
+const profilePath = suppliedProfilePath || fs.mkdtempSync(path.join(os.tmpdir(), 'mk-learning-stats-lifecycle-'));
+const edgePath = process.env.MK_TEST_BROWSER_PATH || (process.platform === 'darwin'
     ? ['/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find(fs.existsSync)
-    : 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+    : 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe');
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const server = http.createServer((request, response) => {
     const relative = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname).replace(/^\/+/, '') || 'index.html';
@@ -25,10 +27,11 @@ const server = http.createServer((request, response) => {
 async function main() {
     if(!edgePath || !fs.existsSync(edgePath)) throw new Error('Chromium browser unavailable');
     if(!externalBaseUrl) await new Promise(resolve => server.listen(8879, '127.0.0.1', resolve));
-    const edge = childProcess.spawn(edgePath, [
-        '--headless', '--disable-gpu', '--no-first-run', `--user-data-dir=${profilePath}`,
-        '--remote-debugging-port=9336', 'about:blank'
-    ], { stdio:'ignore' });
+    const startTarget = process.env.MK_TEST_STANDALONE === '1' ? '--app=about:blank' : 'about:blank';
+    const browserArgs = ['--disable-gpu', '--no-first-run', `--user-data-dir=${profilePath}`, '--remote-debugging-port=9336', startTarget];
+    if(process.env.MK_TEST_HEADFUL !== '1') browserArgs.unshift('--headless');
+    else browserArgs.unshift('--window-position=-32000,-32000');
+    const edge = childProcess.spawn(edgePath, browserArgs, { stdio:'ignore', windowsHide:true });
     try {
         let target;
         for(let attempt = 0; attempt < 40 && !target; attempt++) {
@@ -55,6 +58,16 @@ async function main() {
             }
             if(message.method === 'Fetch.requestPaused') {
                 const request = message.params.request;
+                const isIndexOverride = localIndexOverride && request.method === 'GET' && /^https:\/\/minkunai87-ai\.github\.io\/mk\/?(?:index\.html)?(?:[?#].*)?$/.test(request.url);
+                if(isIndexOverride) {
+                    send('Fetch.fulfillRequest', {
+                        requestId:message.params.requestId,
+                        responseCode:200,
+                        responseHeaders:[{name:'Content-Type', value:'text/html; charset=utf-8'}, {name:'Cache-Control', value:'no-store'}],
+                        body:fs.readFileSync(localIndexOverride).toString('base64')
+                    });
+                    return;
+                }
                 const isWrite = /firebaseio\.com/i.test(request.url) && request.method !== 'GET';
                 if(isWrite) {
                     blockedFirebaseWrites++;
@@ -63,7 +76,9 @@ async function main() {
             }
         };
         await send('Runtime.enable');
-        await send('Fetch.enable', {patterns:[{urlPattern:'*firebaseio.com/*', requestStage:'Request'}]});
+        const fetchPatterns = [{urlPattern:'*firebaseio.com/*', requestStage:'Request'}];
+        if(localIndexOverride) fetchPatterns.push({urlPattern:'*minkunai87-ai.github.io/mk*', requestStage:'Request'});
+        await send('Fetch.enable', {patterns:fetchPatterns});
         await send('Page.navigate', {url:externalBaseUrl || 'http://127.0.0.1:8879/index.html'});
 
         const evaluate = async expression => {
@@ -72,10 +87,15 @@ async function main() {
             return response.result?.result?.value;
         };
         const snapshot = async () => evaluate(`(() => {
-            if(typeof learningStatsReady === 'undefined' || !learningStatsReady) return null;
+            if(typeof learningStatsReady === 'undefined' || !learningStatsReady || (typeof learningStatsStartupSyncInProgress !== 'undefined' && learningStatsStartupSyncInProgress)) return null;
             const store = getLearningStatsStore();
             const days = store.days || {};
             return {
+                appVersion:typeof APP_VERSION === 'undefined' ? null : APP_VERSION,
+                standalone:window.matchMedia('(display-mode: standalone)').matches,
+                restoreState:typeof learningStatsRestoreState === 'undefined' ? null : learningStatsRestoreState,
+                learningStatsUpdatedAt:typeof learningStatsMemoryUpdatedAt === 'undefined' ? null : learningStatsMemoryUpdatedAt,
+                favoriteCount:typeof getLearningStatsFavoriteDecks === 'function' ? getLearningStatsFavoriteDecks().length : null,
                 total:Object.values(days).reduce((sum, day) => sum + normalizeLearningStatsDay(day).allDone.length, 0),
                 dayKeys:Object.keys(days).sort(),
                 testPresent:Object.values(days).some(day => normalizeLearningStatsDay(day).allDone.includes('codex-isolated-lifecycle-review'))
@@ -92,7 +112,7 @@ async function main() {
         };
 
         const initial = await waitForSnapshot();
-        if(initial.dayKeys.length < 7) {
+        if(initial.dayKeys.length < 7 || process.env.MK_FORCE_RESTORE === '1') {
             const restoreResult = await evaluate(`(async () => {
                 const response = await fetch('https://mkapp-87823-default-rtdb.firebaseio.com/apps/mk/backups/${recoveryId}.json', {cache:'no-store'});
                 const payload = await response.json();
@@ -103,13 +123,32 @@ async function main() {
             if(!restoreResult?.ok) throw new Error(`live Firebase restore failed: ${JSON.stringify(restoreResult)}`);
         }
         const restored = await waitForSnapshot(7);
-        await evaluate(`recordLearningStatsReview({id:'codex-isolated-lifecycle-review', deck:'검증__격리'}, 'required')`);
+        await evaluate(`(async () => {
+            recordLearningStatsReview({id:'codex-isolated-lifecycle-review', deck:'검증__격리'}, 'required');
+            await learningStatsPersistenceQueue;
+        })()`);
         const afterReview = await snapshot();
         await send('Page.reload', {ignoreCache:true});
         const afterReload = await waitForSnapshot(7);
-        await evaluate(`(async () => {
+        if(process.env.MK_FORCE_STUDY_CLOUD === '1') {
+            await evaluate(`(() => {
+                const originalLoadLocalStudyState = loadLocalStudyState;
+                loadLocalStudyState = () => ({...originalLoadLocalStudyState(), updatedAt:0});
+            })()`);
+        }
+        const syncInputs = await evaluate(`(async () => {
+            if(typeof getStartupCloudCandidateWithTimeout !== 'function') return null;
+            const candidate = await getStartupCloudCandidateWithTimeout();
+            if(!candidate) return {candidate:false};
+            const localTimes = {study:Number(loadLocalStudyState().updatedAt)||0, learningStats:getLearningStatsUpdatedAt(), favorites:getLearningStatsFavoritesUpdatedAt()};
+            const cloudTimes = {study:getBackupGroupUpdatedAt(candidate.payload, 'study', candidate.record.ts), learningStats:getBackupGroupUpdatedAt(candidate.payload, 'learningStats', candidate.record.ts), favorites:getBackupGroupUpdatedAt(candidate.payload, 'favorites', candidate.record.ts)};
+            return {localTimes, cloudTimes, decision:getStartupSyncDecision(localTimes, cloudTimes), backupTimestamp:candidate.record.ts};
+        })()`);
+        const manualSync = await evaluate(`(async () => {
+            if(typeof syncLatestFirebaseBackupOnStartup !== 'function') return {skipped:'startup sync already completed after reload'};
             flushBackupToFirebase = async () => ({blockedForIsolatedTest:true});
             await syncLatestFirebaseBackupOnStartup();
+            return {ok:true};
         })()`);
         await delay(250);
         const afterSync = await waitForSnapshot(7);
@@ -117,13 +156,13 @@ async function main() {
 
         if(afterReview.total !== restored.total + 1 || !afterReview.testPresent) throw new Error(`review increment failed: ${JSON.stringify({restored, afterReview})}`);
         if(afterReload.total !== afterReview.total || !afterReload.testPresent) throw new Error(`reload persistence failed: ${JSON.stringify({afterReview, afterReload})}`);
-        if(afterSync.total !== afterReload.total || !afterSync.testPresent) throw new Error(`sync persistence failed: ${JSON.stringify({afterReload, afterSync})}`);
-        console.log(JSON.stringify({restored, afterReview, afterReload, afterSync, blockedFirebaseWrites}, null, 2));
+        if(afterSync.total !== afterReload.total || !afterSync.testPresent) throw new Error(`sync persistence failed: ${JSON.stringify({afterReload, afterSync, syncInputs, manualSync})}`);
+        console.log(JSON.stringify({restored, afterReview, afterReload, afterSync, syncInputs, manualSync, blockedFirebaseWrites}, null, 2));
     } finally {
         edge.kill();
         if(server.listening) server.close();
         await delay(300);
-        fs.rmSync(profilePath, {recursive:true, force:true});
+        if(!suppliedProfilePath) fs.rmSync(profilePath, {recursive:true, force:true});
     }
 }
 

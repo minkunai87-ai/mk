@@ -7,9 +7,16 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 function readFunction(name) {
     const marker = `function ${name}(`;
-    const start = html.indexOf(marker);
+    let start = html.indexOf(marker);
     assert(start >= 0, `${name} must exist`);
-    const brace = html.indexOf('{', start);
+    if(html.slice(start - 6, start) === 'async ') start -= 6;
+    let parameterDepth = 0;
+    let parameterEnd = -1;
+    for(let index = html.indexOf('(', start); index < html.length; index++) {
+        if(html[index] === '(') parameterDepth++;
+        if(html[index] === ')' && --parameterDepth === 0) { parameterEnd = index; break; }
+    }
+    const brace = html.indexOf('{', parameterEnd);
     let depth = 0;
     let quote = '';
     let escaped = false;
@@ -29,8 +36,10 @@ function readFunction(name) {
 }
 
 const storage = new Map();
+const idbStorage = new Map();
 const context = {
     console,
+    idbStorage,
     Date,
     Set,
     Map,
@@ -50,9 +59,26 @@ const context = {
     learningStatsLibraryRevision: 0,
     learningStatsCardIndexCache: null,
     learningStatsReady: true,
+    learningStatsRestoreState: 'success',
+    learningStatsRestoreFailure: null,
+    learningStatsMemoryStore: { version:1, days:{} },
+    learningStatsMemoryUpdatedAt: 0,
+    learningStatsReviewDeltaQueue: [],
+    learningStatsPersistenceQueue: Promise.resolve({ok:true, skipped:true}),
+    learningStatsStartupSyncInProgress: false,
+    learningStatsFavoriteDecksMemory: [],
+    learningStatsFavoritesUpdatedAt: 0,
+    LEARNING_STATS_DB_PRIMARY_KEY: 'mk_learning_stats_v1',
+    LEARNING_STATS_DB_STAGING_KEY: 'mk_learning_stats_v1_staging',
+    LEARNING_STATS_DB_UPDATED_AT_KEY: 'mk_learning_stats_v1_updated_at',
+    LEARNING_STATS_DB_DELTA_QUEUE_KEY: 'mk_learning_stats_v1_delta_queue',
+    LEARNING_STATS_DB_FAVORITES_KEY: 'mk_learning_stats_v1_favorite_decks',
+    LEARNING_STATS_DB_FAVORITES_STAGING_KEY: 'mk_learning_stats_v1_favorite_decks_staging',
+    LEARNING_STATS_DB_FAVORITES_UPDATED_AT_KEY: 'mk_learning_stats_v1_favorite_decks_updated_at',
     localStorage: {
         getItem: key => storage.has(key) ? storage.get(key) : null,
-        setItem: (key, value) => storage.set(key, String(value))
+        setItem: (key, value) => storage.set(key, String(value)),
+        removeItem: key => storage.delete(key)
     },
     library: {
         A__one: [{ id:'A', deck:'A__one' }, { id:'B', deck:'A__one' }, { id:'D', deck:'A__one' }, { id:'F', deck:'A__one' }],
@@ -81,21 +107,29 @@ function cyrb53(value) { return String(value).split('').reduce((hash, char) => (
 function getBackupGroupUpdatedAt(raw, group) { return Number(group === 'learningStats' ? raw.learningStatsUpdatedAt : raw.favoritesUpdatedAt) || 0; }
 function getLearningStatsSyncTrace() { return {}; }
 function refreshLearningStatsAfterCloudRestore() { learningStatsModelCache = null; }
+async function readStatsDatabaseValue(key) { return idbStorage.has(key) ? idbStorage.get(key) : null; }
+async function writeStatsDatabaseValue(key, value) { idbStorage.set(key, String(value)); }
+async function removeStatsDatabaseValue(key) { idbStorage.delete(key); }
 `, context);
 
 [
     'getLearningStatsDateKey', 'getEmptyLearningStatsDay', 'normalizeLearningStatsDay',
-    'getLearningStatsStore', 'saveLearningStatsStore', 'updateLearningStatsDay',
+    'normalizeLearningStatsPersistentStore', 'getLearningStatsStore', 'setLearningStatsRestoreState',
+    'persistLearningStatsToIndexedDBVerified', 'queueLearningStatsPersistence', 'saveLearningStatsStore',
+    'persistLearningStatsFavoritesToIndexedDBVerified', 'updateLearningStatsDay',
     'rememberLearningStatsDeck', 'recordLearningStatsReview',
-    'normalizeFirebaseArray', 'normalizeLearningStatsBackupPayload', 'getLearningStatsBackupPayload',
+    'normalizeFirebaseArray', 'normalizeLearningStatsBackupPayload', 'getLearningStatsEntryCount', 'getLearningStatsBackupPayload',
     'normalizeLearningStatsFavoriteDecksBackupPayload', 'getLearningStatsFavoriteDecksBackupPayload',
     'stableBackupJson', 'getBackupFieldChecksum', 'verifyLearningStatsBackupPayloadIntegrity', 'restoreLearningStatsBackupFields',
+    'createLearningStatsReviewDelta', 'persistLearningStatsReviewDeltaQueue', 'queueLearningStatsReviewDelta', 'applyLearningStatsReviewDeltas',
+    'evaluateLearningStatsBackupHealth',
     'verifyCoreBackupPayloadIntegrity',
     'getStartupSyncDecision', 'getLocalGroupUpdatedAt',
     'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'getCurrentDeckRecommendedStudyCards', 'buildLearningStatsModel',
     'getLearningStatsImmediateChildren', 'getLearningStatsFavoriteDecks', 'saveLearningStatsFavoriteDecks', 'toggleLearningStatsFavorite'
 ].forEach(name => vm.runInContext(readFunction(name), context));
 
+async function main() {
 const cards = Object.values(context.library).flat();
 const byId = Object.fromEntries(cards.map(card => [card.id, card]));
 assert.strictEqual(context.getAllRecommendedStudyCards().length, 8, 'statistics can obtain every unique library card before any filter is used');
@@ -118,7 +152,8 @@ assert(favoriteEvent.prevented && favoriteEvent.stopped, 'favorite click prevent
 assert.strictEqual(context.favoriteRenderCount, 2, 'favorite state rerenders immediately');
 context.toggleLearningStatsFavorite(favoriteEvent, 'A__deep__leaf');
 assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['B__child'], 'favorite toggles off immediately');
-const reloadedFavoriteContext = JSON.parse(storage.get(context.LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY));
+await context.learningStatsPersistenceQueue;
+const reloadedFavoriteContext = JSON.parse(idbStorage.get(context.LEARNING_STATS_DB_FAVORITES_KEY));
 assert.deepStrictEqual(reloadedFavoriteContext, ['B__child'], 'favorites persist across reload/PWA restart storage reads');
 
 const backupStatsPayload = context.normalizeLearningStatsBackupPayload({ version:1, days:{ '2000-01-01':{
@@ -139,7 +174,7 @@ supplementalBackup.integrity = {
 storage.set('ankiStats', '{"stats-sentinel":{"total":7,"fsrs":{"reps":4}}}');
 storage.set('ankiReviewHistory', '{"history-sentinel":[{"score":2}]}');
 context.saveLearningStatsFavoriteDecks(['Deleted__MustNotReturn', 'Local__Only']);
-context.restoreLearningStatsBackupFields(supplementalBackup);
+await context.restoreLearningStatsBackupFields(supplementalBackup);
 assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['Second__Deck','First__Deck'], 'favorite restore replaces local state in backup order without union');
 assert.strictEqual(storage.get('ankiStats'), '{"stats-sentinel":{"total":7,"fsrs":{"reps":4}}}', 'learning-stats restore does not touch Stats or FSRS');
 assert.strictEqual(storage.get('ankiReviewHistory'), '{"history-sentinel":[{"score":2}]}', 'learning-stats restore does not touch review history');
@@ -169,9 +204,34 @@ const legacyChecksumPayload = {
     integrity:{ mk_learning_stats_v1:context.getBackupFieldChecksum(context.normalizeLearningStatsBackupPayload(legacyOrderedStats, false)) }
 };
 assert.strictEqual(context.verifyLearningStatsBackupPayloadIntegrity(legacyChecksumPayload).ok, true, 'legacy array-order checksums remain restorable after set canonicalization');
+assert.strictEqual(context.evaluateLearningStatsBackupHealth({ learningStatsPresent:true }).ok, false, 'a backup marked present without any learning days is unhealthy');
+const quotaRestorePayload = {
+    mk_learning_stats_v1: { version:1, days:{ '2001-01-01':{ requiredDone:['cloud-card'], allDone:['cloud-card'], trackedDone:['cloud-card'] } } },
+    mk_learning_stats_favorite_decks_v1: ['Cloud__Favorite'],
+    learningStatsUpdatedAt: 300
+};
+quotaRestorePayload.integrity = {
+    mk_learning_stats_v1:context.getBackupFieldChecksum(context.normalizeLearningStatsBackupPayload(quotaRestorePayload.mk_learning_stats_v1)),
+    mk_learning_stats_favorite_decks_v1:context.getBackupFieldChecksum(['Cloud__Favorite'])
+};
+context.setLearningStatsRestoreState('pending', {source:'quota-test'});
+context.recordLearningStatsReview({id:'queued-during-restore', deck:'A__one'}, 'required');
+await context.learningStatsPersistenceQueue;
+const normalSetItem = context.localStorage.setItem;
+context.localStorage.setItem = () => { const error = new Error('origin quota full'); error.name = 'QuotaExceededError'; throw error; };
+await context.restoreLearningStatsBackupFields(quotaRestorePayload, ['learningStats', 'favorites']);
+context.localStorage.setItem = normalSetItem;
+const quotaRestoredDay = context.getLearningStatsStore().days['2001-01-01'];
+assert(quotaRestoredDay.allDone.includes('cloud-card'), 'cloud snapshot restores through IndexedDB while localStorage is quota-exhausted');
+assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['Cloud__Favorite'], 'favorite decks also restore through IndexedDB while localStorage is quota-exhausted');
+const queuedDay = context.getLearningStatsStore().days[context.getLearningStatsDateKey()];
+assert(queuedDay.allDone.includes('queued-during-restore'), 'review made during restore is merged from the durable delta queue');
+assert.strictEqual(context.learningStatsReviewDeltaQueue.length, 0, 'delta queue clears only after the merged IndexedDB write verifies');
+assert.strictEqual(context.learningStatsRestoreState, 'success', 'verified IndexedDB restore opens the write barrier');
+await context.restoreLearningStatsBackupFields(supplementalBackup, ['learningStats']);
 const emptyFavoritesPayload = { favoritesPresent:true, favoritesUpdatedAt:200, integrity:{ mk_learning_stats_favorite_decks_v1:context.getBackupFieldChecksum([]) } };
 context.saveLearningStatsFavoriteDecks(['Must__Be__Deleted']);
-context.restoreLearningStatsBackupFields(emptyFavoritesPayload, ['favorites']);
+await context.restoreLearningStatsBackupFields(emptyFavoritesPayload, ['favorites']);
 assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], [], 'an explicitly backed-up empty favorite array replaces older device favorites');
 const coreBackup = { stats:'{}', reviewHistory:'{}', integrity:{ stats:context.getBackupFieldChecksum({}), reviewHistory:context.getBackupFieldChecksum({}) } };
 assert.strictEqual(context.verifyCoreBackupPayloadIntegrity(coreBackup).ok, true, 'Stats/history checksums accept an intact backup');
@@ -191,14 +251,14 @@ assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['ParentA__
 context.recordLearningStatsReview(byId.A, 'other');
 context.recordLearningStatsReview(byId.D, 'other');
 const accumulatedBeforeBarrier = context.getLearningStatsStore().days[context.getLearningStatsDateKey()].requiredDone.length;
-const learningStatsBeforeBarrierTest = storage.get(context.LEARNING_STATS_STORAGE_KEY);
+const learningStatsBeforeBarrierTest = JSON.stringify(context.getLearningStatsStore());
 context.learningStatsReady = false;
 context.recordLearningStatsReview({ id:'blocked-before-hydrate', deck:'A__one' }, 'required');
 assert.strictEqual(context.getLearningStatsStore().days[context.getLearningStatsDateKey()].requiredDone.length, accumulatedBeforeBarrier, 'review writes are blocked until learning stats hydration completes');
 context.learningStatsReady = true;
 context.recordLearningStatsReview({ id:'after-hydrate', deck:'A__one' }, 'required');
 assert.strictEqual(context.getLearningStatsStore().days[context.getLearningStatsDateKey()].requiredDone.length, accumulatedBeforeBarrier + 1, 'one review after hydration increments the existing snapshot instead of replacing it');
-storage.set(context.LEARNING_STATS_STORAGE_KEY, learningStatsBeforeBarrierTest);
+context.learningStatsMemoryStore = JSON.parse(learningStatsBeforeBarrierTest);
 
 const filterTargets = {
     requiredCards:['A','B','C'].map(id => byId[id]),
@@ -318,3 +378,6 @@ assert.strictEqual(restoreStorage.get('mk_learning_stats_v1'), '{"version":1,"da
 assert.strictEqual(restoreStorage.has('anki_final_library'), false, 'only rebuildable cache is freed before a quota retry');
 
 console.log('learning stats scenarios passed');
+}
+
+main().catch(error => { console.error(error); process.exitCode = 1; });
