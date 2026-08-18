@@ -49,6 +49,7 @@ const context = {
     isDataChanged: false,
     learningStatsLibraryRevision: 0,
     learningStatsCardIndexCache: null,
+    learningStatsReady: true,
     localStorage: {
         getItem: key => storage.has(key) ? storage.get(key) : null,
         setItem: (key, value) => storage.set(key, String(value))
@@ -86,7 +87,7 @@ function refreshLearningStatsAfterCloudRestore() { learningStatsModelCache = nul
     'getLearningStatsDateKey', 'getEmptyLearningStatsDay', 'normalizeLearningStatsDay',
     'getLearningStatsStore', 'saveLearningStatsStore', 'updateLearningStatsDay',
     'rememberLearningStatsDeck', 'recordLearningStatsReview',
-    'normalizeLearningStatsBackupPayload', 'getLearningStatsBackupPayload',
+    'normalizeFirebaseArray', 'normalizeLearningStatsBackupPayload', 'getLearningStatsBackupPayload',
     'normalizeLearningStatsFavoriteDecksBackupPayload', 'getLearningStatsFavoriteDecksBackupPayload',
     'stableBackupJson', 'getBackupFieldChecksum', 'verifyLearningStatsBackupPayloadIntegrity', 'restoreLearningStatsBackupFields',
     'verifyCoreBackupPayloadIntegrity',
@@ -151,6 +152,17 @@ delete firebaseRoundTrip.days['2026-08-11'].newDone;
 delete firebaseRoundTrip.days['2026-08-11'].otherDone;
 const firebaseRoundTripPayload = { mk_learning_stats_v1:firebaseRoundTrip, integrity:{ mk_learning_stats_v1:context.getBackupFieldChecksum(firebaseNormalizedStats) } };
 assert.strictEqual(context.verifyLearningStatsBackupPayloadIntegrity(firebaseRoundTripPayload).ok, true, 'Firebase omission of empty arrays is canonicalized before checksum verification');
+const firebaseSparseArrayPayload = { version:1, days:{ '2026-08-11':{ requiredDone:{ 1:'B', 0:'A' }, allDone:['B','A'] } } };
+assert.deepStrictEqual(
+    [...context.normalizeLearningStatsBackupPayload(firebaseSparseArrayPayload).days['2026-08-11'].requiredDone],
+    ['A','B'],
+    'Firebase numeric-key array objects and set ordering are canonicalized'
+);
+assert.strictEqual(
+    context.getBackupFieldChecksum(context.normalizeLearningStatsBackupPayload(firebaseSparseArrayPayload)),
+    context.getBackupFieldChecksum(context.normalizeLearningStatsBackupPayload({ version:1, days:{ '2026-08-11':{ requiredDone:['A','B'], allDone:['A','B'] } } })),
+    'semantically identical completion UUID sets have the same checksum'
+);
 const emptyFavoritesPayload = { favoritesPresent:true, favoritesUpdatedAt:200, integrity:{ mk_learning_stats_favorite_decks_v1:context.getBackupFieldChecksum([]) } };
 context.saveLearningStatsFavoriteDecks(['Must__Be__Deleted']);
 context.restoreLearningStatsBackupFields(emptyFavoritesPayload, ['favorites']);
@@ -172,6 +184,15 @@ assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['ParentA__
 ['F','G','H','F'].forEach(id => context.recordLearningStatsReview(byId[id], 'other'));
 context.recordLearningStatsReview(byId.A, 'other');
 context.recordLearningStatsReview(byId.D, 'other');
+const accumulatedBeforeBarrier = context.getLearningStatsStore().days[context.getLearningStatsDateKey()].requiredDone.length;
+const learningStatsBeforeBarrierTest = storage.get(context.LEARNING_STATS_STORAGE_KEY);
+context.learningStatsReady = false;
+context.recordLearningStatsReview({ id:'blocked-before-hydrate', deck:'A__one' }, 'required');
+assert.strictEqual(context.getLearningStatsStore().days[context.getLearningStatsDateKey()].requiredDone.length, accumulatedBeforeBarrier, 'review writes are blocked until learning stats hydration completes');
+context.learningStatsReady = true;
+context.recordLearningStatsReview({ id:'after-hydrate', deck:'A__one' }, 'required');
+assert.strictEqual(context.getLearningStatsStore().days[context.getLearningStatsDateKey()].requiredDone.length, accumulatedBeforeBarrier + 1, 'one review after hydration increments the existing snapshot instead of replacing it');
+storage.set(context.LEARNING_STATS_STORAGE_KEY, learningStatsBeforeBarrierTest);
 
 const filterTargets = {
     requiredCards:['A','B','C'].map(id => byId[id]),
@@ -229,7 +250,7 @@ assert(html.includes('[LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: learningStats
 assert(!html.includes('unionLearningStatsTargets'), 'snapshot/union targets are removed from denominator flow');
 assert(readFunction('getCurrentLearningStatsFilterTargets').includes('buildTodayEssentialCandidates(scope)'), 'stats directly runs the existing required selector with the full scope');
 assert(readFunction('getCurrentLearningStatsFilterTargets').includes('buildTodayNewCandidates(scope)'), 'stats directly runs the existing new selector with the full scope');
-assert(html.includes('const scope = getCurrentDeckRecommendedStudyScope();\n        const prepared = recommendedStudySheetMode'), 'the real filter UI uses the current selected deck scope');
+assert(html.replace(/\r\n/g, '\n').includes('const scope = getCurrentDeckRecommendedStudyScope();\n        const prepared = recommendedStudySheetMode'), 'the real filter UI uses the current selected deck scope');
 assert(html.includes('buildTodayNewCandidates(scope) : buildTodayEssentialCandidates(scope)'), 'today new and today review use the scoped selector input');
 assert(html.includes('const sourceCards = Array.isArray(options.cards) ? options.cards : [...(activeDeck || []), ...(originalDeck || [])]'), 'required selector accepts cards without activeDeck dependency');
 assert(html.includes('const sourceCards = Array.isArray(options.cards) ? options.cards : (originalDeck || [])'), 'new selector accepts cards without originalDeck dependency');
@@ -247,5 +268,47 @@ assert(html.includes('learning-stats-progress') && html.includes('learning-stats
 assert(html.includes('.learning-stats-denominator { font-weight:400;'), 'denominator is not bold');
 assert(html.includes('.learning-stats-favorite { width:40px; height:40px;'), 'favorite touch target is at least 40 by 40 pixels');
 assert(!html.includes('learning-stats-progress-bar'), 'no statistics progress bar is added');
+
+const restoreStorage = new Map([
+    ['mk_learning_stats_v1', '{"version":1,"days":{"preserved":{}}}'],
+    ['anki_final_library', 'rebuildable-library']
+]);
+let learningStatsWriteFailures = 2;
+const safeRestoreContext = {
+    console,
+    Set,
+    Array,
+    String,
+    STORAGE_KEY_STATS: 'anki_final_stats',
+    STORAGE_KEY_LIBRARY: 'anki_final_library',
+    STORAGE_KEY_ACTIVE_IDS: 'anki_final_active_ids',
+    STORAGE_KEY_DECK_VIEW_STATES: 'deckViewStates',
+    localStorage: {
+        getItem: key => restoreStorage.has(key) ? restoreStorage.get(key) : null,
+        setItem: (key, value) => {
+            if(key === 'mk_learning_stats_v1' && learningStatsWriteFailures-- > 0) {
+                const error = new Error('quota'); error.name = 'QuotaExceededError'; throw error;
+            }
+            restoreStorage.set(key, String(value));
+        },
+        removeItem: key => restoreStorage.delete(key)
+    },
+    pruneRecoverySnapshots() {},
+    getLocalStatsKeyCount() { return 0; },
+    getStatsKeyCount() { return 0; },
+    isBootstrapRestoring: false,
+    bootstrapAllowedStatsWriteValue: null,
+    isAllowedStatsRestoreCount() { return true; },
+    guardedStatsWrite() { return { ok:true }; },
+    statsPersistenceQueue: Promise.resolve()
+};
+vm.createContext(safeRestoreContext);
+['normalizeBackupValue', 'getTextSizeKB', 'isQuotaExceededError', 'freeRestorableCacheStorage', 'safeRestoreLocalStorage']
+    .forEach(name => vm.runInContext(readFunction(name), safeRestoreContext));
+const failedRestore = safeRestoreContext.safeRestoreLocalStorage('mk_learning_stats_v1', '{"version":1,"days":{"new":{}}}');
+assert.strictEqual(failedRestore.ok, false, 'a permanent quota failure is surfaced');
+assert.strictEqual(failedRestore.keptOld, true, 'a failed learning-stats restore keeps the previous value');
+assert.strictEqual(restoreStorage.get('mk_learning_stats_v1'), '{"version":1,"days":{"preserved":{}}}', 'quota retry never deletes the live learning-stats key');
+assert.strictEqual(restoreStorage.has('anki_final_library'), false, 'only rebuildable cache is freed before a quota retry');
 
 console.log('learning stats scenarios passed');
