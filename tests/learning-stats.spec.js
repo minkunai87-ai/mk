@@ -163,6 +163,12 @@ assert.strictEqual(
     context.getBackupFieldChecksum(context.normalizeLearningStatsBackupPayload({ version:1, days:{ '2026-08-11':{ requiredDone:['A','B'], allDone:['A','B'] } } })),
     'semantically identical completion UUID sets have the same checksum'
 );
+const legacyOrderedStats = { version:1, days:{ '2026-08-11':{ requiredDone:['B','A'], allDone:['B','A'] } } };
+const legacyChecksumPayload = {
+    mk_learning_stats_v1: legacyOrderedStats,
+    integrity:{ mk_learning_stats_v1:context.getBackupFieldChecksum(context.normalizeLearningStatsBackupPayload(legacyOrderedStats, false)) }
+};
+assert.strictEqual(context.verifyLearningStatsBackupPayloadIntegrity(legacyChecksumPayload).ok, true, 'legacy array-order checksums remain restorable after set canonicalization');
 const emptyFavoritesPayload = { favoritesPresent:true, favoritesUpdatedAt:200, integrity:{ mk_learning_stats_favorite_decks_v1:context.getBackupFieldChecksum([]) } };
 context.saveLearningStatsFavoriteDecks(['Must__Be__Deleted']);
 context.restoreLearningStatsBackupFields(emptyFavoritesPayload, ['favorites']);
