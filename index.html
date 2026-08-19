@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.177-accuracy-io-fast -->
+<!-- deployment: v18.5.178-today-essential-io-fast -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.177 - 누적 정답률·IO 초고속)</title>
+<title>MK (v18.5.178 - 오늘필수·IO 초고속)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -560,7 +560,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.177 - 누적 정답률·IO 초고속)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.178 - 오늘필수·IO 초고속)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -854,7 +854,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.177 - 누적 정답률·IO 초고속';
+    const APP_VERSION = 'v18.5.178 - 오늘필수·IO 초고속';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -1531,7 +1531,6 @@
                 img.removeAttribute('sizes');
                 img.decoding = 'async';
                 img.style.imageRendering = 'auto';
-                console.log('IMG_SRC_USED', img.getAttribute('src') || img.currentSrc || '');
             });
             const state = wrapper._mediaZoomState = {
                 scale: 1,
@@ -1619,11 +1618,6 @@
                     img.addEventListener('load', logImageSizes, { once: true });
                     return;
                 }
-                console.log('IMG_NATURAL_SIZE', img.naturalWidth, img.naturalHeight);
-                console.log('IMG_DISPLAY_SIZE', img.clientWidth, img.clientHeight);
-                console.log('IMG_SRC_USED', img.getAttribute('src') || img.currentSrc || '');
-                console.log('IS_IOS', /iPhone|iPad|iPod/i.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
-                console.log('IS_STANDALONE', isPwaMode);
                 wrapper.dataset.mediaZoomSizeLogged = '1';
             };
             logImageSizes();
@@ -8053,6 +8047,14 @@ function preserveCardContentLineBreaks(root) {
 
     let pdfAnnotationDomObserver = null;
     function observeDynamicPdfAnnotations() {
+        const activeCard = activeDeck && activeDeck[currentIndex];
+        if(activeCard && isMkImageOcclusionCardFast(activeCard)) {
+            if(pdfAnnotationDomObserver) {
+                pdfAnnotationDomObserver.disconnect();
+                pdfAnnotationDomObserver = null;
+            }
+            return;
+        }
         if(pdfAnnotationDomObserver) return;
         const cardRoots = ['question-section', 'answer-section'].map(id => document.getElementById(id)).filter(Boolean);
         if(!cardRoots.length) return;
@@ -8110,7 +8112,8 @@ function createDOM(card, isAnswer, trace) {
         // 2. 본문(Main Text) 조립
         const temp = document.createElement('div'); temp.innerHTML = txt;
         logPdfCardTrace(trace, 'TRACE-1 before decorate', snapshotPdfTraceHtml(temp));
-        const hasPdfAnnotationCandidate = Array.from(temp.querySelectorAll('b')).some(pageElement => {
+        const rawLooksLikeIO = txt.includes('data-mk-io="1"') || txt.includes("data-mk-io='1'") || txt.includes('mk-io-wrapper');
+        const hasPdfAnnotationCandidate = !rawLooksLikeIO && Array.from(temp.querySelectorAll('b')).some(pageElement => {
             if(!/^P\d+$/i.test(String(pageElement.textContent || '').trim())) return false;
             const markerNode = pageElement.previousSibling;
             return markerNode && markerNode.nodeType === Node.TEXT_NODE
@@ -8136,8 +8139,9 @@ function createDOM(card, isAnswer, trace) {
             wrap.appendChild(extraDiv);
         }
 
-        // Decorate the completed card DOM, independent of question/answer position or :-> ordering.
-        decorateAllVisiblePdfAnnotations(wrap, card, trace);
+        // IO hot path defers PDF annotation scanning until idle in showCard/revealAnswer.
+        // Scanning large encoded occlusion DOM before first paint was a major transition cost.
+        if(!isIoCard) decorateAllVisiblePdfAnnotations(wrap, card, trace);
 
         // 🔥 [진짜 흑막 체포] 🔥
         // 상위 목차, 본문, 추가해설까지 싹 다 모아놓고, 한 번에 이미지 주소를 깃허브로 싹 다 변환!
@@ -8176,10 +8180,13 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 
         logPdfCardTrace(trace, 'TRACE-5 after image processing', snapshotPdfTraceHtml(wrap));
 
-        normalizeGeneratedCardMarkup(wrap);
-        logPdfCardTrace(trace, 'TRACE-6 after normalizeGeneratedCardMarkup', snapshotPdfTraceHtml(wrap));
-        const renderedCard = preserveCardContentLineBreaks(wrap);
-        logPdfCardTrace(trace, 'TRACE-7 after preserveCardContentLineBreaks', snapshotPdfTraceHtml(renderedCard));
+        // IO markup is generated machine HTML and can contain huge encoded mask attributes.
+        // Avoid full-tree whitespace normalization/tree-walker passes for every IO transition.
+        const renderedCard = isIoCard ? wrap : preserveCardContentLineBreaks(normalizeGeneratedCardMarkup(wrap));
+        if(trace) {
+            logPdfCardTrace(trace, 'TRACE-6 after normalizeGeneratedCardMarkup', snapshotPdfTraceHtml(renderedCard));
+            logPdfCardTrace(trace, 'TRACE-7 after preserveCardContentLineBreaks', snapshotPdfTraceHtml(renderedCard));
+        }
         if(hasPdfAnnotationCandidate) {
             requestAnimationFrame(() => {
                 console.log('[PDF-ANNOTATION-LIVE] icons after full render =', renderedCard.querySelectorAll('.mk-pdf-annotation-icon').length);
@@ -9593,7 +9600,52 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         return sourceMatch ? `source:${sourceMatch[1]}` : '';
     }
 
-    function getIOImageGroups() {
+    
+    function isMkImageOcclusionCardFast(card) {
+        if(!card) return false;
+        const q = String(card.q || '');
+        const a = String(card.a || '');
+        return q.includes('data-mk-io="1"') || q.includes("data-mk-io='1'") || q.includes('mk-io-wrapper') ||
+               a.includes('data-mk-io="1"') || a.includes("data-mk-io='1'") || a.includes('mk-io-wrapper');
+    }
+
+    function cardNeedsMathJax(card, includeAnswer = false) {
+        if(!card) return false;
+        const text = String(card.q || '') + (includeAnswer ? ('\n' + String(card.a || '')) : '');
+        return /\\\(|\\\)|\\\[|\\\]|\$\$|\$[^$\n]+\$/.test(text);
+    }
+
+    function cardMayContainPdfAnnotation(card, includeAnswer = false) {
+        if(!card) return false;
+        const text = String(card.q || '') + '\n' + String(card.extra || '') + (includeAnswer ? ('\n' + String(card.a || '')) : '');
+        return /data-annotation-uuid|data-source-uuid|block-ref|[📌🟡🔵🟢🟣🔴🟠]\s*<b[^>]*>P\d+/i.test(text);
+    }
+
+    function runWhenIdle(callback) {
+        if(typeof requestIdleCallback === 'function') return requestIdleCallback(callback, { timeout: 600 });
+        return setTimeout(callback, 32);
+    }
+
+    function preloadNextIOCardImage() {
+        const next = activeDeck && activeDeck[currentIndex + 1];
+        if(!next || !isMkImageOcclusionCardFast(next)) return;
+        const raw = String(next.q || next.a || '');
+        const match = raw.match(/<img[^>]+src=["']([^"']+)["']/i);
+        if(!match || !match[1]) return;
+        let src = match[1];
+        if(!/^https?:/i.test(src) && repoOwner) {
+            let fname = src.split('/').pop().trim();
+            try { fname = decodeURIComponent(fname); } catch(e) {}
+            if(fname.normalize) fname = fname.normalize('NFC');
+            src = githubRawBase + encodeURIComponent(fname);
+        }
+        if(!src) return;
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = src;
+    }
+
+function getIOImageGroups() {
         if(ioImageGroupCache.cards === activeDeck && ioImageGroupCache.length === activeDeck.length) return ioImageGroupCache;
         const groups = [];
         const groupByKey = new Map();
@@ -9722,19 +9774,24 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         if (!activeDeck || activeDeck.length === 0) updateIOImageNavigation(null);
         if (!activeDeck || activeDeck.length === 0) { reviewTimingState = null; updateDeckPathTitle(null); document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub); text-align:center;'>카드가 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
         if(currentIndex >= activeDeck.length) currentIndex = 0;
-        const card = activeDeck[currentIndex]; const stats = getStatsForCard(card);
-        if(String(card.id || '') === PDF_DIAGNOSTIC_CARD_ID) pdfDiagnosticSteps = [{ time: new Date().toISOString(), step: 'show-card-start', cardId: card.id }];
-        const currentCardPdfTrace = {
+        const card = activeDeck[currentIndex];
+        const isIOCard = isMkImageOcclusionCardFast(card);
+        const stats = getStatsForCard(card);
+        const isPdfDiagnosticCard = String(card.id || '') === PDF_DIAGNOSTIC_CARD_ID;
+        if(isPdfDiagnosticCard) pdfDiagnosticSteps = [{ time: new Date().toISOString(), step: 'show-card-start', cardId: card.id }];
+        const currentCardPdfTrace = isPdfDiagnosticCard ? {
             id: card.id || null,
             blockId: card.blockId || null,
             deck: currentDeckName || null,
             rawQuestionHtml: String(card.q || '')
-        };
+        } : null;
         window.__mkCurrentCardPdfTrace = currentCardPdfTrace;
-        console.log('[CURRENT-CARD] id:', currentCardPdfTrace.id);
-        console.log('[CURRENT-CARD] blockId:', currentCardPdfTrace.blockId);
-        console.log('[CURRENT-CARD] deck:', currentCardPdfTrace.deck);
-        console.log('[CURRENT-CARD] q/raw HTML:', currentCardPdfTrace.rawQuestionHtml);
+        if(isPdfDiagnosticCard) {
+            console.log('[CURRENT-CARD] id:', currentCardPdfTrace.id);
+            console.log('[CURRENT-CARD] blockId:', currentCardPdfTrace.blockId);
+            console.log('[CURRENT-CARD] deck:', currentCardPdfTrace.deck);
+            console.log('[CURRENT-CARD] q/raw HTML:', currentCardPdfTrace.rawQuestionHtml);
+        }
         updateDeckPathTitle(card);
         beginReviewTiming(card);
         localStorage.setItem(STORAGE_KEY_CURRENT_CARD_ID, String(card.id));
@@ -9743,76 +9800,115 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         document.getElementById('card-counter').innerText = `${currentIndex + 1} / ${activeDeck.length}`;
         document.getElementById('card-info').style.display='flex';
         updateStatsUI(stats); updateIconsUI(stats);
-        logDateDomMutation('initial-render');
+        if(!isIOCard) {
+            logDateDomMutation('initial-render');
+            logCurrentCardReviewState('showCard');
+        }
         updateNoteButtonState();
-        logCurrentCardReviewState('showCard');
-        
+
         const qSection = document.getElementById('question-section');
         qSection.innerHTML = '';
         qSection.className = 'text-area mode-question';
         qSection.appendChild(createDOM(card, false, currentCardPdfTrace));
-        console.log('[CURRENT-CARD] rendered HTML:', qSection.innerHTML);
+        if(isPdfDiagnosticCard) console.log('[CURRENT-CARD] rendered HTML:', qSection.innerHTML);
 
         const aSection = document.getElementById('answer-section');
         aSection.innerHTML = '';
+        aSection.dataset.mkDeferredAnswer = '0';
+        // IO FAST PATH: answer DOM may contain the same very large encoded mask payload.
+        // Do not parse/build it until the user actually reveals the answer.
         if (card.a && card.a !== card.q) {
-            aSection.appendChild(createDOM(card, true));
+            if(isIOCard) aSection.dataset.mkDeferredAnswer = '1';
+            else aSection.appendChild(createDOM(card, true));
         }
 
-        aSection.style.display = 'none'; 
-        document.getElementById('divider').style.display = 'none'; 
-        document.getElementById('click-guide').style.display = 'block'; 
-        document.getElementById('nav-area').style.display = 'flex'; 
-        document.getElementById('grade-area').style.display = 'none'; 
+        aSection.style.display = 'none';
+        document.getElementById('divider').style.display = 'none';
+        document.getElementById('click-guide').style.display = 'block';
+        document.getElementById('nav-area').style.display = 'flex';
+        document.getElementById('grade-area').style.display = 'none';
         scrollContainer.scrollTop = 0;
 
-        if (window.MathJax) {
-            MathJax.typesetPromise([qSection, aSection]).catch(function (err) { console.log(err); });
+        if (window.MathJax && cardNeedsMathJax(card, !isIOCard)) {
+            MathJax.typesetPromise(isIOCard ? [qSection] : [qSection, aSection]).catch(function (err) { console.log(err); });
         }
 
-        // Render only the visible question IO now. Hidden answer IO is deferred until
-        // revealAnswer(), avoiding duplicate image/mask work on every card transition.
         renderMkImageOcclusions(qSection);
-        decorateAllVisiblePdfAnnotations(qSection, card, currentCardPdfTrace);
-        decorateAllVisiblePdfAnnotations(aSection, card);
         bindImageZoomHandlers(qSection);
-        bindImageZoomHandlers(aSection);
         updateIOImageNavigation(card);
-        requestAnimationFrame(() => {
-            const finalHtml = qSection.innerHTML;
-            logPdfCardTrace(currentCardPdfTrace, 'TRACE-8 final question-section HTML', finalHtml);
-            currentCardPdfTrace.finalIconCount = qSection.querySelectorAll('.mk-pdf-annotation-icon').length;
-            console.log('[CURRENT-CARD] final PDF icon count:', currentCardPdfTrace.finalIconCount);
-        });
-        observeDynamicPdfAnnotations();
-        scheduleDateDomMutationLog('after-final-dom-update');
+
+        if(isIOCard) {
+            // PDF decoration is unrelated to the mask becoming interactive. Defer rare IO+PDF
+            // combinations until idle so first paint / next-card navigation stays instant.
+            if(cardMayContainPdfAnnotation(card, false)) {
+                runWhenIdle(() => {
+                    if(activeDeck && activeDeck[currentIndex] === card && qSection.isConnected) {
+                        decorateAllVisiblePdfAnnotations(qSection, card, currentCardPdfTrace);
+                    }
+                });
+            }
+            runWhenIdle(preloadNextIOCardImage);
+        } else {
+            decorateAllVisiblePdfAnnotations(qSection, card, currentCardPdfTrace);
+            decorateAllVisiblePdfAnnotations(aSection, card);
+            bindImageZoomHandlers(aSection);
+            observeDynamicPdfAnnotations();
+            scheduleDateDomMutationLog('after-final-dom-update');
+        }
+
+        if(isPdfDiagnosticCard) {
+            requestAnimationFrame(() => {
+                const finalHtml = qSection.innerHTML;
+                logPdfCardTrace(currentCardPdfTrace, 'TRACE-8 final question-section HTML', finalHtml);
+                currentCardPdfTrace.finalIconCount = qSection.querySelectorAll('.mk-pdf-annotation-icon').length;
+                console.log('[CURRENT-CARD] final PDF icon count:', currentCardPdfTrace.finalIconCount);
+            });
+        }
     }
 
-    function revealAnswer() { 
-        document.getElementById('click-guide').style.display = 'none'; 
+    function revealAnswer() {
+        document.getElementById('click-guide').style.display = 'none';
         const qDiv = document.getElementById('question-section');
         qDiv.classList.remove('mode-question');
-        qDiv.classList.add('mode-answer'); 
-        
-        const aDiv = document.getElementById('answer-section');
-        if (aDiv.innerHTML.trim() !== '') {
-            document.getElementById('divider').style.display = 'block'; 
-            aDiv.style.display = 'block'; 
-        }
-        
-        document.getElementById('grade-area').style.display = 'flex'; 
+        qDiv.classList.add('mode-answer');
 
-        if (window.MathJax) {
+        const aDiv = document.getElementById('answer-section');
+        const card = activeDeck && activeDeck[currentIndex] ? activeDeck[currentIndex] : {};
+        const isIOCard = isMkImageOcclusionCardFast(card);
+        if(aDiv.dataset.mkDeferredAnswer === '1') {
+            aDiv.dataset.mkDeferredAnswer = '0';
+            if(card.a && card.a !== card.q) aDiv.appendChild(createDOM(card, true));
+        }
+        if (aDiv.innerHTML.trim() !== '') {
+            document.getElementById('divider').style.display = 'block';
+            aDiv.style.display = 'block';
+        }
+
+        document.getElementById('grade-area').style.display = 'flex';
+
+        if (window.MathJax && cardNeedsMathJax(card, true)) {
             MathJax.typesetPromise([qDiv, aDiv]).catch(function (err) { console.log(err); });
         }
 
+        // qDiv was already initialized during showCard(); renderMkImageOcclusions is idempotent.
         renderMkImageOcclusions(qDiv);
         renderMkImageOcclusions(aDiv);
-        const card = activeDeck && activeDeck[currentIndex] ? activeDeck[currentIndex] : {};
-        decorateAllVisiblePdfAnnotations(qDiv, card);
-        decorateAllVisiblePdfAnnotations(aDiv, card);
-        bindImageZoomHandlers(qDiv);
         bindImageZoomHandlers(aDiv);
+
+        if(isIOCard) {
+            if(cardMayContainPdfAnnotation(card, true)) {
+                runWhenIdle(() => {
+                    if(activeDeck && activeDeck[currentIndex] === card) {
+                        decorateAllVisiblePdfAnnotations(qDiv, card);
+                        decorateAllVisiblePdfAnnotations(aDiv, card);
+                    }
+                });
+            }
+        } else {
+            decorateAllVisiblePdfAnnotations(qDiv, card);
+            decorateAllVisiblePdfAnnotations(aDiv, card);
+            bindImageZoomHandlers(qDiv);
+        }
         persistCurrentViewState(false);
     }
 
@@ -10839,11 +10935,16 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         const htmlBeforeInsert = document.getElementById('card-info') ? document.getElementById('card-info').outerHTML : '';
         const activeAccuracyCard = activeDeck[currentIndex];
         const cardIdForAccuracy = (s && s._statsKey) || (activeAccuracyCard && activeAccuracyCard.id);
-        const mergedAccuracyHistory = activeAccuracyCard ? getMergedReviewHistoryForCard(activeAccuracyCard, cardIdForAccuracy).items : [];
-        // Partial detailed history must never replace a larger surviving aggregate baseline.
-        // Example: Stats says 4 reviews but only today's single detail remains -> keep 4-review
-        // aggregate, then grade() increments it to 5. Do not display 1-review history as truth.
-        const accuracy = getAccuracyStatsFromItems(mergedAccuracyHistory, s || {});
+        // HOT PATH: surviving aggregate Stats are already the canonical baseline for the badge.
+        // Do not merge/sort every legacy history alias on every card transition. Only fall back
+        // to detailed history for true legacy cards that have no aggregate total at all.
+        let accuracy;
+        if((Number(s && s.total) || 0) > 0) {
+            accuracy = { correct: Number(s.correct) || 0, total: Number(s.total) || 0 };
+        } else {
+            const mergedAccuracyHistory = activeAccuracyCard ? getMergedReviewHistoryForCard(activeAccuracyCard, cardIdForAccuracy).items : [];
+            accuracy = getAccuracyStatsFromItems(mergedAccuracyHistory, s || {});
+        }
 
         rateBadge.onclick = openCurrentCardHistory;
         rateBadge.title = '이 카드 정답률 히스토리 보기';
