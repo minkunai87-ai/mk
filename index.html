@@ -9951,8 +9951,8 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             guardedStatsWrite(JSON.stringify(data), 'recalcStatsFromHistory:empty');
             markLocalDataUpdated(data[cardId].updatedAt);
 
-            const card = activeDeck && activeDeck[currentIndex];
-            if (card && card.id === cardId) updateStatsUI(data[cardId]);
+            const activeCard = activeDeck && activeDeck[currentIndex];
+            if (activeCard && String(activeCard.id) === String(cardId)) updateStatsUI(data[cardId]);
             return;
         }
 
@@ -10018,8 +10018,8 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         guardedStatsWrite(JSON.stringify(data), 'recalcStatsFromHistory:rebuilt');
         markLocalDataUpdated(rebuilt.updatedAt);
 
-        const card = activeDeck && activeDeck[currentIndex];
-        if (card && card.id === cardId) {
+        const activeCard = activeDeck && activeDeck[currentIndex];
+        if (activeCard && String(activeCard.id) === String(cardId)) {
             updateStatsUI(data[cardId]);
         }
     }
