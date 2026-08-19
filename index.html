@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.178-today-essential-io-fast -->
+<!-- deployment: v18.5.179-startup-io-essential-fast -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.178 - 오늘필수·IO 초고속)</title>
+<title>MK (v18.5.179 - 시작·오늘필수·IO 가속)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -560,7 +560,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.178 - 오늘필수·IO 초고속)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.179 - 시작·오늘필수·IO 가속)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -854,7 +854,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.178 - 오늘필수·IO 초고속';
+    const APP_VERSION = 'v18.5.179 - 시작·오늘필수·IO 가속';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -1001,6 +1001,7 @@
     let backgroundStatsRecoveryPromise = null;
     
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress_v2', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck';
+    const LIBRARY_CACHE_DB_KEY = 'mk_library_cache_v1';
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
     const REVIEW_HISTORY_EVENTS_DB_KEY_PREFIX = 'mk_review_history_events_v1::';
     const REVIEW_HISTORY_TOMBSTONE_DB_KEY_PREFIX = 'mk_review_history_tombstone_v1::';
@@ -2157,20 +2158,33 @@
         requestAnimationFrame(() => setTimeout(run, options.delay ?? 80));
     }
 
-    window.onload = async function() { 
+    window.onload = async function() {
         updateTRButton();
         cleanupOversizedViewState();
         cleanupLegacyRecoverySnapshotsAndRestoreCache('startup');
         await initializeStatsStore();
-        await initializeLearningStatsStore();
-        await loadTodayNewBaselineSnapshot();
-        await autoScanGitHub(); 
-        registerTodayNewCards();
-        await syncLatestFirebaseBackupOnStartup();
-        await initializeReviewHistoryLedger();
-        learningStatsReady = learningStatsRestoreState === 'success';
-        initApp(); 
-        scheduleDateDomMutationLog('after-startup-sync');
+        const hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
+        if(hasCachedLibrary) {
+            initApp();
+            document.getElementById('loading').style.display = 'none';
+        } else {
+            await autoScanGitHub();
+            initApp();
+        }
+        setTimeout(async () => {
+            try { await initializeLearningStatsStore(); learningStatsReady = learningStatsRestoreState === 'success'; }
+            catch(error) { console.warn('[MK_BACKGROUND_LEARNING_STATS_INIT_FAILED]', error); }
+            try { await initializeReviewHistoryLedger(); }
+            catch(error) { console.warn('[MK_BACKGROUND_REVIEW_HISTORY_INIT_FAILED]', error); }
+            try { await loadTodayNewBaselineSnapshot(); registerTodayNewCards(); }
+            catch(error) { console.warn('[MK_BACKGROUND_TODAY_NEW_INIT_FAILED]', error); }
+            try { await autoScanGitHub({silent:true}); registerTodayNewCards(); }
+            catch(error) { console.warn('[MK_BACKGROUND_DECK_REFRESH_FAILED]', error); }
+            try { await syncLatestFirebaseBackupOnStartup(); }
+            catch(error) { console.warn('[MK_BACKGROUND_FIREBASE_SYNC_FAILED]', error); }
+            learningStatsReady = learningStatsRestoreState === 'success';
+            scheduleDateDomMutationLog('after-startup-sync');
+        }, 1800);
     };
 
     function openFirebaseSettings() { document.getElementById('gh-token-input').value = ghRepoToken; showAuthSection(); document.getElementById('fb-modal').style.display = 'flex'; }
@@ -5417,8 +5431,9 @@
         }
     }
 
-    async function autoScanGitHub() {
-        document.getElementById('loading').style.display = 'block';
+    async function autoScanGitHub(options = {}) {
+        const silent = !!(options && options.silent);
+        if(!silent) document.getElementById('loading').style.display = 'block';
         const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
         
         try {
@@ -5427,7 +5442,7 @@
             const res = deckFileList.listResponse;
             
             if(!deckFileList.files) {
-                document.getElementById('loading').style.display = 'none'; 
+                if(!silent) document.getElementById('loading').style.display = 'none'; 
                 if (res && (res.status === 403 || res.status === 429)) {
                     showToast("깃허브 접속 차단됨 (1시간). 토큰을 입력하세요!", "error");
                 }
@@ -5517,6 +5532,7 @@
     });
 
     library = newLibrary;
+    persistLibraryCacheInBackground(newLibrary);
     learningStatsLibraryRevision++;
     learningStatsCardIndexCache = null;
     learningStatsModelCache = null;
@@ -5525,7 +5541,7 @@
     renderDeckTree(); 
 }
         } catch (e) { console.log(e); }
-        document.getElementById('loading').style.display = 'none';
+        if(!silent) document.getElementById('loading').style.display = 'none';
     }
 
     function* iterateAnkiRows(str) {
@@ -7362,6 +7378,31 @@
         }
     }
 
+    async function loadCachedLibraryFromIndexedDB() {
+        try {
+            const raw = await readStatsDatabaseValue(LIBRARY_CACHE_DB_KEY);
+            if(!raw) return false;
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if(!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !Object.keys(parsed).length) return false;
+            library = normalizeLibraryDeckPaths(parsed);
+            learningStatsLibraryRevision++;
+            learningStatsCardIndexCache = null;
+            learningStatsModelCache = null;
+            return true;
+        } catch(error) {
+            console.warn('[MK_LIBRARY_CACHE_LOAD_FAILED]', error);
+            return false;
+        }
+    }
+
+    function persistLibraryCacheInBackground(value) {
+        if(!value || typeof value !== 'object' || !Object.keys(value).length) return;
+        const run = () => writeStatsDatabaseValue(LIBRARY_CACHE_DB_KEY, JSON.stringify(value))
+            .catch(error => console.warn('[MK_LIBRARY_CACHE_WRITE_FAILED]', error));
+        if(typeof requestIdleCallback === 'function') requestIdleCallback(run, {timeout:1500});
+        else setTimeout(run, 0);
+    }
+
     function loadLocalLibrary() { 
         const s = localStorage.getItem(STORAGE_KEY_LIBRARY); 
         if(s) { try{library=normalizeLibraryDeckPaths(JSON.parse(s));}catch(e){} } 
@@ -8071,19 +8112,16 @@ function preserveCardContentLineBreaks(root) {
 function createDOM(card, isAnswer, trace) {
         let txt = isAnswer ? card.a.trim() : card.q.trim();
         if(txt.startsWith('"') && txt.endsWith('"')) txt = txt.slice(1, -1).replace(/""/g, '"');
-        txt = sanitizeLogseqSystemJunk(txt);
-        
-        txt = txt.replace(/onclick="window\.open\('([^']+)'\)"/g, 'onclick="window.location.href=\'$1\'; return false;"');
-
+        const rawIsIO = txt.includes('data-mk-io="1"') || txt.includes("data-mk-io='1'") || txt.includes('mk-io-wrapper');
+        if(!rawIsIO) {
+            txt = sanitizeLogseqSystemJunk(txt);
+            txt = txt.replace(/onclick="window\.open\('([^']+)'\)"/g, 'onclick="window.location.href=\'$1\'; return false;"');
+        }
         let inlineExtraText = '';
-        txt = txt.replace(/#\+BEGIN_EXTRA([\s\S]*?)#\+END_EXTRA/gi, (match, body) => {
-            inlineExtraText += body;
-            return '';
-        });
-        txt = txt.replace(/#\+BEGIN_EXTRA([\s\S]*)$/gi, (match, body) => {
-            inlineExtraText += body;
-            return '';
-        });
+        if(!rawIsIO) {
+            txt = txt.replace(/#\+BEGIN_EXTRA([\s\S]*?)#\+END_EXTRA/gi, (match, body) => { inlineExtraText += body; return ''; });
+            txt = txt.replace(/#\+BEGIN_EXTRA([\s\S]*)$/gi, (match, body) => { inlineExtraText += body; return ''; });
+        }
 
         const wrap = document.createElement('div');
         
@@ -8233,6 +8271,19 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         button.setAttribute('aria-label', button.title);
     }
 
+    const mkIOElementsParseCache = new Map();
+    const mkIOConfigParseCache = new Map();
+    const mkIOTagsParseCache = new Map();
+    function getMkIOCachedParsed(cache, raw, fallback) {
+        if(!raw) return fallback;
+        if(cache.has(raw)) return cache.get(raw);
+        let parsed = fallback;
+        try { parsed = JSON.parse(decodeURIComponent(raw)); } catch(e) {}
+        cache.set(raw, parsed);
+        if(cache.size > 24) cache.delete(cache.keys().next().value);
+        return parsed;
+    }
+
     function renderMkImageOcclusions(root = document) {
         const wrappers = root.querySelectorAll('.mk-io-wrapper[data-mk-io="1"]');
 
@@ -8258,7 +8309,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                         // wrapper 인스턴스에 파싱 결과를 캐시한다.
                         let elements = wrapper._mkIoParsedElements;
                         if (!elements) {
-                            elements = JSON.parse(decodeURIComponent(raw));
+                            elements = getMkIOCachedParsed(mkIOElementsParseCache, raw, []);
                             wrapper._mkIoParsedElements = elements;
                         }
                         const targetCId = Number(wrapper.dataset.mkIoTargetCid ?? NaN);
@@ -8271,20 +8322,12 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 
                         let config = wrapper._mkIoParsedConfig;
                         if (!config) {
-                            try {
-                                config = wrapper.dataset.mkIoConfig ? JSON.parse(decodeURIComponent(wrapper.dataset.mkIoConfig)) : {};
-                            } catch(e) {
-                                config = {};
-                            }
+                            config = getMkIOCachedParsed(mkIOConfigParseCache, wrapper.dataset.mkIoConfig, {});
                             wrapper._mkIoParsedConfig = config;
                         }
                         let ioTags = wrapper._mkIoParsedTags;
                         if (!ioTags) {
-                            try {
-                                ioTags = wrapper.dataset.mkIoTags ? JSON.parse(decodeURIComponent(wrapper.dataset.mkIoTags)) : ['hide-all-test-one'];
-                            } catch(e) {
-                                ioTags = ['hide-all-test-one'];
-                            }
+                            ioTags = getMkIOCachedParsed(mkIOTagsParseCache, wrapper.dataset.mkIoTags, ['hide-all-test-one']);
                             wrapper._mkIoParsedTags = ioTags;
                         }
                         const hideAllTestOne = Array.isArray(ioTags) ? ioTags.includes('hide-all-test-one') : true;
@@ -8553,7 +8596,6 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
     function buildTodayEssentialCandidates(options = {}) {
         const startedAt = performance.now();
         const statsSnapshot = options.statsSnapshot || getStatsStore();
-        const reviewHistorySnapshot = options.reviewHistorySnapshot || getReviewHistory();
         const today = new Date();
         today.setHours(0,0,0,0);
         const todayStart = today.getTime();
@@ -8596,14 +8638,12 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             candidates.push(card);
         });
 
-        // Phase 2: only the much smaller due-card set gets alias history merge/sort.
+        // Ultra-fast required filter: use persisted aggregate Stats only here.
+        // Detailed history alias merge is intentionally excluded from the filter hot path.
         const ranked = candidates.map((card, index) => {
             const id = getTodayEssentialCardId(card);
             const meta = cardMeta.get(id) || { stat:{}, statsKey:id };
-            if(!Array.isArray(meta.history)) {
-                meta.history = getMergedReviewHistoryForCardFromSnapshot(card, meta.statsKey || id, reviewHistorySnapshot).items;
-            }
-            return getTodayEssentialPriority(card, meta.stat || {}, meta.history, index, todayStart);
+            return getTodayEssentialPriority(card, meta.stat || {}, [], index, todayStart);
         });
         ranked.sort((a, b) =>
             (b.score - a.score) ||
