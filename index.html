@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.172-review-history-hotpath -->
+<!-- deployment: v18.5.174-aggregate-history-preserve -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.172 - 정답·오늘필수 성능 복구)</title>
+<title>MK (v18.5.174 - 누적 정답률 보존)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -560,7 +560,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.172 - 정답·오늘필수 성능 복구)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.174 - 누적 정답률 보존)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -854,7 +854,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.172 - 정답·오늘필수 성능 복구';
+    const APP_VERSION = 'v18.5.174 - 누적 정답률 보존';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -3075,6 +3075,35 @@
 
     function getStatsStore() {
         return getCanonicalStatsStore();
+    }
+
+    let statsFastFlushTimer = null;
+    let statsFastFlushSource = 'stats-fast-flush';
+
+    function scheduleCanonicalStatsSnapshotFlush(source = 'stats-fast-flush', delay = 900) {
+        statsFastFlushSource = source || statsFastFlushSource;
+        if(statsFastFlushTimer) clearTimeout(statsFastFlushTimer);
+        statsFastFlushTimer = setTimeout(() => {
+            statsFastFlushTimer = null;
+            const snapshot = getCanonicalStatsStore();
+            queueStatsPersistence(snapshot, statsFastFlushSource).then(result => {
+                if(result && result.ok) savePendingReviewEvents([]);
+            }).catch(error => console.error('[MK_STATS_FAST_FLUSH_FAILED]', error));
+        }, delay);
+    }
+
+    function applyCanonicalStatsCardPatch(cardId, stat, source = 'grade') {
+        const id = String(cardId || '').trim();
+        if(!id || !stat) return {ok:false, reason:'invalid-card-patch'};
+        const stats = getCanonicalStatsStore();
+        // A single-card patch cannot remove any existing Stats key, so it satisfies
+        // the no-decrease invariant without cloning/stringifying the whole 12k-card store.
+        stats[id] = stat;
+        restoredStats = stats;
+        learningStatsStatsRevision++;
+        learningStatsModelCache = null;
+        scheduleCanonicalStatsSnapshotFlush(source, 900);
+        return {ok:true, fastPatch:true, beforeCount:Object.keys(stats).length, afterCount:Object.keys(stats).length};
     }
 
     function setCanonicalStatsStore(nextStats, source = 'stats-write') {
@@ -8472,17 +8501,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
     }
 
     function getTodayEssentialAccuracy(stat, history) {
-        if(Array.isArray(history) && history.length) {
-            return history.reduce((accuracy, item) => {
-                if(isConfirmHistoryItem(item)) return accuracy;
-                const score = Number(item.score);
-                accuracy.total += 1;
-                if(score === 2) accuracy.correct += 1;
-                else if(score === 1) accuracy.correct += 0.5;
-                return accuracy;
-            }, { correct: 0, total: 0 });
-        }
-        return { correct: Number(stat && stat.correct) || 0, total: Number(stat && stat.total) || 0 };
+        return getAccuracyStatsFromItems(history, stat || {});
     }
 
     function getTodayEssentialPriority(card, stat, history, originalIndex, todayStart) {
@@ -8533,29 +8552,39 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             seenIds.add(id);
             return true;
         });
+
+        // Phase 1: resolve only Stats and reject non-due cards first.
+        // v172 merged/sorted alias history for EVERY card before checking dueDate,
+        // which made today-required O(all cards * alias-history work).
         const cardMeta = options.cardMetaById instanceof Map ? options.cardMetaById : new Map();
-        if(!(options.cardMetaById instanceof Map)) existingOrder.forEach(card => {
+        const candidates = [];
+        existingOrder.forEach(card => {
             const id = getTodayEssentialCardId(card);
-            const found = id && statsSnapshot && statsSnapshot[id]
-                ? { key: id, stat: statsSnapshot[id] }
-                : findStatsForCard(card, statsSnapshot, id);
-            const statsKey = found && found.key ? String(found.key) : id;
-            cardMeta.set(id, {
-                stat: found && found.stat ? found.stat : {},
-                history: getMergedReviewHistoryForCardFromSnapshot(card, statsKey, reviewHistorySnapshot).items
-            });
+            let meta = cardMeta.get(id);
+            if(!meta || !meta.stat) {
+                const found = id && statsSnapshot && statsSnapshot[id]
+                    ? { key:id, stat:statsSnapshot[id] }
+                    : findStatsForCard(card, statsSnapshot, id);
+                meta = { stat: found && found.stat ? found.stat : {}, statsKey: found && found.key ? String(found.key) : id };
+                cardMeta.set(id, meta);
+            } else if(!meta.statsKey) {
+                meta.statsKey = id;
+            }
+            const stat = meta.stat || {};
+            if(!(stat.dueDate && Number(stat.dueDate) <= todayStart)) return;
+            if(query && !String(card.q || '').toLowerCase().includes(query) && !String(card.a || '').toLowerCase().includes(query)) return;
+            if(otherFilters.length && !otherFilters.some(mode => !!stat[mode])) return;
+            candidates.push(card);
         });
-        const candidates = existingOrder.filter(card => {
-            const meta = cardMeta.get(getTodayEssentialCardId(card));
-            const stat = meta ? meta.stat : {};
-            if(!(stat.dueDate && Number(stat.dueDate) <= todayStart)) return false;
-            if(query && !String(card.q || '').toLowerCase().includes(query) && !String(card.a || '').toLowerCase().includes(query)) return false;
-            if(otherFilters.length && !otherFilters.some(mode => !!stat[mode])) return false;
-            return true;
-        });
+
+        // Phase 2: only the much smaller due-card set gets alias history merge/sort.
         const ranked = candidates.map((card, index) => {
-            const meta = cardMeta.get(getTodayEssentialCardId(card)) || { stat: {}, history: [] };
-            return getTodayEssentialPriority(card, meta.stat, meta.history, index, todayStart);
+            const id = getTodayEssentialCardId(card);
+            const meta = cardMeta.get(id) || { stat:{}, statsKey:id };
+            if(!Array.isArray(meta.history)) {
+                meta.history = getMergedReviewHistoryForCardFromSnapshot(card, meta.statsKey || id, reviewHistorySnapshot).items;
+            }
+            return getTodayEssentialPriority(card, meta.stat || {}, meta.history, index, todayStart);
         });
         ranked.sort((a, b) =>
             (b.score - a.score) ||
@@ -8565,6 +8594,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             (a.originalIndex - b.originalIndex)
         );
         console.log('[MK Today Essential Prepared]', {
+            sourceCards: existingOrder.length,
             candidates: candidates.length,
             statsCount: Object.keys(statsSnapshot || {}).length,
             elapsedMs: Math.round((performance.now() - startedAt) * 10) / 10
@@ -9276,24 +9306,14 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                 const reviewHistory = getReviewHistoryForSort();
                 const items = Array.isArray(reviewHistory[String(meta.statsKey)]) ? reviewHistory[String(meta.statsKey)] : [];
                 meta.historyLength = items.length;
-                meta.accuracy = items.length ? items.reduce((acc, item) => {
-                    if (isConfirmHistoryItem(item)) return acc;
-                    const score = Number(item.score);
-                    acc.total += 1;
-                    if (score === 2) acc.correct += 1;
-                    else if (score === 1) acc.correct += 0.5;
-                    return acc;
-                }, { correct: 0, total: 0 }) : {
-                    correct: Number(meta.stat.correct) || 0,
-                    total: Number(meta.stat.total) || 0
-                };
+                meta.accuracy = getAccuracyStatsFromItems(items, meta.stat || {});
             }
             return meta.accuracy;
         };
         const isUnlearned = (card) => {
             const meta = getSortMeta(card);
             const accuracy = getAccuracyForSort(card);
-            return accuracy.total === 0 || meta.historyLength === 0;
+            return accuracy.total === 0;
         };
         const getWrongRate = (card) => {
             const accuracy = getAccuracyForSort(card);
@@ -10087,24 +10107,33 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         return Number(item && item.score) === 3 || item?.result === 'confirm' || item?.type === 'confirm' || item?.result === 'check' || item?.type === 'check';
     }
 
-    function getAccuracyStats(cardId, fallbackStat = {}) {
-        const history = getReviewHistory();
-        const items = Array.isArray(history[cardId]) ? history[cardId] : [];
-        if (!items.length) {
-            return {
-                correct: Number(fallbackStat.correct) || 0,
-                total: Number(fallbackStat.total) || 0
-            };
-        }
+    function getAccuracyStatsFromItems(items, fallbackStat = {}) {
+        const reviewItems = Array.isArray(items) ? items.filter(item => item && !isConfirmHistoryItem(item)) : [];
+        const fallbackTotal = Math.max(0, Number(fallbackStat && fallbackStat.total) || 0);
+        const fallbackCorrect = Math.max(0, Number(fallbackStat && fallbackStat.correct) || 0);
 
-        return items.reduce((acc, item) => {
-            if (isConfirmHistoryItem(item)) return acc;
+        // Detailed reviewHistory can be partially lost while aggregate Stats survives.
+        // A partial history must NEVER replace a larger surviving aggregate baseline.
+        if (fallbackTotal > reviewItems.length) {
+            return { correct: fallbackCorrect, total: fallbackTotal, source: 'aggregate-preserved' };
+        }
+        if (!reviewItems.length) {
+            return { correct: fallbackCorrect, total: fallbackTotal, source: 'aggregate' };
+        }
+        const accuracy = reviewItems.reduce((acc, item) => {
             const score = Number(item.score);
             acc.total += 1;
             if (score === 2) acc.correct += 1;
             else if (score === 1) acc.correct += 0.5;
             return acc;
         }, { correct: 0, total: 0 });
+        return { ...accuracy, source: 'history' };
+    }
+
+    function getAccuracyStats(cardId, fallbackStat = {}) {
+        const history = getReviewHistory();
+        const items = Array.isArray(history[cardId]) ? history[cardId] : [];
+        return getAccuracyStatsFromItems(items, fallbackStat);
     }
 
     function getGradeMeta(score) {
@@ -10297,7 +10326,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         const items = card
             ? [...getMergedReviewHistoryForCard(card, cardId).items]
             : (Array.isArray(history[cardId]) ? [...history[cardId]] : []);
-        const data = cloneStatsObject(getStatsStore());
+        const data = getStatsStore();
         const prev = data[cardId] || {};
         const visibleReviewCount = items.filter(item => item && !isConfirmHistoryItem(item)).length;
         const expectedReviewCount = Math.max(Number(prev.total) || 0, Number(prev.fsrs && prev.fsrs.reps) || 0);
@@ -10688,9 +10717,8 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         if(!card) return;
         const learningStatsSource = todayNewState.active ? 'new' : (todayEssentialState.active ? 'required' : 'other');
         recordReviewDuration(card);
-        const shouldJournalReview = getLocalStatsKeyCount() <= STATS_LOW_COUNT_BLOCK;
         await ensureStatsStoreReady('grade');
-        const data = cloneStatsObject(getStatsStore());
+        const data = getStatsStore();
         const foundStats = findStatsForCard(card, data, card.id);
         const id = foundStats.key || String(card.id);
         saveRecentDeck();
@@ -10721,8 +10749,10 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             data[id].interval = interval; const now = new Date(); now.setHours(0,0,0,0); data[id].dueDate = now.getTime() + (interval * 86400000);
         }
         data[id].lastDate = Date.now(); data[id].updatedAt = data[id].lastDate;
-        if (shouldJournalReview || isBootstrapRestoring) appendPendingReviewEvent({ cardId: id, score, stat: data[id], historyItem, updatedAt: data[id].updatedAt });
-        const writeResult = guardedStatsWrite(JSON.stringify(data), 'grade');
+        // Always keep a tiny synchronous recovery journal, then persist the huge full Stats snapshot in the background.
+        // This removes clone + stringify + staged IndexedDB verification from the answer-button hot path.
+        appendPendingReviewEvent({ cardId: id, score, stat: data[id], historyItem, updatedAt: data[id].updatedAt });
+        const writeResult = applyCanonicalStatsCardPatch(id, data[id], 'grade');
         if (!writeResult || !writeResult.ok) {
             setCanonicalStatsStore(data, 'grade:fallback-local-review');
             console.warn('[MK_REVIEW_STATS_WRITE_FALLBACK]', { cardId: id, reason: writeResult && writeResult.reason || 'unknown' });
@@ -11272,7 +11302,14 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     document.addEventListener('visibilitychange', () => {
         if(document.hidden) invalidateReviewTiming();
     });
-    window.addEventListener('pagehide', invalidateReviewTiming);
+    window.addEventListener('pagehide', () => {
+        invalidateReviewTiming();
+        if(statsFastFlushTimer) {
+            clearTimeout(statsFastFlushTimer);
+            statsFastFlushTimer = null;
+            queueStatsPersistence(getCanonicalStatsStore(), 'pagehide-fast-flush').catch(() => null);
+        }
+    });
     window.addEventListener('blur', invalidateReviewTiming);
     window.addEventListener('focus', () => {
         if(reviewTimingState && document.hidden) reviewTimingState.invalid = true;
