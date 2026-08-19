@@ -147,7 +147,9 @@ async function commitLearningStatsWriteAtomically(store, updatedAt, writeContext
     'rememberLearningStatsDeck', 'recordLearningStatsReview',
     'normalizeFirebaseArray', 'normalizeLearningStatsBackupPayload', 'getLearningStatsEntryCount', 'getLearningStatsBackupPayload',
     'normalizeLearningStatsFavoriteDecksBackupPayload', 'getLearningStatsFavoriteDecksBackupPayload',
-    'stableBackupJson', 'getBackupFieldChecksum', 'verifyLearningStatsBackupPayloadIntegrity', 'restoreLearningStatsBackupFields',
+    'canonicalizeBackupValue', 'stableBackupJson', 'getBackupFieldChecksum', 'getLegacyBackupFieldChecksum',
+    'normalizeBackupFieldForChecksum', 'getCanonicalBackupFieldChecksum', 'getBackupChecksumVersion', 'verifyBackupFieldChecksum',
+    'verifyLearningStatsBackupPayloadIntegrity', 'restoreLearningStatsBackupFields',
     'createLearningStatsReviewDelta', 'persistLearningStatsReviewDeltaQueue', 'queueLearningStatsReviewDelta', 'applyLearningStatsReviewDeltas',
     'evaluateLearningStatsBackupHealth',
     'verifyCoreBackupPayloadIntegrity',
@@ -209,6 +211,20 @@ const tamperedBackup = JSON.parse(JSON.stringify(supplementalBackup));
 tamperedBackup.mk_learning_stats_favorite_decks_v1.push('Tampered');
 assert.strictEqual(context.verifyLearningStatsBackupPayloadIntegrity(tamperedBackup).ok, false, 'supplemental backup checksum detects mutation');
 const firebaseNormalizedStats = context.normalizeLearningStatsBackupPayload({ version:1, days:{ '2026-08-11':{ requiredDone:['A'], newDone:[], otherDone:[], allDone:['A'], trackedDone:['A'] } } });
+const rootOrderA = { version:1, days:{} };
+const rootOrderB = { days:{}, version:1 };
+assert.strictEqual(context.getBackupFieldChecksum(rootOrderA), context.getBackupFieldChecksum(rootOrderB), 'canonical checksum ignores root object key order');
+const nestedOrderA = { days:{ '2026-08-19':{ requiredDone:['a'], otherDone:['b'] } } };
+const nestedOrderB = { days:{ '2026-08-19':{ otherDone:['b'], requiredDone:['a'] } } };
+assert.strictEqual(context.getBackupFieldChecksum(nestedOrderA), context.getBackupFieldChecksum(nestedOrderB), 'canonical checksum ignores nested object key order');
+assert.notStrictEqual(context.getBackupFieldChecksum(['a','b']), context.getBackupFieldChecksum(['b','a']), 'canonical checksum preserves array element order');
+const canonicalV2Payload = { checksumVersion:2, mk_learning_stats_v1:rootOrderB };
+canonicalV2Payload.integrity = { mk_learning_stats_v1:context.getCanonicalBackupFieldChecksum(context.LEARNING_STATS_STORAGE_KEY, rootOrderA) };
+assert.strictEqual(context.verifyLearningStatsBackupPayloadIntegrity(canonicalV2Payload).ok, true, 'checksum v2 verifies normalized canonical content regardless of root key order');
+const legacyRootOrder = { version:1, days:{ '2026-08-19':{ requiredDone:['legacy'], allDone:['legacy'] } } };
+const legacyRawPayload = { mk_learning_stats_v1:legacyRootOrder, integrity:{ mk_learning_stats_v1:context.getLegacyBackupFieldChecksum(legacyRootOrder) } };
+assert.strictEqual(context.verifyLearningStatsBackupPayloadIntegrity(legacyRawPayload).ok, true, 'unversioned order-sensitive legacy checksum remains restorable');
+assert(html.includes('checksumVersion: BACKUP_CHECKSUM_VERSION'), 'new Firebase payloads declare checksum algorithm version 2');
 const firebaseRoundTrip = JSON.parse(JSON.stringify(firebaseNormalizedStats));
 delete firebaseRoundTrip.days['2026-08-11'].newDone;
 delete firebaseRoundTrip.days['2026-08-11'].otherDone;

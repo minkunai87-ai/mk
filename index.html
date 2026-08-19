@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.155-learning-stats-filter-independent-delta -->
+<!-- deployment: v18.5.156-canonical-backup-checksum -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.155 - 필터 독립 학습통계)</title>
+<title>MK (v18.5.156 - 정규화 체크섬)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -853,7 +853,8 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.155 - 필터 독립 학습통계';
+    const APP_VERSION = 'v18.5.156 - 정규화 체크섬';
+    const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -2243,6 +2244,7 @@
         const data = {
             appId: 'mk',
             appVersion: APP_VERSION,
+            checksumVersion: BACKUP_CHECKSUM_VERSION,
             stats: statsRaw, progress: localStorage.getItem(STORAGE_KEY_PROGRESS),
             lastDeck: localStorage.getItem(STORAGE_KEY_LAST_DECK), filter: localStorage.getItem(STORAGE_KEY_FILTER_STATE),
             activeIds: localStorage.getItem(STORAGE_KEY_ACTIVE_IDS),
@@ -2276,14 +2278,14 @@
             learningStatsWriteTrace:firebaseLearningStatsWriteTrace,
             learningStatsPresent: true,
             favoritesPresent: true,
-            metadata: { ...metadata, localUpdatedAt, dataUpdatedAt, statsUpdatedAt:localUpdatedAt, learningStatsUpdatedAt, favoritesUpdatedAt }
+            metadata: { ...metadata, checksumVersion:BACKUP_CHECKSUM_VERSION, localUpdatedAt, dataUpdatedAt, statsUpdatedAt:localUpdatedAt, learningStatsUpdatedAt, favoritesUpdatedAt }
         };
         data.integrity = {
             ...(data.integrity || {}),
-            stats: getBackupFieldChecksum(parseJSONSafe(statsRaw, {})),
-            reviewHistory: getBackupFieldChecksum(parseJSONSafe(data.reviewHistory, {})),
-            [LEARNING_STATS_STORAGE_KEY]: getBackupFieldChecksum(learningStatsBackup),
-            [LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: getBackupFieldChecksum(learningStatsFavoriteDecksBackup)
+            stats: getCanonicalBackupFieldChecksum('stats', statsRaw),
+            reviewHistory: getCanonicalBackupFieldChecksum('reviewHistory', data.reviewHistory),
+            [LEARNING_STATS_STORAGE_KEY]: getCanonicalBackupFieldChecksum(LEARNING_STATS_STORAGE_KEY, learningStatsBackup),
+            [LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: getCanonicalBackupFieldChecksum(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY, learningStatsFavoriteDecksBackup)
         };
         console.log('[MK_PWA_BACKUP_LEARNING_STATS]', {
             ...getLearningStatsSyncTrace(learningStatsBackup, learningStatsFavoriteDecksMemory),
@@ -2296,6 +2298,7 @@
             timestamp: data.timestamp,
             appId: 'mk',
             appVersion: APP_VERSION,
+            checksumVersion: BACKUP_CHECKSUM_VERSION,
             metadata: data.metadata,
             statsKeyCount,
             localUpdatedAt,
@@ -5907,32 +5910,76 @@
         return normalizeLearningStatsFavoriteDecksBackupPayload(learningStatsFavoriteDecksMemory);
     }
 
+    function canonicalizeBackupValue(value) {
+        if(Array.isArray(value)) return value.map(item => item === undefined ? null : canonicalizeBackupValue(item));
+        if(value && typeof value === 'object') {
+            const prototype = Object.getPrototypeOf(value);
+            if(prototype === null || Object.prototype.toString.call(value) === '[object Object]') {
+                return Object.fromEntries(Object.keys(value).sort().filter(key => value[key] !== undefined).map(key => [key, canonicalizeBackupValue(value[key])]));
+            }
+        }
+        return value;
+    }
+
     function stableBackupJson(value) {
-        if(Array.isArray(value)) return `[${value.map(stableBackupJson).join(',')}]`;
-        if(value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableBackupJson(value[key])}`).join(',')}}`;
-        return JSON.stringify(value);
+        const serialized = JSON.stringify(canonicalizeBackupValue(value));
+        return serialized === undefined ? 'null' : serialized;
     }
 
     function getBackupFieldChecksum(value) {
         return String(cyrb53(stableBackupJson(value)));
     }
 
+    function getLegacyBackupFieldChecksum(value) {
+        const serialized = JSON.stringify(value);
+        return String(cyrb53(serialized === undefined ? 'null' : serialized));
+    }
+
+    function normalizeBackupFieldForChecksum(key, value, sortCompletionSets = true) {
+        if(key === LEARNING_STATS_STORAGE_KEY) return normalizeLearningStatsBackupPayload(value, sortCompletionSets);
+        if(key === LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY) return normalizeLearningStatsFavoriteDecksBackupPayload(value);
+        if(key === 'stats' || key === 'reviewHistory') return parseJSONSafe(value, {});
+        return value;
+    }
+
+    function getCanonicalBackupFieldChecksum(key, value, sortCompletionSets = true) {
+        return getBackupFieldChecksum(normalizeBackupFieldForChecksum(key, value, sortCompletionSets));
+    }
+
+    function getBackupChecksumVersion(raw) {
+        const value = Number(raw && (raw.checksumVersion ?? raw.metadata?.checksumVersion));
+        return Number.isFinite(value) && value > 0 ? value : 1;
+    }
+
+    function verifyBackupFieldChecksum(raw, key) {
+        const integrity = raw && raw.integrity && typeof raw.integrity === 'object' ? raw.integrity : {};
+        const expected = integrity[key];
+        if(expected === undefined || expected === null) return { ok:true, algorithm:'missing' };
+        const value = key === 'stats' ? getBackupStatsCandidate(raw) : (raw ? raw[key] : undefined);
+        const checksumVersion = getBackupChecksumVersion(raw);
+        const canonical = normalizeBackupFieldForChecksum(key, value, true);
+        const candidates = [{ algorithm:'canonical-v2', checksum:getBackupFieldChecksum(canonical) }];
+        if(checksumVersion < 2) {
+            const compatible = normalizeBackupFieldForChecksum(key, value, false);
+            candidates.push(
+                { algorithm:'firebase-compatible-v1', checksum:getBackupFieldChecksum(compatible) },
+                { algorithm:'canonical-raw-v1', checksum:getBackupFieldChecksum(value) },
+                { algorithm:'legacy-normalized-v1', checksum:getLegacyBackupFieldChecksum(canonical) },
+                { algorithm:'legacy-compatible-v1', checksum:getLegacyBackupFieldChecksum(compatible) },
+                { algorithm:'legacy-raw-v1', checksum:getLegacyBackupFieldChecksum(value) }
+            );
+        }
+        const match = candidates.find(candidate => candidate.checksum === String(expected));
+        return match ? { ok:true, algorithm:match.algorithm, checksumVersion } : { ok:false, checksumVersion };
+    }
+
     function verifyLearningStatsBackupPayloadIntegrity(raw) {
         raw = raw || {};
-        const integrity = raw && raw.integrity && typeof raw.integrity === 'object' ? raw.integrity : {};
         for(const key of [LEARNING_STATS_STORAGE_KEY, LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]) {
             const present = key === LEARNING_STATS_STORAGE_KEY ? hasBackupLearningStats(raw) : hasBackupLearningStatsFavorites(raw);
             if(!present) continue;
-            const expected = integrity[key];
-            if(expected === undefined || expected === null) continue;
-            const canonicalValue = key === LEARNING_STATS_STORAGE_KEY
-                ? normalizeLearningStatsBackupPayload(raw[key])
-                : normalizeLearningStatsFavoriteDecksBackupPayload(raw[key]);
-            const acceptedChecksums = [getBackupFieldChecksum(canonicalValue)];
-            if(key === LEARNING_STATS_STORAGE_KEY) {
-                acceptedChecksums.push(getBackupFieldChecksum(normalizeLearningStatsBackupPayload(raw[key], false)));
-            }
-            if(!acceptedChecksums.includes(String(expected))) {
+            const verification = verifyBackupFieldChecksum(raw, key);
+            if(!verification.ok) {
                 return { ok:false, reason:`${key}_checksum_mismatch`, key };
             }
         }
@@ -5941,11 +5988,10 @@
 
     function verifyCoreBackupPayloadIntegrity(raw) {
         raw = raw || {};
-        const integrity = raw.integrity && typeof raw.integrity === 'object' ? raw.integrity : {};
-        if(integrity.stats !== undefined && String(integrity.stats) !== getBackupFieldChecksum(getBackupStatsCandidate(raw))) {
+        if(!verifyBackupFieldChecksum(raw, 'stats').ok) {
             return { ok:false, reason:'stats_checksum_mismatch', key:'stats' };
         }
-        if(integrity.reviewHistory !== undefined && String(integrity.reviewHistory) !== getBackupFieldChecksum(parseJSONSafe(raw.reviewHistory, {}))) {
+        if(!verifyBackupFieldChecksum(raw, 'reviewHistory').ok) {
             return { ok:false, reason:'review_history_checksum_mismatch', key:'reviewHistory' };
         }
         return verifyLearningStatsBackupPayloadIntegrity(raw);
@@ -5954,8 +6000,8 @@
     function verifyRestoredCoreBackupIntegrity(raw) {
         raw = raw || {};
         const integrity = raw.integrity && typeof raw.integrity === 'object' ? raw.integrity : {};
-        if(integrity.stats !== undefined && String(integrity.stats) !== getBackupFieldChecksum(getStatsStore())) return { ok:false, reason:'restored_stats_checksum_mismatch' };
-        if(integrity.reviewHistory !== undefined && String(integrity.reviewHistory) !== getBackupFieldChecksum(parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {}))) return { ok:false, reason:'restored_review_history_checksum_mismatch' };
+        if(integrity.stats !== undefined && getCanonicalBackupFieldChecksum('stats', getBackupStatsCandidate(raw)) !== getCanonicalBackupFieldChecksum('stats', getStatsStore())) return { ok:false, reason:'restored_stats_checksum_mismatch' };
+        if(integrity.reviewHistory !== undefined && getCanonicalBackupFieldChecksum('reviewHistory', raw.reviewHistory) !== getCanonicalBackupFieldChecksum('reviewHistory', localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY))) return { ok:false, reason:'restored_review_history_checksum_mismatch' };
         return { ok:true };
     }
 
@@ -6071,7 +6117,7 @@
             if(!result.ok) throw new Error(`${LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY}_restore_failed`);
             learningStatsFavoriteDecksMemory = result.favorites;
             learningStatsFavoritesUpdatedAt = result.updatedAt;
-            if(getBackupFieldChecksum(getLearningStatsFavoriteDecksBackupPayload()) !== getBackupFieldChecksum(value)) throw new Error(`${LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY}_restore_integrity_failed`);
+            if(getCanonicalBackupFieldChecksum(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY, getLearningStatsFavoriteDecksBackupPayload()) !== getCanonicalBackupFieldChecksum(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY, value)) throw new Error(`${LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY}_restore_integrity_failed`);
             restored.push(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY);
             try { localStorage.setItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT, String(favoritesUpdatedAt)); } catch(e) {}
             console.log('[MK_PWA_RESTORE_WRITE]', {
