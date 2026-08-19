@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.161 - 원장 직접 표시)</title>
+<title>MK (v18.5.162 - 학습통계 분류 고정)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -559,7 +559,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.161 - 원장 직접 표시)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.162 - 학습통계 분류 고정)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -853,7 +853,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.161 - 원장 직접 표시';
+    const APP_VERSION = 'v18.5.162 - 학습통계 분류 고정';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -6300,20 +6300,58 @@
                 migrationBestByPair.set(pair, event);
             }
         });
+
+        // A date/UUID pair is counted once. Once that pair already has a confirmed category,
+        // reviewing the same card again through another UI filter must not move the old count
+        // between other/new/required buckets. Existing snapshot evidence is authoritative;
+        // otherwise the earliest real review fixes the category for that date.
+        const fixedCategoriesByPair = new Map();
+        migrationBestByPair.forEach((event, pair) => {
+            const categories = Array.isArray(event.categories) ? event.categories.slice() : [];
+            fixedCategoriesByPair.set(pair, new Set(categories.filter(category => ['required', 'new', 'other'].includes(category))));
+        });
+        reviewEvents
+            .slice()
+            .sort((a, b) => a.timestamp - b.timestamp || a.eventId.localeCompare(b.eventId))
+            .forEach(event => {
+                const pair = getLearningStatsEventPairKey(event);
+                if(!fixedCategoriesByPair.has(pair)) fixedCategoriesByPair.set(pair, new Set([event.category]));
+            });
+
         [...migrationBestByPair.values(), ...reviewEvents]
             .sort((a, b) => a.timestamp - b.timestamp || a.eventId.localeCompare(b.eventId))
             .forEach(event => {
                 if(isLearningStatsRecoveryArtifact(event)) return;
                 const day = normalizeLearningStatsDay(store.days[event.studyDate]);
-                const sets = event.completionSets.length ? event.completionSets : ['allDone', 'trackedDone', `${event.category}Done`];
-                sets.forEach(key => {
-                    if(LEARNING_STATS_BACKUP_DAY_KEYS.includes(key)) day[key] = [...new Set([...day[key], event.uuid])];
-                });
-                (event.categories || [event.category]).forEach(category => {
-                    const key = `${category}Done`;
-                    if(LEARNING_STATS_BACKUP_DAY_KEYS.includes(key) && !day[key].includes(event.uuid)) day[key].push(event.uuid);
-                });
-                if(event.deckPath) day.deckByCard[event.uuid] = event.deckPath;
+                const pair = getLearningStatsEventPairKey(event);
+                const authoritativeMigration = migrationBestByPair.get(pair);
+
+                if(event.source === 'legacy-migration') {
+                    // Preserve the selected legacy snapshot exactly, including intentionally
+                    // uncategorized or untracked UUIDs.
+                    if(authoritativeMigration !== event) return;
+                    const sets = event.completionSets.length ? event.completionSets : ['allDone'];
+                    sets.forEach(key => {
+                        if(LEARNING_STATS_BACKUP_DAY_KEYS.includes(key) && !day[key].includes(event.uuid)) day[key].push(event.uuid);
+                    });
+                    (event.categories || []).forEach(category => {
+                        const key = `${category}Done`;
+                        if(LEARNING_STATS_BACKUP_DAY_KEYS.includes(key) && !day[key].includes(event.uuid)) day[key].push(event.uuid);
+                    });
+                } else {
+                    // Runtime reviews are append-only, but category is first-confirmed-per-day.
+                    // A later "오늘 필수" review cannot reclassify an already counted UUID.
+                    ['allDone', 'trackedDone'].forEach(key => {
+                        if(!day[key].includes(event.uuid)) day[key].push(event.uuid);
+                    });
+                    const fixedCategories = fixedCategoriesByPair.get(pair) || new Set([event.category]);
+                    fixedCategories.forEach(category => {
+                        const key = `${category}Done`;
+                        if(LEARNING_STATS_BACKUP_DAY_KEYS.includes(key) && !day[key].includes(event.uuid)) day[key].push(event.uuid);
+                    });
+                }
+
+                if(event.deckPath && !day.deckByCard[event.uuid]) day.deckByCard[event.uuid] = event.deckPath;
                 store.days[event.studyDate] = day;
             });
         return normalizeLearningStatsPersistentStore(store);

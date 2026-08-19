@@ -155,4 +155,18 @@ const firebaseSource = readFunction('syncLearningStatsEventLedgerWithFirebase');
 assert(firebaseSource.includes("method:'PATCH'"), 'Firebase receives only missing event keys');
 assert(!firebaseSource.includes("method:'DELETE'"), 'Firebase ledger sync never deletes events');
 
+
+const sameDayOtherFirst = context.createLearningStatsLedgerEvent({
+    eventId:'same_day_other_first', uuid:'same-day-card', studyDate:'2026-08-19', timestamp:1000,
+    category:'other', categories:['other'], completionSets:['otherDone','allDone','trackedDone'], source:'review', platform:'Windows'
+});
+const sameDayRequiredLater = context.createLearningStatsLedgerEvent({
+    eventId:'same_day_required_later', uuid:'same-day-card', studyDate:'2026-08-19', timestamp:2000,
+    category:'required', categories:['required'], completionSets:['requiredDone','allDone','trackedDone'], source:'review', platform:'Windows'
+});
+const noReclassify = context.buildLearningStatsStoreFromEvents([sameDayOtherFirst, sameDayRequiredLater]);
+assert(noReclassify.days['2026-08-19'].otherDone.includes('same-day-card'), 'later today-required review does not erase the first confirmed other category');
+assert(!noReclassify.days['2026-08-19'].requiredDone.includes('same-day-card'), 'later today-required UI filter does not reclassify an already-counted UUID');
+assert.strictEqual(noReclassify.days['2026-08-19'].allDone.filter(id => id === 'same-day-card').length, 1, 'same-day repeated review stays one unique total');
+
 console.log('append-only learning stats ledger scenarios passed');
