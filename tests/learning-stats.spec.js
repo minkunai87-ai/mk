@@ -121,13 +121,14 @@ async function commitLearningStatsWriteAtomically(store, updatedAt, writeContext
     const currentRevision = Number(idbStorage.get(LEARNING_STATS_DB_REVISION_KEY)) || 0;
     const comparison = getLearningStatsWriteComparison(current, incoming);
     const staleRevision = Number.isFinite(Number(writeContext.expectedRevision)) && Number(writeContext.expectedRevision) !== currentRevision;
-    const blockedRawWrite = comparison.decreases || staleRevision;
+    const explicitRecovery = writeContext.allowDecrease === true && String(writeContext.source || '').startsWith('explicit-recovery:');
+    const blockedRawWrite = staleRevision || (comparison.decreases && !explicitRecovery);
     const committed = blockedRawWrite ? mergeLearningStatsStoresWithoutLoss(current, incoming) : incoming;
     const revision = currentRevision + 1;
     idbStorage.set(LEARNING_STATS_DB_PRIMARY_KEY, JSON.stringify(committed));
     idbStorage.set(LEARNING_STATS_DB_UPDATED_AT_KEY, String(Math.max(Number(idbStorage.get(LEARNING_STATS_DB_UPDATED_AT_KEY)) || 0, Number(updatedAt) || 0)));
     idbStorage.set(LEARNING_STATS_DB_REVISION_KEY, String(revision));
-    return { ok:true, store:committed, updatedAt:Number(idbStorage.get(LEARNING_STATS_DB_UPDATED_AT_KEY)) || 0, revision, blockedRawWrite, telemetry:{ action:blockedRawWrite ? 'BLOCK_WRITE_REBASED' : 'WRITE_COMMITTED' } };
+    return { ok:true, store:committed, updatedAt:Number(idbStorage.get(LEARNING_STATS_DB_UPDATED_AT_KEY)) || 0, revision, blockedRawWrite, telemetry:{ action:blockedRawWrite ? 'BLOCK_WRITE_REBASED' : (explicitRecovery && comparison.decreases ? 'EXPLICIT_RECOVERY_COMMITTED' : 'WRITE_COMMITTED') } };
 }
 `, context);
 
@@ -363,6 +364,10 @@ const staleIncoming = context.mergeLearningStatsStoresWithoutLoss(protectedStore
 const staleResult = await context.persistLearningStatsToIndexedDBVerified(staleIncoming, 1002, 'test-stale-instance', { expectedRevision:105 });
 assert.strictEqual(staleResult.blockedRawWrite, true, 'a session that read revision 105 cannot replace revision 106');
 assert.strictEqual(context.getLearningStatsEntryCount(staleResult.store), 839, 'stale write is rebased as an additive UUID merge without losing the 838 entries');
+const recoveryResult = await context.persistLearningStatsToIndexedDBVerified(protectedStore, 1003, 'explicit-recovery:verified-backup', { expectedRevision:107, allowDecrease:true });
+assert.strictEqual(recoveryResult.blockedRawWrite, false, 'an integrity-verified explicit recovery may remove accidental additions');
+assert.strictEqual(recoveryResult.telemetry.action, 'EXPLICIT_RECOVERY_COMMITTED', 'explicit recovery is separately journaled');
+assert.strictEqual(context.getLearningStatsEntryCount(recoveryResult.store), 838, 'explicit recovery restores the exact verified snapshot');
 assert(!readFunction('openLearningStats').includes('learningStatsModelCache = null'), 'opening statistics preserves the warm model cache');
 assert(!readFunction('closeLearningStats').includes('learningStatsModelCache = null'), 'closing statistics preserves the warm model cache');
 assert(readFunction('getLearningStatsCardLookup').includes('learningStatsCardIndexCache'), 'UUID to deck and ancestor index is cached by library revision');
