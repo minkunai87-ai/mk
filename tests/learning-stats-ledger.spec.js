@@ -102,6 +102,12 @@ for(const key of context.LEARNING_STATS_BACKUP_DAY_KEYS) {
     assert.deepStrictEqual([...rebuilt.days['2026-08-18'][key]].sort(), [...legacy.days['2026-08-18'][key]].sort(), `${key} survives migration exactly`);
 }
 assert.strictEqual(rebuilt.days['2026-08-18'].deckByCard['required-card'], 'A__one');
+const lowerRankCloudConflict = context.createLearningStatsLedgerEvent({
+    eventId:'legacy_cloud_conflict', uuid:'required-card', studyDate:'2026-08-18', timestamp:new Date('2026-08-18T12:00:00').getTime(),
+    category:'other', categories:['other'], completionSets:['otherDone', 'allDone', 'trackedDone'], source:'legacy-migration', evidenceSource:'snapshot-confirmed', evidenceRank:100
+});
+const corrected = context.buildLearningStatsStoreFromEvents([...seeded, lowerRankCloudConflict]);
+assert(corrected.days['2026-08-18'].requiredDone.includes('required-card') && !corrected.days['2026-08-18'].otherDone.includes('required-card'), 'higher-rank current snapshot correction wins without deleting the cloud event');
 
 const eventMap = new Map(seeded.map(event => [context.getLearningStatsEventPairKey(event), event]));
 const historyTime = new Date('2026-08-17T12:00:00').getTime();

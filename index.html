@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.157-append-only-learning-ledger -->
+<!-- deployment: v18.5.158-append-only-learning-ledger-correction -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.157 - append-only 학습원장)</title>
+<title>MK (v18.5.158 - append-only 학습원장)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -559,7 +559,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.157 - append-only 학습원장)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.158 - append-only 학습원장)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -853,7 +853,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.157 - append-only 학습원장';
+    const APP_VERSION = 'v18.5.158 - append-only 학습원장';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -2881,6 +2881,8 @@
         if(!eventId || !uuid || !/^\d{4}-\d{2}-\d{2}$/.test(studyDate)) return null;
         const categories = [...new Set((Array.isArray(value.categories) ? value.categories : (value.categoriesPresent ? [] : [category])).filter(item => ['required', 'new', 'other'].includes(item)))];
         const completionSets = [...new Set((Array.isArray(value.completionSets) ? value.completionSets : (value.completionSetsPresent ? [] : ['allDone', 'trackedDone', `${category}Done`])).filter(item => LEARNING_STATS_BACKUP_DAY_KEYS.includes(item)))];
+        const evidenceSource = String(value.evidenceSource || value.source || 'review');
+        const defaultEvidenceRank = value.source === 'review' ? 1000 : (/snapshot-confirmed/.test(evidenceSource) ? 100 : (/review-history-confirmed/.test(evidenceSource) ? 80 : 60));
         return {
             eventId,
             uuid,
@@ -2894,7 +2896,8 @@
             deckPath:normalizeDeckPath(value.deckPath || value.deck || ''),
             sessionId:String(value.sessionId || learningStatsSessionId),
             source:String(value.source || 'review'),
-            evidenceSource:String(value.evidenceSource || value.source || 'review'),
+            evidenceSource,
+            evidenceRank:Number(value.evidenceRank) || defaultEvidenceRank,
             createdAt:Number(value.createdAt) || timestamp || Date.now(),
             statsRevision:Number(value.statsRevision ?? value.revision ?? learningStatsMemoryRevision) || 0,
             appVersion:String(value.appVersion || APP_VERSION),
@@ -6224,17 +6227,23 @@
                 const completionSets = LEARNING_STATS_BACKUP_DAY_KEYS.filter(key => day[key].includes(uuid));
                 const primaryCategory = categories[0] || 'other';
                 const timestamp = new Date(`${studyDate}T12:00:00`).getTime();
+                const deckPath = day.deckByCard[uuid] || '';
+                const evidenceRank = evidenceSource === 'indexeddb-current-snapshot' ? 300 : (/restore/.test(evidenceSource) ? 200 : 100);
+                const eventId = evidenceRank >= 300
+                    ? createLearningStatsEventId('legacycurrent', studyDate, uuid, cyrb53(JSON.stringify([categories, completionSets, deckPath])))
+                    : createLearningStatsEventId('legacy', studyDate, uuid);
                 const event = createLearningStatsLedgerEvent({
-                    eventId:createLearningStatsEventId('legacy', studyDate, uuid),
+                    eventId,
                     uuid,
                     timestamp,
                     studyDate,
                     category:primaryCategory,
                     categories,
                     completionSets:completionSets.length ? completionSets : ['allDone', 'trackedDone', `${primaryCategory}Done`],
-                    deckPath:day.deckByCard[uuid] || '',
+                    deckPath,
                     source:'legacy-migration',
                     evidenceSource:'snapshot-confirmed',
+                    evidenceRank,
                     createdAt:timestamp,
                     sessionId:'legacy-migration',
                     statsRevision:0,
@@ -6250,7 +6259,21 @@
 
     function buildLearningStatsStoreFromEvents(events) {
         const store = { version:1, days:{} };
-        (Array.isArray(events) ? events : []).map(normalizeLearningStatsEvent).filter(Boolean)
+        const normalizedEvents = (Array.isArray(events) ? events : []).map(normalizeLearningStatsEvent).filter(Boolean);
+        const migrationBestByPair = new Map();
+        const reviewEvents = [];
+        normalizedEvents.forEach(event => {
+            if(event.source !== 'legacy-migration') {
+                reviewEvents.push(event);
+                return;
+            }
+            const pair = getLearningStatsEventPairKey(event);
+            const current = migrationBestByPair.get(pair);
+            if(!current || event.evidenceRank > current.evidenceRank || (event.evidenceRank === current.evidenceRank && event.eventId > current.eventId)) {
+                migrationBestByPair.set(pair, event);
+            }
+        });
+        [...migrationBestByPair.values(), ...reviewEvents]
             .sort((a, b) => a.timestamp - b.timestamp || a.eventId.localeCompare(b.eventId))
             .forEach(event => {
                 if(isLearningStatsRecoveryArtifact(event)) return;
