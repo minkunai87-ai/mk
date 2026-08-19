@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.166 - 정답 히스토리 stable ID)</title>
+<title>MK (v18.5.167 - 정답 히스토리 감소 방지)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -559,7 +559,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.166 - 정답 히스토리 stable ID)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.167 - 정답 히스토리 감소 방지)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -853,7 +853,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.166 - 정답 히스토리 stable ID';
+    const APP_VERSION = 'v18.5.167 - 정답 히스토리 감소 방지';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -10328,10 +10328,34 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         openCurrentCardHistory();
     }
 
+    function preserveReviewHistorySnapshot(snapshot = {}, card = null, canonicalId = '', source = 'grade-preserve') {
+        // A normal review is append-only. It must never reduce or replace any
+        // pre-existing review history, regardless of filter/recommended mode.
+        const current = getReviewHistory();
+        const merged = mergeReviewHistoryObjects(snapshot, current);
+        if (card) {
+            const aliases = getReviewHistoryKeysForCard(card, canonicalId || card.id);
+            const cardHistory = getMergedReviewHistoryForCardFromSnapshot(card, canonicalId || card.id, merged).items;
+            aliases.forEach(key => { merged[key] = cardHistory.slice(); });
+        }
+        saveReviewHistory(merged);
+        console.log('[MK_REVIEW_HISTORY_MONOTONIC_GUARD]', {
+            source,
+            cardId:String(card && card.id || ''),
+            canonicalId:String(canonicalId || ''),
+            beforeKeys:Object.keys(snapshot || {}).length,
+            afterKeys:Object.keys(merged || {}).length
+        });
+        return merged;
+    }
+
     async function grade(score) {
         console.log('REVIEW_BUTTON_CLICK', { score, currentCardUuid: getCurrentCardId() });
         const card = activeDeck[currentIndex];
         if(!card) return;
+        // Capture the complete pre-review history before any stats/filter/backup path runs.
+        // The rest of grade() may add records, but it is never allowed to shrink this snapshot.
+        const reviewHistoryBeforeGrade = getReviewHistory();
         const learningStatsSource = todayNewState.active ? 'new' : (todayEssentialState.active ? 'required' : 'other');
         recordReviewDuration(card);
         const shouldJournalReview = getLocalStatsKeyCount() <= STATS_LOW_COUNT_BLOCK;
@@ -10380,6 +10404,16 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             originalDeckCount:Array.isArray(originalDeck) ? originalDeck.length : 0
         });
         markLocalDataUpdated(data[id].updatedAt); saveStudyState('review', { backup: true });
+
+        // Hard invariant: answering a card can only append to review history.
+        // This specifically protects Today Required/오늘필수 where card identity and
+        // Stats aliases can change during candidate processing.
+        preserveReviewHistorySnapshot(reviewHistoryBeforeGrade, card, id, 'grade-immediate');
+        reviewHistoryEventPersistenceQueue
+            .catch(() => null)
+            .then(() => preserveReviewHistorySnapshot(reviewHistoryBeforeGrade, card, id, 'grade-after-ledger'))
+            .catch(error => console.error('[MK_REVIEW_HISTORY_MONOTONIC_GUARD_FAILED]', error));
+
         const learningStatsDelta = recordLearningStatsReview(card, learningStatsSource);
         console.log('[MK_LEARNING_STATS_REVIEW_FLOW]', {
             stage:'learning-stats-delta-recorded',
