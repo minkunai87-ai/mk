@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.168-review-history-on-demand-recovery -->
+<!-- deployment: v18.5.169-review-history-deep-recovery -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -853,7 +853,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.168 - 카드 히스토리 자동 복구';
+    const APP_VERSION = 'v18.5.169 - 카드 히스토리 전체백업 복구';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -10289,27 +10289,97 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         return items;
     }
 
+    async function getAllFirebaseBackupTimestamps() {
+        try {
+            const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}.json?shallow=true&_t=${Date.now()}`, {cache:'no-store'});
+            if(!res.ok) return [];
+            const data = await res.json();
+            return Object.keys(data || {})
+                .filter(ts => /^\d+$/.test(String(ts)))
+                .sort((a,b) => Number(b) - Number(a));
+        } catch(error) {
+            console.warn('[MK_REVIEW_HISTORY_ALL_BACKUP_KEYS_FAILED]', error);
+            return [];
+        }
+    }
+
+    async function collectCurrentCardHistoryFromAllFirebaseBackups(card, canonicalId, expectedCount = 0) {
+        const localHistory = getReviewHistory();
+        let merged = mergeReviewHistoryObjects(localHistory);
+        let currentItems = getMergedReviewHistoryForCardFromSnapshot(card, canonicalId, merged).items;
+        const timestamps = await getAllFirebaseBackupTimestamps();
+        const targetCount = Math.max(Number(expectedCount) || 0, currentItems.length);
+        let scanned = 0;
+        let usefulBackups = 0;
+        const status = document.getElementById('history-recovery-status');
+
+        for (const ts of timestamps) {
+            if(targetCount > 0 && currentItems.filter(item => !isConfirmHistoryItem(item)).length >= targetCount) break;
+            scanned += 1;
+            if(status && (scanned === 1 || scanned % 10 === 0)) {
+                status.textContent = `과거 히스토리 복구 중… ${scanned}/${timestamps.length}`;
+            }
+            try {
+                // Fetch only reviewHistory, not the whole (potentially very large) backup payload.
+                const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${ts}/reviewHistory.json?_t=${Date.now()}`, {cache:'no-store'});
+                if(!res.ok) continue;
+                const rawHistory = await res.json();
+                const history = parseJSONSafe(rawHistory, {});
+                if(!history || typeof history !== 'object' || Array.isArray(history)) continue;
+                const candidate = getMergedReviewHistoryForCardFromSnapshot(card, canonicalId, history).items;
+                if(!candidate.length) continue;
+                const beforeCount = currentItems.length;
+                merged = mergeReviewHistoryObjects(merged, history);
+                currentItems = getMergedReviewHistoryForCardFromSnapshot(card, canonicalId, merged).items;
+                if(currentItems.length > beforeCount) usefulBackups += 1;
+            } catch(error) {
+                console.warn('[MK_REVIEW_HISTORY_DEEP_BACKUP_SKIP]', ts, error);
+            }
+        }
+        console.log('[MK_REVIEW_HISTORY_DEEP_SCAN]', {
+            cardId:String(card && card.id || canonicalId || ''),
+            backupCount:timestamps.length,
+            scanned,
+            usefulBackups,
+            recoveredCount:currentItems.length,
+            expectedCount:targetCount
+        });
+        return { merged, items:currentItems, scanned, backupCount:timestamps.length, usefulBackups };
+    }
+
     async function recoverCurrentCardHistoryFromCloud(card, canonicalId) {
         const stableId = String(card && card.id || canonicalId || '');
         if (!stableId || reviewHistoryRecoveredCardIds.has(stableId)) return false;
         if (reviewHistoryCardRecoveryPromise) return reviewHistoryCardRecoveryPromise;
         reviewHistoryCardRecoveryPromise = (async () => {
             try {
-                const cloudHistory = await collectReviewHistoryFromFirebaseBackups(FIREBASE_BACKUP_KEEP_COUNT);
                 const localHistory = getReviewHistory();
                 const before = getMergedReviewHistoryForCardFromSnapshot(card, canonicalId, localHistory).items.length;
-                const merged = mergeReviewHistoryObjects(localHistory, cloudHistory);
+                const stat = getStatsForCard(card) || {};
+                const expectedCount = Math.max(Number(stat.total) || 0, Number(stat.fsrs && stat.fsrs.reps) || 0);
+                const deep = await collectCurrentCardHistoryFromAllFirebaseBackups(card, canonicalId, expectedCount);
+                const merged = deep.merged;
                 const aliases = getReviewHistoryKeysForCard(card, canonicalId);
-                const recoveredItems = getMergedReviewHistoryForCardFromSnapshot(card, canonicalId, merged).items;
+                const recoveredItems = deep.items;
                 aliases.forEach(key => { merged[key] = recoveredItems.slice(); });
                 saveReviewHistory(merged);
-                const events = reviewHistoryObjectToEvents(merged, 'history-modal-cloud-recovery');
-                await appendReviewHistoryEvents(events, 'history-modal-cloud-recovery');
+                const cardOnlyHistory = {};
+                aliases.forEach(key => { cardOnlyHistory[key] = recoveredItems.slice(); });
+                const events = reviewHistoryObjectToEvents(cardOnlyHistory, 'history-modal-deep-cloud-recovery');
+                await appendReviewHistoryEvents(events, 'history-modal-deep-cloud-recovery');
                 const state = await readAllReviewHistoryLedgerState();
                 reviewHistoryLedgerMemory = buildReviewHistoryFromLedger(state.events, state.tombstones);
                 reviewHistoryLedgerReady = true;
-                reviewHistoryRecoveredCardIds.add(stableId);
-                console.log('[MK_REVIEW_HISTORY_CARD_RECOVERY]', { cardId:stableId, before, after:recoveredItems.length });
+                if(recoveredItems.length > before || deep.scanned >= deep.backupCount) reviewHistoryRecoveredCardIds.add(stableId);
+                console.log('[MK_REVIEW_HISTORY_CARD_DEEP_RECOVERY]', {
+                    cardId:stableId,
+                    before,
+                    after:recoveredItems.length,
+                    expectedCount,
+                    scanned:deep.scanned,
+                    backupCount:deep.backupCount,
+                    usefulBackups:deep.usefulBackups
+                });
                 return recoveredItems.length > before;
             } catch(error) {
                 console.warn('[MK_REVIEW_HISTORY_CARD_RECOVERY_FAILED]', error);
