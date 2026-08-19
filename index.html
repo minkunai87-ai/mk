@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.164-review-history-alias-merge -->
+<!-- deployment: v18.5.166-review-history-stable-card-id -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.164 - append-only 정답 히스토리)</title>
+<title>MK (v18.5.166 - 정답 히스토리 stable ID)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -559,7 +559,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.164 - append-only 정답 히스토리)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.166 - 정답 히스토리 stable ID)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -853,7 +853,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.164 - append-only 정답 히스토리';
+    const APP_VERSION = 'v18.5.166 - 정답 히스토리 stable ID';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -10069,10 +10069,16 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         return getMergedReviewHistoryForCardFromSnapshot(card, fallbackId, getReviewHistory());
     }
 
-    function recordReviewHistory(cardId, score) {
-        if (!cardId) return null;
+    function recordReviewHistoryForCard(card, canonicalCardId, score) {
+        const stableCardId = String(card && card.id || canonicalCardId || '').trim();
+        const canonicalId = String(canonicalCardId || stableCardId || '').trim();
+        if (!stableCardId && !canonicalId) return null;
+
+        // IMPORTANT: due/today-required cards can resolve to a legacy Stats key.
+        // Always merge every known alias BEFORE appending so a new review can never
+        // start a fresh one-item array and make the card's prior history disappear.
         const history = getReviewHistory();
-        if (!Array.isArray(history[cardId])) history[cardId] = [];
+        const mergedBefore = getMergedReviewHistoryForCardFromSnapshot(card, canonicalId, history).items.slice();
         const meta = getGradeMeta(score);
         const item = {
             id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -10081,10 +10087,24 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             type: score === 3 ? 'confirm' : meta.key,
             time: Date.now()
         };
-        history[cardId].unshift(item);
-        if (history[cardId].length > 300) history[cardId] = history[cardId].slice(0, 300);
+        const mergedAfter = [item, ...mergedBefore.filter(existing => existing && existing.id !== item.id)]
+            .sort((a, b) => (Number(b && b.time) || 0) - (Number(a && a.time) || 0))
+            .slice(0, 300);
+
+        const keys = getReviewHistoryKeysForCard(card, canonicalId);
+        if (stableCardId && !keys.includes(stableCardId)) keys.unshift(stableCardId);
+        if (canonicalId && !keys.includes(canonicalId)) keys.push(canonicalId);
+        // Keep every alias non-destructively synchronized. This is deliberate: old
+        // installations used different IDs, and today's due filter often finds those.
+        keys.forEach(key => { history[key] = mergedAfter.slice(); });
         saveReviewHistory(history);
-        queueReviewHistoryEventAppend(cardId, item, 'review').catch(error => console.error('[MK_REVIEW_HISTORY_EVENT_APPEND_FAILED]', error));
+
+        // Ledger stores the stable visible card ID, not a transient legacy Stats key.
+        const ledgerCardId = stableCardId || canonicalId;
+        queueReviewHistoryEventAppend(ledgerCardId, item, 'review').catch(error => console.error('[MK_REVIEW_HISTORY_EVENT_APPEND_FAILED]', error));
+        console.log('[MK_REVIEW_HISTORY_STABLE_APPEND]', {
+            stableCardId, canonicalId, aliasCount:keys.length, previousCount:mergedBefore.length, nextCount:mergedAfter.length
+        });
         return item;
     }
 
@@ -10320,7 +10340,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         const foundStats = findStatsForCard(card, data, card.id);
         const id = foundStats.key || String(card.id);
         saveRecentDeck();
-        const historyItem = recordReviewHistory(id, score);
+        const historyItem = recordReviewHistoryForCard(card, id, score);
         if(!data[id]) data[id] = { correct: 0, total: 0, lastDate: 0 }; if(!data[id].fsrs) data[id].fsrs = { D: 5.0, S: 0, reps: 0 };
         let fsrs = data[id].fsrs;
 
