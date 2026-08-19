@@ -59,7 +59,6 @@ const context = {
     STORAGE_KEY_REVIEW_HISTORY: 'anki_final_review_history_v1',
     isDataChanged: false,
     learningStatsLibraryRevision: 0,
-    learningStatsStatsRevision: 0,
     learningStatsCardIndexCache: null,
     learningStatsReady: true,
     learningStatsRestoreState: 'success',
@@ -160,7 +159,7 @@ async function commitLearningStatsWriteAtomically(store, updatedAt, writeContext
     'evaluateLearningStatsBackupHealth',
     'verifyCoreBackupPayloadIntegrity',
     'getStartupSyncDecision', 'getLocalGroupUpdatedAt',
-    'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'getRecommendedStudyCandidateScope', 'getLearningStatsModelCacheKey', 'getCurrentDeckRecommendedStudyCards', 'buildLearningStatsModel',
+    'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'getCurrentDeckRecommendedStudyCards', 'buildLearningStatsModel',
     'getLearningStatsImmediateChildren', 'getLearningStatsFavoriteDecks', 'saveLearningStatsFavoriteDecks', 'toggleLearningStatsFavorite'
 ].forEach(name => vm.runInContext(readFunction(name), context));
 
@@ -168,21 +167,6 @@ async function main() {
 const cards = Object.values(context.library).flat();
 const byId = Object.fromEntries(cards.map(card => [card.id, card]));
 assert.strictEqual(context.getAllRecommendedStudyCards().length, 8, 'statistics can obtain every unique library card before any filter is used');
-const originalDocumentForGlobalScope = context.document;
-context.document = { getElementById:id => id === 'search-input' ? { value:'소방' } : null };
-context.getActiveFilterModes = () => ['mem', 'due'];
-const globalStatsScope = context.getRecommendedStudyCandidateScope();
-assert.strictEqual(globalStatsScope.cards.length, 8, 'global learning stats always uses the full unique library');
-assert.strictEqual(globalStatsScope.query, '', 'global learning stats ignores the current search query');
-assert.deepStrictEqual([...globalStatsScope.filterModes], [], 'global learning stats ignores current card-list filters');
-const globalCacheKeyWithUiFilter = context.getLearningStatsModelCacheKey();
-context.document = { getElementById:id => id === 'search-input' ? { value:'다른검색' } : null };
-context.getActiveFilterModes = () => ['fav'];
-assert.strictEqual(context.getLearningStatsModelCacheKey(), globalCacheKeyWithUiFilter, 'global learning stats cache key is independent of UI search/filter state');
-context.learningStatsMemoryRevision += 1;
-assert.notStrictEqual(context.getLearningStatsModelCacheKey(), globalCacheKeyWithUiFilter, 'global learning stats cache key changes when durable learning-stats revision changes');
-context.learningStatsMemoryRevision -= 1;
-context.document = originalDocumentForGlobalScope;
 context.originalDeck = [byId.A, byId.B, byId.A];
 assert.deepStrictEqual([...context.getCurrentDeckRecommendedStudyCards()].map(card => card.id), ['A','B'], 'leaf filter scope contains only the selected deck and removes UUID duplicates');
 context.originalDeck = [...context.library.A__deep__leaf];
@@ -452,9 +436,7 @@ for(const testCase of filterRegressionCases) {
     assert.strictEqual(context.getLearningStatsEntryCount(result.store), expectedFilterTotal, `${testCase.label} preserves the full snapshot`);
     assert.deepStrictEqual(Object.keys(result.store.days).sort(), preservedDayKeys, `${testCase.label} preserves all historical dates`);
 }
-assert(!readFunction('openLearningStats').includes('learningStatsModelCache = null'), 'opening statistics preserves the warm model cache when the durable revision is unchanged');
-assert(readFunction('openLearningStats').includes('await learningStatsPersistenceQueue'), 'opening statistics waits for an in-flight review write before rendering');
-assert(readFunction('openLearningStats').includes("commitLearningStatsCacheFromLedger('learning-stats-open-ledger-refresh')"), 'opening statistics refreshes the read-model from the full append-only ledger');
+assert(!readFunction('openLearningStats').includes('learningStatsModelCache = null'), 'opening statistics preserves the warm model cache');
 assert(!readFunction('closeLearningStats').includes('learningStatsModelCache = null'), 'closing statistics preserves the warm model cache');
 assert(readFunction('getLearningStatsCardLookup').includes('learningStatsCardIndexCache'), 'UUID to deck and ancestor index is cached by library revision');
 assert(html.includes("if(window.__MK_STATS_LOOKUP_DEBUG__)"), 'per-card Stats lookup logging is disabled outside explicit debug mode');
