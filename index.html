@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.156-canonical-backup-checksum -->
+<!-- deployment: v18.5.157-append-only-learning-ledger -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.156 - 정규화 체크섬)</title>
+<title>MK (v18.5.157 - append-only 학습원장)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -559,7 +559,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.156 - 정규화 체크섬)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.157 - append-only 학습원장)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -853,11 +853,13 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.156 - 정규화 체크섬';
+    const APP_VERSION = 'v18.5.157 - append-only 학습원장';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
+    const FIREBASE_LEARNING_STATS_EVENTS_PATH = '/apps/mk/learningStatsEvents';
+    const FIREBASE_LEARNING_STATS_EVENTS_META_PATH = '/apps/mk/learningStatsEventsMeta';
 
     const footerElement = document.querySelector('.footer');
     const syncFooterHeightCssVar = () => {
@@ -942,6 +944,7 @@
     let learningStatsReviewDeltaQueue = [];
     let learningStatsPersistenceQueue = Promise.resolve({ ok:true, skipped:true });
     let learningStatsStartupSyncInProgress = false;
+    let learningStatsEventLedgerActive = false;
     let learningStatsFavoriteDecksMemory = [];
     let learningStatsFavoritesUpdatedAt = 0;
     let ioImageGroupCache = { cards: null, length: 0, groups: [], cardToGroup: new Map() };
@@ -1015,6 +1018,9 @@
     const STORAGE_KEY_PENDING_REVIEW_EVENTS = 'mk_pending_review_events';
     const STATS_DB_NAME = 'mk_stats_db_v1';
     const STATS_DB_STORE = 'stats';
+    const STATS_DB_VERSION = 1;
+    const LEARNING_STATS_EVENTS_DB_STORE = STATS_DB_STORE;
+    const LEARNING_STATS_EVENTS_DB_KEY_PREFIX = 'mk_learning_stats_events_v1::';
     const STATS_DB_PRIMARY_KEY = STORAGE_KEY_STATS;
     const STATS_DB_STAGING_KEY = `${STORAGE_KEY_STATS}__staging`;
     const LEARNING_STATS_DB_PRIMARY_KEY = 'mk_learning_stats_v1';
@@ -1023,6 +1029,8 @@
     const LEARNING_STATS_DB_REVISION_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__revision`;
     const LEARNING_STATS_DB_WRITE_JOURNAL_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__write_journal`;
     const LEARNING_STATS_DB_DELTA_QUEUE_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__review_delta_queue`;
+    const LEARNING_STATS_EVENTS_MIGRATION_KEY = 'mk_learning_stats_events_migration_v1';
+    const LEARNING_STATS_EVENTS_MIGRATION_VERSION = 1;
     const LEARNING_STATS_DB_FAVORITES_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__favorite_decks`;
     const LEARNING_STATS_DB_FAVORITES_STAGING_KEY = `${LEARNING_STATS_DB_FAVORITES_KEY}__staging`;
     const LEARNING_STATS_DB_FAVORITES_UPDATED_AT_KEY = `${LEARNING_STATS_DB_FAVORITES_KEY}__updated_at`;
@@ -2209,7 +2217,9 @@
             updateCloudIcon('error');
             return false;
         }
+        const ledgerSync = learningStatsEventLedgerActive ? await syncLearningStatsEventLedgerWithFirebase({ upload:true }) : null;
         await refreshLearningStatsMemoryFromIndexedDB('firebase-backup-read');
+        const learningStatsEvents = learningStatsEventLedgerActive ? await readAllLearningStatsEvents() : [];
         const statsRaw = JSON.stringify(getStatsStore());
         const statsKeyCount = getStatsKeyCount(statsRaw);
         const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
@@ -2276,6 +2286,13 @@
             learningStatsUpdatedAt,
             favoritesUpdatedAt,
             learningStatsWriteTrace:firebaseLearningStatsWriteTrace,
+            learningStatsLedger:learningStatsEventLedgerActive ? {
+                version:1,
+                sourceOfTruth:'indexeddb-append-only-events',
+                eventCount:learningStatsEvents.length,
+                entryCount:getLearningStatsEntryCount(learningStatsBackup),
+                syncOk:!!(ledgerSync && ledgerSync.ok)
+            } : null,
             learningStatsPresent: true,
             favoritesPresent: true,
             metadata: { ...metadata, checksumVersion:BACKUP_CHECKSUM_VERSION, localUpdatedAt, dataUpdatedAt, statsUpdatedAt:localUpdatedAt, learningStatsUpdatedAt, favoritesUpdatedAt }
@@ -2310,6 +2327,7 @@
             learningStatsEntryCount: getLearningStatsEntryCount(learningStatsBackup),
             learningStatsTodayCount,
             learningStatsRevision:learningStatsMemoryRevision,
+            learningStatsLedgerEventCount:learningStatsEvents.length,
             learningStatsSessionId,
             createdAt: Date.now()
         };
@@ -2792,7 +2810,7 @@
     function openStatsDatabase() {
         return new Promise((resolve, reject) => {
             if (!window.indexedDB) return reject(new Error('IndexedDBUnavailable'));
-            const request = indexedDB.open(STATS_DB_NAME, 1);
+            const request = indexedDB.open(STATS_DB_NAME, STATS_DB_VERSION);
             request.onupgradeneeded = () => {
                 const db = request.result;
                 if (!db.objectStoreNames.contains(STATS_DB_STORE)) db.createObjectStore(STATS_DB_STORE);
@@ -2844,6 +2862,110 @@
         } finally {
             db.close();
         }
+    }
+
+    function getLearningStatsPlatform() {
+        const platform = String(navigator.userAgentData && navigator.userAgentData.platform || navigator.platform || 'unknown');
+        return /win/i.test(platform) ? 'Windows' : (/mac/i.test(platform) ? 'macOS' : platform);
+    }
+
+    function normalizeLearningStatsEvent(value) {
+        if(!value || typeof value !== 'object' || Array.isArray(value)) return null;
+        const uuid = String(value.uuid || value.cardId || '').trim();
+        const timestamp = Number(value.timestamp || value.updatedAt || value.createdAt) || 0;
+        const studyDate = String(value.studyDate || value.dateKey || '').trim();
+        const category = value.category === 'required' || value.source === 'required'
+            ? 'required'
+            : (value.category === 'new' || value.source === 'new' ? 'new' : 'other');
+        const eventId = String(value.eventId || value.id || '').replace(/[.#$\[\]\/]/g, '_').slice(0, 240);
+        if(!eventId || !uuid || !/^\d{4}-\d{2}-\d{2}$/.test(studyDate)) return null;
+        const categories = [...new Set((Array.isArray(value.categories) ? value.categories : (value.categoriesPresent ? [] : [category])).filter(item => ['required', 'new', 'other'].includes(item)))];
+        const completionSets = [...new Set((Array.isArray(value.completionSets) ? value.completionSets : (value.completionSetsPresent ? [] : ['allDone', 'trackedDone', `${category}Done`])).filter(item => LEARNING_STATS_BACKUP_DAY_KEYS.includes(item)))];
+        return {
+            eventId,
+            uuid,
+            timestamp,
+            studyDate,
+            category,
+            categories,
+            categoriesPresent:true,
+            completionSets,
+            completionSetsPresent:true,
+            deckPath:normalizeDeckPath(value.deckPath || value.deck || ''),
+            sessionId:String(value.sessionId || learningStatsSessionId),
+            source:String(value.source || 'review'),
+            evidenceSource:String(value.evidenceSource || value.source || 'review'),
+            createdAt:Number(value.createdAt) || timestamp || Date.now(),
+            statsRevision:Number(value.statsRevision ?? value.revision ?? learningStatsMemoryRevision) || 0,
+            appVersion:String(value.appVersion || APP_VERSION),
+            deviceId:String(value.deviceId || getDeviceId()),
+            platform:String(value.platform || getLearningStatsPlatform())
+        };
+    }
+
+    function isLearningStatsRecoveryArtifact(event) {
+        if(!event || event.studyDate === '2000-01-01') return true;
+        if(/^(test|fixture|fake|mock|queued-|after-|blocked-|cloud-card)/i.test(event.uuid)) return true;
+        const time = new Date(`${event.studyDate}T12:00:00`).getTime();
+        return !Number.isFinite(time) || time < new Date('2020-01-01T00:00:00').getTime() || time > Date.now() + 86400000;
+    }
+
+    async function readAllLearningStatsEvents() {
+        const db = await openStatsDatabase();
+        try {
+            return await new Promise((resolve, reject) => {
+                const range = IDBKeyRange.bound(LEARNING_STATS_EVENTS_DB_KEY_PREFIX, `${LEARNING_STATS_EVENTS_DB_KEY_PREFIX}\uffff`);
+                const request = db.transaction(LEARNING_STATS_EVENTS_DB_STORE, 'readonly').objectStore(LEARNING_STATS_EVENTS_DB_STORE).getAll(range);
+                request.onsuccess = () => resolve((Array.isArray(request.result) ? request.result : []).map(normalizeLearningStatsEvent).filter(Boolean));
+                request.onerror = () => reject(request.error || new Error('LearningStatsEventLedgerReadFailed'));
+            });
+        } finally { db.close(); }
+    }
+
+    async function appendLearningStatsEvents(events, source = 'ledger-append') {
+        const normalized = (Array.isArray(events) ? events : [events]).map(normalizeLearningStatsEvent).filter(event => event && !isLearningStatsRecoveryArtifact(event));
+        if(!normalized.length) return { ok:true, inserted:0, duplicates:0, eventCount:(await readAllLearningStatsEvents()).length };
+        const unique = [...new Map(normalized.map(event => [event.eventId, event])).values()];
+        const existingEvents = await readAllLearningStatsEvents();
+        const existingById = new Map(existingEvents.map(event => [event.eventId, event]));
+        unique.forEach(event => {
+            if(existingById.has(event.eventId) && stableBackupJson(existingById.get(event.eventId)) !== stableBackupJson(event)) {
+                throw new Error(`learning_stats_event_id_collision:${event.eventId}`);
+            }
+        });
+        const pending = unique.filter(event => !existingById.has(event.eventId));
+        if(!pending.length) return { ok:true, inserted:0, duplicates:unique.length, eventCount:existingEvents.length };
+        const db = await openStatsDatabase();
+        let inserted = 0;
+        let duplicates = 0;
+        try {
+            await new Promise((resolve, reject) => {
+                const transaction = db.transaction(LEARNING_STATS_EVENTS_DB_STORE, 'readwrite');
+                const store = transaction.objectStore(LEARNING_STATS_EVENTS_DB_STORE);
+                pending.forEach(event => {
+                    const request = store.add(event, `${LEARNING_STATS_EVENTS_DB_KEY_PREFIX}${event.eventId}`);
+                    request.onsuccess = () => { inserted++; };
+                    request.onerror = errorEvent => {
+                        if(request.error && request.error.name === 'ConstraintError') {
+                            duplicates++;
+                            errorEvent.preventDefault();
+                            errorEvent.stopPropagation();
+                        }
+                    };
+                });
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => reject(transaction.error || new Error('LearningStatsEventLedgerAppendFailed'));
+                transaction.onabort = () => reject(transaction.error || new Error('LearningStatsEventLedgerAppendAborted'));
+            });
+        } finally { db.close(); }
+        const finalEvents = await readAllLearningStatsEvents();
+        const finalById = new Map(finalEvents.map(event => [event.eventId, event]));
+        const collision = unique.find(event => !finalById.has(event.eventId) || stableBackupJson(finalById.get(event.eventId)) !== stableBackupJson(event));
+        if(collision) throw new Error(`learning_stats_event_id_collision:${collision.eventId}`);
+        const eventCount = finalEvents.length;
+        duplicates += unique.length - pending.length;
+        console.log('[MK_LEARNING_STATS_LEDGER_APPEND]', { source, sessionId:learningStatsSessionId, requested:unique.length, inserted, duplicates, eventCount });
+        return { ok:true, inserted, duplicates, eventCount };
     }
 
     async function persistStatsToIndexedDBVerified(value, context = {}) {
@@ -4695,6 +4817,9 @@
         learningStatsReady = false;
         try {
             console.log('AUTO_SYNC_START');
+            if(learningStatsEventLedgerActive) {
+                await syncLearningStatsEventLedgerWithFirebase({ upload:true });
+            }
             const startupBootstrapState = getStartupBootstrapState();
             if (startupBootstrapState.invalid) {
                 const bootstrapResult = await bootstrapStatsFromFirebaseOnInvalidLocal(startupBootstrapState);
@@ -5176,19 +5301,7 @@
     }
 
     async function cleanupOldBackups() {
-        try {
-            const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json?shallow=true&_t=${Date.now()}`, { cache: 'no-store' }); const data = await res.json(); if(!data) return;
-            const timestamps = Object.keys(data).filter(ts => /^\d+$/.test(String(ts))).sort((a, b) => Number(a) - Number(b)); 
-            
-            if(timestamps.length > FIREBASE_BACKUP_KEEP_COUNT) {
-                const toDelete = timestamps.slice(0, timestamps.length - FIREBASE_BACKUP_KEEP_COUNT);
-                await Promise.all(toDelete.map(ts => Promise.all([
-                    fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${ts}.json`, { method: 'DELETE' }),
-                    fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}/${ts}.json`, { method: 'DELETE' })
-                ])));
-                console.log('[MK Firebase Cleanup]', { keep: FIREBASE_BACKUP_KEEP_COUNT, deleted: toDelete.length });
-            }
-        } catch(e) {}
+        console.log('[MK_FIREBASE_BACKUP_RETENTION_APPEND_ONLY]', { deleted:0, reason:'learning-stats-evidence-preserved' });
     }
 
     function getManifestDeckFile(name, publishVersion = '') {
@@ -5666,9 +5779,41 @@
     function queueLearningStatsReviewPersistence(card, source) {
         const delta = createLearningStatsReviewDelta(card, source);
         if(!delta) return null;
-        const writeSource = `review-delta-${delta.source}`;
+        const writeSource = `review-event-${delta.category}`;
         const expectedRevision = learningStatsMemoryRevision;
         const callStack = new Error(writeSource).stack || '';
+        if(learningStatsEventLedgerActive) {
+            console.log('[MK_LEARNING_STATS_REVIEW_FLOW]', {
+                stage:'append-only-event-queued',
+                WRITE_SOURCE:writeSource,
+                sessionId:learningStatsSessionId,
+                eventId:delta.eventId,
+                reviewedUuid:delta.uuid,
+                source:delta.category,
+                activeDeckCount:Array.isArray(activeDeck) ? activeDeck.length : 0,
+                originalDeckCount:Array.isArray(originalDeck) ? originalDeck.length : 0,
+                todayRequiredActive:!!todayEssentialState.active,
+                todayNewActive:!!todayNewState.active,
+                searchQuery:String((document.getElementById('search-input') || {}).value || ''),
+                callStack
+            });
+            learningStatsPersistenceQueue = learningStatsPersistenceQueue
+                .catch(() => null)
+                .then(async () => {
+                    const append = await appendLearningStatsEvents([delta], writeSource);
+                    const cache = await commitLearningStatsCacheFromLedger(`${writeSource}-cache`);
+                    if(!cache.ok && cache.store) {
+                        setLearningStatsMemoryStore(cache.store, { source:`${writeSource}-ledger-memory`, updatedAt:delta.updatedAt });
+                        learningStatsModelCache = null;
+                    }
+                    return { ok:true, ledgerCommitted:true, append, cacheOk:cache.ok, cache };
+                })
+                .catch(error => {
+                    console.error('[MK_LEARNING_STATS_REVIEW_EVENT_APPEND_FAILED]', { eventId:delta.eventId, reviewedUuid:delta.uuid, error });
+                    return { ok:false, ledgerCommitted:false, reason:error && error.message ? error.message : String(error) };
+                });
+            return delta;
+        }
         const optimistic = applyLearningStatsReviewDeltas(learningStatsMemoryStore, [delta]);
         setLearningStatsMemoryStore(optimistic, {
             source:`${writeSource}-optimistic-memory`,
@@ -5680,7 +5825,7 @@
             WRITE_SOURCE:writeSource,
             sessionId:learningStatsSessionId,
             reviewedUuid:delta.cardId,
-            source:delta.source,
+            source:delta.category,
             activeDeckCount:Array.isArray(activeDeck) ? activeDeck.length : 0,
             originalDeckCount:Array.isArray(originalDeck) ? originalDeck.length : 0,
             todayRequiredActive:!!todayEssentialState.active,
@@ -5777,7 +5922,14 @@
             get revision() { return learningStatsMemoryRevision; },
             get peers() { return [...learningStatsPeerSessions.keys()]; },
             refresh:() => refreshLearningStatsMemoryFromIndexedDB('manual-diagnostics'),
-            journal:async () => parseJSONSafe(await readStatsDatabaseValue(LEARNING_STATS_DB_WRITE_JOURNAL_KEY), [])
+            journal:async () => parseJSONSafe(await readStatsDatabaseValue(LEARNING_STATS_DB_WRITE_JOURNAL_KEY), []),
+            events:async () => readAllLearningStatsEvents(),
+            ledger:async () => {
+                const events = await readAllLearningStatsEvents();
+                const store = buildLearningStatsStoreFromEvents(events);
+                return { active:learningStatsEventLedgerActive, eventCount:events.length, entryCount:getLearningStatsEntryCount(store), dayKeys:Object.keys(store.days), marker:parseJSONSafe(await readStatsDatabaseValue(LEARNING_STATS_EVENTS_MIGRATION_KEY), null) };
+            },
+            syncLedger:() => syncLearningStatsEventLedgerWithFirebase({ upload:true })
         };
     }
 
@@ -5803,6 +5955,168 @@
             console.error('[MK_LEARNING_STATS_FAVORITES_INDEXEDDB_WRITE_FAILED_KEEP_OLD]', { source, message:error && error.message ? error.message : String(error) });
             return { ok:false, keptOld:true, reason:error && error.message ? error.message : 'IndexedDBWriteFailed', error };
         }
+    }
+
+    async function commitLearningStatsCacheFromLedger(source = 'ledger-cache-rebuild') {
+        const events = await readAllLearningStatsEvents();
+        const derived = buildLearningStatsStoreFromEvents(events);
+        const [durableRaw, durableRevisionRaw, durableUpdatedAtRaw] = await Promise.all([
+            readStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY),
+            readStatsDatabaseValue(LEARNING_STATS_DB_REVISION_KEY),
+            readStatsDatabaseValue(LEARNING_STATS_DB_UPDATED_AT_KEY)
+        ]);
+        const durable = normalizeLearningStatsPersistentStore(durableRaw);
+        const durableRevision = Number(durableRevisionRaw) || 0;
+        const comparison = getLearningStatsCacheVerification(derived, durable);
+        if(comparison.ok) {
+            if(!getLearningStatsCacheVerification(derived, learningStatsMemoryStore).ok || learningStatsMemoryRevision !== durableRevision) {
+                setLearningStatsMemoryStore(derived, { source:`${source}-durable-memory`, updatedAt:Number(durableUpdatedAtRaw) || 0, revision:durableRevision });
+                learningStatsModelCache = null;
+            }
+            return { ok:true, skipped:true, events, store:derived, verification:comparison, revision:durableRevision };
+        }
+        const result = await persistLearningStatsToIndexedDBVerified(derived, Date.now(), source, { expectedRevision:durableRevision });
+        if(!result.ok) {
+            console.error('[MK_LEARNING_STATS_LEDGER_CACHE_WRITE_FAILED_LEDGER_KEPT]', { source, eventCount:events.length, reason:result.reason });
+            return { ok:false, ledgerKept:true, events, store:derived, verification:comparison, reason:result.reason };
+        }
+        setLearningStatsMemoryStore(result.store, { source:`${source}-memory`, updatedAt:result.updatedAt, revision:result.revision });
+        learningStatsModelCache = null;
+        try { localStorage.setItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, String(result.updatedAt)); } catch(error) {}
+        return { ok:true, events, store:derived, verification:getLearningStatsCacheVerification(derived, result.store), revision:result.revision };
+    }
+
+    async function fetchFirebaseLearningStatsEvents() {
+        const response = await fetch(`${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_PATH}.json?_t=${Date.now()}`, { cache:'no-store' });
+        if(!response.ok) throw new Error(`learning_stats_ledger_cloud_read_${response.status}`);
+        const value = await response.json();
+        return Object.values(value && typeof value === 'object' && !Array.isArray(value) ? value : {}).map(normalizeLearningStatsEvent).filter(Boolean);
+    }
+
+    async function fetchFirebaseLearningStatsEventsMeta() {
+        const response = await fetch(`${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_META_PATH}/migration_v1.json?_t=${Date.now()}`, { cache:'no-store' });
+        if(!response.ok) return null;
+        const value = await response.json();
+        return value && typeof value === 'object' ? value : null;
+    }
+
+    async function syncLearningStatsEventLedgerWithFirebase(options = {}) {
+        try {
+            const [localBefore, cloudEvents] = await Promise.all([readAllLearningStatsEvents(), fetchFirebaseLearningStatsEvents()]);
+            const localById = new Map(localBefore.map(event => [event.eventId, event]));
+            const cloudById = new Map(cloudEvents.map(event => [event.eventId, event]));
+            for(const [eventId, cloudEvent] of cloudById) {
+                if(localById.has(eventId) && stableBackupJson(localById.get(eventId)) !== stableBackupJson(cloudEvent)) {
+                    throw new Error(`learning_stats_event_id_collision:${eventId}`);
+                }
+            }
+            const download = cloudEvents.filter(event => !localById.has(event.eventId));
+            if(download.length) await appendLearningStatsEvents(download, 'firebase-ledger-union-download');
+            const mergedLocal = await readAllLearningStatsEvents();
+            const upload = mergedLocal.filter(event => !cloudById.has(event.eventId));
+            if(upload.length && options.upload !== false) {
+                const additions = Object.fromEntries(upload.map(event => [event.eventId, event]));
+                const response = await fetch(`${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_PATH}.json`, {
+                    method:'PATCH',
+                    headers:{ 'Content-Type':'application/json' },
+                    body:JSON.stringify(additions)
+                });
+                if(!response.ok) throw new Error(`learning_stats_ledger_cloud_append_${response.status}`);
+            }
+            const cache = await commitLearningStatsCacheFromLedger('firebase-ledger-union-cache');
+            const finalEvents = cache.events || await readAllLearningStatsEvents();
+            if(options.upload !== false) {
+                try {
+                    await fetch(`${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_META_PATH}/migration_v1.json`, {
+                        method:'PUT',
+                        headers:{ 'Content-Type':'application/json' },
+                        body:JSON.stringify({
+                            status:'completed',
+                            version:LEARNING_STATS_EVENTS_MIGRATION_VERSION,
+                            eventCount:finalEvents.length,
+                            entryCount:getLearningStatsEntryCount(buildLearningStatsStoreFromEvents(finalEvents)),
+                            updatedAt:Date.now(),
+                            appVersion:APP_VERSION
+                        })
+                    });
+                } catch(error) { console.warn('[MK_LEARNING_STATS_LEDGER_META_WRITE_FAILED]', error); }
+            }
+            console.log('[MK_LEARNING_STATS_LEDGER_FIREBASE_UNION]', { localBefore:localBefore.length, cloud:cloudEvents.length, downloaded:download.length, uploaded:options.upload === false ? 0 : upload.length, final:finalEvents.length });
+            return { ok:true, localBefore:localBefore.length, cloud:cloudEvents.length, downloaded:download.length, uploaded:options.upload === false ? 0 : upload.length, final:finalEvents.length, cache };
+        } catch(error) {
+            console.error('[MK_LEARNING_STATS_LEDGER_FIREBASE_SYNC_FAILED_LOCAL_KEPT]', error);
+            return { ok:false, localKept:true, reason:error && error.message ? error.message : String(error) };
+        }
+    }
+
+    async function initializeLearningStatsEventLedger(legacyStore, options = {}) {
+        const legacy = normalizeLearningStatsPersistentStore(legacyStore);
+        const markerRaw = await readStatsDatabaseValue(LEARNING_STATS_EVENTS_MIGRATION_KEY);
+        const marker = parseJSONSafe(markerRaw, {});
+        const existingEvents = await readAllLearningStatsEvents();
+        if(marker && marker.status === 'completed' && Number(marker.version) === LEARNING_STATS_EVENTS_MIGRATION_VERSION && existingEvents.length) {
+            const cache = await commitLearningStatsCacheFromLedger('startup-ledger-cache');
+            return { ok:true, migrated:false, marker, eventCount:existingEvents.length, cache };
+        }
+        try {
+            if(await readStatsDatabaseValue(`${LEARNING_STATS_DB_PRIMARY_KEY}__pre_ledger_v1`) === null) {
+                await writeStatsDatabaseValue(`${LEARNING_STATS_DB_PRIMARY_KEY}__pre_ledger_v1`, JSON.stringify(legacy));
+            }
+            let cloudEvents = [];
+            let cloudMeta = null;
+            try { [cloudEvents, cloudMeta] = await Promise.all([fetchFirebaseLearningStatsEvents(), fetchFirebaseLearningStatsEventsMeta()]); } catch(error) { console.warn('[MK_LEARNING_STATS_LEDGER_INITIAL_CLOUD_READ_FAILED]', error); }
+            if(cloudEvents.length) await appendLearningStatsEvents(cloudEvents, 'migration-cloud-ledger-seed');
+            const cloudMigrationComplete = !!(cloudMeta && cloudMeta.status === 'completed' && Number(cloudMeta.version) === LEARNING_STATS_EVENTS_MIGRATION_VERSION && Number(cloudMeta.eventCount) <= cloudEvents.length);
+            const collected = await collectLearningStatsMigrationEvents(legacy, { includeFirebaseHistory:options.includeFirebaseHistory !== false && !cloudMigrationComplete });
+            const appendResult = await appendLearningStatsEvents(collected.events, 'legacy-migration-seed');
+            const ledgerEvents = await readAllLearningStatsEvents();
+            const derived = buildLearningStatsStoreFromEvents(ledgerEvents);
+            const legacyPairs = getLearningStatsPairSet(legacy);
+            const derivedPairs = getLearningStatsPairSet(derived);
+            const missingLegacy = [...legacyPairs].filter(pair => !derivedPairs.has(pair));
+            if(missingLegacy.length) throw new Error(`learning_stats_ledger_missing_legacy:${missingLegacy.length}`);
+            const expected = buildLearningStatsStoreFromEvents([...existingEvents, ...cloudEvents, ...collected.events]);
+            const verification = getLearningStatsCacheVerification(expected, derived);
+            if(!verification.ok) throw new Error('learning_stats_ledger_seed_verification_failed');
+            const cacheResult = await commitLearningStatsCacheFromLedger('legacy-migration-cache-rebuild');
+            if(!cacheResult.ok) throw new Error(cacheResult.reason || 'learning_stats_ledger_cache_rebuild_failed');
+            const evidenceCounts = ledgerEvents.reduce((counts, event) => {
+                const key = String(event.evidenceSource || 'unknown');
+                counts[key] = (counts[key] || 0) + 1;
+                return counts;
+            }, {});
+            const markerValue = {
+                status:'completed',
+                version:LEARNING_STATS_EVENTS_MIGRATION_VERSION,
+                completedAt:Date.now(),
+                eventCount:ledgerEvents.length,
+                entryCount:getLearningStatsEntryCount(derived),
+                dayCount:Object.keys(derived.days).length,
+                legacyEntryCount:getLearningStatsEntryCount(legacy),
+                recoveredEntryCount:Math.max(0, getLearningStatsEntryCount(derived) - getLearningStatsEntryCount(legacy)),
+                evidenceCounts,
+                firebaseBackupCount:collected.backupCount,
+                excludedArtifacts:['2000-01-01|1072494338334661', '2000-01-01|1122793218167256'],
+                appVersion:APP_VERSION
+            };
+            await writeStatsDatabaseValue(LEARNING_STATS_EVENTS_MIGRATION_KEY, JSON.stringify(markerValue));
+            console.log('[MK_LEARNING_STATS_LEDGER_MIGRATION_COMPLETE]', { ...markerValue, inserted:appendResult.inserted, duplicates:appendResult.duplicates });
+            return { ok:true, migrated:true, marker:markerValue, eventCount:ledgerEvents.length, cache:cacheResult };
+        } catch(error) {
+            console.error('[MK_LEARNING_STATS_LEDGER_MIGRATION_FALLBACK_V156]', error);
+            return { ok:false, fallback:true, error };
+        }
+    }
+
+    async function flushQueuedLearningStatsEventsToLedger() {
+        if(!learningStatsEventLedgerActive || !learningStatsReviewDeltaQueue.length) return { ok:true, flushed:0 };
+        const queued = learningStatsReviewDeltaQueue.map(delta => normalizeLearningStatsEvent({ ...delta, eventId:delta.eventId || delta.id, uuid:delta.uuid || delta.cardId, studyDate:delta.studyDate || delta.dateKey, category:delta.category || delta.source })).filter(Boolean);
+        const append = await appendLearningStatsEvents(queued, 'queued-review-events-after-hydration');
+        const cache = await commitLearningStatsCacheFromLedger('queued-review-events-cache');
+        if(!cache.ok) return { ok:false, flushed:append.inserted, cache };
+        learningStatsReviewDeltaQueue = [];
+        await writeStatsDatabaseValue(LEARNING_STATS_DB_DELTA_QUEUE_KEY, '[]');
+        return { ok:true, flushed:queued.length, append, cache };
     }
 
     async function initializeLearningStatsStore() {
@@ -5837,11 +6151,21 @@
                     if(!migrationResult.ok) throw migrationResult.error || new Error(migrationResult.reason || 'learning_stats_migration_failed');
                     setLearningStatsMemoryStore(migrationResult.store, { source:'legacy-migration-committed-memory', updatedAt:migrationResult.updatedAt, revision:migrationResult.revision });
                 }
-                setLearningStatsRestoreState('success', { source:indexedValue === null ? 'legacy-localstorage' : 'indexeddb' });
-                return { ok:true, source:indexedValue === null ? 'legacy-localstorage' : 'indexeddb' };
+                const ledgerMigration = await initializeLearningStatsEventLedger(getLearningStatsStore());
+                learningStatsEventLedgerActive = !!ledgerMigration.ok;
+                if(learningStatsEventLedgerActive) await flushQueuedLearningStatsEventsToLedger();
+                setLearningStatsRestoreState('success', { source:ledgerMigration.ok ? 'indexeddb-event-ledger' : (indexedValue === null ? 'legacy-localstorage-fallback' : 'indexeddb-v156-fallback') });
+                return { ok:true, source:ledgerMigration.ok ? 'indexeddb-event-ledger' : (indexedValue === null ? 'legacy-localstorage-fallback' : 'indexeddb-v156-fallback'), ledgerMigration };
             }
             setLearningStatsMemoryStore({ version:1, days:{} }, { source:'startup-empty-memory', updatedAt:Number(indexedUpdatedAt || localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT)) || 0, revision:learningStatsMemoryRevision });
-            return { ok:true, source:'empty', pending:true };
+            const ledgerMigration = await initializeLearningStatsEventLedger(getLearningStatsStore());
+            learningStatsEventLedgerActive = !!ledgerMigration.ok;
+            if(learningStatsEventLedgerActive) await flushQueuedLearningStatsEventsToLedger();
+            if(ledgerMigration.ok && getLearningStatsEntryCount(learningStatsMemoryStore)) {
+                setLearningStatsRestoreState('success', { source:'indexeddb-event-ledger-recovery' });
+                return { ok:true, source:'indexeddb-event-ledger-recovery', ledgerMigration };
+            }
+            return { ok:true, source:'empty', pending:true, ledgerMigration };
         } catch(error) {
             setLearningStatsRestoreState('failed', { source:'startup-hydration', reason:error && error.message ? error.message : String(error) });
             return { ok:false, error };
@@ -5866,6 +6190,212 @@
                 ]))];
             }))
         };
+    }
+
+    function getLearningStatsEventPairKey(event) {
+        return `${event.studyDate}|${event.uuid}`;
+    }
+
+    function createLearningStatsEventId(prefix, ...parts) {
+        const readable = parts.map(value => String(value || '').replace(/[^0-9A-Za-z_-]/g, '_')).join('_');
+        return `${prefix}_${readable}_${cyrb53(parts.join('|'))}`.slice(0, 220);
+    }
+
+    function createLearningStatsLedgerEvent(value) {
+        return normalizeLearningStatsEvent({
+            sessionId:learningStatsSessionId,
+            statsRevision:learningStatsMemoryRevision,
+            appVersion:APP_VERSION,
+            deviceId:getDeviceId(),
+            platform:getLearningStatsPlatform(),
+            ...value
+        });
+    }
+
+    function learningStatsSnapshotToEvents(value, evidenceSource = 'legacy-snapshot') {
+        const store = normalizeLearningStatsPersistentStore(value);
+        const events = [];
+        Object.entries(store.days).forEach(([studyDate, rawDay]) => {
+            if(studyDate === '2000-01-01') return;
+            const day = normalizeLearningStatsDay(rawDay);
+            const ids = new Set(LEARNING_STATS_BACKUP_DAY_KEYS.flatMap(key => day[key] || []));
+            ids.forEach(uuid => {
+                const categories = ['required', 'new', 'other'].filter(category => day[`${category}Done`].includes(uuid));
+                const completionSets = LEARNING_STATS_BACKUP_DAY_KEYS.filter(key => day[key].includes(uuid));
+                const primaryCategory = categories[0] || 'other';
+                const timestamp = new Date(`${studyDate}T12:00:00`).getTime();
+                const event = createLearningStatsLedgerEvent({
+                    eventId:createLearningStatsEventId('legacy', studyDate, uuid),
+                    uuid,
+                    timestamp,
+                    studyDate,
+                    category:primaryCategory,
+                    categories,
+                    completionSets:completionSets.length ? completionSets : ['allDone', 'trackedDone', `${primaryCategory}Done`],
+                    deckPath:day.deckByCard[uuid] || '',
+                    source:'legacy-migration',
+                    evidenceSource:'snapshot-confirmed',
+                    createdAt:timestamp,
+                    sessionId:'legacy-migration',
+                    statsRevision:0,
+                    appVersion:'learning-stats-events-migration-v1',
+                    deviceId:'legacy-migration',
+                    platform:'portable'
+                });
+                if(event && !isLearningStatsRecoveryArtifact(event)) events.push(event);
+            });
+        });
+        return events;
+    }
+
+    function buildLearningStatsStoreFromEvents(events) {
+        const store = { version:1, days:{} };
+        (Array.isArray(events) ? events : []).map(normalizeLearningStatsEvent).filter(Boolean)
+            .sort((a, b) => a.timestamp - b.timestamp || a.eventId.localeCompare(b.eventId))
+            .forEach(event => {
+                if(isLearningStatsRecoveryArtifact(event)) return;
+                const day = normalizeLearningStatsDay(store.days[event.studyDate]);
+                const sets = event.completionSets.length ? event.completionSets : ['allDone', 'trackedDone', `${event.category}Done`];
+                sets.forEach(key => {
+                    if(LEARNING_STATS_BACKUP_DAY_KEYS.includes(key)) day[key] = [...new Set([...day[key], event.uuid])];
+                });
+                (event.categories || [event.category]).forEach(category => {
+                    const key = `${category}Done`;
+                    if(LEARNING_STATS_BACKUP_DAY_KEYS.includes(key) && !day[key].includes(event.uuid)) day[key].push(event.uuid);
+                });
+                if(event.deckPath) day.deckByCard[event.uuid] = event.deckPath;
+                store.days[event.studyDate] = day;
+            });
+        return normalizeLearningStatsPersistentStore(store);
+    }
+
+    function getLearningStatsPairSet(value) {
+        const normalized = normalizeLearningStatsPersistentStore(value);
+        return new Set(Object.entries(normalized.days).flatMap(([date, day]) => normalizeLearningStatsDay(day).allDone.map(uuid => `${date}|${uuid}`)));
+    }
+
+    function getLearningStatsCacheVerification(expected, actual) {
+        const left = normalizeLearningStatsBackupPayload(expected);
+        const right = normalizeLearningStatsBackupPayload(actual);
+        const expectedChecksum = getCanonicalBackupFieldChecksum(LEARNING_STATS_STORAGE_KEY, left);
+        const actualChecksum = getCanonicalBackupFieldChecksum(LEARNING_STATS_STORAGE_KEY, right);
+        return {
+            ok:expectedChecksum === actualChecksum,
+            expectedChecksum,
+            actualChecksum,
+            expectedEntryCount:getLearningStatsEntryCount(left),
+            actualEntryCount:getLearningStatsEntryCount(right),
+            expectedDayCount:Object.keys(left.days).length,
+            actualDayCount:Object.keys(right.days).length
+        };
+    }
+
+    function mergeLearningStatsEventEvidence(eventMap, event) {
+        event = normalizeLearningStatsEvent(event);
+        if(!event || isLearningStatsRecoveryArtifact(event)) return false;
+        const pair = getLearningStatsEventPairKey(event);
+        const existing = eventMap.get(pair);
+        if(existing) {
+            if(!existing.deckPath && event.deckPath) existing.deckPath = event.deckPath;
+            return false;
+        }
+        eventMap.set(pair, event);
+        return true;
+    }
+
+    function addReviewHistoryRecoveryEvidence(eventMap, raw, evidenceSource = 'review-history') {
+        const history = parseJSONSafe(raw, raw && typeof raw === 'object' ? raw : {});
+        Object.entries(history && typeof history === 'object' && !Array.isArray(history) ? history : {}).forEach(([uuid, items]) => {
+            const byDate = new Map();
+            (Array.isArray(items) ? items : []).forEach(item => {
+                const timestamp = Number(item && item.time) || 0;
+                if(!timestamp) return;
+                const studyDate = getLearningStatsDateKey(timestamp);
+                const current = byDate.get(studyDate);
+                if(!current || timestamp < current.timestamp) byDate.set(studyDate, { timestamp, item });
+            });
+            byDate.forEach(({ timestamp }) => mergeLearningStatsEventEvidence(eventMap, createLearningStatsLedgerEvent({
+                eventId:createLearningStatsEventId('history', getLearningStatsDateKey(timestamp), uuid),
+                uuid,
+                timestamp,
+                studyDate:getLearningStatsDateKey(timestamp),
+                category:'other',
+                categories:['other'],
+                completionSets:['otherDone', 'allDone', 'trackedDone'],
+                source:'legacy-migration',
+                evidenceSource:'review-history-confirmed',
+                createdAt:timestamp,
+                sessionId:'legacy-migration',
+                statsRevision:0,
+                appVersion:'learning-stats-events-migration-v1',
+                deviceId:'legacy-migration',
+                platform:'portable'
+            })));
+        });
+    }
+
+    function addStatsLastDateRecoveryEvidence(eventMap, raw, evidenceSource = 'stats-last-date') {
+        const stats = normalizeStatsObject(raw);
+        Object.entries(stats).forEach(([uuid, stat]) => {
+            const timestamp = Number(stat && stat.lastDate) || 0;
+            if(!timestamp) return;
+            const studyDate = getLearningStatsDateKey(timestamp);
+            mergeLearningStatsEventEvidence(eventMap, createLearningStatsLedgerEvent({
+                eventId:createLearningStatsEventId('stats', studyDate, uuid),
+                uuid,
+                timestamp,
+                studyDate,
+                category:'other',
+                categories:['other'],
+                completionSets:['otherDone', 'allDone', 'trackedDone'],
+                source:'legacy-migration',
+                evidenceSource:'stats-last-date-confirmed',
+                createdAt:timestamp,
+                sessionId:'legacy-migration',
+                statsRevision:0,
+                appVersion:'learning-stats-events-migration-v1',
+                deviceId:'legacy-migration',
+                platform:'portable'
+            }));
+        });
+    }
+
+    async function fetchLearningStatsHistoricalEvidence() {
+        const response = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}.json?shallow=true&_t=${Date.now()}`, { cache:'no-store' });
+        if(!response.ok) throw new Error(`learning_stats_evidence_index_${response.status}`);
+        const root = await response.json();
+        const ids = Object.keys(root || {}).filter(id => /^\d+$/.test(id)).sort();
+        const evidence = [];
+        for(let offset = 0; offset < ids.length; offset += 3) {
+            const batch = ids.slice(offset, offset + 3);
+            const rows = await Promise.all(batch.map(async backupId => {
+                const fields = await Promise.all(['mk_learning_stats_v1', 'reviewHistory', 'stats'].map(async field => {
+                    const fieldResponse = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${backupId}/${field}.json?_t=${Date.now()}`, { cache:'no-store' });
+                    return fieldResponse.ok ? fieldResponse.json() : null;
+                }));
+                return { backupId, learningStats:fields[0], reviewHistory:fields[1], stats:fields[2] };
+            }));
+            evidence.push(...rows);
+            console.log('[MK_LEARNING_STATS_RECOVERY_AUDIT_PROGRESS]', { processed:Math.min(offset + batch.length, ids.length), total:ids.length });
+        }
+        return evidence;
+    }
+
+    async function collectLearningStatsMigrationEvents(legacyStore, options = {}) {
+        const eventMap = new Map();
+        learningStatsSnapshotToEvents(legacyStore, 'indexeddb-current-snapshot').forEach(event => mergeLearningStatsEventEvidence(eventMap, event));
+        addReviewHistoryRecoveryEvidence(eventMap, localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), 'indexeddb-current-review-history');
+        addStatsLastDateRecoveryEvidence(eventMap, getStatsStore(), 'indexeddb-current-stats-last-date');
+        let historical = [];
+        if(options.includeFirebaseHistory !== false) {
+            historical = await fetchLearningStatsHistoricalEvidence();
+        }
+        historical.forEach(row => {
+            learningStatsSnapshotToEvents(row.learningStats, `firebase-snapshot:${row.backupId}`).forEach(event => mergeLearningStatsEventEvidence(eventMap, event));
+            addReviewHistoryRecoveryEvidence(eventMap, row.reviewHistory, `firebase-review-history:${row.backupId}`);
+            addStatsLastDateRecoveryEvidence(eventMap, row.stats, `firebase-stats-last-date:${row.backupId}`);
+        });
+        return { events:[...eventMap.values()], backupCount:historical.length };
     }
 
     function normalizeFirebaseArray(value) {
@@ -6008,13 +6538,31 @@
     function createLearningStatsReviewDelta(card, source) {
         const cardId = getTodayEssentialCardId(card);
         if(!cardId) return null;
+        const timestamp = Date.now();
+        const category = source === 'required' || source === 'new' ? source : 'other';
+        const eventId = `review_${timestamp}_${String(cardId).replace(/[^0-9A-Za-z_-]/g, '_')}_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`;
         return {
-            id:`learning_delta_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            id:eventId,
+            eventId,
             dateKey:getLearningStatsDateKey(),
+            studyDate:getLearningStatsDateKey(timestamp),
             cardId:String(cardId),
-            source:source === 'required' || source === 'new' ? source : 'other',
+            uuid:String(cardId),
+            source:'review',
+            evidenceSource:'review',
+            category,
+            categories:[category],
+            completionSets:[`${category}Done`, 'allDone', 'trackedDone'],
             deck:normalizeDeckPath(card && card.deck, currentDeckName || ''),
-            updatedAt:Date.now()
+            deckPath:normalizeDeckPath(card && card.deck, currentDeckName || ''),
+            timestamp,
+            createdAt:timestamp,
+            updatedAt:timestamp,
+            sessionId:learningStatsSessionId,
+            statsRevision:learningStatsMemoryRevision,
+            appVersion:APP_VERSION,
+            deviceId:getDeviceId(),
+            platform:getLearningStatsPlatform()
         };
     }
 
@@ -6043,7 +6591,7 @@
         console.warn('[MK_LEARNING_STATS_REVIEW_DELTA_QUEUED]', {
             state:learningStatsRestoreState,
             cardId:delta.cardId,
-            source:delta.source,
+            source:delta.category,
             queuedReviewDeltas:learningStatsReviewDeltaQueue.length
         });
         return delta;
@@ -6056,8 +6604,9 @@
             const day = normalizeLearningStatsDay(merged.days[delta.dateKey]);
             day.allDone = [...new Set([...day.allDone, String(delta.cardId)])];
             day.trackedDone = [...new Set([...day.trackedDone, String(delta.cardId)])];
-            if(delta.source === 'required') day.requiredDone = [...new Set([...day.requiredDone, String(delta.cardId)])];
-            else if(delta.source === 'new') day.newDone = [...new Set([...day.newDone, String(delta.cardId)])];
+            const category = delta.category || delta.source;
+            if(category === 'required') day.requiredDone = [...new Set([...day.requiredDone, String(delta.cardId)])];
+            else if(category === 'new') day.newDone = [...new Set([...day.newDone, String(delta.cardId)])];
             else day.otherDone = [...new Set([...day.otherDone, String(delta.cardId)])];
             if(delta.deck) day.deckByCard[String(delta.cardId)] = normalizeDeckPath(delta.deck);
             merged.days[delta.dateKey] = day;
@@ -6076,6 +6625,15 @@
         }
         const restored = [];
         if((!selected || selected.has('learningStats')) && hasBackupLearningStats(raw)) {
+            if(learningStatsEventLedgerActive) {
+                const backupId = String(raw.timestamp || raw.metadata && raw.metadata.backupAt || 'unknown');
+                const events = learningStatsSnapshotToEvents(raw[LEARNING_STATS_STORAGE_KEY], `firebase-restore-snapshot:${backupId}`);
+                await appendLearningStatsEvents(events, 'firebase-restore-ledger-union');
+                const cache = await commitLearningStatsCacheFromLedger('firebase-restore-ledger-cache');
+                if(!cache.ok) throw new Error(`${LEARNING_STATS_STORAGE_KEY}_ledger_cache_restore_failed`);
+                restored.push(LEARNING_STATS_STORAGE_KEY);
+                console.log('[MK_PWA_RESTORE_LEDGER_UNION]', { backupId, incomingEvents:events.length, eventCount:cache.events.length, entryCount:getLearningStatsEntryCount(cache.store) });
+            } else {
             setLearningStatsRestoreState('pending', { source:'cloud-restore' });
             const beforeValue = learningStatsMemoryStore;
             const value = normalizeLearningStatsPersistentStore(normalizeLearningStatsBackupPayload(raw[LEARNING_STATS_STORAGE_KEY]));
@@ -6108,6 +6666,7 @@
                 restoredUpdatedAt:learningStatsMemoryUpdatedAt,
                 persistence:'indexeddb'
             });
+            }
         }
         if((!selected || selected.has('favorites')) && hasBackupLearningStatsFavorites(raw)) {
             const beforeValue = [...learningStatsFavoriteDecksMemory];

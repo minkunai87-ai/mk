@@ -48,6 +48,8 @@ const context = {
     Array,
     Math,
     performance: { now: () => Number(process.hrtime.bigint()) / 1e6 },
+    crypto: require('crypto').webcrypto,
+    APP_VERSION: 'test-version',
     currentDeckName: 'A',
     LEARNING_STATS_STORAGE_KEY: 'mk_learning_stats_v1',
     LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY: 'mk_learning_stats_favorite_decks_v1',
@@ -69,6 +71,7 @@ const context = {
     learningStatsReviewDeltaQueue: [],
     learningStatsPersistenceQueue: Promise.resolve({ok:true, skipped:true}),
     learningStatsStartupSyncInProgress: false,
+    learningStatsEventLedgerActive: false,
     activeDeck: [],
     originalDeck: [],
     todayEssentialState: { active:false },
@@ -106,6 +109,8 @@ function getVirtualDate(ts) { const d = new Date(ts); if(d.getHours() < 4) d.set
 function getTodayEssentialCardId(card) { return String(card && card.id || ''); }
 function getReviewHistory() { return reviewHistory; }
 function getStatsStore() { return {}; }
+function getDeviceId() { return 'test-device'; }
+function getLearningStatsPlatform() { return 'test-platform'; }
 function getBackupStatsCandidate(raw) { return parseJSONSafe(raw && raw.stats, {}); }
 function renderLearningStats() { favoriteRenderCount++; }
 function parseJSONSafe(value, fallback) { try { return typeof value === 'string' ? JSON.parse(value) : (value === undefined || value === null ? fallback : value); } catch(e) { return fallback; } }

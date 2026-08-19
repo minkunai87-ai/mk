@@ -89,7 +89,7 @@ async function main() {
             return response.result?.result?.value;
         };
         const snapshot = async () => evaluate(`(() => {
-            if(typeof learningStatsReady === 'undefined' || !learningStatsReady || (typeof learningStatsStartupSyncInProgress !== 'undefined' && learningStatsStartupSyncInProgress)) return null;
+            if(typeof learningStatsReady === 'undefined' || !learningStatsReady || (typeof learningStatsStartupSyncInProgress !== 'undefined' && learningStatsStartupSyncInProgress) || !Object.keys(typeof library === 'object' && library || {}).length) return null;
             const store = getLearningStatsStore();
             const days = store.days || {};
             return {
@@ -160,7 +160,9 @@ async function main() {
                 buildLearningStatsModel({requiredCards:testCase.required ? activeDeck : [], newCards:testCase.fresh ? activeDeck : []});
                 await learningStatsPersistenceQueue;
                 const after = getLearningStatsEntryCount(getLearningStatsStore());
-                results.push({name:testCase.name, before, after, source:writeResult.telemetry.WRITE_SOURCE, action:writeResult.telemetry.action, currentEntryCount:writeResult.telemetry.currentEntryCount, newEntryCount:writeResult.telemetry.newEntryCount, removedUuidCount:writeResult.telemetry.removedUuidCount, revision:writeResult.revision, modelRevisionChanged:learningStatsMemoryRevision !== revisionBeforeModel, dayKeysPreserved:Object.keys(getLearningStatsStore().days).sort().join('|') === dayKeysBefore});
+                const ledgerCommitted = !!(writeResult && writeResult.ledgerCommitted);
+                const telemetry = writeResult && writeResult.telemetry || {};
+                results.push({name:testCase.name, before, after, source:ledgerCommitted ? 'append-only-event-ledger' : telemetry.WRITE_SOURCE, action:ledgerCommitted ? 'EVENT_APPENDED' : telemetry.action, currentEntryCount:ledgerCommitted ? before : telemetry.currentEntryCount, newEntryCount:ledgerCommitted ? after : telemetry.newEntryCount, removedUuidCount:ledgerCommitted ? 0 : telemetry.removedUuidCount, revision:learningStatsMemoryRevision, ledgerCommitted, cacheOk:ledgerCommitted ? writeResult.cacheOk : null, ready:learningStatsReady, restoreState:learningStatsRestoreState, startupSync:learningStatsStartupSyncInProgress, ledgerActive:learningStatsEventLedgerActive, modelRevisionChanged:learningStatsMemoryRevision !== revisionBeforeModel, dayKeysPreserved:Object.keys(getLearningStatsStore().days).sort().join('|') === dayKeysBefore});
             }
             todayEssentialState.active = false;
             todayNewState.active = false;
@@ -176,7 +178,22 @@ async function main() {
             await learningStatsPersistenceQueue;
             return results;
         })()`);
-        const afterReview = await snapshot();
+        const afterReview = await waitForSnapshot(7);
+        const cacheFailureDurability = await evaluate(`(async () => {
+            const originalCommit = commitLearningStatsCacheFromLedger;
+            const before = getLearningStatsEntryCount(getLearningStatsStore());
+            const card = {id:${JSON.stringify(reviewPrefix)} + '-cache-failure', deck:'failure__deck'};
+            commitLearningStatsCacheFromLedger = async source => ({ok:false, ledgerKept:true, events:await readAllLearningStatsEvents(), store:buildLearningStatsStoreFromEvents(await readAllLearningStatsEvents()), reason:'injected-cache-failure'});
+            recordLearningStatsReview(card, 'other');
+            const writeResult = await learningStatsPersistenceQueue;
+            const eventsAfterFailure = await readAllLearningStatsEvents();
+            const durable = eventsAfterFailure.some(event => event.uuid === card.id);
+            const cacheCountWhileFailed = getLearningStatsEntryCount(await readStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY));
+            commitLearningStatsCacheFromLedger = originalCommit;
+            const heal = await commitLearningStatsCacheFromLedger('lifecycle-cache-failure-heal');
+            return {before, ledgerCommitted:!!writeResult.ledgerCommitted, cacheOk:writeResult.cacheOk, durable, cacheCountWhileFailed, healed:heal.ok, after:getLearningStatsEntryCount(getLearningStatsStore())};
+        })()`);
+        const afterFailureRecovery = await waitForSnapshot(7);
         const staleWrite = await evaluate(`(async () => {
             const result = await persistLearningStatsToIndexedDBVerified(${JSON.stringify(staleState.store)}, Date.now(), 'lifecycle-stale-instance-write', {expectedRevision:${Number(staleState.revision)}});
             learningStatsMemoryStore = result.store;
@@ -213,13 +230,14 @@ async function main() {
         const afterSync = await waitForSnapshot(7);
         socket.close();
 
-        if(afterReview.total !== restored.total + 10 || afterReview.testCount !== 10) throw new Error(`ten-review increment failed: ${JSON.stringify({restored, afterReview})}`);
-        if(filterCaseResults.some(result => result.after !== result.before + 1 || result.currentEntryCount !== result.before || result.newEntryCount !== result.after || result.removedUuidCount !== 0 || result.action === 'BLOCK_WRITE_REBASED' || result.modelRevisionChanged || !result.dayKeysPreserved)) throw new Error(`filter-independent delta regression failed: ${JSON.stringify(filterCaseResults)}`);
-        if(!staleWrite.blockedRawWrite || staleWrite.total !== afterReview.total) throw new Error(`stale overwrite protection failed: ${JSON.stringify({afterReview, staleWrite})}`);
+        if(afterReview.total !== restored.total + 10 || afterReview.testCount !== 10) throw new Error(`ten-review increment failed: ${JSON.stringify({restored, filterCaseResults, afterReview})}`);
+        if(filterCaseResults.some(result => result.after !== result.before + 1 || result.currentEntryCount !== result.before || result.newEntryCount !== result.after || result.removedUuidCount !== 0 || result.action === 'BLOCK_WRITE_REBASED' || (result.ledgerCommitted && !result.cacheOk) || result.modelRevisionChanged || !result.dayKeysPreserved)) throw new Error(`filter-independent delta regression failed: ${JSON.stringify(filterCaseResults)}`);
+        if(!cacheFailureDurability.ledgerCommitted || cacheFailureDurability.cacheOk || !cacheFailureDurability.durable || cacheFailureDurability.cacheCountWhileFailed !== cacheFailureDurability.before || !cacheFailureDurability.healed || cacheFailureDurability.after !== cacheFailureDurability.before + 1) throw new Error(`cache failure durability failed: ${JSON.stringify(cacheFailureDurability)}`);
+        if(!staleWrite.blockedRawWrite || staleWrite.total !== afterFailureRecovery.total) throw new Error(`stale overwrite protection failed: ${JSON.stringify({afterFailureRecovery, staleWrite})}`);
         if(withPeer.peerCount < 1) throw new Error(`second instance was not detected: ${JSON.stringify(withPeer)}`);
-        if(afterReload.total !== afterReview.total || afterReload.testCount !== 10) throw new Error(`reload persistence failed: ${JSON.stringify({afterReview, afterReload})}`);
-        if(afterSync.total !== afterReload.total || afterSync.testCount !== 10) throw new Error(`sync persistence failed: ${JSON.stringify({afterReload, afterSync, syncInputs, manualSync})}`);
-        console.log(JSON.stringify({restored, filterCaseResults, afterReview, staleWrite, withPeer, afterReload, afterSync, syncInputs, manualSync, blockedFirebaseWrites}, null, 2));
+        if(afterReload.total !== afterFailureRecovery.total || afterReload.testCount !== 11) throw new Error(`reload persistence failed: ${JSON.stringify({afterFailureRecovery, afterReload})}`);
+        if(afterSync.total !== afterReload.total || afterSync.testCount !== 11) throw new Error(`sync persistence failed: ${JSON.stringify({afterReload, afterSync, syncInputs, manualSync})}`);
+        console.log(JSON.stringify({restored, filterCaseResults, afterReview, cacheFailureDurability, afterFailureRecovery, staleWrite, withPeer, afterReload, afterSync, syncInputs, manualSync, blockedFirebaseWrites}, null, 2));
     } finally {
         edge.kill();
         if(server.listening) server.close();
