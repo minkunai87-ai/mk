@@ -8534,7 +8534,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             const statsKey = found && found.key ? String(found.key) : id;
             cardMeta.set(id, {
                 stat: found && found.stat ? found.stat : {},
-                history: Array.isArray(reviewHistorySnapshot[statsKey]) ? reviewHistorySnapshot[statsKey] : []
+                history: getMergedReviewHistoryForCardFromSnapshot(card, statsKey, reviewHistorySnapshot).items
             });
         });
         const candidates = existingOrder.filter(card => {
@@ -8760,7 +8760,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             const statsKey = found && found.key ? String(found.key) : id;
             metaById.set(id, {
                 stat: found && found.stat ? found.stat : {},
-                history: Array.isArray(reviewHistorySnapshot[statsKey]) ? reviewHistorySnapshot[statsKey] : []
+                history: getMergedReviewHistoryForCardFromSnapshot(card, statsKey, reviewHistorySnapshot).items
             });
         });
         const groupAccuracy = new Map();
@@ -10044,8 +10044,8 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         return keys;
     }
 
-    function getMergedReviewHistoryForCard(card, fallbackId = '') {
-        const history = getReviewHistory();
+    function getMergedReviewHistoryForCardFromSnapshot(card, fallbackId = '', historySnapshot = null) {
+        const history = historySnapshot && typeof historySnapshot === 'object' ? historySnapshot : getReviewHistory();
         const keys = getReviewHistoryKeysForCard(card, fallbackId);
         const merged = [];
         const seen = new Set();
@@ -10063,6 +10063,10 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         });
         merged.sort((a, b) => (Number(b && b.time) || 0) - (Number(a && a.time) || 0));
         return { keys, items: merged };
+    }
+
+    function getMergedReviewHistoryForCard(card, fallbackId = '') {
+        return getMergedReviewHistoryForCardFromSnapshot(card, fallbackId, getReviewHistory());
     }
 
     function recordReviewHistory(cardId, score) {
