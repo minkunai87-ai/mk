@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.166-review-history-stable-card-id -->
+<!-- deployment: v18.5.168-review-history-on-demand-recovery -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -853,7 +853,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.167 - 정답 히스토리 감소 방지';
+    const APP_VERSION = 'v18.5.168 - 카드 히스토리 자동 복구';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -10258,38 +10258,86 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         }
     }
 
-    function openCurrentCardHistory(e) {
-        if (e && e.stopPropagation) e.stopPropagation();
-        const card = activeDeck && activeDeck[currentIndex];
-        if (!card) return;
+    let reviewHistoryCardRecoveryPromise = null;
+    const reviewHistoryRecoveredCardIds = new Set();
 
+    function renderCurrentCardHistoryModal(card, canonicalId) {
         const modal = document.getElementById('history-modal');
         const list = document.getElementById('history-list');
         const title = document.getElementById('history-card-title');
-        const canonicalId = resolveCanonicalCardId(card, card.id);
+        if (!modal || !list || !title || !card) return [];
         const mergedHistory = getMergedReviewHistoryForCard(card, canonicalId);
         const items = mergedHistory.items;
-
         title.innerText = `${currentDeckName || ''} · ${items.length}개 기록`;
-
         if (!items.length) {
             list.innerHTML = `<div class="history-empty">아직 이 카드의 히스토리가 없습니다.</div>`;
         } else {
             list.innerHTML = items.map(item => {
                 const meta = getGradeMeta(Number(item.score));
                 return `
-                    <div class="history-item" data-history-id="${item.id}">
+                    <div class="history-item" data-history-id="${item.id || ''}">
                         <div class="history-main">
                             <span class="history-result ${meta.className}">${meta.label}</span>
                             <span class="history-time">${formatHistoryTime(item.time)}</span>
                         </div>
-                        <button class="history-delete-btn" onclick="deleteCurrentCardHistoryItem('${item.id}')">×</button>
+                        ${item.id ? `<button class="history-delete-btn" onclick="deleteCurrentCardHistoryItem('${item.id}')">×</button>` : ''}
                     </div>
                 `;
             }).join('');
         }
-
         modal.style.display = 'flex';
+        return items;
+    }
+
+    async function recoverCurrentCardHistoryFromCloud(card, canonicalId) {
+        const stableId = String(card && card.id || canonicalId || '');
+        if (!stableId || reviewHistoryRecoveredCardIds.has(stableId)) return false;
+        if (reviewHistoryCardRecoveryPromise) return reviewHistoryCardRecoveryPromise;
+        reviewHistoryCardRecoveryPromise = (async () => {
+            try {
+                const cloudHistory = await collectReviewHistoryFromFirebaseBackups(FIREBASE_BACKUP_KEEP_COUNT);
+                const localHistory = getReviewHistory();
+                const before = getMergedReviewHistoryForCardFromSnapshot(card, canonicalId, localHistory).items.length;
+                const merged = mergeReviewHistoryObjects(localHistory, cloudHistory);
+                const aliases = getReviewHistoryKeysForCard(card, canonicalId);
+                const recoveredItems = getMergedReviewHistoryForCardFromSnapshot(card, canonicalId, merged).items;
+                aliases.forEach(key => { merged[key] = recoveredItems.slice(); });
+                saveReviewHistory(merged);
+                const events = reviewHistoryObjectToEvents(merged, 'history-modal-cloud-recovery');
+                await appendReviewHistoryEvents(events, 'history-modal-cloud-recovery');
+                const state = await readAllReviewHistoryLedgerState();
+                reviewHistoryLedgerMemory = buildReviewHistoryFromLedger(state.events, state.tombstones);
+                reviewHistoryLedgerReady = true;
+                reviewHistoryRecoveredCardIds.add(stableId);
+                console.log('[MK_REVIEW_HISTORY_CARD_RECOVERY]', { cardId:stableId, before, after:recoveredItems.length });
+                return recoveredItems.length > before;
+            } catch(error) {
+                console.warn('[MK_REVIEW_HISTORY_CARD_RECOVERY_FAILED]', error);
+                return false;
+            } finally {
+                reviewHistoryCardRecoveryPromise = null;
+            }
+        })();
+        return reviewHistoryCardRecoveryPromise;
+    }
+
+    async function openCurrentCardHistory(e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        const card = activeDeck && activeDeck[currentIndex];
+        if (!card) return;
+        const canonicalId = resolveCanonicalCardId(card, card.id);
+        const initialItems = renderCurrentCardHistoryModal(card, canonicalId);
+        const stat = getStatsForCard(card) || {};
+        const visibleReviewCount = initialItems.filter(item => !isConfirmHistoryItem(item)).length;
+        const expectedCount = Math.max(Number(stat.total) || 0, Number(stat.fsrs && stat.fsrs.reps) || 0);
+        const stableId = String(card.id || canonicalId || '');
+        if (!reviewHistoryRecoveredCardIds.has(stableId) && (expectedCount > visibleReviewCount || visibleReviewCount <= 1)) {
+            const list = document.getElementById('history-list');
+            if (list) list.insertAdjacentHTML('afterbegin', '<div class="history-empty" id="history-recovery-status">과거 히스토리 확인 중…</div>');
+            await recoverCurrentCardHistoryFromCloud(card, canonicalId);
+            const currentCard = activeDeck && activeDeck[currentIndex];
+            if (currentCard && String(currentCard.id) === String(card.id)) renderCurrentCardHistoryModal(card, canonicalId);
+        }
     }
 
     function closeHistoryModal() {
