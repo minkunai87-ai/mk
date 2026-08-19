@@ -74,6 +74,7 @@ function cyrb53(value) { return String(value).split('').reduce((hash, char) => (
     'buildLearningStatsStoreFromEvents',
     'getLearningStatsPairSet',
     'mergeLearningStatsEventEvidence',
+    'filterLearningStatsMigrationSeedEvents',
     'addReviewHistoryRecoveryEvidence',
     'normalizeStatsObject',
     'addStatsLastDateRecoveryEvidence',
@@ -108,6 +109,10 @@ const lowerRankCloudConflict = context.createLearningStatsLedgerEvent({
 });
 const corrected = context.buildLearningStatsStoreFromEvents([...seeded, lowerRankCloudConflict]);
 assert(corrected.days['2026-08-18'].requiredDone.includes('required-card') && !corrected.days['2026-08-18'].otherDone.includes('required-card'), 'higher-rank current snapshot correction wins without deleting the cloud event');
+const sameRankDifferentTimestamp = context.createLearningStatsLedgerEvent({ ...lowerRankCloudConflict, eventId:'stats_same_pair_new_timestamp', source:'legacy-migration', evidenceSource:'stats-last-date-confirmed', evidenceRank:60, timestamp:lowerRankCloudConflict.timestamp + 1234 });
+const existingStatsEvidence = context.createLearningStatsLedgerEvent({ ...sameRankDifferentTimestamp, eventId:'stats_existing_timestamp', timestamp:lowerRankCloudConflict.timestamp });
+assert.strictEqual(context.filterLearningStatsMigrationSeedEvents([existingStatsEvidence], [sameRankDifferentTimestamp]).length, 0, 'same-rank Stats evidence for an existing date/UUID is idempotently skipped');
+assert.strictEqual(context.filterLearningStatsMigrationSeedEvents([lowerRankCloudConflict], [seeded[0]]).length, 1, 'higher-rank current snapshot is appended as a correction');
 
 const eventMap = new Map(seeded.map(event => [context.getLearningStatsEventPairKey(event), event]));
 const historyTime = new Date('2026-08-17T12:00:00').getTime();
