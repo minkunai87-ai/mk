@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.154-learning-stats-explicit-recovery -->
+<!-- deployment: v18.5.155-learning-stats-filter-independent-delta -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.154 - 학습통계 안전 복구)</title>
+<title>MK (v18.5.155 - 필터 독립 학습통계)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -853,7 +853,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.154 - 학습통계 안전 복구';
+    const APP_VERSION = 'v18.5.155 - 필터 독립 학습통계';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -5524,7 +5524,7 @@
     }
 
     async function commitLearningStatsWriteAtomically(store, updatedAt, context = {}) {
-        const incoming = normalizeLearningStatsPersistentStore(store);
+        const requestedIncoming = normalizeLearningStatsPersistentStore(store);
         const db = await openStatsDatabase();
         let result;
         try {
@@ -5542,10 +5542,12 @@
                     const currentRevision = Number(revisionRequest.result) || 0;
                     const expectedRevision = Number(context.expectedRevision);
                     const staleRevision = Number.isFinite(expectedRevision) && expectedRevision !== currentRevision;
+                    const reviewDelta = context.reviewDelta && typeof context.reviewDelta === 'object' ? context.reviewDelta : null;
+                    const incoming = reviewDelta ? applyLearningStatsReviewDeltas(current, [reviewDelta]) : requestedIncoming;
                     const comparison = getLearningStatsWriteComparison(current, incoming);
                     const explicitRecovery = context.allowDecrease === true && String(context.source || '').startsWith('explicit-recovery:');
-                    const blockedRawWrite = staleRevision || (comparison.decreases && !explicitRecovery);
-                    const committed = blockedRawWrite ? mergeLearningStatsStoresWithoutLoss(current, incoming) : incoming;
+                    const blockedRawWrite = reviewDelta ? false : (staleRevision || (comparison.decreases && !explicitRecovery));
+                    const committed = reviewDelta ? incoming : (blockedRawWrite ? mergeLearningStatsStoresWithoutLoss(current, incoming) : incoming);
                     const committedUpdatedAt = Math.max(Number(updatedAtRequest.result) || 0, Number(updatedAt) || 0);
                     const nextRevision = currentRevision + 1;
                     const telemetry = {
@@ -5562,11 +5564,15 @@
                         newRevision:nextRevision,
                         staleRevision,
                         explicitRecovery,
+                        writeMode:reviewDelta ? 'review-delta' : 'full-snapshot',
+                        reviewedUuid:reviewDelta ? String(reviewDelta.cardId || '') : null,
                         removedDates:comparison.removedDates,
                         removedUuidCount:comparison.removedUuids.length,
                         removedUuids:comparison.removedUuids.slice(0, 50),
                         addedUuidCount:comparison.addedUuids.length,
-                        action:blockedRawWrite ? 'BLOCK_WRITE_REBASED' : (explicitRecovery && comparison.decreases ? 'EXPLICIT_RECOVERY_COMMITTED' : 'WRITE_COMMITTED'),
+                        action:reviewDelta
+                            ? (staleRevision ? 'REVIEW_DELTA_REBASED' : 'REVIEW_DELTA_COMMITTED')
+                            : (blockedRawWrite ? 'BLOCK_WRITE_REBASED' : (explicitRecovery && comparison.decreases ? 'EXPLICIT_RECOVERY_COMMITTED' : 'WRITE_COMMITTED')),
                         callStack:context.callStack || new Error('learning-stats-write').stack || ''
                     };
                     const journal = parseJSONSafe(journalRequest.result, []);
@@ -5605,6 +5611,7 @@
                 source,
                 expectedRevision:options.expectedRevision === undefined ? learningStatsMemoryRevision : options.expectedRevision,
                 allowDecrease:options.allowDecrease === true,
+                reviewDelta:options.reviewDelta || null,
                 callStack:options.callStack || new Error(source).stack || ''
             });
         } catch(error) {
@@ -5613,9 +5620,9 @@
                 timestamp:new Date().toISOString(),
                 sessionId:learningStatsSessionId,
                 currentEntryCount:getLearningStatsEntryCount(learningStatsMemoryStore),
-                newEntryCount:getLearningStatsEntryCount(store),
+                newEntryCount:getLearningStatsEntryCount(options.reviewDelta ? applyLearningStatsReviewDeltas(learningStatsMemoryStore, [options.reviewDelta]) : store),
                 currentTodayCount:normalizeLearningStatsDay(learningStatsMemoryStore.days[getLearningStatsDateKey()]).allDone.length,
-                newTodayCount:normalizeLearningStatsDay(normalizeLearningStatsPersistentStore(store).days[getLearningStatsDateKey()]).allDone.length,
+                newTodayCount:normalizeLearningStatsDay(normalizeLearningStatsPersistentStore(options.reviewDelta ? applyLearningStatsReviewDeltas(learningStatsMemoryStore, [options.reviewDelta]) : store).days[getLearningStatsDateKey()]).allDone.length,
                 updatedAt:Number(updatedAt) || 0,
                 callStack:options.callStack || new Error(source).stack || '',
                 name:error && error.name,
@@ -5651,6 +5658,55 @@
         queueLearningStatsPersistence(normalized, updatedAt, options.source || 'learning-stats-save');
         try { localStorage.setItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, String(updatedAt)); } catch(e) {}
         return true;
+    }
+
+    function queueLearningStatsReviewPersistence(card, source) {
+        const delta = createLearningStatsReviewDelta(card, source);
+        if(!delta) return null;
+        const writeSource = `review-delta-${delta.source}`;
+        const expectedRevision = learningStatsMemoryRevision;
+        const callStack = new Error(writeSource).stack || '';
+        const optimistic = applyLearningStatsReviewDeltas(learningStatsMemoryStore, [delta]);
+        setLearningStatsMemoryStore(optimistic, {
+            source:`${writeSource}-optimistic-memory`,
+            updatedAt:delta.updatedAt
+        });
+        learningStatsModelCache = null;
+        console.log('[MK_LEARNING_STATS_REVIEW_FLOW]', {
+            stage:'review-delta-queued',
+            WRITE_SOURCE:writeSource,
+            sessionId:learningStatsSessionId,
+            reviewedUuid:delta.cardId,
+            source:delta.source,
+            activeDeckCount:Array.isArray(activeDeck) ? activeDeck.length : 0,
+            originalDeckCount:Array.isArray(originalDeck) ? originalDeck.length : 0,
+            todayRequiredActive:!!todayEssentialState.active,
+            todayNewActive:!!todayNewState.active,
+            searchQuery:String((document.getElementById('search-input') || {}).value || ''),
+            expectedRevision,
+            callStack
+        });
+        learningStatsPersistenceQueue = learningStatsPersistenceQueue
+            .catch(() => null)
+            .then(() => persistLearningStatsToIndexedDBVerified(null, delta.updatedAt, writeSource, {
+                expectedRevision,
+                reviewDelta:delta,
+                callStack
+            }))
+            .then(result => {
+                if(!result.ok) setLearningStatsRestoreState('failed', { reason:result.reason, source:writeSource });
+                else {
+                    setLearningStatsMemoryStore(mergeLearningStatsStoresWithoutLoss(learningStatsMemoryStore, result.store), {
+                        source:`${writeSource}-committed-memory`,
+                        updatedAt:result.updatedAt,
+                        revision:result.revision
+                    });
+                    learningStatsModelCache = null;
+                }
+                return result;
+            });
+        try { localStorage.setItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, String(delta.updatedAt)); } catch(e) {}
+        return delta;
     }
 
     async function refreshLearningStatsMemoryFromIndexedDB(source = 'instance-refresh') {
@@ -6057,22 +6113,11 @@
     function recordLearningStatsReview(card, source) {
         const id = getTodayEssentialCardId(card);
         if(!id) return;
-        if(learningStatsRestoreState !== 'success' || learningStatsStartupSyncInProgress) {
+        if(!learningStatsReady || learningStatsRestoreState !== 'success' || learningStatsStartupSyncInProgress) {
             queueLearningStatsReviewDelta(card, source);
             return;
         }
-        updateLearningStatsDay(day => {
-            const allDone = new Set(day.allDone);
-            const trackedDone = new Set(day.trackedDone);
-            allDone.add(id);
-            trackedDone.add(id);
-            day.allDone = [...allDone];
-            day.trackedDone = [...trackedDone];
-            if(source === 'required') day.requiredDone = [...new Set([...day.requiredDone, id])];
-            else if(source === 'new') day.newDone = [...new Set([...day.newDone, id])];
-            else day.otherDone = [...new Set([...day.otherDone, id])];
-            rememberLearningStatsDeck(day, card);
-        }, `review-handler-${source === 'required' || source === 'new' ? source : 'other'}`);
+        return queueLearningStatsReviewPersistence(card, source);
     }
 
     function getLearningStatsCardLookup() {
@@ -6212,8 +6257,19 @@
         startedAt = performance.now();
         restoreTodayLearningStatsTotal(day, lookup);
         lookup.deckByCard.forEach((deck, id) => { if(!day.deckByCard[id]) day.deckByCard[id] = deck; });
-        store.days[dateKey] = day;
-        saveLearningStatsStore(store, { source:'learning-stats-model-history-merge' });
+        console.log('[MK_LEARNING_STATS_MODEL_READ_ONLY]', {
+            sessionId:learningStatsSessionId,
+            dateKey,
+            persistedEntryCount:getLearningStatsEntryCount(store),
+            displayTodayCount:day.allDone.length,
+            requiredTargetCount:(filterTargets.requiredCards || []).length,
+            newTargetCount:(filterTargets.newCards || []).length,
+            activeDeckCount:Array.isArray(activeDeck) ? activeDeck.length : 0,
+            originalDeckCount:Array.isArray(originalDeck) ? originalDeck.length : 0,
+            todayRequiredActive:!!todayEssentialState.active,
+            todayNewActive:!!todayNewState.active,
+            persistence:'none'
+        });
         profile.historyRestoreAndPersistenceMs = performance.now() - startedAt;
 
         const sets = {
@@ -9324,8 +9380,24 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             setCanonicalStatsStore(data, 'grade:fallback-local-review');
             console.warn('[MK_REVIEW_STATS_WRITE_FALLBACK]', { cardId: id, reason: writeResult && writeResult.reason || 'unknown' });
         }
+        console.log('[MK_LEARNING_STATS_REVIEW_FLOW]', {
+            stage:'stats-updated',
+            reviewedUuid:String(id),
+            statsWriteOk:!!(writeResult && writeResult.ok),
+            todayRequiredActive:!!todayEssentialState.active,
+            todayNewActive:!!todayNewState.active,
+            activeDeckCount:Array.isArray(activeDeck) ? activeDeck.length : 0,
+            originalDeckCount:Array.isArray(originalDeck) ? originalDeck.length : 0
+        });
         markLocalDataUpdated(data[id].updatedAt); saveStudyState('review', { backup: true });
-        recordLearningStatsReview(card, learningStatsSource);
+        const learningStatsDelta = recordLearningStatsReview(card, learningStatsSource);
+        console.log('[MK_LEARNING_STATS_REVIEW_FLOW]', {
+            stage:'learning-stats-delta-recorded',
+            reviewedUuid:String(id),
+            learningStatsSource,
+            deltaId:learningStatsDelta && learningStatsDelta.id || null,
+            nextUiAction:todayEssentialState.active || todayNewState.active ? 'recommended-filter-next-card' : 'ordinary-next-card'
+        });
         updateStatsUI(getStatsForCard(card));
         console.log('REVIEW_SAVED', { score, currentCardUuid: String(id), nextReviewDate: data[id].dueDate || null });
         const activeRecommendedMode = todayNewState.active ? 'new' : (todayEssentialState.active ? 'required' : '');

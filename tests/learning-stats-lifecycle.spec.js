@@ -128,17 +128,44 @@ async function main() {
         }
         const restored = await waitForSnapshot(7);
         const staleState = await evaluate(`({store:getLearningStatsStore(), revision:learningStatsMemoryRevision})`);
-        await evaluate(`(async () => {
+        const filterCaseResults = await evaluate(`(async () => {
+            const filterCases = [
+                {name:'no-filter', source:'other', required:false, fresh:false, search:'', visible:20},
+                {name:'today-required', source:'required', required:true, fresh:false, search:'', visible:2},
+                {name:'today-new', source:'new', required:false, fresh:true, search:'', visible:2},
+                {name:'deck-filter', source:'other', required:false, fresh:false, search:'', visible:3},
+                {name:'search-filter', source:'other', required:false, fresh:false, search:'codex-filter', visible:1},
+                {name:'ordinary-5', source:'other', required:false, fresh:false, search:'', visible:20},
+                {name:'ordinary-6', source:'other', required:false, fresh:false, search:'', visible:20},
+                {name:'ordinary-7', source:'other', required:false, fresh:false, search:'', visible:20},
+                {name:'ordinary-8', source:'other', required:false, fresh:false, search:'', visible:20},
+                {name:'ordinary-9', source:'other', required:false, fresh:false, search:'', visible:20}
+            ];
+            const results = [];
+            const savedActiveDeck = activeDeck.slice();
+            const searchInput = document.getElementById('search-input');
+            const savedSearch = searchInput ? searchInput.value : '';
             for(let index = 0; index < 10; index++) {
-                recordLearningStatsReview({id:${JSON.stringify(reviewPrefix)} + '-' + index, deck:'검증__격리'}, index < 4 ? 'required' : (index < 7 ? 'new' : 'other'));
+                const testCase = filterCases[index];
+                todayEssentialState.active = testCase.required;
+                todayNewState.active = testCase.fresh;
+                if(searchInput) searchInput.value = testCase.search;
+                const reviewedCard = {id:${JSON.stringify(reviewPrefix)} + '-' + index, deck:'filter-regression__deck'};
+                activeDeck = Array.from({length:testCase.visible}, (_, visibleIndex) => visibleIndex === 0 ? reviewedCard : ({id:'visible-' + testCase.name + '-' + visibleIndex, deck:'filter-regression__deck'}));
+                const before = getLearningStatsEntryCount(getLearningStatsStore());
+                const dayKeysBefore = Object.keys(getLearningStatsStore().days).sort().join('|');
+                recordLearningStatsReview(reviewedCard, testCase.source);
+                const writeResult = await learningStatsPersistenceQueue;
+                const revisionBeforeModel = learningStatsMemoryRevision;
+                buildLearningStatsModel({requiredCards:testCase.required ? activeDeck : [], newCards:testCase.fresh ? activeDeck : []});
                 await learningStatsPersistenceQueue;
-                if(index === 4) {
-                    const previousFilter = currentFilterMode;
-                    currentFilterMode = 'mem';
-                    buildLearningStatsModel({requiredCards:[], newCards:[]});
-                    currentFilterMode = previousFilter;
-                }
+                const after = getLearningStatsEntryCount(getLearningStatsStore());
+                results.push({name:testCase.name, before, after, source:writeResult.telemetry.WRITE_SOURCE, action:writeResult.telemetry.action, currentEntryCount:writeResult.telemetry.currentEntryCount, newEntryCount:writeResult.telemetry.newEntryCount, removedUuidCount:writeResult.telemetry.removedUuidCount, revision:writeResult.revision, modelRevisionChanged:learningStatsMemoryRevision !== revisionBeforeModel, dayKeysPreserved:Object.keys(getLearningStatsStore().days).sort().join('|') === dayKeysBefore});
             }
+            todayEssentialState.active = false;
+            todayNewState.active = false;
+            activeDeck = savedActiveDeck;
+            if(searchInput) searchInput.value = savedSearch;
             const deckNames = Object.keys(library || {});
             if(deckNames.length > 1) {
                 const originalName = currentDeckName;
@@ -147,6 +174,7 @@ async function main() {
             }
             document.dispatchEvent(new Event('visibilitychange'));
             await learningStatsPersistenceQueue;
+            return results;
         })()`);
         const afterReview = await snapshot();
         const staleWrite = await evaluate(`(async () => {
@@ -186,11 +214,12 @@ async function main() {
         socket.close();
 
         if(afterReview.total !== restored.total + 10 || afterReview.testCount !== 10) throw new Error(`ten-review increment failed: ${JSON.stringify({restored, afterReview})}`);
+        if(filterCaseResults.some(result => result.after !== result.before + 1 || result.currentEntryCount !== result.before || result.newEntryCount !== result.after || result.removedUuidCount !== 0 || result.action === 'BLOCK_WRITE_REBASED' || result.modelRevisionChanged || !result.dayKeysPreserved)) throw new Error(`filter-independent delta regression failed: ${JSON.stringify(filterCaseResults)}`);
         if(!staleWrite.blockedRawWrite || staleWrite.total !== afterReview.total) throw new Error(`stale overwrite protection failed: ${JSON.stringify({afterReview, staleWrite})}`);
         if(withPeer.peerCount < 1) throw new Error(`second instance was not detected: ${JSON.stringify(withPeer)}`);
         if(afterReload.total !== afterReview.total || afterReload.testCount !== 10) throw new Error(`reload persistence failed: ${JSON.stringify({afterReview, afterReload})}`);
         if(afterSync.total !== afterReload.total || afterSync.testCount !== 10) throw new Error(`sync persistence failed: ${JSON.stringify({afterReload, afterSync, syncInputs, manualSync})}`);
-        console.log(JSON.stringify({restored, afterReview, staleWrite, withPeer, afterReload, afterSync, syncInputs, manualSync, blockedFirebaseWrites}, null, 2));
+        console.log(JSON.stringify({restored, filterCaseResults, afterReview, staleWrite, withPeer, afterReload, afterSync, syncInputs, manualSync, blockedFirebaseWrites}, null, 2));
     } finally {
         edge.kill();
         if(server.listening) server.close();

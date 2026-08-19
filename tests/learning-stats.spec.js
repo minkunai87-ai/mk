@@ -69,6 +69,11 @@ const context = {
     learningStatsReviewDeltaQueue: [],
     learningStatsPersistenceQueue: Promise.resolve({ok:true, skipped:true}),
     learningStatsStartupSyncInProgress: false,
+    activeDeck: [],
+    originalDeck: [],
+    todayEssentialState: { active:false },
+    todayNewState: { active:false },
+    document: { getElementById: () => null },
     learningStatsFavoriteDecksMemory: [],
     learningStatsFavoritesUpdatedAt: 0,
     LEARNING_STATS_DB_PRIMARY_KEY: 'mk_learning_stats_v1',
@@ -116,19 +121,20 @@ async function readStatsDatabaseValue(key) { return idbStorage.has(key) ? idbSto
 async function writeStatsDatabaseValue(key, value) { idbStorage.set(key, String(value)); }
 async function removeStatsDatabaseValue(key) { idbStorage.delete(key); }
 async function commitLearningStatsWriteAtomically(store, updatedAt, writeContext = {}) {
-    const incoming = normalizeLearningStatsPersistentStore(store);
     const current = normalizeLearningStatsPersistentStore(idbStorage.get(LEARNING_STATS_DB_PRIMARY_KEY));
+    const reviewDelta = writeContext.reviewDelta && typeof writeContext.reviewDelta === 'object' ? writeContext.reviewDelta : null;
+    const incoming = reviewDelta ? applyLearningStatsReviewDeltas(current, [reviewDelta]) : normalizeLearningStatsPersistentStore(store);
     const currentRevision = Number(idbStorage.get(LEARNING_STATS_DB_REVISION_KEY)) || 0;
     const comparison = getLearningStatsWriteComparison(current, incoming);
     const staleRevision = Number.isFinite(Number(writeContext.expectedRevision)) && Number(writeContext.expectedRevision) !== currentRevision;
     const explicitRecovery = writeContext.allowDecrease === true && String(writeContext.source || '').startsWith('explicit-recovery:');
-    const blockedRawWrite = staleRevision || (comparison.decreases && !explicitRecovery);
-    const committed = blockedRawWrite ? mergeLearningStatsStoresWithoutLoss(current, incoming) : incoming;
+    const blockedRawWrite = reviewDelta ? false : (staleRevision || (comparison.decreases && !explicitRecovery));
+    const committed = reviewDelta ? incoming : (blockedRawWrite ? mergeLearningStatsStoresWithoutLoss(current, incoming) : incoming);
     const revision = currentRevision + 1;
     idbStorage.set(LEARNING_STATS_DB_PRIMARY_KEY, JSON.stringify(committed));
     idbStorage.set(LEARNING_STATS_DB_UPDATED_AT_KEY, String(Math.max(Number(idbStorage.get(LEARNING_STATS_DB_UPDATED_AT_KEY)) || 0, Number(updatedAt) || 0)));
     idbStorage.set(LEARNING_STATS_DB_REVISION_KEY, String(revision));
-    return { ok:true, store:committed, updatedAt:Number(idbStorage.get(LEARNING_STATS_DB_UPDATED_AT_KEY)) || 0, revision, blockedRawWrite, telemetry:{ action:blockedRawWrite ? 'BLOCK_WRITE_REBASED' : (explicitRecovery && comparison.decreases ? 'EXPLICIT_RECOVERY_COMMITTED' : 'WRITE_COMMITTED') } };
+    return { ok:true, store:committed, updatedAt:Number(idbStorage.get(LEARNING_STATS_DB_UPDATED_AT_KEY)) || 0, revision, blockedRawWrite, telemetry:{ WRITE_SOURCE:writeContext.source, currentEntryCount:comparison.currentEntryCount, newEntryCount:comparison.newEntryCount, removedUuidCount:comparison.removedUuids.length, action:reviewDelta ? (staleRevision ? 'REVIEW_DELTA_REBASED' : 'REVIEW_DELTA_COMMITTED') : (blockedRawWrite ? 'BLOCK_WRITE_REBASED' : (explicitRecovery && comparison.decreases ? 'EXPLICIT_RECOVERY_COMMITTED' : 'WRITE_COMMITTED')) } };
 }
 `, context);
 
@@ -136,7 +142,7 @@ async function commitLearningStatsWriteAtomically(store, updatedAt, writeContext
     'getLearningStatsDateKey', 'getEmptyLearningStatsDay', 'normalizeLearningStatsDay',
     'normalizeLearningStatsPersistentStore', 'getLearningStatsStore', 'setLearningStatsMemoryStore', 'setLearningStatsRestoreState',
     'mergeLearningStatsStoresWithoutLoss', 'getLearningStatsWriteComparison',
-    'persistLearningStatsToIndexedDBVerified', 'queueLearningStatsPersistence', 'saveLearningStatsStore',
+    'persistLearningStatsToIndexedDBVerified', 'queueLearningStatsPersistence', 'saveLearningStatsStore', 'queueLearningStatsReviewPersistence',
     'persistLearningStatsFavoritesToIndexedDBVerified', 'updateLearningStatsDay',
     'rememberLearningStatsDeck', 'recordLearningStatsReview',
     'normalizeFirebaseArray', 'normalizeLearningStatsBackupPayload', 'getLearningStatsEntryCount', 'getLearningStatsBackupPayload',
@@ -350,6 +356,10 @@ const statsTargetFunction = readFunction('getCurrentLearningStatsFilterTargets')
     assert(!statsTargetFunction.includes(code), `statistics target calculation must not mutate ${code}`);
 });
 assert(!readFunction('buildLearningStatsModel').includes('guardedStatsWrite'), 'opening stats never writes Stats');
+assert(!readFunction('buildLearningStatsModel').includes('saveLearningStatsStore'), 'statistics model rendering is read-only and cannot persist a UI-filtered snapshot');
+assert(readFunction('recordLearningStatsReview').includes('queueLearningStatsReviewPersistence'), 'reviews use the dedicated UUID delta persistence path');
+assert(readFunction('commitLearningStatsWriteAtomically').includes('applyLearningStatsReviewDeltas(current, [reviewDelta])'), 'review deltas merge into the durable transaction current value');
+assert(!readFunction('recordLearningStatsReview').includes('activeDeck'), 'review persistence never uses the visible filtered card array as its source');
 const protectedIds = Array.from({length:838}, (_, index) => `protected-${index}`);
 const protectedStore = { version:1, days:{ '2026-08-19':{ allDone:protectedIds, trackedDone:protectedIds } } };
 idbStorage.set(context.LEARNING_STATS_DB_PRIMARY_KEY, JSON.stringify(context.normalizeLearningStatsPersistentStore(protectedStore)));
@@ -368,6 +378,43 @@ const recoveryResult = await context.persistLearningStatsToIndexedDBVerified(pro
 assert.strictEqual(recoveryResult.blockedRawWrite, false, 'an integrity-verified explicit recovery may remove accidental additions');
 assert.strictEqual(recoveryResult.telemetry.action, 'EXPLICIT_RECOVERY_COMMITTED', 'explicit recovery is separately journaled');
 assert.strictEqual(context.getLearningStatsEntryCount(recoveryResult.store), 838, 'explicit recovery restores the exact verified snapshot');
+await context.learningStatsPersistenceQueue;
+idbStorage.set(context.LEARNING_STATS_DB_PRIMARY_KEY, JSON.stringify(context.normalizeLearningStatsPersistentStore(protectedStore)));
+idbStorage.set(context.LEARNING_STATS_DB_REVISION_KEY, '200');
+context.learningStatsMemoryStore = context.normalizeLearningStatsPersistentStore(protectedStore);
+context.learningStatsMemoryRevision = 200;
+context.todayEssentialState = { active:true };
+context.activeDeck = [{ id:'required-filter-new', deck:'A__one' }];
+context.originalDeck = byId ? Object.values(byId) : [];
+context.recordLearningStatsReview(context.activeDeck[0], 'required');
+const requiredFilterDeltaResult = await context.learningStatsPersistenceQueue;
+assert.strictEqual(requiredFilterDeltaResult.telemetry.action, 'REVIEW_DELTA_COMMITTED', 'today-required review commits through the delta writer');
+assert.strictEqual(requiredFilterDeltaResult.blockedRawWrite, false, 'today-required delta does not require the decrease guard');
+assert.strictEqual(context.getLearningStatsEntryCount(requiredFilterDeltaResult.store), 839, 'today-required visible subset adds one UUID to the full durable snapshot');
+const preservedDayKeys = Object.keys(requiredFilterDeltaResult.store.days).sort();
+const filterRegressionCases = [
+    { label:'no-filter', source:'other', required:false, fresh:false, search:'', visible:8 },
+    { label:'today-new', source:'new', required:false, fresh:true, search:'', visible:2 },
+    { label:'deck-filter', source:'other', required:false, fresh:false, search:'', visible:3 },
+    { label:'search-filter', source:'other', required:false, fresh:false, search:'소방', visible:1 }
+];
+let expectedFilterTotal = 839;
+for(const testCase of filterRegressionCases) {
+    const card = { id:`${testCase.label}-new`, deck:'A__one' };
+    context.todayEssentialState = { active:testCase.required };
+    context.todayNewState = { active:testCase.fresh };
+    context.activeDeck = Array.from({length:testCase.visible}, (_, index) => index === 0 ? card : ({id:`visible-${testCase.label}-${index}`, deck:'A__one'}));
+    context.document = { getElementById:id => id === 'search-input' ? { value:testCase.search } : null };
+    context.recordLearningStatsReview(card, testCase.source);
+    const result = await context.learningStatsPersistenceQueue;
+    expectedFilterTotal += 1;
+    assert.strictEqual(result.blockedRawWrite, false, `${testCase.label} delta never invokes decrease protection`);
+    assert.strictEqual(result.telemetry.removedUuidCount, 0, `${testCase.label} removes no historical UUID`);
+    assert.strictEqual(result.telemetry.currentEntryCount, expectedFilterTotal - 1, `${testCase.label} reads the full durable count`);
+    assert.strictEqual(result.telemetry.newEntryCount, expectedFilterTotal, `${testCase.label} writes N+1`);
+    assert.strictEqual(context.getLearningStatsEntryCount(result.store), expectedFilterTotal, `${testCase.label} preserves the full snapshot`);
+    assert.deepStrictEqual(Object.keys(result.store.days).sort(), preservedDayKeys, `${testCase.label} preserves all historical dates`);
+}
 assert(!readFunction('openLearningStats').includes('learningStatsModelCache = null'), 'opening statistics preserves the warm model cache');
 assert(!readFunction('closeLearningStats').includes('learningStatsModelCache = null'), 'closing statistics preserves the warm model cache');
 assert(readFunction('getLearningStatsCardLookup').includes('learningStatsCardIndexCache'), 'UUID to deck and ancestor index is cached by library revision');
