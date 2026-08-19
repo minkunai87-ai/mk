@@ -9,6 +9,7 @@ const externalBaseUrl = process.env.MK_TEST_BASE_URL || '';
 const suppliedProfilePath = process.env.MK_TEST_PROFILE_PATH || '';
 const localIndexOverride = process.env.MK_TEST_INDEX_OVERRIDE || '';
 const recoveryId = process.env.MK_RECOVERY_ID;
+const reviewPrefix = process.env.MK_TEST_REVIEW_PREFIX || 'codex-isolated-lifecycle-review';
 if(!recoveryId) throw new Error('MK_RECOVERY_ID is required for the isolated live lifecycle test');
 const profilePath = suppliedProfilePath || fs.mkdtempSync(path.join(os.tmpdir(), 'mk-learning-stats-lifecycle-'));
 const edgePath = process.env.MK_TEST_BROWSER_PATH || (process.platform === 'darwin'
@@ -27,7 +28,8 @@ const server = http.createServer((request, response) => {
 async function main() {
     if(!edgePath || !fs.existsSync(edgePath)) throw new Error('Chromium browser unavailable');
     if(!externalBaseUrl) await new Promise(resolve => server.listen(8879, '127.0.0.1', resolve));
-    const startTarget = process.env.MK_TEST_STANDALONE === '1' ? '--app=about:blank' : 'about:blank';
+    const appUrl = externalBaseUrl || 'http://127.0.0.1:8879/index.html';
+    const startTarget = process.env.MK_TEST_STANDALONE === '1' ? `--app=${appUrl}` : 'about:blank';
     const browserArgs = ['--disable-gpu', '--no-first-run', `--user-data-dir=${profilePath}`, '--remote-debugging-port=9336', startTarget];
     if(process.env.MK_TEST_HEADFUL !== '1') browserArgs.unshift('--headless');
     else browserArgs.unshift('--window-position=-32000,-32000');
@@ -79,7 +81,7 @@ async function main() {
         const fetchPatterns = [{urlPattern:'*firebaseio.com/*', requestStage:'Request'}];
         if(localIndexOverride) fetchPatterns.push({urlPattern:'*minkunai87-ai.github.io/mk*', requestStage:'Request'});
         await send('Fetch.enable', {patterns:fetchPatterns});
-        await send('Page.navigate', {url:externalBaseUrl || 'http://127.0.0.1:8879/index.html'});
+        await send('Page.navigate', {url:appUrl});
 
         const evaluate = async expression => {
             const response = await send('Runtime.evaluate', {expression, awaitPromise:true, returnByValue:true});
@@ -98,7 +100,9 @@ async function main() {
                 favoriteCount:typeof getLearningStatsFavoriteDecks === 'function' ? getLearningStatsFavoriteDecks().length : null,
                 total:Object.values(days).reduce((sum, day) => sum + normalizeLearningStatsDay(day).allDone.length, 0),
                 dayKeys:Object.keys(days).sort(),
-                testPresent:Object.values(days).some(day => normalizeLearningStatsDay(day).allDone.includes('codex-isolated-lifecycle-review'))
+                testCount:Object.values(days).reduce((sum, day) => sum + normalizeLearningStatsDay(day).allDone.filter(id => String(id).startsWith(${JSON.stringify(reviewPrefix)} + '-')).length, 0),
+                revision:typeof learningStatsMemoryRevision === 'undefined' ? null : learningStatsMemoryRevision,
+                peerCount:typeof learningStatsPeerSessions === 'undefined' ? null : learningStatsPeerSessions.size
             };
         })()`);
         const waitForSnapshot = async (minimumDayKeys = 0) => {
@@ -123,11 +127,38 @@ async function main() {
             if(!restoreResult?.ok) throw new Error(`live Firebase restore failed: ${JSON.stringify(restoreResult)}`);
         }
         const restored = await waitForSnapshot(7);
+        const staleState = await evaluate(`({store:getLearningStatsStore(), revision:learningStatsMemoryRevision})`);
         await evaluate(`(async () => {
-            recordLearningStatsReview({id:'codex-isolated-lifecycle-review', deck:'검증__격리'}, 'required');
+            for(let index = 0; index < 10; index++) {
+                recordLearningStatsReview({id:${JSON.stringify(reviewPrefix)} + '-' + index, deck:'검증__격리'}, index < 4 ? 'required' : (index < 7 ? 'new' : 'other'));
+                await learningStatsPersistenceQueue;
+                if(index === 4) {
+                    const previousFilter = currentFilterMode;
+                    currentFilterMode = 'mem';
+                    buildLearningStatsModel({requiredCards:[], newCards:[]});
+                    currentFilterMode = previousFilter;
+                }
+            }
+            const deckNames = Object.keys(library || {});
+            if(deckNames.length > 1) {
+                const originalName = currentDeckName;
+                selectDeck(deckNames[1], true);
+                if(originalName && library[originalName]) selectDeck(originalName, true);
+            }
+            document.dispatchEvent(new Event('visibilitychange'));
             await learningStatsPersistenceQueue;
         })()`);
         const afterReview = await snapshot();
+        const staleWrite = await evaluate(`(async () => {
+            const result = await persistLearningStatsToIndexedDBVerified(${JSON.stringify(staleState.store)}, Date.now(), 'lifecycle-stale-instance-write', {expectedRevision:${Number(staleState.revision)}});
+            learningStatsMemoryStore = result.store;
+            learningStatsMemoryRevision = result.revision;
+            return {blockedRawWrite:result.blockedRawWrite, action:result.telemetry.action, total:getLearningStatsEntryCount(result.store), revision:result.revision};
+        })()`);
+        const peerTarget = await send('Target.createTarget', {url:appUrl});
+        await delay(2500);
+        const withPeer = await snapshot();
+        if(peerTarget.result?.targetId) await send('Target.closeTarget', {targetId:peerTarget.result.targetId});
         await send('Page.reload', {ignoreCache:true});
         const afterReload = await waitForSnapshot(7);
         if(process.env.MK_FORCE_STUDY_CLOUD === '1') {
@@ -154,10 +185,12 @@ async function main() {
         const afterSync = await waitForSnapshot(7);
         socket.close();
 
-        if(afterReview.total !== restored.total + 1 || !afterReview.testPresent) throw new Error(`review increment failed: ${JSON.stringify({restored, afterReview})}`);
-        if(afterReload.total !== afterReview.total || !afterReload.testPresent) throw new Error(`reload persistence failed: ${JSON.stringify({afterReview, afterReload})}`);
-        if(afterSync.total !== afterReload.total || !afterSync.testPresent) throw new Error(`sync persistence failed: ${JSON.stringify({afterReload, afterSync, syncInputs, manualSync})}`);
-        console.log(JSON.stringify({restored, afterReview, afterReload, afterSync, syncInputs, manualSync, blockedFirebaseWrites}, null, 2));
+        if(afterReview.total !== restored.total + 10 || afterReview.testCount !== 10) throw new Error(`ten-review increment failed: ${JSON.stringify({restored, afterReview})}`);
+        if(!staleWrite.blockedRawWrite || staleWrite.total !== afterReview.total) throw new Error(`stale overwrite protection failed: ${JSON.stringify({afterReview, staleWrite})}`);
+        if(withPeer.peerCount < 1) throw new Error(`second instance was not detected: ${JSON.stringify(withPeer)}`);
+        if(afterReload.total !== afterReview.total || afterReload.testCount !== 10) throw new Error(`reload persistence failed: ${JSON.stringify({afterReview, afterReload})}`);
+        if(afterSync.total !== afterReload.total || afterSync.testCount !== 10) throw new Error(`sync persistence failed: ${JSON.stringify({afterReload, afterSync, syncInputs, manualSync})}`);
+        console.log(JSON.stringify({restored, afterReview, staleWrite, withPeer, afterReload, afterSync, syncInputs, manualSync, blockedFirebaseWrites}, null, 2));
     } finally {
         edge.kill();
         if(server.listening) server.close();

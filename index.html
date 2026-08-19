@@ -853,7 +853,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.152 - 학습통계 IndexedDB 보호';
+    const APP_VERSION = 'v18.5.153 - 학습통계 멀티 인스턴스 잠금';
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
@@ -934,6 +934,10 @@
     let learningStatsRestoreFailure = null;
     let learningStatsMemoryStore = { version: 1, days: {} };
     let learningStatsMemoryUpdatedAt = 0;
+    let learningStatsMemoryRevision = 0;
+    const learningStatsSessionId = `mkls_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    let learningStatsInstanceChannel = null;
+    const learningStatsPeerSessions = new Map();
     let learningStatsReviewDeltaQueue = [];
     let learningStatsPersistenceQueue = Promise.resolve({ ok:true, skipped:true });
     let learningStatsStartupSyncInProgress = false;
@@ -1015,6 +1019,8 @@
     const LEARNING_STATS_DB_PRIMARY_KEY = 'mk_learning_stats_v1';
     const LEARNING_STATS_DB_STAGING_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__staging`;
     const LEARNING_STATS_DB_UPDATED_AT_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__updated_at`;
+    const LEARNING_STATS_DB_REVISION_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__revision`;
+    const LEARNING_STATS_DB_WRITE_JOURNAL_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__write_journal`;
     const LEARNING_STATS_DB_DELTA_QUEUE_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__review_delta_queue`;
     const LEARNING_STATS_DB_FAVORITES_KEY = `${LEARNING_STATS_DB_PRIMARY_KEY}__favorite_decks`;
     const LEARNING_STATS_DB_FAVORITES_STAGING_KEY = `${LEARNING_STATS_DB_FAVORITES_KEY}__staging`;
@@ -2202,6 +2208,7 @@
             updateCloudIcon('error');
             return false;
         }
+        await refreshLearningStatsMemoryFromIndexedDB('firebase-backup-read');
         const statsRaw = JSON.stringify(getStatsStore());
         const statsKeyCount = getStatsKeyCount(statsRaw);
         const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
@@ -2219,6 +2226,20 @@
         const learningStatsUpdatedAt = getLearningStatsUpdatedAt();
         const favoritesUpdatedAt = getLearningStatsFavoritesUpdatedAt();
         const dataUpdatedAt = Math.max(localUpdatedAt, learningStatsUpdatedAt, favoritesUpdatedAt);
+        const learningStatsTodayCount = normalizeLearningStatsDay(learningStatsBackup.days[getLearningStatsDateKey()]).allDone.length;
+        const firebaseLearningStatsWriteTrace = {
+            WRITE_SOURCE:'firebase-backup-payload',
+            timestamp:new Date().toISOString(),
+            sessionId:learningStatsSessionId,
+            currentEntryCount:getLearningStatsEntryCount(learningStatsMemoryStore),
+            newEntryCount:getLearningStatsEntryCount(learningStatsBackup),
+            currentTodayCount:learningStatsTodayCount,
+            newTodayCount:learningStatsTodayCount,
+            updatedAt:learningStatsUpdatedAt,
+            revision:learningStatsMemoryRevision,
+            callStack:new Error('firebase-backup-payload').stack || ''
+        };
+        console.log('[MK_LEARNING_STATS_FIREBASE_WRITE]', firebaseLearningStatsWriteTrace);
         const data = {
             appId: 'mk',
             appVersion: APP_VERSION,
@@ -2252,6 +2273,7 @@
             statsUpdatedAt: localUpdatedAt,
             learningStatsUpdatedAt,
             favoritesUpdatedAt,
+            learningStatsWriteTrace:firebaseLearningStatsWriteTrace,
             learningStatsPresent: true,
             favoritesPresent: true,
             metadata: { ...metadata, localUpdatedAt, dataUpdatedAt, statsUpdatedAt:localUpdatedAt, learningStatsUpdatedAt, favoritesUpdatedAt }
@@ -2283,6 +2305,9 @@
             favoritesUpdatedAt,
             learningStatsDayCount: Object.keys(learningStatsBackup.days || {}).length,
             learningStatsEntryCount: getLearningStatsEntryCount(learningStatsBackup),
+            learningStatsTodayCount,
+            learningStatsRevision:learningStatsMemoryRevision,
+            learningStatsSessionId,
             createdAt: Date.now()
         };
         console.log('[MK Backup Payload Breakdown KB]', payloadBreakdownKB);
@@ -4730,8 +4755,7 @@
                                 'startup-keep-newer-local-learning-stats'
                             );
                             if(!localLearningResult.ok) throw new Error(`${LEARNING_STATS_STORAGE_KEY}_local_restore_failed`);
-                            learningStatsMemoryStore = localLearningResult.store;
-                            learningStatsMemoryUpdatedAt = localLearningResult.updatedAt;
+                            setLearningStatsMemoryStore(localLearningResult.store, { source:'startup-keep-newer-local-memory', updatedAt:localLearningResult.updatedAt, revision:localLearningResult.revision });
                             setLearningStatsRestoreState('success', { source:'startup-keep-newer-local-learning-stats' });
                         }
                         if(decision.favorites === 'local') {
@@ -5422,6 +5446,32 @@
         return JSON.stringify(getLearningStatsStore());
     }
 
+    function setLearningStatsMemoryStore(store, context = {}) {
+        const current = normalizeLearningStatsPersistentStore(learningStatsMemoryStore);
+        const next = normalizeLearningStatsPersistentStore(store);
+        const comparison = getLearningStatsWriteComparison(current, next);
+        const telemetry = {
+            WRITE_SOURCE:context.source || 'learning-stats-memory-write',
+            timestamp:new Date().toISOString(),
+            sessionId:learningStatsSessionId,
+            currentEntryCount:comparison.currentEntryCount,
+            newEntryCount:comparison.newEntryCount,
+            currentTodayCount:comparison.currentTodayCount,
+            newTodayCount:comparison.newTodayCount,
+            updatedAt:context.updatedAt === undefined ? learningStatsMemoryUpdatedAt : Number(context.updatedAt) || 0,
+            revision:context.revision === undefined ? learningStatsMemoryRevision : Number(context.revision) || 0,
+            removedDates:comparison.removedDates,
+            removedUuidCount:comparison.removedUuids.length,
+            callStack:context.callStack || new Error(context.source || 'learning-stats-memory-write').stack || ''
+        };
+        if(comparison.decreases) console.warn('[MK_LEARNING_STATS_MEMORY_DECREASE]', telemetry);
+        else console.log('[MK_LEARNING_STATS_MEMORY_WRITE]', telemetry);
+        learningStatsMemoryStore = next;
+        if(context.updatedAt !== undefined) learningStatsMemoryUpdatedAt = Number(context.updatedAt) || 0;
+        if(context.revision !== undefined) learningStatsMemoryRevision = Number(context.revision) || 0;
+        return next;
+    }
+
     function setLearningStatsRestoreState(state, context = {}) {
         learningStatsRestoreState = state;
         learningStatsReady = state === 'success' && !learningStatsStartupSyncInProgress;
@@ -5436,35 +5486,135 @@
         });
     }
 
-    async function persistLearningStatsToIndexedDBVerified(store, updatedAt, source = 'learning-stats-write') {
-        const normalized = normalizeLearningStatsPersistentStore(store);
-        const value = JSON.stringify(normalized);
-        const oldValue = await readStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY);
-        const oldUpdatedAt = await readStatsDatabaseValue(LEARNING_STATS_DB_UPDATED_AT_KEY);
-        try {
-            await writeStatsDatabaseValue(LEARNING_STATS_DB_STAGING_KEY, value);
-            const staged = await readStatsDatabaseValue(LEARNING_STATS_DB_STAGING_KEY);
-            if(staged !== value) throw new Error('learning_stats_staging_content_mismatch');
-            await writeStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY, value);
-            await writeStatsDatabaseValue(LEARNING_STATS_DB_UPDATED_AT_KEY, String(Number(updatedAt) || 0));
-            const saved = await readStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY);
-            if(saved !== value) {
-                if(oldValue !== null) await writeStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY, oldValue);
-                if(oldUpdatedAt !== null) await writeStatsDatabaseValue(LEARNING_STATS_DB_UPDATED_AT_KEY, oldUpdatedAt);
-                throw new Error('learning_stats_primary_content_mismatch');
-            }
-            await removeStatsDatabaseValue(LEARNING_STATS_DB_STAGING_KEY);
-            console.log('[MK_LEARNING_STATS_INDEXEDDB_WRITE_VERIFIED]', {
-                source,
-                dayCount: Object.keys(normalized.days).length,
-                entryCount: getLearningStatsEntryCount(normalized),
-                updatedAt:Number(updatedAt) || 0
+    function mergeLearningStatsStoresWithoutLoss(existing, incoming) {
+        const merged = normalizeLearningStatsPersistentStore(existing);
+        const next = normalizeLearningStatsPersistentStore(incoming);
+        Object.entries(next.days).forEach(([dateKey, incomingDay]) => {
+            const currentDay = normalizeLearningStatsDay(merged.days[dateKey]);
+            const normalizedIncomingDay = normalizeLearningStatsDay(incomingDay);
+            Object.keys(getEmptyLearningStatsDay()).forEach(key => {
+                if(key === 'deckByCard') return;
+                currentDay[key] = [...new Set([...currentDay[key], ...normalizedIncomingDay[key]])];
             });
-            return { ok:true, store:normalized, updatedAt:Number(updatedAt) || 0 };
-        } catch(error) {
-            try { await removeStatsDatabaseValue(LEARNING_STATS_DB_STAGING_KEY); } catch(cleanupError) {}
-            console.error('[MK_LEARNING_STATS_INDEXEDDB_WRITE_FAILED_KEEP_OLD]', {
+            currentDay.deckByCard = { ...currentDay.deckByCard, ...normalizedIncomingDay.deckByCard };
+            merged.days[dateKey] = currentDay;
+        });
+        return merged;
+    }
+
+    function getLearningStatsWriteComparison(existing, incoming) {
+        const current = normalizeLearningStatsPersistentStore(existing);
+        const next = normalizeLearningStatsPersistentStore(incoming);
+        const currentIds = new Set(Object.values(current.days).flatMap(day => normalizeLearningStatsDay(day).allDone));
+        const nextIds = new Set(Object.values(next.days).flatMap(day => normalizeLearningStatsDay(day).allDone));
+        const removedDates = Object.keys(current.days).filter(dateKey => !Object.prototype.hasOwnProperty.call(next.days, dateKey));
+        const removedUuids = [...currentIds].filter(id => !nextIds.has(id));
+        const addedUuids = [...nextIds].filter(id => !currentIds.has(id));
+        const todayKey = getLearningStatsDateKey();
+        return {
+            currentEntryCount:getLearningStatsEntryCount(current),
+            newEntryCount:getLearningStatsEntryCount(next),
+            currentTodayCount:normalizeLearningStatsDay(current.days[todayKey]).allDone.length,
+            newTodayCount:normalizeLearningStatsDay(next.days[todayKey]).allDone.length,
+            removedDates,
+            removedUuids,
+            addedUuids,
+            decreases:removedDates.length > 0 || removedUuids.length > 0 || getLearningStatsEntryCount(next) < getLearningStatsEntryCount(current)
+        };
+    }
+
+    async function commitLearningStatsWriteAtomically(store, updatedAt, context = {}) {
+        const incoming = normalizeLearningStatsPersistentStore(store);
+        const db = await openStatsDatabase();
+        let result;
+        try {
+            result = await new Promise((resolve, reject) => {
+                const transaction = db.transaction(STATS_DB_STORE, 'readwrite');
+                const objectStore = transaction.objectStore(STATS_DB_STORE);
+                const primaryRequest = objectStore.get(LEARNING_STATS_DB_PRIMARY_KEY);
+                const revisionRequest = objectStore.get(LEARNING_STATS_DB_REVISION_KEY);
+                const updatedAtRequest = objectStore.get(LEARNING_STATS_DB_UPDATED_AT_KEY);
+                const journalRequest = objectStore.get(LEARNING_STATS_DB_WRITE_JOURNAL_KEY);
+                let prepared = null;
+                const prepare = () => {
+                    if([primaryRequest, revisionRequest, updatedAtRequest, journalRequest].some(request => request.readyState !== 'done')) return;
+                    const current = normalizeLearningStatsPersistentStore(primaryRequest.result === undefined ? null : primaryRequest.result);
+                    const currentRevision = Number(revisionRequest.result) || 0;
+                    const expectedRevision = Number(context.expectedRevision);
+                    const staleRevision = Number.isFinite(expectedRevision) && expectedRevision !== currentRevision;
+                    const comparison = getLearningStatsWriteComparison(current, incoming);
+                    const blockedRawWrite = comparison.decreases || staleRevision;
+                    const committed = blockedRawWrite ? mergeLearningStatsStoresWithoutLoss(current, incoming) : incoming;
+                    const committedUpdatedAt = Math.max(Number(updatedAtRequest.result) || 0, Number(updatedAt) || 0);
+                    const nextRevision = currentRevision + 1;
+                    const telemetry = {
+                        WRITE_SOURCE:context.source || 'learning-stats-write',
+                        timestamp:new Date().toISOString(),
+                        sessionId:learningStatsSessionId,
+                        currentEntryCount:comparison.currentEntryCount,
+                        newEntryCount:comparison.newEntryCount,
+                        currentTodayCount:comparison.currentTodayCount,
+                        newTodayCount:comparison.newTodayCount,
+                        updatedAt:Number(updatedAt) || 0,
+                        currentRevision,
+                        expectedRevision:Number.isFinite(expectedRevision) ? expectedRevision : null,
+                        newRevision:nextRevision,
+                        staleRevision,
+                        removedDates:comparison.removedDates,
+                        removedUuidCount:comparison.removedUuids.length,
+                        removedUuids:comparison.removedUuids.slice(0, 50),
+                        addedUuidCount:comparison.addedUuids.length,
+                        action:blockedRawWrite ? 'BLOCK_WRITE_REBASED' : 'WRITE_COMMITTED',
+                        callStack:context.callStack || new Error('learning-stats-write').stack || ''
+                    };
+                    const journal = parseJSONSafe(journalRequest.result, []);
+                    const nextJournal = (Array.isArray(journal) ? journal : []).concat(telemetry).slice(-200);
+                    const value = JSON.stringify(committed);
+                    objectStore.put(value, LEARNING_STATS_DB_STAGING_KEY);
+                    objectStore.put(value, LEARNING_STATS_DB_PRIMARY_KEY);
+                    objectStore.put(String(committedUpdatedAt), LEARNING_STATS_DB_UPDATED_AT_KEY);
+                    objectStore.put(String(nextRevision), LEARNING_STATS_DB_REVISION_KEY);
+                    objectStore.put(JSON.stringify(nextJournal), LEARNING_STATS_DB_WRITE_JOURNAL_KEY);
+                    objectStore.delete(LEARNING_STATS_DB_STAGING_KEY);
+                    prepared = { ok:true, store:committed, updatedAt:committedUpdatedAt, revision:nextRevision, telemetry, blockedRawWrite };
+                };
+                [primaryRequest, revisionRequest, updatedAtRequest, journalRequest].forEach(request => {
+                    request.onsuccess = prepare;
+                    request.onerror = () => reject(request.error || new Error('LearningStatsAtomicReadFailed'));
+                });
+                transaction.oncomplete = () => prepared ? resolve(prepared) : reject(new Error('LearningStatsAtomicWriteNotPrepared'));
+                transaction.onerror = () => reject(transaction.error || new Error('LearningStatsAtomicWriteFailed'));
+                transaction.onabort = () => reject(transaction.error || new Error('LearningStatsAtomicWriteAborted'));
+            });
+        } finally {
+            db.close();
+        }
+        if(result.blockedRawWrite) console.warn('[MK_LEARNING_STATS_BLOCK_WRITE]', result.telemetry);
+        else console.log('[MK_LEARNING_STATS_WRITE]', result.telemetry);
+        if(learningStatsInstanceChannel) {
+            try { learningStatsInstanceChannel.postMessage({ type:'revision', sessionId:learningStatsSessionId, revision:result.revision, timestamp:Date.now() }); } catch(error) {}
+        }
+        return result;
+    }
+
+    async function persistLearningStatsToIndexedDBVerified(store, updatedAt, source = 'learning-stats-write', options = {}) {
+        try {
+            return await commitLearningStatsWriteAtomically(store, updatedAt, {
                 source,
+                expectedRevision:options.expectedRevision === undefined ? learningStatsMemoryRevision : options.expectedRevision,
+                callStack:options.callStack || new Error(source).stack || ''
+            });
+        } catch(error) {
+            console.error('[MK_LEARNING_STATS_INDEXEDDB_WRITE_FAILED_KEEP_OLD]', {
+                WRITE_SOURCE:source,
+                timestamp:new Date().toISOString(),
+                sessionId:learningStatsSessionId,
+                currentEntryCount:getLearningStatsEntryCount(learningStatsMemoryStore),
+                newEntryCount:getLearningStatsEntryCount(store),
+                currentTodayCount:normalizeLearningStatsDay(learningStatsMemoryStore.days[getLearningStatsDateKey()]).allDone.length,
+                newTodayCount:normalizeLearningStatsDay(normalizeLearningStatsPersistentStore(store).days[getLearningStatsDateKey()]).allDone.length,
+                updatedAt:Number(updatedAt) || 0,
+                callStack:options.callStack || new Error(source).stack || '',
                 name:error && error.name,
                 message:error && error.message ? error.message : String(error)
             });
@@ -5474,11 +5624,17 @@
 
     function queueLearningStatsPersistence(store, updatedAt, source = 'learning-stats-write') {
         const snapshot = normalizeLearningStatsPersistentStore(store);
+        const expectedRevision = learningStatsMemoryRevision;
+        const callStack = new Error(source).stack || '';
         learningStatsPersistenceQueue = learningStatsPersistenceQueue
             .catch(() => null)
-            .then(() => persistLearningStatsToIndexedDBVerified(snapshot, updatedAt, source))
+            .then(() => persistLearningStatsToIndexedDBVerified(snapshot, updatedAt, source, { expectedRevision, callStack }))
             .then(result => {
                 if(!result.ok) setLearningStatsRestoreState('failed', { reason:result.reason, source });
+                else {
+                    setLearningStatsMemoryStore(result.store, { source:`${source}-committed-memory`, updatedAt:result.updatedAt, revision:result.revision });
+                    learningStatsModelCache = null;
+                }
                 return result;
             });
         return learningStatsPersistenceQueue;
@@ -5488,11 +5644,79 @@
         if(learningStatsRestoreState !== 'success' && !options.allowDuringRestore) return false;
         const normalized = normalizeLearningStatsPersistentStore(store);
         const updatedAt = Number(options.updatedAt) || Date.now();
-        learningStatsMemoryStore = normalized;
-        learningStatsMemoryUpdatedAt = updatedAt;
+        setLearningStatsMemoryStore(normalized, { source:`${options.source || 'learning-stats-save'}-optimistic-memory`, updatedAt });
         queueLearningStatsPersistence(normalized, updatedAt, options.source || 'learning-stats-save');
         try { localStorage.setItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT, String(updatedAt)); } catch(e) {}
         return true;
+    }
+
+    async function refreshLearningStatsMemoryFromIndexedDB(source = 'instance-refresh') {
+        await learningStatsPersistenceQueue.catch(() => null);
+        const [value, updatedAt, revision] = await Promise.all([
+            readStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY),
+            readStatsDatabaseValue(LEARNING_STATS_DB_UPDATED_AT_KEY),
+            readStatsDatabaseValue(LEARNING_STATS_DB_REVISION_KEY)
+        ]);
+        const storedRevision = Number(revision) || 0;
+        if(value !== null && storedRevision > learningStatsMemoryRevision) {
+            const before = getLearningStatsEntryCount(learningStatsMemoryStore);
+            setLearningStatsMemoryStore(value, { source:`${source}-memory-refresh`, updatedAt:Number(updatedAt) || 0, revision:storedRevision });
+            learningStatsModelCache = null;
+            console.log('[MK_LEARNING_STATS_INSTANCE_REFRESH]', {
+                source,
+                sessionId:learningStatsSessionId,
+                previousEntryCount:before,
+                newEntryCount:getLearningStatsEntryCount(learningStatsMemoryStore),
+                revision:storedRevision
+            });
+        }
+        return { store:getLearningStatsStore(), updatedAt:learningStatsMemoryUpdatedAt, revision:learningStatsMemoryRevision };
+    }
+
+    function initializeLearningStatsInstanceCoordination() {
+        if(learningStatsInstanceChannel || typeof BroadcastChannel === 'undefined') return;
+        learningStatsInstanceChannel = new BroadcastChannel('mk_learning_stats_instances_v1');
+        const announce = type => {
+            try { learningStatsInstanceChannel.postMessage({ type, sessionId:learningStatsSessionId, revision:learningStatsMemoryRevision, timestamp:Date.now() }); } catch(error) {}
+        };
+        learningStatsInstanceChannel.onmessage = event => {
+            const message = event && event.data || {};
+            if(!message.sessionId || message.sessionId === learningStatsSessionId) return;
+            if(message.type === 'bye') learningStatsPeerSessions.delete(message.sessionId);
+            else learningStatsPeerSessions.set(message.sessionId, Number(message.timestamp) || Date.now());
+            console.log('[MK_LEARNING_STATS_PEER_INSTANCE]', {
+                sessionId:learningStatsSessionId,
+                peerSessionId:message.sessionId,
+                peerRevision:Number(message.revision) || 0,
+                localRevision:learningStatsMemoryRevision,
+                activePeerCount:learningStatsPeerSessions.size,
+                messageType:message.type
+            });
+            if(message.type === 'hello') announce('hello-ack');
+            if(message.type === 'revision' && Number(message.revision) > learningStatsMemoryRevision) {
+                refreshLearningStatsMemoryFromIndexedDB('broadcast-revision').catch(error => console.error('[MK_LEARNING_STATS_INSTANCE_REFRESH_FAILED]', error));
+            }
+        };
+        announce('hello');
+        setInterval(() => {
+            const cutoff = Date.now() - 30000;
+            [...learningStatsPeerSessions.entries()].forEach(([id, seenAt]) => { if(seenAt < cutoff) learningStatsPeerSessions.delete(id); });
+            announce('heartbeat');
+        }, 10000);
+        window.addEventListener('storage', event => {
+            if(event.key === STORAGE_KEY_LEARNING_STATS_UPDATED_AT) refreshLearningStatsMemoryFromIndexedDB('storage-event').catch(() => null);
+        });
+        document.addEventListener('visibilitychange', () => {
+            if(!document.hidden) refreshLearningStatsMemoryFromIndexedDB('visibility-visible').catch(() => null);
+        });
+        window.addEventListener('beforeunload', () => announce('bye'));
+        window.__MK_LEARNING_STATS_DIAGNOSTICS__ = {
+            sessionId:learningStatsSessionId,
+            get revision() { return learningStatsMemoryRevision; },
+            get peers() { return [...learningStatsPeerSessions.keys()]; },
+            refresh:() => refreshLearningStatsMemoryFromIndexedDB('manual-diagnostics'),
+            journal:async () => parseJSONSafe(await readStatsDatabaseValue(LEARNING_STATS_DB_WRITE_JOURNAL_KEY), [])
+        };
     }
 
     async function persistLearningStatsFavoritesToIndexedDBVerified(favorites, updatedAt, source = 'learning-stats-favorites-write') {
@@ -5520,16 +5744,19 @@
     }
 
     async function initializeLearningStatsStore() {
+        initializeLearningStatsInstanceCoordination();
         setLearningStatsRestoreState('pending', { source:'startup-hydration' });
         try {
-            const [indexedValue, indexedUpdatedAt, queuedDeltas, indexedFavorites, indexedFavoritesUpdatedAt] = await Promise.all([
+            const [indexedValue, indexedUpdatedAt, indexedRevision, queuedDeltas, indexedFavorites, indexedFavoritesUpdatedAt] = await Promise.all([
                 readStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY),
                 readStatsDatabaseValue(LEARNING_STATS_DB_UPDATED_AT_KEY),
+                readStatsDatabaseValue(LEARNING_STATS_DB_REVISION_KEY),
                 readStatsDatabaseValue(LEARNING_STATS_DB_DELTA_QUEUE_KEY),
                 readStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_KEY),
                 readStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_UPDATED_AT_KEY)
             ]);
             learningStatsReviewDeltaQueue = parseJSONSafe(queuedDeltas, []);
+            learningStatsMemoryRevision = Number(indexedRevision) || 0;
             if(!Array.isArray(learningStatsReviewDeltaQueue)) learningStatsReviewDeltaQueue = [];
             const legacyFavorites = localStorage.getItem(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY);
             learningStatsFavoriteDecksMemory = normalizeLearningStatsFavoriteDecksBackupPayload(indexedFavorites !== null ? indexedFavorites : legacyFavorites);
@@ -5542,17 +5769,16 @@
             const sourceValue = indexedValue !== null ? indexedValue : legacyValue;
             const hydrated = normalizeLearningStatsPersistentStore(sourceValue);
             if(Object.keys(hydrated.days).length) {
-                learningStatsMemoryStore = hydrated;
-                learningStatsMemoryUpdatedAt = Number(indexedUpdatedAt || localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT)) || 0;
+                setLearningStatsMemoryStore(hydrated, { source:'startup-hydrate-memory', updatedAt:Number(indexedUpdatedAt || localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT)) || 0, revision:learningStatsMemoryRevision });
                 if(indexedValue === null) {
                     const migrationResult = await persistLearningStatsToIndexedDBVerified(hydrated, learningStatsMemoryUpdatedAt, 'legacy-localstorage-migration');
                     if(!migrationResult.ok) throw migrationResult.error || new Error(migrationResult.reason || 'learning_stats_migration_failed');
+                    setLearningStatsMemoryStore(migrationResult.store, { source:'legacy-migration-committed-memory', updatedAt:migrationResult.updatedAt, revision:migrationResult.revision });
                 }
                 setLearningStatsRestoreState('success', { source:indexedValue === null ? 'legacy-localstorage' : 'indexeddb' });
                 return { ok:true, source:indexedValue === null ? 'legacy-localstorage' : 'indexeddb' };
             }
-            learningStatsMemoryStore = { version:1, days:{} };
-            learningStatsMemoryUpdatedAt = Number(indexedUpdatedAt || localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT)) || 0;
+            setLearningStatsMemoryStore({ version:1, days:{} }, { source:'startup-empty-memory', updatedAt:Number(indexedUpdatedAt || localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT)) || 0, revision:learningStatsMemoryRevision });
             return { ok:true, source:'empty', pending:true };
         } catch(error) {
             setLearningStatsRestoreState('failed', { source:'startup-hydration', reason:error && error.message ? error.message : String(error) });
@@ -5756,9 +5982,8 @@
                 setLearningStatsRestoreState('failed', { reason:result.reason, source:'cloud-learning-stats-restore' });
                 throw new Error(`${LEARNING_STATS_STORAGE_KEY}_restore_failed`);
             }
-            learningStatsMemoryStore = result.store;
-            learningStatsMemoryUpdatedAt = result.updatedAt;
-            if(getBackupFieldChecksum(getLearningStatsBackupPayload()) !== getBackupFieldChecksum(normalizeLearningStatsBackupPayload(withDeltas))) {
+            setLearningStatsMemoryStore(result.store, { source:'cloud-restore-committed-memory', updatedAt:result.updatedAt, revision:result.revision });
+            if(getLearningStatsWriteComparison(withDeltas, learningStatsMemoryStore).decreases) {
                 setLearningStatsRestoreState('failed', { reason:`${LEARNING_STATS_STORAGE_KEY}_restore_integrity_failed`, source:'cloud-learning-stats-restore' });
                 throw new Error(`${LEARNING_STATS_STORAGE_KEY}_restore_integrity_failed`);
             }
@@ -5802,7 +6027,7 @@
         return { ok:true, restored };
     }
 
-    function updateLearningStatsDay(mutator) {
+    function updateLearningStatsDay(mutator, source = 'learning-stats-day-update') {
         if(!learningStatsReady || learningStatsRestoreState !== 'success' || learningStatsStartupSyncInProgress) {
             console.warn('[MK_LEARNING_STATS_WRITE_BLOCKED_NOT_RESTORED]', { state:learningStatsRestoreState });
             return null;
@@ -5812,7 +6037,7 @@
         const day = normalizeLearningStatsDay(store.days[dateKey]);
         mutator(day);
         store.days[dateKey] = normalizeLearningStatsDay(day);
-        if(!saveLearningStatsStore(store)) {
+        if(!saveLearningStatsStore(store, { source })) {
             console.error('[MK_LEARNING_STATS_WRITE_FAILED_OLD_VALUE_KEPT]');
             return null;
         }
@@ -5843,7 +6068,7 @@
             else if(source === 'new') day.newDone = [...new Set([...day.newDone, id])];
             else day.otherDone = [...new Set([...day.otherDone, id])];
             rememberLearningStatsDeck(day, card);
-        });
+        }, `review-handler-${source === 'required' || source === 'new' ? source : 'other'}`);
     }
 
     function getLearningStatsCardLookup() {
@@ -5984,7 +6209,7 @@
         restoreTodayLearningStatsTotal(day, lookup);
         lookup.deckByCard.forEach((deck, id) => { if(!day.deckByCard[id]) day.deckByCard[id] = deck; });
         store.days[dateKey] = day;
-        saveLearningStatsStore(store);
+        saveLearningStatsStore(store, { source:'learning-stats-model-history-merge' });
         profile.historyRestoreAndPersistenceMs = performance.now() - startedAt;
 
         const sets = {

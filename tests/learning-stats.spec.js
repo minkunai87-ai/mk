@@ -63,6 +63,9 @@ const context = {
     learningStatsRestoreFailure: null,
     learningStatsMemoryStore: { version:1, days:{} },
     learningStatsMemoryUpdatedAt: 0,
+    learningStatsMemoryRevision: 0,
+    learningStatsSessionId: 'test-session',
+    learningStatsInstanceChannel: null,
     learningStatsReviewDeltaQueue: [],
     learningStatsPersistenceQueue: Promise.resolve({ok:true, skipped:true}),
     learningStatsStartupSyncInProgress: false,
@@ -71,6 +74,8 @@ const context = {
     LEARNING_STATS_DB_PRIMARY_KEY: 'mk_learning_stats_v1',
     LEARNING_STATS_DB_STAGING_KEY: 'mk_learning_stats_v1_staging',
     LEARNING_STATS_DB_UPDATED_AT_KEY: 'mk_learning_stats_v1_updated_at',
+    LEARNING_STATS_DB_REVISION_KEY: 'mk_learning_stats_v1_revision',
+    LEARNING_STATS_DB_WRITE_JOURNAL_KEY: 'mk_learning_stats_v1_write_journal',
     LEARNING_STATS_DB_DELTA_QUEUE_KEY: 'mk_learning_stats_v1_delta_queue',
     LEARNING_STATS_DB_FAVORITES_KEY: 'mk_learning_stats_v1_favorite_decks',
     LEARNING_STATS_DB_FAVORITES_STAGING_KEY: 'mk_learning_stats_v1_favorite_decks_staging',
@@ -110,11 +115,26 @@ function refreshLearningStatsAfterCloudRestore() { learningStatsModelCache = nul
 async function readStatsDatabaseValue(key) { return idbStorage.has(key) ? idbStorage.get(key) : null; }
 async function writeStatsDatabaseValue(key, value) { idbStorage.set(key, String(value)); }
 async function removeStatsDatabaseValue(key) { idbStorage.delete(key); }
+async function commitLearningStatsWriteAtomically(store, updatedAt, writeContext = {}) {
+    const incoming = normalizeLearningStatsPersistentStore(store);
+    const current = normalizeLearningStatsPersistentStore(idbStorage.get(LEARNING_STATS_DB_PRIMARY_KEY));
+    const currentRevision = Number(idbStorage.get(LEARNING_STATS_DB_REVISION_KEY)) || 0;
+    const comparison = getLearningStatsWriteComparison(current, incoming);
+    const staleRevision = Number.isFinite(Number(writeContext.expectedRevision)) && Number(writeContext.expectedRevision) !== currentRevision;
+    const blockedRawWrite = comparison.decreases || staleRevision;
+    const committed = blockedRawWrite ? mergeLearningStatsStoresWithoutLoss(current, incoming) : incoming;
+    const revision = currentRevision + 1;
+    idbStorage.set(LEARNING_STATS_DB_PRIMARY_KEY, JSON.stringify(committed));
+    idbStorage.set(LEARNING_STATS_DB_UPDATED_AT_KEY, String(Math.max(Number(idbStorage.get(LEARNING_STATS_DB_UPDATED_AT_KEY)) || 0, Number(updatedAt) || 0)));
+    idbStorage.set(LEARNING_STATS_DB_REVISION_KEY, String(revision));
+    return { ok:true, store:committed, updatedAt:Number(idbStorage.get(LEARNING_STATS_DB_UPDATED_AT_KEY)) || 0, revision, blockedRawWrite, telemetry:{ action:blockedRawWrite ? 'BLOCK_WRITE_REBASED' : 'WRITE_COMMITTED' } };
+}
 `, context);
 
 [
     'getLearningStatsDateKey', 'getEmptyLearningStatsDay', 'normalizeLearningStatsDay',
-    'normalizeLearningStatsPersistentStore', 'getLearningStatsStore', 'setLearningStatsRestoreState',
+    'normalizeLearningStatsPersistentStore', 'getLearningStatsStore', 'setLearningStatsMemoryStore', 'setLearningStatsRestoreState',
+    'mergeLearningStatsStoresWithoutLoss', 'getLearningStatsWriteComparison',
     'persistLearningStatsToIndexedDBVerified', 'queueLearningStatsPersistence', 'saveLearningStatsStore',
     'persistLearningStatsFavoritesToIndexedDBVerified', 'updateLearningStatsDay',
     'rememberLearningStatsDeck', 'recordLearningStatsReview',
@@ -243,6 +263,10 @@ assert.deepStrictEqual({ ...context.getStartupSyncDecision({ study:110, learning
 storage.delete(context.STORAGE_KEY_LEARNING_STATS_UPDATED_AT);
 storage.set(context.LEARNING_STATS_STORAGE_KEY, JSON.stringify({ version:1, days:{} }));
 assert.strictEqual(context.getLocalGroupUpdatedAt(context.STORAGE_KEY_LEARNING_STATS_UPDATED_AT, context.LEARNING_STATS_STORAGE_KEY), 0, 'an existing empty learning-stats key never inherits the Stats timestamp');
+await context.learningStatsPersistenceQueue;
+context.learningStatsMemoryStore = { version:1, days:{} };
+context.learningStatsMemoryRevision = Number(idbStorage.get(context.LEARNING_STATS_DB_REVISION_KEY)) || 0;
+idbStorage.set(context.LEARNING_STATS_DB_PRIMARY_KEY, JSON.stringify(context.learningStatsMemoryStore));
 context.saveLearningStatsFavoriteDecks(['ParentA__01','ParentB__01']);
 assert.deepStrictEqual([...context.getLearningStatsFavoriteDecks()], ['ParentA__01','ParentB__01'], 'same leaf names under different canonical paths remain distinct');
 ['A','B','C','A'].forEach(id => context.recordLearningStatsReview(byId[id], 'required'));
@@ -325,6 +349,20 @@ const statsTargetFunction = readFunction('getCurrentLearningStatsFilterTargets')
     assert(!statsTargetFunction.includes(code), `statistics target calculation must not mutate ${code}`);
 });
 assert(!readFunction('buildLearningStatsModel').includes('guardedStatsWrite'), 'opening stats never writes Stats');
+const protectedIds = Array.from({length:838}, (_, index) => `protected-${index}`);
+const protectedStore = { version:1, days:{ '2026-08-19':{ allDone:protectedIds, trackedDone:protectedIds } } };
+idbStorage.set(context.LEARNING_STATS_DB_PRIMARY_KEY, JSON.stringify(context.normalizeLearningStatsPersistentStore(protectedStore)));
+idbStorage.set(context.LEARNING_STATS_DB_REVISION_KEY, '105');
+idbStorage.set(context.LEARNING_STATS_DB_UPDATED_AT_KEY, '1000');
+context.learningStatsMemoryStore = context.normalizeLearningStatsPersistentStore(protectedStore);
+context.learningStatsMemoryRevision = 105;
+const collapseResult = await context.persistLearningStatsToIndexedDBVerified({ version:1, days:{ '2026-08-19':{ allDone:['protected-0','protected-1'] } } }, 1001, 'test-838-to-2');
+assert.strictEqual(collapseResult.blockedRawWrite, true, '838 to 2 whole-object overwrite is blocked');
+assert.strictEqual(context.getLearningStatsEntryCount(collapseResult.store), 838, 'blocked decreasing write preserves all UUIDs and date snapshots');
+const staleIncoming = context.mergeLearningStatsStoresWithoutLoss(protectedStore, { version:1, days:{ '2026-08-19':{ allDone:['new-from-stale-instance'] } } });
+const staleResult = await context.persistLearningStatsToIndexedDBVerified(staleIncoming, 1002, 'test-stale-instance', { expectedRevision:105 });
+assert.strictEqual(staleResult.blockedRawWrite, true, 'a session that read revision 105 cannot replace revision 106');
+assert.strictEqual(context.getLearningStatsEntryCount(staleResult.store), 839, 'stale write is rebased as an additive UUID merge without losing the 838 entries');
 assert(!readFunction('openLearningStats').includes('learningStatsModelCache = null'), 'opening statistics preserves the warm model cache');
 assert(!readFunction('closeLearningStats').includes('learningStatsModelCache = null'), 'closing statistics preserves the warm model cache');
 assert(readFunction('getLearningStatsCardLookup').includes('learningStatsCardIndexCache'), 'UUID to deck and ancestor index is cached by library revision');
