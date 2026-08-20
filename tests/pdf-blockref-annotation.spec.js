@@ -108,6 +108,9 @@ async function main() {
         if(result.width !== '16px' || result.height !== '16px') throw new Error(`final icon style mismatch: ${JSON.stringify(result)}`);
         const deepLink = new URL(result.iosDeepLink);
         if(deepLink.protocol !== 'mkpdf:' || deepLink.hostname !== 'open' || deepLink.searchParams.get('page') !== '40' || Math.abs(Number(deepLink.searchParams.get('sourceWidth')) - 944) > 0.001) throw new Error(`iOS deep link mismatch: ${JSON.stringify(result)}`);
+        const expectedEncodedKoreanFileName = '2027%20%EC%A0%95%ED%83%9C%EC%84%B1%20%EB%A7%90%EB%9E%91%EB%A7%90%EB%9E%91%20%EC%86%8C%EB%B0%A9%ED%95%99%EA%B0%9C%EB%A1%A0%20%EA%B8%B0%EB%B3%B8%EC%84%9C.pdf';
+        if(!result.pdfFileNameCases[0].includes(`file=${expectedEncodedKoreanFileName}&`)) throw new Error(`raw PDF filename is not percent-20 encoded: ${result.pdfFileNameCases[0]}`);
+        if(result.pdfFileNameCases[0].includes('file=2027+')) throw new Error(`raw PDF filename still contains plus separators: ${result.pdfFileNameCases[0]}`);
         const pdfFileNameResults = result.pdfFileNameCases.map(url => {
             const parsed = new URL(url);
             return {
