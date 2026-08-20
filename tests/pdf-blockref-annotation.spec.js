@@ -58,6 +58,16 @@ async function main() {
                     const icon = ref && ref.querySelector(':scope > .mk-pdf-annotation-icon');
                     const style = icon && getComputedStyle(icon);
                     const iosDeepLink = icon && buildPdfAnnotationIOSUrl(JSON.parse(icon.dataset.annotation));
+                    const pdfFileNameCases = [
+                        '2027+정태성+말랑말랑+소방학개론+기본서.pdf',
+                        '2027 정태성 말랑말랑 소방학개론 기본서.pdf',
+                        '2027%20정태성%20기본서.pdf',
+                        '소방학개론.pdf'
+                    ].map(pdfFileName => buildPdfAnnotationIOSUrl({
+                        pdfFileName,
+                        page: 37,
+                        annotationId: '6a58769d-6bdc-454b-b744-ef8e39bc9354'
+                    }));
                     const allCards = Object.values(library || {}).flat();
                     const ordinaryCard = allCards.find(item => {
                         const holder = document.createElement('div'); holder.innerHTML = item.q || '';
@@ -79,6 +89,7 @@ async function main() {
                         width: style && style.width,
                         height: style && style.height,
                         iosDeepLink,
+                        pdfFileNameCases,
                         ordinaryBlockRefIconCount: ordinaryRoot ? ordinaryRoot.querySelectorAll('.block-ref > .mk-pdf-annotation-icon').length : null,
                         directAnnotationIconCount: directRoot ? directRoot.querySelectorAll('.mk-pdf-annotation-icon').length : null
                     };
@@ -97,6 +108,24 @@ async function main() {
         if(result.width !== '16px' || result.height !== '16px') throw new Error(`final icon style mismatch: ${JSON.stringify(result)}`);
         const deepLink = new URL(result.iosDeepLink);
         if(deepLink.protocol !== 'mkpdf:' || deepLink.hostname !== 'open' || deepLink.searchParams.get('page') !== '40' || Math.abs(Number(deepLink.searchParams.get('sourceWidth')) - 944) > 0.001) throw new Error(`iOS deep link mismatch: ${JSON.stringify(result)}`);
+        const pdfFileNameResults = result.pdfFileNameCases.map(url => {
+            const parsed = new URL(url);
+            return {
+                file: parsed.searchParams.get('file'),
+                page: parsed.searchParams.get('page'),
+                annotation: parsed.searchParams.get('annotation')
+            };
+        });
+        const expectedPdfFileNames = [
+            '2027 정태성 말랑말랑 소방학개론 기본서.pdf',
+            '2027 정태성 말랑말랑 소방학개론 기본서.pdf',
+            '2027%20정태성%20기본서.pdf',
+            '소방학개론.pdf'
+        ];
+        pdfFileNameResults.forEach((item, index) => {
+            if(item.file !== expectedPdfFileNames[index]) throw new Error(`PDF filename case ${index + 1} mismatch: ${JSON.stringify(result)}`);
+            if(item.page !== '37' || item.annotation !== '6a58769d-6bdc-454b-b744-ef8e39bc9354') throw new Error(`PDF query parameter regression in case ${index + 1}: ${JSON.stringify(result)}`);
+        });
         if(result.ordinaryBlockRefIconCount !== 0) throw new Error(`ordinary block-ref false positive: ${JSON.stringify(result)}`);
         if(!result.directAnnotationIconCount) throw new Error(`direct annotation regression: ${JSON.stringify(result)}`);
         console.log(JSON.stringify(result, null, 2));
