@@ -67,9 +67,16 @@ function cyrb53(value) { return String(value).split('').reduce((hash, char) => (
     'normalizeLearningStatsPersistentStore',
     'normalizeLearningStatsEvent',
     'isLearningStatsRecoveryArtifact',
+    'canonicalizeBackupValue',
+    'stableBackupJson',
     'getLearningStatsEventPairKey',
     'createLearningStatsEventId',
     'createLearningStatsLedgerEvent',
+    'isLearningStatsConflictCorrectionEvent',
+    'canResolveLearningStatsLegacyEventCollision',
+    'getLearningStatsEventMeaningJson',
+    'createLearningStatsEventConflictCorrection',
+    'resolveLearningStatsEventIdCollisions',
     'learningStatsSnapshotToEvents',
     'buildLearningStatsStoreFromEvents',
     'getLearningStatsPairSet',
@@ -141,6 +148,41 @@ const divergentB = context.createLearningStatsLedgerEvent({ eventId:'device_b_ev
 const union = context.buildLearningStatsStoreFromEvents([divergentA, divergentB, divergentA]);
 assert.deepStrictEqual([...union.days['2026-08-19'].allDone].sort(), ['A', 'B'], 'stale/device divergence is event-id union, not LWW');
 
+const collisionBase = context.createLearningStatsLedgerEvent({
+    eventId:'legacy_2026-08-11_1072494338334661_3345028100422951', uuid:'1072494338334661', studyDate:'2026-08-11', timestamp:new Date('2026-08-11T12:00:00').getTime(),
+    category:'required', categories:['required'], completionSets:['requiredDone','allDone','trackedDone'], deckPath:'Deck__A', source:'legacy-migration', evidenceSource:'snapshot-confirmed', evidenceRank:100,
+    sessionId:'legacy-migration', createdAt:new Date('2026-08-11T12:00:00').getTime(), statsRevision:0, appVersion:'migration-v1', deviceId:'legacy-migration', platform:'portable'
+});
+const identicalResolution = context.resolveLearningStatsEventIdCollisions([collisionBase], [collisionBase]);
+assert.strictEqual(identicalResolution.pending.length, 0, 'A: identical event IDs and payloads are deduplicated');
+assert.strictEqual(identicalResolution.duplicates, 1, 'A: identical payload is counted as one duplicate');
+const provenanceOnlyResolution = context.resolveLearningStatsEventIdCollisions([collisionBase], [{...collisionBase, evidenceSource:'firebase-restore-snapshot:1787184630681', evidenceRank:200}]);
+assert.strictEqual(provenanceOnlyResolution.pending.length, 0, 'A: provenance-only differences with identical learning meaning do not multiply the ledger');
+
+const collisionIncoming = context.createLearningStatsLedgerEvent({
+    ...collisionBase,
+    category:'other', categories:['other'], completionSets:['otherDone','allDone'], deckPath:'Deck__B', evidenceSource:'firebase-restore-snapshot:1787184630681'
+});
+const conflictResolution = context.resolveLearningStatsEventIdCollisions([collisionBase], [collisionIncoming]);
+assert.strictEqual(conflictResolution.pending.length, 1, 'B: a divergent legacy payload appends exactly one correction event');
+assert.strictEqual(conflictResolution.conflicts.length, 1, 'B: the collision is reported without failing the restore');
+const conflictCorrection = conflictResolution.pending[0];
+assert(context.isLearningStatsConflictCorrectionEvent(conflictCorrection), 'B: the appended event is marked as a conflict correction');
+assert.notStrictEqual(conflictCorrection.eventId, collisionBase.eventId, 'B: the existing event key is never reused or overwritten');
+assert(conflictCorrection.categories.includes('required') && conflictCorrection.categories.includes('other'), 'B: both category meanings are preserved');
+assert(conflictCorrection.completionSets.includes('requiredDone') && conflictCorrection.completionSets.includes('otherDone') && conflictCorrection.completionSets.includes('allDone'), 'B: both completion-set meanings are preserved');
+assert.deepStrictEqual([...conflictCorrection.conflictVariants.map(item => item.deckPath)].sort(), ['Deck__A','Deck__B'], 'B: both deck-path meanings remain in conflict metadata');
+assert.strictEqual(context.stableBackupJson(collisionBase), context.stableBackupJson(context.normalizeLearningStatsEvent(collisionBase)), 'B: the existing event payload remains unchanged');
+const correctedStore = context.buildLearningStatsStoreFromEvents([collisionBase, conflictCorrection]);
+assert(correctedStore.days['2026-08-11'].requiredDone.includes(collisionBase.uuid) && correctedStore.days['2026-08-11'].otherDone.includes(collisionBase.uuid), 'B: the derived cache applies the semantic union from the correction');
+
+const repeatedResolution = context.resolveLearningStatsEventIdCollisions([collisionBase, conflictCorrection], [collisionIncoming]);
+assert.strictEqual(repeatedResolution.pending.length, 0, 'C: repeating the same restore appends no new correction');
+assert.strictEqual(repeatedResolution.conflicts[0].correctionEventId, conflictCorrection.eventId, 'C: correction IDs are deterministic');
+const beforeDailyCount = context.getLearningStatsEntryCount(context.buildLearningStatsStoreFromEvents([collisionBase]));
+const afterDailyCount = context.getLearningStatsEntryCount(correctedStore);
+assert(afterDailyCount >= beforeDailyCount, 'D: collision correction never decreases daily completion count');
+
 const queueSource = readFunction('queueLearningStatsReviewPersistence');
 assert(queueSource.indexOf('appendLearningStatsEvents') < queueSource.indexOf('commitLearningStatsCacheFromLedger'), 'ledger append is durable before cache rebuild');
 assert(queueSource.includes('ledgerCommitted:true'), 'cache failure does not roll back a committed ledger event');
@@ -154,6 +196,14 @@ assert(!appendSource.includes('.put(') && !appendSource.includes('.delete(') && 
 const firebaseSource = readFunction('syncLearningStatsEventLedgerWithFirebase');
 assert(firebaseSource.includes("method:'PATCH'"), 'Firebase receives only missing event keys');
 assert(!firebaseSource.includes("method:'DELETE'"), 'Firebase ledger sync never deletes events');
+const firebaseConflictSource = readFunction('appendLearningStatsConflictEventToFirebaseIfAbsent');
+assert(firebaseConflictSource.includes("method:'PUT'") && firebaseConflictSource.includes("'if-match':'null_etag'"), 'Firebase conflict corrections use create-if-absent and cannot overwrite an existing key');
+assert(!firebaseConflictSource.includes("method:'PATCH'") && !firebaseConflictSource.includes("method:'DELETE'"), 'Firebase conflict correction never patches or deletes an existing event');
+const restoreSource = readFunction('restoreLearningStatsBackupFields');
+assert(restoreSource.includes("setLearningStatsRestoreState('success', { source:'firebase-restore-event-ledger'"), 'successful ledger restore opens the learning-stats write barrier');
+for(const unaffected of ['STORAGE_KEY_STATS', 'STORAGE_KEY_REVIEW_HISTORY', 'LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY']) {
+    assert(!readFunction('resolveLearningStatsEventIdCollisions').includes(unaffected), `E: collision resolution does not touch ${unaffected}`);
+}
 
 
 const sameDayOtherFirst = context.createLearningStatsLedgerEvent({

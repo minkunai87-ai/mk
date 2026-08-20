@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.179-startup-io-essential-fast -->
+<!-- deployment: v18.5.180-restore-ledger-collision-safe -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.179 - 시작·오늘필수·IO 가속)</title>
+<title>MK (v18.5.180 - Restore ledger 충돌 보존)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -560,7 +560,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.179 - 시작·오늘필수·IO 가속)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.180 - Restore ledger 충돌 보존)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -854,7 +854,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.179 - 시작·오늘필수·IO 가속';
+    const APP_VERSION = 'v18.5.180 - Restore ledger 충돌 보존';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -2906,6 +2906,17 @@
         const completionSets = [...new Set((Array.isArray(value.completionSets) ? value.completionSets : (value.completionSetsPresent ? [] : ['allDone', 'trackedDone', `${category}Done`])).filter(item => LEARNING_STATS_BACKUP_DAY_KEYS.includes(item)))];
         const evidenceSource = String(value.evidenceSource || value.source || 'review');
         const defaultEvidenceRank = value.source === 'review' ? 1000 : (/snapshot-confirmed/.test(evidenceSource) ? 100 : (/review-history-confirmed/.test(evidenceSource) ? 80 : 60));
+        const conflictOfEventId = String(value.conflictOfEventId || '').trim();
+        const conflictVariants = (Array.isArray(value.conflictVariants) ? value.conflictVariants : []).map(variant => ({
+            payloadChecksum:String(variant && variant.payloadChecksum || ''),
+            timestamp:Number(variant && variant.timestamp) || 0,
+            category:variant && ['required', 'new', 'other'].includes(variant.category) ? variant.category : 'other',
+            categories:[...new Set((Array.isArray(variant && variant.categories) ? variant.categories : []).filter(item => ['required', 'new', 'other'].includes(item)))],
+            completionSets:[...new Set((Array.isArray(variant && variant.completionSets) ? variant.completionSets : []).filter(item => LEARNING_STATS_BACKUP_DAY_KEYS.includes(item)))],
+            deckPath:normalizeDeckPath(variant && variant.deckPath || ''),
+            evidenceSource:String(variant && variant.evidenceSource || ''),
+            evidenceRank:Number(variant && variant.evidenceRank) || 0
+        })).filter(variant => variant.payloadChecksum).sort((a, b) => a.payloadChecksum.localeCompare(b.payloadChecksum) || stableBackupJson(a).localeCompare(stableBackupJson(b)));
         return {
             eventId,
             uuid,
@@ -2925,7 +2936,8 @@
             statsRevision:Number(value.statsRevision ?? value.revision ?? learningStatsMemoryRevision) || 0,
             appVersion:String(value.appVersion || APP_VERSION),
             deviceId:String(value.deviceId || getDeviceId()),
-            platform:String(value.platform || getLearningStatsPlatform())
+            platform:String(value.platform || getLearningStatsPlatform()),
+            ...(conflictOfEventId ? { conflictOfEventId, conflictVariants } : {})
         };
     }
 
@@ -2948,22 +2960,133 @@
         } finally { db.close(); }
     }
 
+    function isLearningStatsConflictCorrectionEvent(event) {
+        event = normalizeLearningStatsEvent(event);
+        return !!(event && event.source === 'legacy-migration' && event.evidenceSource === 'event-id-conflict-correction' && event.conflictOfEventId);
+    }
+
+    function canResolveLearningStatsLegacyEventCollision(existing, incoming) {
+        existing = normalizeLearningStatsEvent(existing);
+        incoming = normalizeLearningStatsEvent(incoming);
+        return !!(
+            existing && incoming &&
+            existing.eventId === incoming.eventId &&
+            existing.uuid === incoming.uuid &&
+            existing.studyDate === incoming.studyDate &&
+            existing.source === 'legacy-migration' &&
+            incoming.source === 'legacy-migration' &&
+            !isLearningStatsConflictCorrectionEvent(existing) &&
+            !isLearningStatsConflictCorrectionEvent(incoming)
+        );
+    }
+
+    function getLearningStatsEventMeaningJson(event) {
+        event = normalizeLearningStatsEvent(event);
+        if(!event) return 'null';
+        return stableBackupJson({
+            uuid:event.uuid,
+            studyDate:event.studyDate,
+            category:event.category,
+            categories:['required', 'new', 'other'].filter(category => event.categories.includes(category)),
+            completionSets:LEARNING_STATS_BACKUP_DAY_KEYS.filter(key => event.completionSets.includes(key)),
+            deckPath:event.deckPath
+        });
+    }
+
+    function createLearningStatsEventConflictCorrection(existing, incoming) {
+        existing = normalizeLearningStatsEvent(existing);
+        incoming = normalizeLearningStatsEvent(incoming);
+        if(!canResolveLearningStatsLegacyEventCollision(existing, incoming)) return null;
+        const variants = [existing, incoming]
+            .map(event => ({ event, payload:stableBackupJson(event) }))
+            .sort((a, b) => a.payload.localeCompare(b.payload));
+        const categories = ['required', 'new', 'other'].filter(category => variants.some(({ event }) => event.categories.includes(category)));
+        const completionSets = LEARNING_STATS_BACKUP_DAY_KEYS.filter(key => variants.some(({ event }) => event.completionSets.includes(key)));
+        const deckPaths = [...new Set(variants.map(({ event }) => event.deckPath).filter(Boolean))].sort();
+        const timestamps = variants.map(({ event }) => event.timestamp).filter(value => Number.isFinite(value) && value > 0);
+        const createdTimes = variants.map(({ event }) => event.createdAt).filter(value => Number.isFinite(value) && value > 0);
+        const payloadChecksums = variants.map(({ payload }, index) => String(cyrb53(payload, index + 41)));
+        const eventId = createLearningStatsEventId('legacyconflict', existing.eventId, ...payloadChecksums);
+        return normalizeLearningStatsEvent({
+            eventId,
+            uuid:existing.uuid,
+            timestamp:timestamps.length ? Math.min(...timestamps) : existing.timestamp,
+            studyDate:existing.studyDate,
+            category:categories[0] || 'other',
+            categories,
+            categoriesPresent:true,
+            completionSets:completionSets.length ? completionSets : ['allDone'],
+            completionSetsPresent:true,
+            deckPath:deckPaths[0] || '',
+            sessionId:'legacy-conflict-correction',
+            source:'legacy-migration',
+            evidenceSource:'event-id-conflict-correction',
+            evidenceRank:Math.max(...variants.map(({ event }) => Number(event.evidenceRank) || 0)) + 1,
+            createdAt:createdTimes.length ? Math.min(...createdTimes) : (timestamps[0] || 0),
+            statsRevision:Math.max(...variants.map(({ event }) => Number(event.statsRevision) || 0)),
+            appVersion:'learning-stats-event-conflict-v1',
+            deviceId:'legacy-conflict-correction',
+            platform:'portable',
+            conflictOfEventId:existing.eventId,
+            conflictVariants:variants.map(({ event }, index) => ({
+                payloadChecksum:payloadChecksums[index],
+                timestamp:event.timestamp,
+                category:event.category,
+                categories:event.categories,
+                completionSets:event.completionSets,
+                deckPath:event.deckPath,
+                evidenceSource:event.evidenceSource,
+                evidenceRank:event.evidenceRank
+            }))
+        });
+    }
+
+    function resolveLearningStatsEventIdCollisions(existingEvents, incomingEvents) {
+        const existingById = new Map((Array.isArray(existingEvents) ? existingEvents : []).map(normalizeLearningStatsEvent).filter(Boolean).map(event => [event.eventId, event]));
+        const pending = [];
+        const conflicts = [];
+        let duplicates = 0;
+        (Array.isArray(incomingEvents) ? incomingEvents : []).map(normalizeLearningStatsEvent).filter(event => event && !isLearningStatsRecoveryArtifact(event)).forEach(event => {
+            const existing = existingById.get(event.eventId);
+            if(!existing) {
+                existingById.set(event.eventId, event);
+                pending.push(event);
+                return;
+            }
+            if(stableBackupJson(existing) === stableBackupJson(event)) {
+                duplicates++;
+                return;
+            }
+            if(canResolveLearningStatsLegacyEventCollision(existing, event) && getLearningStatsEventMeaningJson(existing) === getLearningStatsEventMeaningJson(event)) {
+                duplicates++;
+                return;
+            }
+            const correction = createLearningStatsEventConflictCorrection(existing, event);
+            if(!correction) throw new Error(`learning_stats_event_id_collision:${event.eventId}`);
+            const savedCorrection = existingById.get(correction.eventId);
+            if(savedCorrection && stableBackupJson(savedCorrection) !== stableBackupJson(correction)) {
+                throw new Error(`learning_stats_event_id_collision:${correction.eventId}`);
+            }
+            if(savedCorrection) duplicates++;
+            else {
+                existingById.set(correction.eventId, correction);
+                pending.push(correction);
+            }
+            conflicts.push({ eventId:event.eventId, correctionEventId:correction.eventId });
+        });
+        return { pending, duplicates, conflicts, merged:[...existingById.values()] };
+    }
+
     async function appendLearningStatsEvents(events, source = 'ledger-append') {
         const normalized = (Array.isArray(events) ? events : [events]).map(normalizeLearningStatsEvent).filter(event => event && !isLearningStatsRecoveryArtifact(event));
-        if(!normalized.length) return { ok:true, inserted:0, duplicates:0, eventCount:(await readAllLearningStatsEvents()).length };
-        const unique = [...new Map(normalized.map(event => [event.eventId, event])).values()];
+        if(!normalized.length) return { ok:true, inserted:0, duplicates:0, conflicts:0, correctionEventIds:[], eventCount:(await readAllLearningStatsEvents()).length };
         const existingEvents = await readAllLearningStatsEvents();
-        const existingById = new Map(existingEvents.map(event => [event.eventId, event]));
-        unique.forEach(event => {
-            if(existingById.has(event.eventId) && stableBackupJson(existingById.get(event.eventId)) !== stableBackupJson(event)) {
-                throw new Error(`learning_stats_event_id_collision:${event.eventId}`);
-            }
-        });
-        const pending = unique.filter(event => !existingById.has(event.eventId));
-        if(!pending.length) return { ok:true, inserted:0, duplicates:unique.length, eventCount:existingEvents.length };
+        const resolution = resolveLearningStatsEventIdCollisions(existingEvents, normalized);
+        const pending = resolution.pending;
+        if(!pending.length) return { ok:true, inserted:0, duplicates:resolution.duplicates, conflicts:resolution.conflicts.length, correctionEventIds:[...new Set(resolution.conflicts.map(item => item.correctionEventId))], eventCount:existingEvents.length };
         const db = await openStatsDatabase();
         let inserted = 0;
-        let duplicates = 0;
+        let constraintDuplicates = 0;
         try {
             await new Promise((resolve, reject) => {
                 const transaction = db.transaction(LEARNING_STATS_EVENTS_DB_STORE, 'readwrite');
@@ -2973,7 +3096,7 @@
                     request.onsuccess = () => { inserted++; };
                     request.onerror = errorEvent => {
                         if(request.error && request.error.name === 'ConstraintError') {
-                            duplicates++;
+                            constraintDuplicates++;
                             errorEvent.preventDefault();
                             errorEvent.stopPropagation();
                         }
@@ -2986,12 +3109,13 @@
         } finally { db.close(); }
         const finalEvents = await readAllLearningStatsEvents();
         const finalById = new Map(finalEvents.map(event => [event.eventId, event]));
-        const collision = unique.find(event => !finalById.has(event.eventId) || stableBackupJson(finalById.get(event.eventId)) !== stableBackupJson(event));
+        const collision = pending.find(event => !finalById.has(event.eventId) || stableBackupJson(finalById.get(event.eventId)) !== stableBackupJson(event));
         if(collision) throw new Error(`learning_stats_event_id_collision:${collision.eventId}`);
         const eventCount = finalEvents.length;
-        duplicates += unique.length - pending.length;
-        console.log('[MK_LEARNING_STATS_LEDGER_APPEND]', { source, sessionId:learningStatsSessionId, requested:unique.length, inserted, duplicates, eventCount });
-        return { ok:true, inserted, duplicates, eventCount };
+        const duplicates = resolution.duplicates + constraintDuplicates;
+        const correctionEventIds = [...new Set(resolution.conflicts.map(item => item.correctionEventId))];
+        console.log('[MK_LEARNING_STATS_LEDGER_APPEND]', { source, sessionId:learningStatsSessionId, requested:normalized.length, inserted, duplicates, conflicts:resolution.conflicts.length, correctionEventIds, eventCount });
+        return { ok:true, inserted, duplicates, conflicts:resolution.conflicts.length, correctionEventIds, eventCount };
     }
 
     async function persistStatsToIndexedDBVerified(value, context = {}) {
@@ -4522,8 +4646,7 @@
             checkedKeys: [
                 '6a1fe09f-b244-4d0e-9ac1-bf6bb8bb2ee5',
                 '6a17f7fc-d939-4ac3-b401-d165f66b62df'
-            ],
-            learningStatsGroups: context.learningStatsGroups
+            ]
         });
         if (!verification.ok) {
             console.error('[MK_STATS_RESTORE_VERIFY_FAILED]', {
@@ -6103,28 +6226,49 @@
         return value && typeof value === 'object' ? value : null;
     }
 
+    async function appendLearningStatsConflictEventToFirebaseIfAbsent(event) {
+        event = normalizeLearningStatsEvent(event);
+        if(!isLearningStatsConflictCorrectionEvent(event)) throw new Error('learning_stats_conflict_append_invalid_event');
+        const eventUrl = `${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_PATH}/${encodeURIComponent(event.eventId)}.json`;
+        const response = await fetch(eventUrl, {
+            method:'PUT',
+            headers:{ 'Content-Type':'application/json', 'if-match':'null_etag' },
+            body:JSON.stringify(event)
+        });
+        if(response.ok) return { ok:true, inserted:1, duplicate:0 };
+        if(response.status !== 412) throw new Error(`learning_stats_ledger_cloud_conflict_append_${response.status}`);
+        const existingResponse = await fetch(`${eventUrl}?_t=${Date.now()}`, { cache:'no-store' });
+        if(!existingResponse.ok) throw new Error(`learning_stats_ledger_cloud_conflict_verify_${existingResponse.status}`);
+        const existing = normalizeLearningStatsEvent(await existingResponse.json());
+        if(stableBackupJson(existing) !== stableBackupJson(event)) throw new Error(`learning_stats_event_id_collision:${event.eventId}`);
+        return { ok:true, inserted:0, duplicate:1 };
+    }
+
     async function syncLearningStatsEventLedgerWithFirebase(options = {}) {
         try {
             const [localBefore, cloudEvents] = await Promise.all([readAllLearningStatsEvents(), fetchFirebaseLearningStatsEvents()]);
-            const localById = new Map(localBefore.map(event => [event.eventId, event]));
             const cloudById = new Map(cloudEvents.map(event => [event.eventId, event]));
-            for(const [eventId, cloudEvent] of cloudById) {
-                if(localById.has(eventId) && stableBackupJson(localById.get(eventId)) !== stableBackupJson(cloudEvent)) {
-                    throw new Error(`learning_stats_event_id_collision:${eventId}`);
-                }
-            }
-            const download = cloudEvents.filter(event => !localById.has(event.eventId));
-            if(download.length) await appendLearningStatsEvents(download, 'firebase-ledger-union-download');
+            const downloadResult = await appendLearningStatsEvents(cloudEvents, 'firebase-ledger-union-download');
             const mergedLocal = await readAllLearningStatsEvents();
             const upload = mergedLocal.filter(event => !cloudById.has(event.eventId));
+            let uploaded = 0;
             if(upload.length && options.upload !== false) {
-                const additions = Object.fromEntries(upload.map(event => [event.eventId, event]));
-                const response = await fetch(`${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_PATH}.json`, {
-                    method:'PATCH',
-                    headers:{ 'Content-Type':'application/json' },
-                    body:JSON.stringify(additions)
-                });
-                if(!response.ok) throw new Error(`learning_stats_ledger_cloud_append_${response.status}`);
+                const conflictCorrections = upload.filter(isLearningStatsConflictCorrectionEvent);
+                const ordinaryAdditions = upload.filter(event => !isLearningStatsConflictCorrectionEvent(event));
+                if(ordinaryAdditions.length) {
+                    const additions = Object.fromEntries(ordinaryAdditions.map(event => [event.eventId, event]));
+                    const response = await fetch(`${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_PATH}.json`, {
+                        method:'PATCH',
+                        headers:{ 'Content-Type':'application/json' },
+                        body:JSON.stringify(additions)
+                    });
+                    if(!response.ok) throw new Error(`learning_stats_ledger_cloud_append_${response.status}`);
+                    uploaded += ordinaryAdditions.length;
+                }
+                for(const event of conflictCorrections) {
+                    const result = await appendLearningStatsConflictEventToFirebaseIfAbsent(event);
+                    uploaded += result.inserted;
+                }
             }
             const cache = await commitLearningStatsCacheFromLedger('firebase-ledger-union-cache');
             const finalEvents = cache.events || await readAllLearningStatsEvents();
@@ -6144,8 +6288,8 @@
                     });
                 } catch(error) { console.warn('[MK_LEARNING_STATS_LEDGER_META_WRITE_FAILED]', error); }
             }
-            console.log('[MK_LEARNING_STATS_LEDGER_FIREBASE_UNION]', { localBefore:localBefore.length, cloud:cloudEvents.length, downloaded:download.length, uploaded:options.upload === false ? 0 : upload.length, final:finalEvents.length });
-            return { ok:true, localBefore:localBefore.length, cloud:cloudEvents.length, downloaded:download.length, uploaded:options.upload === false ? 0 : upload.length, final:finalEvents.length, cache };
+            console.log('[MK_LEARNING_STATS_LEDGER_FIREBASE_UNION]', { localBefore:localBefore.length, cloud:cloudEvents.length, downloaded:downloadResult.inserted, conflicts:downloadResult.conflicts, uploaded:options.upload === false ? 0 : uploaded, final:finalEvents.length });
+            return { ok:true, localBefore:localBefore.length, cloud:cloudEvents.length, downloaded:downloadResult.inserted, conflicts:downloadResult.conflicts, uploaded:options.upload === false ? 0 : uploaded, final:finalEvents.length, cache };
         } catch(error) {
             console.error('[MK_LEARNING_STATS_LEDGER_FIREBASE_SYNC_FAILED_LOCAL_KEPT]', error);
             return { ok:false, localKept:true, reason:error && error.message ? error.message : String(error) };
@@ -6804,6 +6948,7 @@
                 await appendLearningStatsEvents(events, 'firebase-restore-ledger-union');
                 const cache = await commitLearningStatsCacheFromLedger('firebase-restore-ledger-cache');
                 if(!cache.ok) throw new Error(`${LEARNING_STATS_STORAGE_KEY}_ledger_cache_restore_failed`);
+                setLearningStatsRestoreState('success', { source:'firebase-restore-event-ledger', backupTimestamp:backupId, eventCount:cache.events.length });
                 restored.push(LEARNING_STATS_STORAGE_KEY);
                 console.log('[MK_PWA_RESTORE_LEDGER_UNION]', { backupId, incomingEvents:events.length, eventCount:cache.events.length, entryCount:getLearningStatsEntryCount(cache.store) });
             } else {

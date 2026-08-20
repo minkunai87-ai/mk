@@ -116,15 +116,57 @@ async function main() {
         };
 
         const initial = await waitForSnapshot();
+        // Defer the independently scheduled startup sync so it cannot close the write barrier
+        // halfway through the intentionally uninterrupted ten-review sequence. The real sync
+        // function is restored immediately after that sequence and exercised below.
+        await evaluate(`(() => {
+            window.__mkLifecycleOriginalStartupSync = syncLatestFirebaseBackupOnStartup;
+            syncLatestFirebaseBackupOnStartup = async () => ({deferredForLifecycleReview:true});
+            return true;
+        })()`);
+        const readSafetyCounts = async () => evaluate(`(async () => {
+            await statsPersistenceQueue.catch(() => null);
+            await learningStatsPersistenceQueue.catch(() => null);
+            const history = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+            const ledger = await readAllLearningStatsEvents();
+            return {
+                stats:getStatsKeyCount(JSON.stringify(getCanonicalStatsStore())),
+                reviewHistory:Object.keys(history || {}).length,
+                reviewHistoryEvents:Object.values(history || {}).reduce((sum, items) => sum + (Array.isArray(items) ? items.length : 0), 0),
+                learningStats:getLearningStatsEntryCount(getLearningStatsStore()),
+                favorites:getLearningStatsFavoriteDecks().length,
+                ledgerEvents:ledger.length,
+                conflictCorrections:ledger.filter(isLearningStatsConflictCorrectionEvent).length,
+                restoreState:learningStatsRestoreState,
+                ready:learningStatsReady,
+                restoreMessage:document.getElementById('fb-list-ui')?.innerText || ''
+            };
+        })()`);
+        let fullRestoreVerification = null;
         if(initial.dayKeys.length < 7 || process.env.MK_FORCE_RESTORE === '1') {
-            const restoreResult = await evaluate(`(async () => {
-                const response = await fetch('https://mkapp-87823-default-rtdb.firebaseio.com/apps/mk/backups/${recoveryId}.json', {cache:'no-store'});
-                const payload = await response.json();
-                const integrity = verifyLearningStatsBackupPayloadIntegrity(payload);
-                if(!integrity.ok) return {ok:false, integrity};
-                return restoreLearningStatsBackupFields(payload, ['learningStats', 'favorites']);
-            })()`);
-            if(!restoreResult?.ok) throw new Error(`live Firebase restore failed: ${JSON.stringify(restoreResult)}`);
+            if(process.env.MK_FORCE_FULL_RESTORE === '1') {
+                const before = await readSafetyCounts();
+                await evaluate(`restoreFromFirebase(${JSON.stringify(recoveryId)})`);
+                const afterFirst = await readSafetyCounts();
+                await evaluate(`restoreFromFirebase(${JSON.stringify(recoveryId)})`);
+                const afterSecond = await readSafetyCounts();
+                fullRestoreVerification = {before, afterFirst, afterSecond};
+                if(afterFirst.restoreState !== 'success' || !afterFirst.ready || /Restore failed|오류가 발생|context is not defined/i.test(afterFirst.restoreMessage)) throw new Error(`full Firebase restore failed: ${JSON.stringify(fullRestoreVerification)}`);
+                if(afterSecond.ledgerEvents !== afterFirst.ledgerEvents || afterSecond.conflictCorrections !== afterFirst.conflictCorrections) throw new Error(`full Firebase restore is not idempotent: ${JSON.stringify(fullRestoreVerification)}`);
+                for(const key of ['stats','reviewHistory','reviewHistoryEvents','learningStats','favorites']) {
+                    if(afterSecond[key] < afterFirst[key]) throw new Error(`full Firebase restore decreased ${key}: ${JSON.stringify(fullRestoreVerification)}`);
+                }
+                if(process.env.MK_EXPECT_COLLISION === '1' && afterFirst.conflictCorrections <= before.conflictCorrections) throw new Error(`expected live collision correction was not appended: ${JSON.stringify(fullRestoreVerification)}`);
+            } else {
+                const restoreResult = await evaluate(`(async () => {
+                    const response = await fetch('https://mkapp-87823-default-rtdb.firebaseio.com/apps/mk/backups/${recoveryId}.json', {cache:'no-store'});
+                    const payload = await response.json();
+                    const integrity = verifyLearningStatsBackupPayloadIntegrity(payload);
+                    if(!integrity.ok) return {ok:false, integrity};
+                    return restoreLearningStatsBackupFields(payload, ['learningStats', 'favorites']);
+                })()`);
+                if(!restoreResult?.ok) throw new Error(`live Firebase restore failed: ${JSON.stringify(restoreResult)}`);
+            }
         }
         const restored = await waitForSnapshot(7);
         const staleState = await evaluate(`({store:getLearningStatsStore(), revision:learningStatsMemoryRevision})`);
@@ -179,6 +221,11 @@ async function main() {
             return results;
         })()`);
         const afterReview = await waitForSnapshot(7);
+        await evaluate(`(() => {
+            if(window.__mkLifecycleOriginalStartupSync) syncLatestFirebaseBackupOnStartup = window.__mkLifecycleOriginalStartupSync;
+            delete window.__mkLifecycleOriginalStartupSync;
+            return true;
+        })()`);
         const cacheFailureDurability = await evaluate(`(async () => {
             const originalCommit = commitLearningStatsCacheFromLedger;
             const before = getLearningStatsEntryCount(getLearningStatsStore());
@@ -201,10 +248,29 @@ async function main() {
             return {blockedRawWrite:result.blockedRawWrite, action:result.telemetry.action, total:getLearningStatsEntryCount(result.store), revision:result.revision};
         })()`);
         const peerTarget = await send('Target.createTarget', {url:appUrl});
-        await delay(2500);
-        const withPeer = await snapshot();
+        let withPeer = null;
+        for(let attempt = 0; attempt < 60; attempt++) {
+            withPeer = await snapshot();
+            if(withPeer && withPeer.peerCount >= 1) break;
+            await delay(500);
+        }
         if(peerTarget.result?.targetId) await send('Target.closeTarget', {targetId:peerTarget.result.targetId});
+        const reloadMarker = `mk-lifecycle-reload-${Date.now()}`;
+        await evaluate(`window.__mkLifecycleReloadMarker = ${JSON.stringify(reloadMarker)}`);
         await send('Page.reload', {ignoreCache:true});
+        let reloadCommitted = false;
+        for(let attempt = 0; attempt < 120 && !reloadCommitted; attempt++) {
+            try {
+                reloadCommitted = await evaluate(`window.__mkLifecycleReloadMarker !== ${JSON.stringify(reloadMarker)} && document.readyState === 'complete'`);
+            } catch(error) {}
+            if(!reloadCommitted) await delay(100);
+        }
+        if(!reloadCommitted) throw new Error('page reload did not commit a new document');
+        await evaluate(`(() => {
+            window.__mkLifecycleOriginalStartupSyncAfterReload = syncLatestFirebaseBackupOnStartup;
+            syncLatestFirebaseBackupOnStartup = async () => ({deferredForLifecycleManualSync:true});
+            return true;
+        })()`);
         const afterReload = await waitForSnapshot(7);
         if(process.env.MK_FORCE_STUDY_CLOUD === '1') {
             await evaluate(`(() => {
@@ -223,8 +289,14 @@ async function main() {
         const manualSync = await evaluate(`(async () => {
             if(typeof syncLatestFirebaseBackupOnStartup !== 'function') return {skipped:'startup sync already completed after reload'};
             flushBackupToFirebase = async () => ({blockedForIsolatedTest:true});
+            if(window.__mkLifecycleOriginalStartupSyncAfterReload) syncLatestFirebaseBackupOnStartup = window.__mkLifecycleOriginalStartupSyncAfterReload;
+            delete window.__mkLifecycleOriginalStartupSyncAfterReload;
+            const beforeFavorites = getLearningStatsFavoriteDecks();
+            const beforeDurableFavorites = normalizeLearningStatsFavoriteDecksBackupPayload(await readStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_KEY));
             await syncLatestFirebaseBackupOnStartup();
-            return {ok:true};
+            const afterFavorites = getLearningStatsFavoriteDecks();
+            const afterDurableFavorites = normalizeLearningStatsFavoriteDecksBackupPayload(await readStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_KEY));
+            return {ok:true, beforeFavorites, beforeDurableFavorites, afterFavorites, afterDurableFavorites};
         })()`);
         await delay(250);
         const afterSync = await waitForSnapshot(7);
@@ -237,7 +309,8 @@ async function main() {
         if(withPeer.peerCount < 1) throw new Error(`second instance was not detected: ${JSON.stringify(withPeer)}`);
         if(afterReload.total !== afterFailureRecovery.total || afterReload.testCount !== 11) throw new Error(`reload persistence failed: ${JSON.stringify({afterFailureRecovery, afterReload})}`);
         if(afterSync.total !== afterReload.total || afterSync.testCount !== 11) throw new Error(`sync persistence failed: ${JSON.stringify({afterReload, afterSync, syncInputs, manualSync})}`);
-        console.log(JSON.stringify({restored, filterCaseResults, afterReview, cacheFailureDurability, afterFailureRecovery, staleWrite, withPeer, afterReload, afterSync, syncInputs, manualSync, blockedFirebaseWrites}, null, 2));
+        if(afterSync.favoriteCount !== afterReload.favoriteCount) throw new Error(`sync changed favorites: ${JSON.stringify({afterReload, afterSync, syncInputs, manualSync})}`);
+        console.log(JSON.stringify({fullRestoreVerification, restored, filterCaseResults, afterReview, cacheFailureDurability, afterFailureRecovery, staleWrite, withPeer, afterReload, afterSync, syncInputs, manualSync, blockedFirebaseWrites}, null, 2));
     } finally {
         edge.kill();
         if(server.listening) server.close();
