@@ -69,13 +69,12 @@ async function main() {
                         annotationId: '6a58769d-6bdc-454b-b744-ef8e39bc9354'
                     }));
                     const allCards = Object.values(library || {}).flat();
-                    const ordinaryCard = allCards.find(item => {
-                        const holder = document.createElement('div'); holder.innerHTML = item.q || '';
-                        const refElement = holder.querySelector('.block-ref');
-                        const data = extractBlockRefUuid(refElement);
-                        return data && data.uuid && !pdfAnnotationSourceIndex.has(data.uuid);
-                    });
-                    const ordinaryRoot = ordinaryCard && createDOM(ordinaryCard, false);
+                    const ordinaryUuid = crypto.randomUUID();
+                    const ordinaryRoot = createDOM({
+                        id: ordinaryUuid,
+                        q: '<span class="block-ref" onclick="window.open(\\\'logseq://graph/logseq?block-id=' + ordinaryUuid + '\\\')">ordinary</span>',
+                        a: '', extra: '', breadcrumb: '', blockId: ordinaryUuid, isLogseq: false
+                    }, false);
                     const directCard = allCards.find(item => /(?:📌|🟡|🔵|🟢|🟣|🔴|🟠)\\s*<b>P\\d+<\\/b>/i.test(item.q || ''));
                     const directRoot = directCard && createDOM(directCard, false);
                     return {
@@ -90,7 +89,7 @@ async function main() {
                         height: style && style.height,
                         iosDeepLink,
                         pdfFileNameCases,
-                        ordinaryBlockRefIconCount: ordinaryRoot ? ordinaryRoot.querySelectorAll('.block-ref > .mk-pdf-annotation-icon').length : null,
+                        ordinaryBlockRefIconCount: ordinaryRoot.querySelectorAll('.block-ref > .mk-pdf-annotation-icon').length,
                         directAnnotationIconCount: directRoot ? directRoot.querySelectorAll('.mk-pdf-annotation-icon').length : null
                     };
                 })()`, returnByValue: true
