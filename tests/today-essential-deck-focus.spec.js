@@ -80,11 +80,31 @@ assert.strictEqual(Math.floor(1800 / prepared.representativeSeconds), 150, '30-m
 assert.strictEqual(Math.floor(3600 / prepared.representativeSeconds), 300, '1-hour preset uses the representative seconds path');
 assert.strictEqual(Math.floor(7200 / prepared.representativeSeconds), 600, '2-hour preset uses the representative seconds path');
 
+const durationStorage = new Map();
+context.localStorage = { getItem:key => durationStorage.has(key) ? durationStorage.get(key) : null };
+context.REVIEW_DURATION_STORAGE_KEY = 'duration-test';
+context.REVIEW_DURATION_MAX_SAMPLES = 300;
+context.REVIEW_DURATION_DEFAULT_SECONDS = 12;
+vm.runInContext(readFunction('getValidReviewDurationSamples'), context);
+vm.runInContext(readFunction('getRepresentativeReviewSeconds'), context);
+durationStorage.set('duration-test', JSON.stringify([0, -1, 'bad', null, ...Array(30).fill(60)]));
+assert.strictEqual(context.getRepresentativeReviewSeconds(), 60, 'invalid duration values are removed and a valid median remains bounded');
+durationStorage.set('duration-test', JSON.stringify([0, -1, 'bad', null]));
+assert.strictEqual(context.getRepresentativeReviewSeconds(), 12, 'too few valid duration samples use the nonzero fallback');
+
 const renderDeckTreeSource = readFunction('renderDeckTree');
 assert(renderDeckTreeSource.includes('head.dataset.deckPath = item._path'), 'folder identity uses the full deck path');
 assert(renderDeckTreeSource.includes('li.dataset.deckPath = item._path'), 'leaf identity uses the full deck path');
 assert(renderDeckTreeSource.includes("currentDeckName.startsWith(item._path + '__')"), 'selected descendants open their ancestors');
 assert(renderDeckTreeSource.includes("item._path === currentDeckName ? 'active' : ''"), 'the exact current leaf keeps the active style');
+
+const openRequiredSource = readFunction('openRecommendedStudySheet');
+assert(openRequiredSource.includes("if(recommendedStudySheetMode === 'required')"), 'today required has an explicit scope branch');
+assert(openRequiredSource.includes("scope.query = '';"), 'today required ignores a stale UI search query');
+assert(openRequiredSource.includes('scope.filterModes = [];'), 'today required uses the pure due set instead of unrelated UI filters');
+const startRequiredSource = readFunction('startRecommendedStudy');
+assert(startRequiredSource.includes('processedIds: new Set()'), 'each today-required start resets processed UUIDs');
+assert(!readFunction('buildTodayEssentialCandidates').includes('processedIds'), 'processed UUIDs cannot zero the initial candidate builder');
 
 function makeClassList(initial = []) {
     const values = new Set(initial);
