@@ -98,13 +98,43 @@ assert(renderDeckTreeSource.includes('li.dataset.deckPath = item._path'), 'leaf 
 assert(renderDeckTreeSource.includes("currentDeckName.startsWith(item._path + '__')"), 'selected descendants open their ancestors');
 assert(renderDeckTreeSource.includes("item._path === currentDeckName ? 'active' : ''"), 'the exact current leaf keeps the active style');
 
-const openRequiredSource = readFunction('openRecommendedStudySheet');
-assert(openRequiredSource.includes("if(recommendedStudySheetMode === 'required')"), 'today required has an explicit scope branch');
-assert(openRequiredSource.includes("scope.query = '';"), 'today required ignores a stale UI search query');
-assert(openRequiredSource.includes('scope.filterModes = [];'), 'today required uses the pure due set instead of unrelated UI filters');
+const recommendedScopeSource = readFunction('getCurrentDeckRecommendedStudyScope');
+assert(recommendedScopeSource.includes("query: ''"), 'recommended study ignores a stale UI search query');
+assert(recommendedScopeSource.includes('filterModes: []'), 'recommended study ignores unrelated UI filters');
 const startRequiredSource = readFunction('startRecommendedStudy');
 assert(startRequiredSource.includes('processedIds: new Set()'), 'each today-required start resets processed UUIDs');
 assert(!readFunction('buildTodayEssentialCandidates').includes('processedIds'), 'processed UUIDs cannot zero the initial candidate builder');
+
+context.TODAY_NEW_MIN_AGE_MS = 6 * 60 * 60 * 1000;
+['isPostBaselineNewUuid', 'isTodayNewPostBaselineEligible', 'getTodayNewStableOrder', 'roundRobinTodayNewByDeck', 'rankTodayNewCandidates']
+    .forEach(name => vm.runInContext(readFunction(name), context));
+const now = Date.now();
+assert(context.isTodayNewPostBaselineEligible({ baseline:false, firstSeenAt:now - 30 * 60 * 60 * 1000 }, now), 'P1 at 30 hours is eligible');
+assert(context.isTodayNewPostBaselineEligible({ baseline:false, firstSeenAt:now - 10 * 60 * 60 * 1000 }, now), 'P2 at 10 hours is eligible');
+assert(!context.isTodayNewPostBaselineEligible({ baseline:false, firstSeenAt:now - 5 * 60 * 60 * 1000 }, now), 'P3 under 6 hours is excluded');
+const newItem = (id, deck, ageHours, isPostBaselineNew, sourceOrder) => ({
+    card:{ id, sourceOrder }, deck, ageMs:ageHours * 60 * 60 * 1000,
+    isPostBaselineNew, originalIndex:sourceOrder
+});
+const rankedNew = Array.from(context.rankTodayNewCandidates([
+    newItem('P1', 'A', 30, true, 1),
+    newItem('P2', 'B', 10, true, 1),
+    newItem('A1', 'A', 9, true, 2),
+    newItem('A2', 'A', 9, true, 3),
+    newItem('B1', 'B', 9, true, 2),
+    newItem('C1', 'C', 9, true, 1),
+    newItem('B1-base', 'A', 0, false, 1),
+    newItem('B2-base', 'B', 0, false, 1)
+]));
+assert(rankedNew.findIndex(item => item.card.id === 'P1') < rankedNew.findIndex(item => item.card.id === 'P2'), 'older post-baseline bands stay ahead of newer bands');
+assert.deepStrictEqual(rankedNew.filter(item => ['A1','A2','B1','C1'].includes(item.card.id)).map(item => item.deck), ['C','A','B','A'], 'similar-age post-baseline cards round-robin across child decks without consecutive A cards');
+assert(rankedNew.findIndex(item => item.card.id === 'A1') < rankedNew.findIndex(item => item.card.id === 'A2'), 'same-deck ties preserve sourceOrder');
+assert.deepStrictEqual(rankedNew.slice(0, 4).map(item => item.isPostBaselineNew), [true, true, true, false], 'mixed ranking starts with a 75/25 post-baseline to baseline pattern');
+assert(!readFunction('buildTodayNewCandidates').includes('isFavorite'), 'today-new ranking has no favorite priority');
+vm.runInContext(readFunction('hasActualReviewRecord'), context);
+assert(context.hasActualReviewRecord({}, [{ score:0 }]), 'real evaluation history excludes a learned card from today new');
+assert(context.hasActualReviewRecord({ fsrs:{ reps:1 } }, []), 'FSRS reps exclude a learned card from today new');
+assert(!context.hasActualReviewRecord({ lastDate:now }, []), 'lastDate alone does not exclude an otherwise unlearned card');
 
 function makeClassList(initial = []) {
     const values = new Set(initial);

@@ -369,7 +369,8 @@ assert(!html.includes('unionLearningStatsTargets'), 'snapshot/union targets are 
 assert(readFunction('getCurrentLearningStatsFilterTargets').includes('buildTodayEssentialCandidates(scope)'), 'stats directly runs the existing required selector with the full scope');
 assert(readFunction('getCurrentLearningStatsFilterTargets').includes('buildTodayNewCandidates(scope)'), 'stats directly runs the existing new selector with the full scope');
 assert(html.includes('const scope = getCurrentDeckRecommendedStudyScope();'), 'the real filter UI uses the current selected deck scope');
-assert(html.includes("if(recommendedStudySheetMode === 'required')"), 'today required can normalize the current deck scope before candidate selection');
+assert(readFunction('getCurrentDeckRecommendedStudyScope').includes("query: ''"), 'recommended study does not inherit the search query');
+assert(readFunction('getCurrentDeckRecommendedStudyScope').includes('filterModes: []'), 'recommended study does not inherit unrelated UI filters');
 assert(html.includes('buildTodayNewCandidates(scope) : buildTodayEssentialCandidates(scope)'), 'today new and today review use the scoped selector input');
 assert(html.includes('const sourceCards = Array.isArray(options.cards) ? options.cards : [...(activeDeck || []), ...(originalDeck || [])]'), 'required selector accepts cards without activeDeck dependency');
 assert(html.includes('const sourceCards = Array.isArray(options.cards) ? options.cards : (originalDeck || [])'), 'new selector accepts cards without originalDeck dependency');

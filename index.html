@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.186 - 오늘 필수 due 범위 일치)</title>
+<title>MK (v18.5.187 - 오늘 새로 순수 후보 및 균형 정렬)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -560,7 +560,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.186 - 오늘 필수 due 범위 일치)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.187 - 오늘 새로 순수 후보 및 균형 정렬)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -854,7 +854,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.186 - 오늘 필수 due 범위 일치';
+    const APP_VERSION = 'v18.5.187 - 오늘 새로 순수 후보 및 균형 정렬';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -894,10 +894,7 @@
     const LEARNING_STATS_STORAGE_KEY = 'mk_learning_stats_v1';
     const LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY = 'mk_learning_stats_favorite_decks_v1';
     const TODAY_NEW_MIN_AGE_MS = 6 * 60 * 60 * 1000;
-    const TODAY_NEW_PRIORITY_24H_MS = 24 * 60 * 60 * 1000;
-    const TODAY_NEW_PRIORITY_48H_MS = 48 * 60 * 60 * 1000;
     const TODAY_NEW_PRIORITY_72H_MS = 72 * 60 * 60 * 1000;
-    const TODAY_NEW_GROUP_LIMIT = 2;
     const TODAY_NEW_BASELINE_SNAPSHOT_URL = 'today-new-baseline-v1.json';
     const TODAY_NEW_BASELINE_SNAPSHOT_VERSION = 1;
     const TODAY_NEW_BASELINE_CARD_COUNT = 5173;
@@ -7126,8 +7123,8 @@
     function getCurrentDeckRecommendedStudyScope() {
         return {
             cards: getCurrentDeckRecommendedStudyCards(),
-            query: String((document.getElementById('search-input') || {}).value || '').trim().toLowerCase(),
-            filterModes: getActiveFilterModes().filter(mode => mode !== 'due')
+            query: '',
+            filterModes: []
         };
     }
 
@@ -8998,14 +8995,6 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         return lookup;
     }
 
-    function getTodayNewSourceGroup(card) {
-        const ioGroup = getImageOcclusionGroupKey(card);
-        if(ioGroup) return ioGroup;
-        const breadcrumb = String(card && card.breadcrumb || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        if(breadcrumb) return `page:${breadcrumb}`;
-        return `card:${getTodayEssentialCardId(card)}`;
-    }
-
     function hasActualReviewRecord(stat, history) {
         return (Array.isArray(history) && history.some(item =>
                 !isConfirmHistoryItem(item) && [0, 1, 2].includes(Number(item && item.score))
@@ -9020,6 +9009,65 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 
     function isPostBaselineNewUuid(record) {
         return !!(record && !record.baseline);
+    }
+
+    function isTodayNewPostBaselineEligible(record, now = Date.now()) {
+        return isPostBaselineNewUuid(record) && now - Number(record.firstSeenAt || now) >= TODAY_NEW_MIN_AGE_MS;
+    }
+
+    function getTodayNewStableOrder(item) {
+        const sourceOrder = Number(item && item.card && item.card.sourceOrder);
+        return Number.isFinite(sourceOrder) ? sourceOrder : Number(item && item.originalIndex) || 0;
+    }
+
+    function roundRobinTodayNewByDeck(items, compare) {
+        const queues = new Map();
+        items.slice().sort(compare).forEach(item => {
+            if(!queues.has(item.deck)) queues.set(item.deck, []);
+            queues.get(item.deck).push(item);
+        });
+        const ranked = [];
+        let progressed = true;
+        while(progressed) {
+            progressed = false;
+            queues.forEach(queue => {
+                if(!queue.length) return;
+                ranked.push(queue.shift());
+                progressed = true;
+            });
+        }
+        return ranked;
+    }
+
+    function rankTodayNewCandidates(candidates) {
+        const comparePost = (a, b) =>
+            (b.ageMs - a.ageMs) ||
+            (getTodayNewStableOrder(a) - getTodayNewStableOrder(b)) ||
+            (a.originalIndex - b.originalIndex);
+        const compareBaseline = (a, b) =>
+            (getTodayNewStableOrder(a) - getTodayNewStableOrder(b)) ||
+            (a.originalIndex - b.originalIndex);
+        const postBands = new Map();
+        candidates.filter(item => item.isPostBaselineNew).forEach(item => {
+            const band = Math.floor(item.ageMs / TODAY_NEW_MIN_AGE_MS);
+            if(!postBands.has(band)) postBands.set(band, []);
+            postBands.get(band).push(item);
+        });
+        const rankedPost = [...postBands.keys()].sort((a, b) => b - a)
+            .flatMap(band => roundRobinTodayNewByDeck(postBands.get(band), comparePost));
+        const rankedBaseline = roundRobinTodayNewByDeck(
+            candidates.filter(item => !item.isPostBaselineNew),
+            compareBaseline
+        );
+        const ranked = [];
+        let postIndex = 0;
+        let baselineIndex = 0;
+        while(postIndex < rankedPost.length && baselineIndex < rankedBaseline.length) {
+            for(let count = 0; count < 3 && postIndex < rankedPost.length; count++) ranked.push(rankedPost[postIndex++]);
+            ranked.push(rankedBaseline[baselineIndex++]);
+        }
+        ranked.push(...rankedPost.slice(postIndex), ...rankedBaseline.slice(baselineIndex));
+        return ranked;
     }
 
     function getTodayNewRecommendedCount(candidateCount, dueCount, overdue72HoursCount) {
@@ -9064,17 +9112,6 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                 stat: found && found.stat ? found.stat : {},
                 history: getMergedReviewHistoryForCardFromSnapshot(card, statsKey, reviewHistorySnapshot).items
             });
-        });
-        const groupAccuracy = new Map();
-        selectedDeckCards.forEach(card => {
-            const meta = metaById.get(getTodayEssentialCardId(card)) || { stat: {}, history: [] };
-            const accuracy = getTodayEssentialAccuracy(meta.stat, meta.history);
-            if(!accuracy.total) return;
-            const group = getTodayNewSourceGroup(card);
-            const current = groupAccuracy.get(group) || { correct: 0, total: 0 };
-            current.correct += accuracy.correct;
-            current.total += accuracy.total;
-            groupAccuracy.set(group, current);
         });
         let dueCount = 0;
         let overdue72HoursCount = 0;
@@ -9132,60 +9169,20 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                 return;
             }
             const ageMs = now - Number(record.firstSeenAt || now);
-            if(isPostBaselineNew && ageMs < TODAY_NEW_MIN_AGE_MS) {
+            if(isPostBaselineNew && !isTodayNewPostBaselineEligible(record, now)) {
                 diagnostics.under6HoursNewUuids++;
                 return;
             }
             if(isPostBaselineNew && ageMs >= TODAY_NEW_PRIORITY_72H_MS) overdue72HoursCount++;
-            const group = getTodayNewSourceGroup(card);
-            const groupStats = groupAccuracy.get(group) || { correct: 0, total: 0 };
-            const groupWrongRate = groupStats.total ? 1 - (groupStats.correct / groupStats.total) : 0;
             candidates.push({
                 card,
                 originalIndex,
                 deck: deckLookup.get(id) || currentDeckName || '',
-                group,
                 isPostBaselineNew,
-                ageMs,
-                isFavorite: !!stat.fav,
-                sourcePositionPriority: selectedDeckCards.length - originalIndex,
-                groupWrongRate
+                ageMs
             });
         });
-        const compareTodayNewPriority = (a, b) =>
-            (Number(b.isPostBaselineNew) - Number(a.isPostBaselineNew)) ||
-            (a.isPostBaselineNew
-                ? ((b.ageMs - a.ageMs) ||
-                    (Number(b.isFavorite) - Number(a.isFavorite)) ||
-                    (b.groupWrongRate - a.groupWrongRate))
-                : ((Number(b.isFavorite) - Number(a.isFavorite)) ||
-                    (b.sourcePositionPriority - a.sourcePositionPriority) ||
-                    (b.groupWrongRate - a.groupWrongRate))) ||
-            (a.originalIndex - b.originalIndex);
-        candidates.sort(compareTodayNewPriority);
-        const deckQueues = new Map();
-        candidates.forEach(item => {
-            if(!deckQueues.has(item.deck)) deckQueues.set(item.deck, []);
-            deckQueues.get(item.deck).push(item);
-        });
-        const ranked = [];
-        const groupCounts = new Map();
-        let progressed = true;
-        while(progressed) {
-            progressed = false;
-            deckQueues.forEach(queue => {
-                const nextIndex = queue.findIndex(item => (groupCounts.get(item.group) || 0) < TODAY_NEW_GROUP_LIMIT);
-                if(nextIndex < 0) return;
-                const item = queue.splice(nextIndex, 1)[0];
-                ranked.push(item);
-                groupCounts.set(item.group, (groupCounts.get(item.group) || 0) + 1);
-                progressed = true;
-            });
-        }
-        const overflow = [];
-        deckQueues.forEach(queue => overflow.push(...queue));
-        overflow.sort(compareTodayNewPriority);
-        ranked.push(...overflow);
+        const ranked = rankTodayNewCandidates(candidates);
         diagnostics.finalTodayNewCandidates = candidates.length;
         const recommendedCount = getTodayNewRecommendedCount(candidates.length, dueCount, overdue72HoursCount);
         console.log('[MK Today New Prepared]', {
@@ -9253,10 +9250,6 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         recommendedStudySheetMode = mode === 'new' ? 'new' : 'required';
         const state = getRecommendedStudyState();
         const scope = getCurrentDeckRecommendedStudyScope();
-        if(recommendedStudySheetMode === 'required') {
-            scope.query = '';
-            scope.filterModes = [];
-        }
         const prepared = recommendedStudySheetMode === 'new' ? buildTodayNewCandidates(scope) : buildTodayEssentialCandidates(scope);
         if(!prepared.candidates.length) {
             showToast(recommendedStudySheetMode === 'new' ? '오늘 새로 학습할 문제가 없습니다.' : '오늘 복습할 문제가 없습니다.');
