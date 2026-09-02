@@ -73,6 +73,8 @@ const context = {
     learningStatsReviewDeltaQueue: [],
     learningStatsPersistenceQueue: Promise.resolve({ok:true, skipped:true}),
     learningStatsStartupSyncInProgress: false,
+    startupSyncStarted: false,
+    startupSyncCompleted: false,
     learningStatsEventLedgerActive: false,
     activeDeck: [],
     originalDeck: [],
@@ -161,7 +163,7 @@ async function commitLearningStatsWriteAtomically(store, updatedAt, writeContext
     'evaluateLearningStatsBackupHealth',
     'verifyCoreBackupPayloadIntegrity',
     'getHistoryItemTime', 'getHistoryLatestTime', 'getStatLatestTime', 'getStartupStudyMetrics', 'compareStartupStudyStates', 'getStartupDataDecision', 'getStartupSyncNotice', 'getStartupMetadataDecision', 'getStartupBackupIdDecision',
-    'getStartupSyncDecision', 'getLocalGroupUpdatedAt',
+    'getStartupSyncDecision', 'getLocalGroupUpdatedAt', 'claimStartupSyncSession',
     'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'getCurrentDeckRecommendedStudyCards', 'buildLearningStatsModel',
     'getLearningStatsImmediateChildren', 'getLearningStatsFavoriteDecks', 'saveLearningStatsFavoriteDecks', 'toggleLearningStatsFavorite'
 ].forEach(name => vm.runInContext(readFunction(name), context));
@@ -323,6 +325,8 @@ const startupDetailedMergeSource = readFunction('runStartupDetailedMerge');
 const startupIndexCandidateSource = readFunction('getStartupIndexCandidate');
 const scheduleBackupSource = readFunction('scheduleBackup');
 const performBackupSource = readFunction('performFirebaseBackup');
+const gradeSource = readFunction('grade');
+const saveStudyStateSource = readFunction('saveStudyState');
 assert(startupCleanApplySource.includes("applyRestoredState(cloudState, 'cloud'"), 'clean Firebase updates reuse the safe restore path');
 assert(startupDetailedMergeSource.includes("applyRestoredState(cloudState, 'cloud'"), 'dirty conflicts reuse the UUID/history merge path');
 assert.strictEqual((startupSyncSource.match(/showToast\(/g) || []).length, 1, 'startup emits exactly one final toast after comparison and apply');
@@ -353,6 +357,18 @@ const sameIdFastPathSource = startupSyncSource.slice(startupSyncSource.indexOf("
 assert(startupIndexCandidateSource.includes('statsKeyBaseline * STATS_MIN_RETAIN_RATIO'), 'latest-normal index selection preserves sudden Stats-drop blocking');
 assert(scheduleBackupSource.includes('if(reason) setLocalDataDirty(true)'), 'actual learning-data save reasons persist dirty=true');
 assert(performBackupSource.indexOf('if(!indexWriteOk)') < performBackupSource.indexOf('setStartupBackupBaseline(data.timestamp, false)'), 'dirty clears only after both payload and backupIndex writes succeed');
+assert(performBackupSource.includes('STORAGE_KEY_LAST_CREATED_BACKUP_ID'), 'a successfully created backup records its own ID before updating the applied baseline');
+assert(performBackupSource.includes('localDataChangeRevision === backupChangeRevision'), 'a completed snapshot cannot clear dirty when a newer review was recorded during upload');
+assert(saveStudyStateSource.includes('scheduleBackup(reason)') && !saveStudyStateSource.includes('backupStudyState(reason'), 'card grading uses the existing debounce instead of starting a full backup immediately');
+assert.strictEqual(context.claimStartupSyncSession(), true, 'cold start claims the one startup-sync slot');
+for(let review = 0; review < 100; review++) {
+    assert.strictEqual(context.claimStartupSyncSession(), false, `active-session review ${review + 1} cannot reclaim startup sync`);
+}
+assert(!gradeSource.includes('syncLatestFirebaseBackupOnStartup') && !gradeSource.includes('fetchStartupBootstrapBackupCandidates'), 'card grading never starts startup sync or backupIndex reads');
+assert(!performBackupSource.includes('syncLatestFirebaseBackupOnStartup') && !performBackupSource.includes('fetchStartupBootstrapBackupCandidates'), 'automatic backup completion never starts startup sync or backupIndex reads');
+const onloadSource = html.slice(html.indexOf('window.onload = async function()'), html.indexOf('\n    function openFirebaseSettings'));
+assert(onloadSource.indexOf('await syncLatestFirebaseBackupOnStartup') < onloadSource.indexOf('initApp();'), 'the learning UI opens only after cold-start sync has fully finished');
+assert.strictEqual((html.match(/syncLatestFirebaseBackupOnStartup\(/g) || []).length, 2, 'production code has exactly one startup call site plus the function definition');
 const mediaDisposeSource = readFunction('disposeCardMediaResources');
 const mediaBindSource = readFunction('bindImageZoomHandlers');
 const backupScriptSource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'backup-firebase-user-data.js'), 'utf8');
@@ -570,6 +586,17 @@ assert.strictEqual(failedRestore.ok, false, 'a permanent quota failure is surfac
 assert.strictEqual(failedRestore.keptOld, true, 'a failed learning-stats restore keeps the previous value');
 assert.strictEqual(restoreStorage.get('mk_learning_stats_v1'), '{"version":1,"days":{"preserved":{}}}', 'quota retry never deletes the live learning-stats key');
 assert.strictEqual(restoreStorage.has('anki_final_library'), false, 'only rebuildable cache is freed before a quota retry');
+
+const filteredReviewCards = Array.from({length:100}, (_, index) => ({ id:`filtered-session-${index + 1}`, deck:'A__filtered' }));
+context.activeDeck = filteredReviewCards.slice();
+for(const card of filteredReviewCards.slice(0, 20)) context.recordLearningStatsReview(card, 'other');
+await context.learningStatsPersistenceQueue;
+let filteredReviewDay = context.getLearningStatsStore().days[context.getLearningStatsDateKey()];
+assert(filteredReviewCards.slice(0, 20).every(card => filteredReviewDay.allDone.includes(card.id)), '20 filtered-session reviews remain recorded without startup synchronization');
+for(const card of filteredReviewCards.slice(20)) context.recordLearningStatsReview(card, 'other');
+await context.learningStatsPersistenceQueue;
+filteredReviewDay = context.getLearningStatsStore().days[context.getLearningStatsDateKey()];
+assert(filteredReviewCards.every(card => filteredReviewDay.allDone.includes(card.id)), '100 filtered-session reviews remain recorded without reload or data loss');
 
 console.log('learning stats scenarios passed');
 }
