@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.189-startup-data-verdict -->
+<!-- deployment: v18.5.190-startup-io-stability -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.189 - 시작 데이터 최신성 판정)</title>
+<title>MK (v18.5.190 - 시작 동기화 및 IO 안정화)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -466,8 +466,8 @@
   max-width: 100%;
 }
     
-    #toast { position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 24px; border-radius: 25px; font-size: 0.95rem; font-weight: bold; transition: bottom 0.3s ease; z-index: 20000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px; pointer-events: none; }
-    #toast.show { bottom: calc(18px + env(safe-area-inset-bottom)); } 
+    #toast { position: fixed; bottom: calc(18px + env(safe-area-inset-bottom)); left: 50%; transform: translate3d(-50%, 6px, 0); opacity: 0; visibility: hidden; background: #333; color: white; padding: 12px 24px; border-radius: 25px; font-size: 0.95rem; font-weight: bold; transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s linear 0.2s; z-index: 20000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px; pointer-events: none; }
+    #toast.show { transform: translate3d(-50%, 0, 0); opacity: 1; visibility: visible; transition-delay: 0s; }
     #toast.error { background: #fa5252; color: white; }
     #toast.success { background: #40c057; color: white; }
 
@@ -560,7 +560,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.189 - 시작 데이터 최신성 판정)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.190 - 시작 동기화 및 IO 안정화)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -854,7 +854,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.189 - 시작 데이터 최신성 판정';
+    const APP_VERSION = 'v18.5.190 - 시작 동기화 및 IO 안정화';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -949,7 +949,7 @@
     let learningStatsFavoritesUpdatedAt = 0;
     let ioImageGroupCache = { cards: null, length: 0, groups: [], cardToGroup: new Map() };
     const ioImageLastVisitedCard = new Map();
-    const ioZoomDiagnostics = { logged: new Set(), lastAction: '', doubleTapRuns: 0, occlusionInitializations: 0, cardRenders: 0, activeObservers: 0 };
+    const ioZoomDiagnostics = { logged: new Set(), lastAction: '', doubleTapRuns: 0, occlusionInitializations: 0, cardRenders: 0, activeObservers: 0, activeTargets: 0, pendingFrames: 0, releasedImages: 0 };
     const IO_ZOOM_TRACE_KEY = 'mk_io_zoom_trace_v1';
     function recordIOZoomTrace(stage, wrapper = null, state = null, input = '') {
         try {
@@ -1256,13 +1256,28 @@
         if (graphName) rememberLogseqGraphName(graphName, 'paste');
     });
 
+    let toastHideTimer = null;
+    let toastCleanupTimer = null;
     function showToast(msg, type = 'normal') {
         const toast = document.getElementById('toast');
+        if(!toast) return;
+        if(toastHideTimer) clearTimeout(toastHideTimer);
+        if(toastCleanupTimer) clearTimeout(toastCleanupTimer);
         toast.innerText = msg; toast.className = '';
         if(type === 'error') toast.classList.add('error');
         if(type === 'success') toast.classList.add('success');
         toast.classList.add('show');
-        setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        toastHideTimer = setTimeout(() => {
+            toast.classList.remove('show');
+            toastHideTimer = null;
+            toastCleanupTimer = setTimeout(() => {
+                if(!toast.classList.contains('show')) {
+                    toast.className = '';
+                    toast.textContent = '';
+                }
+                toastCleanupTimer = null;
+            }, 220);
+        }, 3000);
     }
 
     function openTRModal() {
@@ -1469,17 +1484,41 @@
             const img = wrapper.querySelector('img.mk-io-image');
             if(img && wrapper._mkIoLoadHandler) img.removeEventListener('load', wrapper._mkIoLoadHandler);
             wrapper._mkIoLoadHandler = null;
+            if(wrapper._mkIoAutoScrollRaf) cancelAnimationFrame(wrapper._mkIoAutoScrollRaf);
+            wrapper._mkIoAutoScrollRaf = null;
+            if(wrapper._mkIoOtherMasksToggle) wrapper._mkIoOtherMasksToggle.remove();
+            wrapper._mkIoOtherMasksToggle = null;
+            if(wrapper.dataset.mkIoElements) mkIOElementsParseCache.delete(wrapper.dataset.mkIoElements);
+            wrapper._mkIoParsedElements = null;
+            wrapper._mkIoParsedConfig = null;
+            wrapper._mkIoParsedTags = null;
+            wrapper.querySelectorAll('.mk-io-layer').forEach(layer => layer.remove());
+            if(img) {
+                img.onerror = null;
+                img.removeAttribute('src');
+                img.removeAttribute('data-original-src');
+                ioZoomDiagnostics.releasedImages += 1;
+            }
         });
         root.querySelectorAll('.media-zoom-target').forEach(target => {
             const state = target._mediaZoomState;
             if(!state) return;
-            if(state.raf) cancelAnimationFrame(state.raf);
+            state.disposed = true;
+            if(state.controller) state.controller.abort();
+            if(state.raf) {
+                cancelAnimationFrame(state.raf);
+                ioZoomDiagnostics.pendingFrames = Math.max(0, ioZoomDiagnostics.pendingFrames - 1);
+            }
             state.raf = null;
             if(state.doubleTapUnlockTimer) clearTimeout(state.doubleTapUnlockTimer);
             state.doubleTapUnlockTimer = null;
             if(state.overlay) state.overlay.remove();
             state.overlay = null;
             state.overlayBaseRect = null;
+            state.geometry = null;
+            target._mediaZoomState = null;
+            target.removeAttribute('data-media-zoom-bound');
+            ioZoomDiagnostics.activeTargets = Math.max(0, ioZoomDiagnostics.activeTargets - 1);
         });
     }
 
@@ -1489,12 +1528,16 @@
             el.style.transformOrigin = '0 0';
             el.classList.remove('is-media-zoomed');
             if (el._mediaZoomState) {
-                if (el._mediaZoomState.raf) cancelAnimationFrame(el._mediaZoomState.raf);
+                if (el._mediaZoomState.raf) {
+                    cancelAnimationFrame(el._mediaZoomState.raf);
+                    ioZoomDiagnostics.pendingFrames = Math.max(0, ioZoomDiagnostics.pendingFrames - 1);
+                }
                 if (el._mediaZoomState.doubleTapUnlockTimer) clearTimeout(el._mediaZoomState.doubleTapUnlockTimer);
                 el._mediaZoomState.scale = 1;
                 el._mediaZoomState.translateX = 0;
                 el._mediaZoomState.translateY = 0;
                 el._mediaZoomState.raf = null;
+                el._mediaZoomState.geometry = null;
                 el._mediaZoomState.doubleTapLockedUntil = 0;
                 el._mediaZoomState.doubleTapUnlockTimer = null;
                 if (el._mediaZoomState.overlay) {
@@ -1557,8 +1600,12 @@
                 raf: null,
                 doubleTapLockedUntil: 0,
                 doubleTapUnlockTimer: null,
-                suppressNativeGestureUntil: 0
+                suppressNativeGestureUntil: 0,
+                geometry: null,
+                disposed: false,
+                controller: new AbortController()
             };
+            ioZoomDiagnostics.activeTargets += 1;
             const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
             const isFiniteNumber = value => Number.isFinite(Number(value));
             const hasValidRect = rect => !!rect &&
@@ -1578,6 +1625,7 @@
                 if (state.raf) {
                     cancelAnimationFrame(state.raf);
                     state.raf = null;
+                    ioZoomDiagnostics.pendingFrames = Math.max(0, ioZoomDiagnostics.pendingFrames - 1);
                 }
             };
             const resetByError = (reason, err) => {
@@ -1590,6 +1638,7 @@
                 state.scale = 1;
                 state.translateX = 0;
                 state.translateY = 0;
+                state.geometry = null;
                 state.startDist = 0;
                 state.lastTap = 0;
                 state.doubleTapLockedUntil = 0;
@@ -1615,7 +1664,7 @@
                 const img = getPrimaryImage();
                 if (!img || wrapper.dataset.mediaZoomSizeLogged === '1') return;
                 if (!img.complete) {
-                    img.addEventListener('load', logImageSizes, { once: true });
+                    img.addEventListener('load', logImageSizes, { once: true, signal:state.controller.signal });
                     return;
                 }
                 wrapper.dataset.mediaZoomSizeLogged = '1';
@@ -1700,6 +1749,16 @@
                     height
                 };
             };
+            const captureGeometry = () => {
+                const viewportRect = scrollContainer.getBoundingClientRect();
+                const wrapperRect = wrapper.getBoundingClientRect();
+                const base = getBaseRect(wrapperRect);
+                state.geometry = {
+                    viewport:{ left:viewportRect.left, top:viewportRect.top, right:viewportRect.right, bottom:viewportRect.bottom, width:viewportRect.width, height:viewportRect.height },
+                    base
+                };
+                return state.geometry;
+            };
             const getContentPoint = (clientX, clientY, scaleValue = state.scale, translateX = state.translateX, translateY = state.translateY, base = getBaseRect()) => {
                 if (!Number.isFinite(clientX) || !Number.isFinite(clientY) || !Number.isFinite(scaleValue) || scaleValue <= 0) {
                     console.warn('IMAGE_ZOOM_ERROR', 'INVALID_IMAGE_ZOOM_POINT');
@@ -1721,13 +1780,13 @@
                     state.translateY = 0;
                     return;
                 }
-                const viewport = scrollContainer.getBoundingClientRect();
-                const rect = wrapper.getBoundingClientRect();
-                if (!hasValidRect(viewport) || !hasValidRect(rect)) {
+                const geometry = state.geometry;
+                const viewport = geometry && geometry.viewport;
+                const base = geometry && geometry.base;
+                if (!hasValidRect(viewport) || !hasValidRect(base)) {
                     resetByError('INVALID_CLAMP_RECT');
                     return;
                 }
-                const base = getBaseRect(rect);
                 const baseWidth = base.width;
                 const baseHeight = base.height;
                 const scaledWidth = baseWidth * state.scale;
@@ -1749,8 +1808,9 @@
                 try {
                     cancelPendingFrame();
                     state.raf = requestAnimationFrame(() => {
+                        ioZoomDiagnostics.pendingFrames = Math.max(0, ioZoomDiagnostics.pendingFrames - 1);
                         state.raf = null;
-                        if (!wrapper.isConnected || !hasValidZoomState()) {
+                        if (state.disposed || !wrapper.isConnected || !hasValidZoomState()) {
                             resetByError('INVALID_STATE_IN_RAF');
                             return;
                         }
@@ -1768,10 +1828,11 @@
                                 resetByError('INVALID_MATRIX_TRANSFORM');
                                 return;
                             }
-                            wrapper.style.transform = `matrix(${state.scale}, 0, 0, ${state.scale}, ${state.translateX}, ${state.translateY})`;
+                            wrapper.style.transform = `translate3d(${state.translateX}px, ${state.translateY}px, 0) scale(${state.scale})`;
                         }
                         wrapper.classList.toggle('is-media-zoomed', state.scale > 1);
                     });
+                    ioZoomDiagnostics.pendingFrames += 1;
                 } catch (err) {
                     resetByError('APPLY_EXCEPTION', err);
                 }
@@ -1779,6 +1840,7 @@
             const reset = () => {
                 cancelPendingFrame();
                 state.scale = 1; state.translateX = 0; state.translateY = 0;
+                state.geometry = null;
                 wrapper.style.transformOrigin = '0 0';
                 removeHighResOverlay();
                 apply();
@@ -1812,10 +1874,10 @@
                         x: clientX - displayRect.left,
                         y: clientY - displayRect.top
                     };
-                    base = getBaseRect();
+                    base = captureGeometry().base;
                 } else {
-                    contentPoint = getContentPoint(clientX, clientY);
-                    base = getBaseRect();
+                    base = captureGeometry().base;
+                    contentPoint = getContentPoint(clientX, clientY, state.scale, state.translateX, state.translateY, base);
                 }
                 state.scale = clamp(nextScale, MIN_SCALE, MAX_SCALE);
                 state.translateX = clientX - base.left - (contentPoint.x * state.scale);
@@ -1869,6 +1931,7 @@
                     }
 
                     const nextScale = 1.7;
+                    captureGeometry();
                     const contentX = clientX - rect.left;
                     const contentY = clientY - rect.top;
                     state.scale = nextScale;
@@ -1902,13 +1965,14 @@
                     if (e.touches.length === 2) {
                         e.preventDefault();
                         const c = center(e.touches);
+                        captureGeometry();
                         state.startDist = distance(e.touches);
                         state.startScale = state.scale;
                         state.startTranslateX = state.translateX;
                         state.startTranslateY = state.translateY;
                         state.startCenterX = c.x;
                         state.startCenterY = c.y;
-                        const base = getBaseRect();
+                        const base = state.geometry.base;
                         state.gestureBaseLeft = base.left;
                         state.gestureBaseTop = base.top;
                         const contentPoint = getContentPoint(c.x, c.y, state.startScale, state.startTranslateX, state.startTranslateY, base);
@@ -1960,6 +2024,7 @@
                     state.lastTap = now;
                     if (state.scale > 1) {
                         e.preventDefault();
+                        captureGeometry();
                         state.startX = touch.clientX;
                         state.startY = touch.clientY;
                         state.panX = state.translateX;
@@ -1970,7 +2035,7 @@
                     console.warn('IMAGE_ZOOM_ERROR', err);
                     reset();
                 }
-            }, { passive: false });
+            }, { passive: false, signal:state.controller.signal });
 
             wrapper.addEventListener('touchmove', e => {
                 try {
@@ -1997,7 +2062,7 @@
                     console.warn('IMAGE_ZOOM_ERROR', err);
                     reset();
                 }
-            }, { passive: false });
+            }, { passive: false, signal:state.controller.signal });
 
             wrapper.addEventListener('touchend', e => {
                 e.stopPropagation();
@@ -2013,14 +2078,14 @@
                 }
                 if (state.scale < 1.05) reset();
                 else apply();
-            }, { passive: false });
+            }, { passive: false, signal:state.controller.signal });
 
             wrapper.addEventListener('touchcancel', e => {
                 e.stopPropagation();
                 state.startDist = 0;
                 if (state.scale < 1.05) reset();
                 else apply();
-            }, { passive: false });
+            }, { passive: false, signal:state.controller.signal });
         });
     }
 
@@ -4735,6 +4800,55 @@
             .sort((a, b) => (b.dataUpdatedAt - a.dataUpdatedAt) || (Number(b.ts) - Number(a.ts)));
     }
 
+    function getStartupIndexCandidate(records = []) {
+        const learningStatsEntryBaseline = records.reduce((max, record) => Math.max(max, Number(record.learningStatsEntryCount) || 0), 0);
+        return records.find(record =>
+            isAllowedStatsRestoreCount(record.statsKeyCount) &&
+            (!learningStatsEntryBaseline || Number(record.learningStatsEntryCount) >= Math.ceil(learningStatsEntryBaseline * STATS_MIN_RETAIN_RATIO))
+        ) || null;
+    }
+
+    function getStartupLocalMetadata() {
+        return {
+            statsUpdatedAt:Number(localStorage.getItem(STORAGE_KEY_LOCAL_DATA_UPDATED_AT)) || 0,
+            statsKeyCount:getLocalStatsKeyCount(),
+            learningStatsUpdatedAt:getLearningStatsUpdatedAt(),
+            learningStatsEntryCount:getLearningStatsEntryCount(learningStatsMemoryStore),
+            favoritesUpdatedAt:getLearningStatsFavoritesUpdatedAt()
+        };
+    }
+
+    function getStartupCloudMetadata(record = {}) {
+        const data = record.indexData || {};
+        return {
+            statsUpdatedAt:getBackupGroupUpdatedAt(data, 'study', record.ts),
+            statsKeyCount:Number(record.statsKeyCount) || 0,
+            learningStatsUpdatedAt:getBackupGroupUpdatedAt(data, 'learningStats', record.ts),
+            learningStatsEntryCount:Number(record.learningStatsEntryCount) || 0,
+            favoritesUpdatedAt:getBackupGroupUpdatedAt(data, 'favorites', record.ts)
+        };
+    }
+
+    function getStartupMetadataDecision(local = {}, cloud = {}) {
+        const fieldsReady = local.statsUpdatedAt > 0 && cloud.statsUpdatedAt > 0
+            && local.learningStatsUpdatedAt > 0 && cloud.learningStatsUpdatedAt > 0;
+        const same = fieldsReady
+            && local.statsUpdatedAt === cloud.statsUpdatedAt
+            && local.statsKeyCount === cloud.statsKeyCount
+            && local.learningStatsUpdatedAt === cloud.learningStatsUpdatedAt
+            && local.learningStatsEntryCount === cloud.learningStatsEntryCount
+            && local.favoritesUpdatedAt === cloud.favoritesUpdatedAt;
+        if(same) return 'same';
+        const localClearlyNewer = fieldsReady
+            && local.statsUpdatedAt >= cloud.statsUpdatedAt
+            && local.learningStatsUpdatedAt >= cloud.learningStatsUpdatedAt
+            && local.favoritesUpdatedAt >= cloud.favoritesUpdatedAt
+            && local.statsKeyCount >= cloud.statsKeyCount
+            && local.learningStatsEntryCount >= cloud.learningStatsEntryCount
+            && (local.statsUpdatedAt > cloud.statsUpdatedAt || local.learningStatsUpdatedAt > cloud.learningStatsUpdatedAt || local.favoritesUpdatedAt > cloud.favoritesUpdatedAt);
+        return localClearlyNewer ? 'local' : 'detail';
+    }
+
     async function fetchStartupBootstrapPayload(record) {
         const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${record.ts}.json?_t=${Date.now()}`, { cache: 'no-store' });
         if (!res.ok) throw new Error(`startup_backup_payload_http_${res.status}`);
@@ -4752,8 +4866,8 @@
         });
     }
 
-    async function findStartupBootstrapBackup() {
-        const records = await fetchStartupBootstrapBackupCandidates();
+    async function findStartupBootstrapBackup(existingRecords = null) {
+        const records = Array.isArray(existingRecords) ? existingRecords : await fetchStartupBootstrapBackupCandidates();
         const learningStatsEntryBaseline = records.reduce((max, record) => Math.max(max, record.learningStatsEntryCount || 0), 0);
         let rejectedUnhealthyCandidate = false;
         for (const record of records) {
@@ -5084,11 +5198,11 @@
         if(modal && modal.style.display === 'flex') renderLearningStats();
     }
 
-    async function getStartupCloudCandidateWithTimeout(timeoutMs = 2500) {
+    async function getStartupCloudCandidateWithTimeout(timeoutMs = 2500, existingRecords = null) {
         let timer = null;
         try {
             return await Promise.race([
-                findStartupBootstrapBackup(),
+                findStartupBootstrapBackup(existingRecords),
                 new Promise((resolve, reject) => { timer = setTimeout(() => reject(new Error('startup_firebase_timeout')), timeoutMs); })
             ]);
         } finally {
@@ -5101,10 +5215,8 @@
         learningStatsReady = false;
         let finalResult = { outcome:'read-failed' };
         try {
+            const startupSyncStartedAt = performance.now();
             console.log('AUTO_SYNC_START');
-            if(learningStatsEventLedgerActive) {
-                await syncLearningStatsEventLedgerWithFirebase({ upload:true });
-            }
             const startupBootstrapState = getStartupBootstrapState();
             if (startupBootstrapState.invalid) {
                 const bootstrapResult = await bootstrapStatsFromFirebaseOnInvalidLocal(startupBootstrapState);
@@ -5116,10 +5228,48 @@
                     return finalResult;
                 }
             }
+            const startupRecords = await fetchStartupBootstrapBackupCandidates();
+            const startupIndexCandidate = getStartupIndexCandidate(startupRecords);
+            if(!startupIndexCandidate) {
+                const error = new Error('startup_backup_invalid');
+                error.code = 'STARTUP_BACKUP_INVALID';
+                throw error;
+            }
+            const localMetadata = getStartupLocalMetadata();
+            const cloudMetadata = getStartupCloudMetadata(startupIndexCandidate);
+            const metadataDecision = getStartupMetadataDecision(localMetadata, cloudMetadata);
+            console.log('[MK_STARTUP_METADATA_COMPARISON]', {
+                local:localMetadata,
+                cloud:cloudMetadata,
+                decision:metadataDecision,
+                backupTimestamp:startupIndexCandidate.ts
+            });
+            if(metadataDecision === 'same' || metadataDecision === 'local') {
+                finalResult = {
+                    outcome:metadataDecision,
+                    local:{ statsCount:localMetadata.statsKeyCount },
+                    cloud:{ statsCount:cloudMetadata.statsKeyCount },
+                    fastPath:true,
+                    requestCount:1,
+                    payloadScope:'backupIndex:last-50',
+                    elapsedMs:performance.now() - startupSyncStartedAt
+                };
+                restorePosition(getTrustedStartupViewState(), 'local');
+                console.log('RESTORE_SOURCE local-metadata');
+                console.log('AUTO_SYNC_SOURCE local-metadata');
+                console.log('AUTO_SYNC_APPLIED', false);
+                console.log('AUTO_SYNC_COMPLETE', { fastPath:true, elapsedMs:finalResult.elapsedMs });
+                return finalResult;
+            }
+
+            const candidatePromise = getStartupCloudCandidateWithTimeout(2500, startupRecords);
+            const ledgerPromise = learningStatsEventLedgerActive
+                ? syncLearningStatsEventLedgerWithFirebase({ upload:true })
+                : Promise.resolve(null);
+            const [candidate] = await Promise.all([candidatePromise, ledgerPromise]);
             const localState = loadLocalStudyState();
             const localUpdatedAt = Number(localState && localState.updatedAt) || 0;
             console.log(`LOCAL_UPDATED_AT ${localUpdatedAt}`);
-            const candidate = await getStartupCloudCandidateWithTimeout();
             if(!candidate) throw new Error('startup_normal_backup_not_found');
             const cloudState = candidate.normalized || normalizeBackupPayload(candidate.payload, 'cloud', candidate.record.ts);
             const studyComparison = getStartupDataDecision(localState, cloudState, { backupHealthy:true });
@@ -5176,7 +5326,14 @@
             const outcome = studyComparison.outcome === 'merge' || (hasCloudSelection && hasLocalSelection)
                 ? 'merge'
                 : (studyComparison.outcome === 'cloud' || hasCloudSelection ? 'cloud' : studyComparison.outcome);
-            finalResult = { ...studyComparison, outcome };
+            finalResult = {
+                ...studyComparison,
+                outcome,
+                fastPath:false,
+                requestCount:learningStatsEventLedgerActive ? 3 : 2,
+                payloadScope:'backupIndex:last-50 + latest-normal-backup' + (learningStatsEventLedgerActive ? ' + learningStatsEvents' : ''),
+                elapsedMs:performance.now() - startupSyncStartedAt
+            };
             if(cloudApplied) {
                 refreshLearningStatsAfterCloudRestore();
                 safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(Date.now()));
@@ -8545,13 +8702,13 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
     const mkIOElementsParseCache = new Map();
     const mkIOConfigParseCache = new Map();
     const mkIOTagsParseCache = new Map();
-    function getMkIOCachedParsed(cache, raw, fallback) {
+    function getMkIOCachedParsed(cache, raw, fallback, maxEntries = 24) {
         if(!raw) return fallback;
         if(cache.has(raw)) return cache.get(raw);
         let parsed = fallback;
         try { parsed = JSON.parse(decodeURIComponent(raw)); } catch(e) {}
         cache.set(raw, parsed);
-        if(cache.size > 24) cache.delete(cache.keys().next().value);
+        while(cache.size > maxEntries) cache.delete(cache.keys().next().value);
         return parsed;
     }
 
@@ -8580,7 +8737,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                         // wrapper 인스턴스에 파싱 결과를 캐시한다.
                         let elements = wrapper._mkIoParsedElements;
                         if (!elements) {
-                            elements = getMkIOCachedParsed(mkIOElementsParseCache, raw, []);
+                            elements = getMkIOCachedParsed(mkIOElementsParseCache, raw, [], 1);
                             wrapper._mkIoParsedElements = elements;
                         }
                         const targetCId = Number(wrapper.dataset.mkIoTargetCid ?? NaN);
@@ -8730,7 +8887,10 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                             wrapper.dataset.mkIoAutoScrolled !== '1'
                         ) {
                             wrapper.dataset.mkIoAutoScrolled = '1';
-                            requestAnimationFrame(() => scrollToCurrentIOMask(wrapper));
+                            wrapper._mkIoAutoScrollRaf = requestAnimationFrame(() => {
+                                wrapper._mkIoAutoScrollRaf = null;
+                                if(wrapper.isConnected) scrollToCurrentIOMask(wrapper);
+                            });
                         }
                     } catch (err) {
                         console.log('MK_IO_RENDER_ERROR', err);

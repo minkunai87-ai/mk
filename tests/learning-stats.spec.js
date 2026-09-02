@@ -158,7 +158,7 @@ async function commitLearningStatsWriteAtomically(store, updatedAt, writeContext
     'createLearningStatsReviewDelta', 'persistLearningStatsReviewDeltaQueue', 'queueLearningStatsReviewDelta', 'applyLearningStatsReviewDeltas',
     'evaluateLearningStatsBackupHealth',
     'verifyCoreBackupPayloadIntegrity',
-    'getHistoryItemTime', 'getHistoryLatestTime', 'getStatLatestTime', 'getStartupStudyMetrics', 'compareStartupStudyStates', 'getStartupDataDecision', 'getStartupSyncNotice',
+    'getHistoryItemTime', 'getHistoryLatestTime', 'getStatLatestTime', 'getStartupStudyMetrics', 'compareStartupStudyStates', 'getStartupDataDecision', 'getStartupSyncNotice', 'getStartupMetadataDecision',
     'getStartupSyncDecision', 'getLocalGroupUpdatedAt',
     'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'getCurrentDeckRecommendedStudyCards', 'buildLearningStatsModel',
     'getLearningStatsImmediateChildren', 'getLearningStatsFavoriteDecks', 'saveLearningStatsFavoriteDecks', 'toggleLearningStatsFavorite'
@@ -319,6 +319,25 @@ const startupSyncSource = readFunction('syncLatestFirebaseBackupOnStartup');
 assert(startupSyncSource.includes("applyRestoredState(cloudState, 'cloud'"), 'normal startup cloud updates reuse the UUID/history merge restore path');
 assert(!startupSyncSource.includes('applyStartupBootstrapPayload(candidate'), 'normal non-empty startup never force-reinstalls the whole cloud snapshot');
 assert.strictEqual((startupSyncSource.match(/showToast\(/g) || []).length, 1, 'startup emits exactly one final toast after comparison and apply');
+const fastLocalMetadata = { statsUpdatedAt:300, statsKeyCount:12, learningStatsUpdatedAt:400, learningStatsEntryCount:20, favoritesUpdatedAt:200 };
+assert.strictEqual(context.getStartupMetadataDecision(fastLocalMetadata, { ...fastLocalMetadata }), 'same', 'matching index metadata exits through the fast path');
+assert.strictEqual(context.getStartupMetadataDecision(fastLocalMetadata, { ...fastLocalMetadata, statsUpdatedAt:200 }), 'local', 'clearly newer local metadata exits without a backup payload');
+assert.strictEqual(context.getStartupMetadataDecision(fastLocalMetadata, { ...fastLocalMetadata, learningStatsUpdatedAt:500 }), 'detail', 'newer Firebase metadata requests the verified payload');
+assert(startupSyncSource.indexOf('fetchStartupBootstrapBackupCandidates()') < startupSyncSource.indexOf('getStartupCloudCandidateWithTimeout(2500, startupRecords)'), 'startup reads the small index before any backup payload');
+assert(startupSyncSource.indexOf("if(metadataDecision === 'same' || metadataDecision === 'local')") < startupSyncSource.indexOf('syncLearningStatsEventLedgerWithFirebase'), 'same/local metadata exits before full event-ledger sync');
+const mediaDisposeSource = readFunction('disposeCardMediaResources');
+const mediaBindSource = readFunction('bindImageZoomHandlers');
+const backupScriptSource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'backup-firebase-user-data.js'), 'utf8');
+assert(backupScriptSource.includes("searchParams.set('orderBy', JSON.stringify('$key'))"), 'latest-snapshot backup preserves Firebase orderBy="$key" without shell expansion');
+assert(html.includes('transition: opacity 0.2s ease') && !html.includes('bottom: -60px'), 'toast fades at its fixed position instead of sliding below the viewport');
+assert(mediaDisposeSource.includes('state.controller.abort()'), 'card transition aborts the previous zoom listeners');
+assert(mediaDisposeSource.includes("img.removeAttribute('src')"), 'card transition cancels the previous IO image decode');
+assert(mediaDisposeSource.includes('mkIOElementsParseCache.delete'), 'card transition releases the decoded mask array cache');
+assert(mediaBindSource.includes('signal:state.controller.signal'), 'zoom listeners are owned by a disposable controller');
+assert(mediaBindSource.includes('translate3d(') && !mediaBindSource.includes('wrapper.style.transform = `matrix('), 'pan/zoom uses compositor transforms');
+const touchMoveSource = mediaBindSource.slice(mediaBindSource.indexOf("wrapper.addEventListener('touchmove'"), mediaBindSource.indexOf("wrapper.addEventListener('touchend'"));
+assert(!touchMoveSource.includes('getBoundingClientRect') && !touchMoveSource.includes('offsetWidth') && !touchMoveSource.includes('offsetHeight'), 'touchmove performs no layout reads');
+assert(mediaBindSource.includes('cancelPendingFrame();\n                    state.raf = requestAnimationFrame'), 'pan/zoom keeps at most one pending animation frame');
 storage.delete(context.STORAGE_KEY_LEARNING_STATS_UPDATED_AT);
 storage.set(context.LEARNING_STATS_STORAGE_KEY, JSON.stringify({ version:1, days:{} }));
 assert.strictEqual(context.getLocalGroupUpdatedAt(context.STORAGE_KEY_LEARNING_STATS_UPDATED_AT, context.LEARNING_STATS_STORAGE_KEY), 0, 'an existing empty learning-stats key never inherits the Stats timestamp');
