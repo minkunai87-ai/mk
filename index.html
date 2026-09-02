@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.190-startup-io-stability -->
+<!-- deployment: v18.5.191-live-critical-path -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.190 - 시작 동기화 및 IO 안정화)</title>
+<title>MK (v18.5.191 - 실사용 시작 및 IO 가속)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -560,7 +560,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.190 - 시작 동기화 및 IO 안정화)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.191 - 실사용 시작 및 IO 가속)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -854,7 +854,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.190 - 시작 동기화 및 IO 안정화';
+    const APP_VERSION = 'v18.5.191 - 실사용 시작 및 IO 가속';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -1488,15 +1488,12 @@
             wrapper._mkIoAutoScrollRaf = null;
             if(wrapper._mkIoOtherMasksToggle) wrapper._mkIoOtherMasksToggle.remove();
             wrapper._mkIoOtherMasksToggle = null;
-            if(wrapper.dataset.mkIoElements) mkIOElementsParseCache.delete(wrapper.dataset.mkIoElements);
             wrapper._mkIoParsedElements = null;
             wrapper._mkIoParsedConfig = null;
             wrapper._mkIoParsedTags = null;
             wrapper.querySelectorAll('.mk-io-layer').forEach(layer => layer.remove());
             if(img) {
                 img.onerror = null;
-                img.removeAttribute('src');
-                img.removeAttribute('data-original-src');
                 ioZoomDiagnostics.releasedImages += 1;
             }
         });
@@ -2212,7 +2209,14 @@
         updateTRButton();
         cleanupOversizedViewState();
         cleanupLegacyRecoverySnapshotsAndRestoreCache('startup');
-        await initializeStatsStore();
+        const startupRecordsPromise = fetchStartupBootstrapBackupCandidates()
+            .then(records => ({ records, error:null }), error => ({ records:null, error }));
+        const statsInitPromise = initializeStatsStore();
+        const startupLocalMetadataPromise = getStartupLocalMetadataFast(statsInitPromise);
+        const learningStatsInitPromise = initializeLearningStatsStore()
+            .then(result => { learningStatsReady = learningStatsRestoreState === 'success'; return result; })
+            .catch(error => { console.warn('[MK_BACKGROUND_LEARNING_STATS_INIT_FAILED]', error); return null; });
+        await statsInitPromise;
         const hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
         if(hasCachedLibrary) {
             initApp();
@@ -2221,20 +2225,35 @@
             await autoScanGitHub();
             initApp();
         }
-        setTimeout(async () => {
-            try { await initializeLearningStatsStore(); learningStatsReady = learningStatsRestoreState === 'success'; }
-            catch(error) { console.warn('[MK_BACKGROUND_LEARNING_STATS_INIT_FAILED]', error); }
-            try { await initializeReviewHistoryLedger(); }
-            catch(error) { console.warn('[MK_BACKGROUND_REVIEW_HISTORY_INIT_FAILED]', error); }
-            try { await loadTodayNewBaselineSnapshot(); registerTodayNewCards(); }
-            catch(error) { console.warn('[MK_BACKGROUND_TODAY_NEW_INIT_FAILED]', error); }
-            try { await autoScanGitHub({silent:true}); registerTodayNewCards(); }
-            catch(error) { console.warn('[MK_BACKGROUND_DECK_REFRESH_FAILED]', error); }
-            try { await syncLatestFirebaseBackupOnStartup(); }
-            catch(error) { console.warn('[MK_BACKGROUND_FIREBASE_SYNC_FAILED]', error); }
-            learningStatsReady = learningStatsRestoreState === 'success';
-            scheduleDateDomMutationLog('after-startup-sync');
-        }, 1800);
+        let reviewHistoryInitPromise = null;
+        const prepareStartupDetail = () => {
+            if(!reviewHistoryInitPromise) {
+                reviewHistoryInitPromise = initializeReviewHistoryLedger()
+                    .catch(error => { console.warn('[MK_BACKGROUND_REVIEW_HISTORY_INIT_FAILED]', error); return null; });
+            }
+            return Promise.all([learningStatsInitPromise, reviewHistoryInitPromise]);
+        };
+        try {
+            await syncLatestFirebaseBackupOnStartup({
+                startupRecordsPromise,
+                localMetadataPromise:startupLocalMetadataPromise,
+                detailPreparation:prepareStartupDetail
+            });
+        }
+        catch(error) { console.warn('[MK_BACKGROUND_FIREBASE_SYNC_FAILED]', error); }
+        learningStatsReady = learningStatsRestoreState === 'success';
+        scheduleDateDomMutationLog('after-startup-sync');
+        loadTodayNewBaselineSnapshot()
+            .then(() => registerTodayNewCards())
+            .catch(error => console.warn('[MK_BACKGROUND_TODAY_NEW_INIT_FAILED]', error));
+        setTimeout(() => { prepareStartupDetail(); }, 10000);
+        setTimeout(() => {
+            runWhenIdle(() => {
+                autoScanGitHub({silent:true})
+                    .then(() => registerTodayNewCards())
+                    .catch(error => console.warn('[MK_BACKGROUND_DECK_REFRESH_FAILED]', error));
+            });
+        }, 30000);
     };
 
     function openFirebaseSettings() { document.getElementById('gh-token-input').value = ghRepoToken; showAuthSection(); document.getElementById('fb-modal').style.display = 'flex'; }
@@ -4818,6 +4837,26 @@
         };
     }
 
+    async function getStartupLocalMetadataFast(statsReadyPromise = null) {
+        const learningMetadataPromise = Promise.all([
+            readStatsDatabaseValue(LEARNING_STATS_DB_PRIMARY_KEY),
+            readStatsDatabaseValue(LEARNING_STATS_DB_UPDATED_AT_KEY),
+            readStatsDatabaseValue(LEARNING_STATS_DB_FAVORITES_UPDATED_AT_KEY)
+        ]);
+        if(statsReadyPromise) await statsReadyPromise;
+        const [indexedLearningStats, indexedUpdatedAt, indexedFavoritesUpdatedAt] = await learningMetadataPromise;
+        const storedLearningStats = indexedLearningStats !== null
+            ? indexedLearningStats
+            : localStorage.getItem(LEARNING_STATS_STORAGE_KEY);
+        return {
+            statsUpdatedAt:Number(localStorage.getItem(STORAGE_KEY_LOCAL_DATA_UPDATED_AT)) || 0,
+            statsKeyCount:getLocalStatsKeyCount(),
+            learningStatsUpdatedAt:Number(indexedUpdatedAt || localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT)) || 0,
+            learningStatsEntryCount:getLearningStatsEntryCount(normalizeLearningStatsPersistentStore(storedLearningStats)),
+            favoritesUpdatedAt:Number(indexedFavoritesUpdatedAt || localStorage.getItem(STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT)) || 0
+        };
+    }
+
     function getStartupCloudMetadata(record = {}) {
         const data = record.indexData || {};
         return {
@@ -5056,13 +5095,13 @@
         console.warn('[MK_STARTUP_BOOTSTRAP_NOTICE_SUPPRESSED]', { reasonCode, message });
     }
 
-    async function bootstrapStatsFromFirebaseOnInvalidLocal(invalidState = null) {
+    async function bootstrapStatsFromFirebaseOnInvalidLocal(invalidState = null, startupRecords = null) {
         const state = invalidState || getInvalidLocalStatsState();
         if (!state.invalid) return { attempted: false, ok: false, reasonCode: state.reasonCode || 'local_stats_ok' };
         const snapshotKey = saveRecoverySnapshot(state.reasonCode);
         restoredStats = null;
         console.log('[MK_STARTUP_BOOTSTRAP_START]', { reasonCode: state.reasonCode, localStatsKeyCount: state.localStatsKeyCount, snapshotKey });
-        const candidate = await getStartupCloudCandidateWithTimeout();
+        const candidate = await getStartupCloudCandidateWithTimeout(2500, startupRecords);
         if (!candidate) {
             showStartupBootstrapFailureOnce('초기 stats 불러오기 실패: 정상 백업 없음', 'no_normal_backup');
             console.warn('[MK_STARTUP_BOOTSTRAP_FAILED]', { reasonCode: 'no_normal_backup' });
@@ -5210,16 +5249,21 @@
         }
     }
 
-    async function syncLatestFirebaseBackupOnStartup() {
+    async function syncLatestFirebaseBackupOnStartup(options = {}) {
         learningStatsStartupSyncInProgress = true;
         learningStatsReady = false;
         let finalResult = { outcome:'read-failed' };
         try {
             const startupSyncStartedAt = performance.now();
             console.log('AUTO_SYNC_START');
+            const prefetchedRecords = options.startupRecordsPromise ? await options.startupRecordsPromise : null;
+            if(prefetchedRecords && prefetchedRecords.error) throw prefetchedRecords.error;
+            const startupRecords = prefetchedRecords && Array.isArray(prefetchedRecords.records)
+                ? prefetchedRecords.records
+                : await fetchStartupBootstrapBackupCandidates();
             const startupBootstrapState = getStartupBootstrapState();
             if (startupBootstrapState.invalid) {
-                const bootstrapResult = await bootstrapStatsFromFirebaseOnInvalidLocal(startupBootstrapState);
+                const bootstrapResult = await bootstrapStatsFromFirebaseOnInvalidLocal(startupBootstrapState, startupRecords);
                 if (bootstrapResult.attempted) {
                     finalResult = bootstrapResult.ok
                         ? { outcome:'local-empty', local:{ statsCount:0 }, cloud:{ statsCount:Number(bootstrapResult.statsKeyCount) || 0 } }
@@ -5228,14 +5272,15 @@
                     return finalResult;
                 }
             }
-            const startupRecords = await fetchStartupBootstrapBackupCandidates();
             const startupIndexCandidate = getStartupIndexCandidate(startupRecords);
             if(!startupIndexCandidate) {
                 const error = new Error('startup_backup_invalid');
                 error.code = 'STARTUP_BACKUP_INVALID';
                 throw error;
             }
-            const localMetadata = getStartupLocalMetadata();
+            const localMetadata = options.localMetadataPromise
+                ? await options.localMetadataPromise
+                : getStartupLocalMetadata();
             const cloudMetadata = getStartupCloudMetadata(startupIndexCandidate);
             const metadataDecision = getStartupMetadataDecision(localMetadata, cloudMetadata);
             console.log('[MK_STARTUP_METADATA_COMPARISON]', {
@@ -5262,6 +5307,7 @@
                 return finalResult;
             }
 
+            if(options.detailPreparation) await options.detailPreparation();
             const candidatePromise = getStartupCloudCandidateWithTimeout(2500, startupRecords);
             const ledgerPromise = learningStatsEventLedgerActive
                 ? syncLearningStatsEventLedgerWithFirebase({ upload:true })
@@ -8642,6 +8688,9 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 }
                 img.onerror = function() { this.style.display = 'none'; };
             }
+            if(img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === '1' || img.closest('.mk-io-wrapper')) {
+                useWarmedIOImageElement(img);
+            }
         });
 
         logPdfCardTrace(trace, 'TRACE-5 after image processing', snapshotPdfTraceHtml(wrap));
@@ -8737,7 +8786,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                         // wrapper 인스턴스에 파싱 결과를 캐시한다.
                         let elements = wrapper._mkIoParsedElements;
                         if (!elements) {
-                            elements = getMkIOCachedParsed(mkIOElementsParseCache, raw, [], 1);
+                            elements = getMkIOCachedParsed(mkIOElementsParseCache, raw, [], 8);
                             wrapper._mkIoParsedElements = elements;
                         }
                         const targetCId = Number(wrapper.dataset.mkIoTargetCid ?? NaN);
@@ -8880,6 +8929,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                             delete wrapper.dataset.mkIoTargetRect;
                         }
                         wrapper.dataset.mkIoRendered = '1';
+                        if(wrapper.closest('#question-section')) scheduleAdjacentIOImageWarmup();
 
                         if (
                             wrapper.closest('#question-section') &&
@@ -10133,6 +10183,68 @@ function getIOImageGroups() {
         });
         ioImageGroupCache = { cards: activeDeck, length: activeDeck.length, groups, cardToGroup };
         return ioImageGroupCache;
+    }
+
+    const mkIOImageWarmCache = new Map();
+    const MK_IO_IMAGE_WARM_CACHE_LIMIT = 2;
+    function getIOImageUrlFromGroupKey(groupKey) {
+        const imageKey = String(groupKey || '').replace(/^image:/, '');
+        if(!imageKey) return '';
+        if(/^https?:\/\//i.test(imageKey)) return imageKey;
+        let fileName = imageKey.split('/').pop().trim();
+        try { fileName = decodeURIComponent(fileName); } catch(error) {}
+        if(fileName.normalize) fileName = fileName.normalize('NFC');
+        return githubRawBase + encodeURIComponent(fileName);
+    }
+
+    function warmIOImage(groupKey) {
+        const url = getIOImageUrlFromGroupKey(groupKey);
+        if(!url) return null;
+        const cached = mkIOImageWarmCache.get(url);
+        if(cached) {
+            mkIOImageWarmCache.delete(url);
+            mkIOImageWarmCache.set(url, cached);
+            return cached.ready;
+        }
+        const image = new Image();
+        image.decoding = 'async';
+        image.loading = 'eager';
+        image.src = url;
+        const ready = typeof image.decode === 'function'
+            ? image.decode().catch(() => null)
+            : new Promise(resolve => { image.onload = image.onerror = resolve; });
+        mkIOImageWarmCache.set(url, { image, ready });
+        while(mkIOImageWarmCache.size > MK_IO_IMAGE_WARM_CACHE_LIMIT) {
+            const oldestKey = mkIOImageWarmCache.keys().next().value;
+            mkIOImageWarmCache.delete(oldestKey);
+        }
+        return ready;
+    }
+
+    function useWarmedIOImageElement(renderedImage) {
+        const url = renderedImage && (renderedImage.currentSrc || renderedImage.src);
+        const cached = url && mkIOImageWarmCache.get(url);
+        const warmedImage = cached && cached.image;
+        if(!warmedImage || warmedImage === renderedImage || !warmedImage.complete || !warmedImage.naturalWidth) return renderedImage;
+        Array.from(renderedImage.attributes).forEach(attribute => {
+            if(attribute.name !== 'src') warmedImage.setAttribute(attribute.name, attribute.value);
+        });
+        warmedImage.onerror = renderedImage.onerror;
+        renderedImage.replaceWith(warmedImage);
+        mkIOImageWarmCache.delete(url);
+        mkIOImageWarmCache.set(url, cached);
+        return warmedImage;
+    }
+
+    function scheduleAdjacentIOImageWarmup() {
+        const cache = getIOImageGroups();
+        const groupIndex = cache.cardToGroup.get(currentIndex);
+        if(groupIndex === undefined) return;
+        const keys = [
+            cache.groups[groupIndex] && cache.groups[groupIndex].key,
+            cache.groups[groupIndex + 1] && cache.groups[groupIndex + 1].key
+        ].filter(Boolean);
+        runWhenIdle(() => keys.forEach(warmIOImage));
     }
 
     function getIOImageVisitKey(groupKey) {

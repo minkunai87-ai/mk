@@ -331,8 +331,11 @@ const backupScriptSource = fs.readFileSync(path.join(__dirname, '..', 'scripts',
 assert(backupScriptSource.includes("searchParams.set('orderBy', JSON.stringify('$key'))"), 'latest-snapshot backup preserves Firebase orderBy="$key" without shell expansion');
 assert(html.includes('transition: opacity 0.2s ease') && !html.includes('bottom: -60px'), 'toast fades at its fixed position instead of sliding below the viewport');
 assert(mediaDisposeSource.includes('state.controller.abort()'), 'card transition aborts the previous zoom listeners');
-assert(mediaDisposeSource.includes("img.removeAttribute('src')"), 'card transition cancels the previous IO image decode');
-assert(mediaDisposeSource.includes('mkIOElementsParseCache.delete'), 'card transition releases the decoded mask array cache');
+assert(!mediaDisposeSource.includes("img.removeAttribute('src')"), 'card transition preserves the browser decoded-image cache');
+assert(!mediaDisposeSource.includes('mkIOElementsParseCache.delete'), 'card transition preserves bounded immutable mask parses');
+assert(html.includes('MK_IO_IMAGE_WARM_CACHE_LIMIT = 2') && html.includes('scheduleAdjacentIOImageWarmup()'), 'IO keeps a bounded decoded-image warm cache for the next image');
+assert(!html.includes('}, 1800);'), 'startup comparison is not held behind the former 1.8 second timer');
+assert(html.indexOf('const startupRecordsPromise = fetchStartupBootstrapBackupCandidates()') < html.indexOf('const statsInitPromise = initializeStatsStore();'), 'backupIndex starts in parallel with local startup loading');
 assert(mediaBindSource.includes('signal:state.controller.signal'), 'zoom listeners are owned by a disposable controller');
 assert(mediaBindSource.includes('translate3d(') && !mediaBindSource.includes('wrapper.style.transform = `matrix('), 'pan/zoom uses compositor transforms');
 const touchMoveSource = mediaBindSource.slice(mediaBindSource.indexOf("wrapper.addEventListener('touchmove'"), mediaBindSource.indexOf("wrapper.addEventListener('touchend'"));
