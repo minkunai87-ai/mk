@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.191-live-critical-path -->
+<!-- deployment: v18.5.192-startup-id-fast-path -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.191 - 실사용 시작 및 IO 가속)</title>
+<title>MK (v18.5.192 - 빠른 재시작 동기화)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -560,7 +560,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.191 - 실사용 시작 및 IO 가속)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.192 - 빠른 재시작 동기화)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -854,7 +854,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.191 - 실사용 시작 및 IO 가속';
+    const APP_VERSION = 'v18.5.192 - 빠른 재시작 동기화';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -1026,6 +1026,8 @@
     const STORAGE_KEY_LEARNING_STATS_UPDATED_AT = 'mk_learning_stats_updated_at';
     const STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT = 'mk_learning_stats_favorites_updated_at';
     const STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT = 'mk_last_auto_cloud_sync_at';
+    const STORAGE_KEY_LAST_APPLIED_BACKUP_ID = 'mk_last_applied_backup_id';
+    const STORAGE_KEY_LOCAL_DATA_DIRTY = 'mk_local_data_dirty';
     const STORAGE_KEY_LAST_GOOD_BACKUP_TIMESTAMP = 'mk_last_good_backup_timestamp';
     const STORAGE_KEY_LAST_GOOD_STATS_COUNT = 'mk_last_good_stats_count';
     const STORAGE_KEY_BOOTSTRAP_FAILURE_NOTIFIED = 'mk_bootstrap_failure_notified';
@@ -1095,7 +1097,7 @@
     let backupTimer = null;
     let isBackupInFlight = false;
     const BACKUP_DEBOUNCE_MS = 3000;
-    let isDataChanged = false;
+    let isDataChanged = localStorage.getItem(STORAGE_KEY_LOCAL_DATA_DIRTY) === 'true';
 
     let targetRetention = parseFloat(localStorage.getItem('anki_target_retention')) || 0.90;
 
@@ -1345,7 +1347,7 @@
                 }
                 
                 guardedStatsWrite(JSON.stringify(stats), 'saveTR:recalc');
-                scheduleBackup();
+                scheduleBackup('stats');
                 showToast(`전면 재계산 완료! (${recalcCount}개 업데이트됨)`, "success");
                 applyFilterAndSort(false); 
             } else {
@@ -2212,7 +2214,6 @@
         const startupRecordsPromise = fetchStartupBootstrapBackupCandidates()
             .then(records => ({ records, error:null }), error => ({ records:null, error }));
         const statsInitPromise = initializeStatsStore();
-        const startupLocalMetadataPromise = getStartupLocalMetadataFast(statsInitPromise);
         const learningStatsInitPromise = initializeLearningStatsStore()
             .then(result => { learningStatsReady = learningStatsRestoreState === 'success'; return result; })
             .catch(error => { console.warn('[MK_BACKGROUND_LEARNING_STATS_INIT_FAILED]', error); return null; });
@@ -2236,7 +2237,7 @@
         try {
             await syncLatestFirebaseBackupOnStartup({
                 startupRecordsPromise,
-                localMetadataPromise:startupLocalMetadataPromise,
+                localMetadataFactory:() => getStartupLocalMetadataFast(statsInitPromise),
                 detailPreparation:prepareStartupDetail
             });
         }
@@ -2262,8 +2263,8 @@
     async function testFirebaseSync() { document.getElementById('fb-modal').style.display = 'none'; ghRepoToken = document.getElementById('gh-token-input').value.trim(); localStorage.setItem('gh_repo_token', ghRepoToken); isDataChanged = true; await flushBackupToFirebase(false); }
 
     function scheduleBackup(reason = '') {
+        if(reason) setLocalDataDirty(true);
         if (reason !== 'review') return;
-        isDataChanged = true;
         if (backupTimer) clearTimeout(backupTimer);
         backupTimer = setTimeout(() => {
             backupTimer = null;
@@ -2428,15 +2429,23 @@
         try {
             const res = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${data.timestamp}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: payloadText, keepalive: !!options.keepalive });
             if(res.ok) {
+                let indexWriteOk = false;
                 try {
                     const indexRes = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}/${data.timestamp}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(backupIndexData), keepalive: !!options.keepalive });
                     console.log('BACKUP_INDEX_WRITE_SUCCESS', indexRes.ok);
+                    indexWriteOk = indexRes.ok;
                 } catch(indexError) {
                     console.error('[MK Backup Index Error]', indexError);
                 }
+                if(!indexWriteOk) {
+                    updateCloudIcon('error');
+                    if(!isAuto) showToast("백업 index 저장 실패", "error");
+                    return false;
+                }
                 console.log('BACKUP_WRITE_SUCCESS', true);
                 rememberGoodBackupTimestamp(data.timestamp, statsKeyCount);
-                isDataChanged = false; updateCloudIcon('done'); if(!options.keepalive) cleanupOldBackups(); if(!isAuto) showToast("백업 완료", "success"); return true;
+                setStartupBackupBaseline(data.timestamp, false);
+                updateCloudIcon('done'); if(!options.keepalive) cleanupOldBackups(); if(!isAuto) showToast("백업 완료", "success"); return true;
             } 
             else { console.log('BACKUP_WRITE_SUCCESS', false); updateCloudIcon('error'); if(!isAuto) showToast("❌ 백업 실패", "error"); return false; }
         } catch(e) { console.log('BACKUP_WRITE_SUCCESS', false); updateCloudIcon('error'); if(!isAuto) showToast("❌ 인터넷 연결 오류", "error"); return false; }
@@ -2747,7 +2756,7 @@
         guardedStatsWrite(JSON.stringify(stats), 'applyUuidMigration');
         localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(history));
         isDataChanged = true;
-        scheduleBackup();
+        scheduleBackup('uuid-migration');
         if(activeDeck[currentIndex]) updateStatsUI(getStats(activeDeck[currentIndex].id));
         document.getElementById('uuid-migration-status').innerText = `${selected.length}개 uuid 학습 데이터를 이전했습니다. old uuid 데이터는 삭제하지 않았고 별도 로컬 백업도 남겼습니다.`;
     }
@@ -4060,6 +4069,33 @@
         try { localStorage.setItem(STORAGE_KEY_LOCAL_DATA_UPDATED_AT, String(time)); } catch(e) {}
     }
 
+    function getLastAppliedBackupId() {
+        return String(localStorage.getItem(STORAGE_KEY_LAST_APPLIED_BACKUP_ID) || '').trim();
+    }
+
+    function isLocalDataDirty() {
+        return localStorage.getItem(STORAGE_KEY_LOCAL_DATA_DIRTY) === 'true';
+    }
+
+    function setLocalDataDirty(dirty) {
+        isDataChanged = !!dirty;
+        try { localStorage.setItem(STORAGE_KEY_LOCAL_DATA_DIRTY, dirty ? 'true' : 'false'); } catch(e) {}
+    }
+
+    function setStartupBackupBaseline(backupId, dirty) {
+        const normalizedId = String(backupId || '').trim();
+        if(normalizedId) safeRestoreLocalStorage(STORAGE_KEY_LAST_APPLIED_BACKUP_ID, normalizedId);
+        setLocalDataDirty(!!dirty);
+    }
+
+    function getStartupBackupIdDecision(latestBackupId, lastAppliedBackupId, dirty, hasStoredBaseline = true) {
+        const latest = String(latestBackupId || '').trim();
+        const applied = String(lastAppliedBackupId || '').trim();
+        if(!hasStoredBaseline || !applied) return 'migrate';
+        if(latest === applied) return dirty ? 'local-dirty' : 'current';
+        return dirty ? 'merge' : 'apply';
+    }
+
     function getLocalGroupUpdatedAt(storageKey, dataStorageKey) {
         const explicit = Number(localStorage.getItem(storageKey)) || 0;
         if(explicit) return explicit;
@@ -4377,7 +4413,7 @@
             logStudyStateSnapshot('save', { viewState });
             console.log('SAVE_SUCCESS', { reason, currentCardUuid: viewState.currentCardUuid || viewState.cardId });
             if(options.backup) {
-                isDataChanged = true;
+                setLocalDataDirty(true);
                 backupStudyState(reason, options);
             }
             return { ok: true, viewState };
@@ -4820,9 +4856,11 @@
     }
 
     function getStartupIndexCandidate(records = []) {
+        const statsKeyBaseline = records.reduce((max, record) => Math.max(max, Number(record.statsKeyCount) || 0), 0);
         const learningStatsEntryBaseline = records.reduce((max, record) => Math.max(max, Number(record.learningStatsEntryCount) || 0), 0);
-        return records.find(record =>
+        return [...records].sort((a, b) => Number(b.ts) - Number(a.ts)).find(record =>
             isAllowedStatsRestoreCount(record.statsKeyCount) &&
+            (!statsKeyBaseline || Number(record.statsKeyCount) >= Math.ceil(statsKeyBaseline * STATS_MIN_RETAIN_RATIO)) &&
             (!learningStatsEntryBaseline || Number(record.learningStatsEntryCount) >= Math.ceil(learningStatsEntryBaseline * STATS_MIN_RETAIN_RATIO))
         ) || null;
     }
@@ -5193,15 +5231,13 @@
     }
 
     function getStartupSyncNotice(result = {}) {
-        const localCount = Number(result.local && result.local.statsCount) || 0;
-        const cloudCount = Number(result.cloud && result.cloud.statsCount) || 0;
-        if(result.outcome === 'same') return `데이터 확인 완료 · 최신 상태입니다 (Stats ${localCount.toLocaleString()})`;
-        if(result.outcome === 'local') return `데이터 확인 완료 · 로컬 최신 상태 유지 (로컬 ${localCount.toLocaleString()} / Firebase ${cloudCount.toLocaleString()})`;
-        if(result.outcome === 'cloud') return `데이터 업데이트 완료 · Firebase 최신 기록 반영${Number(result.cloudChangeCount) ? ` (${Number(result.cloudChangeCount)}개)` : ''}`;
-        if(result.outcome === 'merge') return `데이터 동기화 완료 · 로컬 + Firebase 최신 기록 병합${Number(result.cloudChangeCount) ? ` (최신 학습 기록 ${Number(result.cloudChangeCount)}개 반영)` : ''}`;
+        if(result.outcome === 'current' || result.outcome === 'same') return '데이터 확인 완료 · 최신 상태입니다';
+        if(result.outcome === 'local-dirty' || result.outcome === 'local') return '로컬 최신 학습 기록 유지';
+        if(result.outcome === 'remote-applied' || result.outcome === 'cloud') return '최신 백업 적용 완료 · Firebase 데이터 반영';
+        if(result.outcome === 'merged' || result.outcome === 'merge') return '최신 학습 기록 병합 완료';
         if(result.outcome === 'local-empty') return 'Firebase 백업에서 학습 데이터 복원 완료';
-        if(result.outcome === 'backup-invalid') return '백업 이상 감지 · 안전하게 로컬 데이터 유지';
-        return '최신 데이터 확인 실패 · 기존 로컬 데이터로 시작';
+        if(result.outcome === 'backup-invalid') return '백업 이상 감지 · 기존 로컬 데이터 유지';
+        return '최신 백업 확인 실패 · 로컬 데이터로 시작';
     }
 
     function getStartupSyncDecision(localTimes, cloudTimes) {
@@ -5249,164 +5285,203 @@
         }
     }
 
+    async function getVerifiedStartupCandidate(record) {
+        try {
+            const candidate = await getStartupCloudCandidateWithTimeout(2500, [record]);
+            if(candidate) return candidate;
+            const error = new Error('startup_backup_invalid');
+            error.code = 'STARTUP_BACKUP_INVALID';
+            throw error;
+        } catch(error) {
+            error.startupPayloadRequested = true;
+            throw error;
+        }
+    }
+
+    async function applyCleanStartupBackup(record, options = {}) {
+        if(options.detailPreparation) await options.detailPreparation();
+        const candidate = await getVerifiedStartupCandidate(record);
+        const cloudState = candidate.normalized || normalizeBackupPayload(candidate.payload, 'cloud', record.ts);
+        const restoredViewState = await applyRestoredState(cloudState, 'cloud', {
+            baselineStatsKeyCount:Math.max(getLocalStatsKeyCount(), Number(record.statsKeyCount) || 0),
+            requireStatsLookupVerification:true,
+            learningStatsGroups:['learningStats', 'favorites'],
+            silent:true
+        });
+        if(!restoredViewState) throw new Error('startup_cloud_apply_failed');
+        refreshLearningStatsAfterCloudRestore();
+        safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(Date.now()));
+        return candidate;
+    }
+
+    async function runStartupDetailedMerge(record, options = {}, startupSyncStartedAt = performance.now()) {
+        if(options.detailPreparation) await options.detailPreparation();
+        const candidatePromise = getVerifiedStartupCandidate(record);
+        const ledgerPromise = learningStatsEventLedgerActive
+            ? syncLearningStatsEventLedgerWithFirebase({ upload:true })
+            : Promise.resolve(null);
+        const [candidate] = await Promise.all([candidatePromise, ledgerPromise]);
+        const localState = loadLocalStudyState();
+        const cloudState = candidate.normalized || normalizeBackupPayload(candidate.payload, 'cloud', record.ts);
+        const studyComparison = getStartupDataDecision(localState, cloudState, { backupHealthy:true });
+        const localTimes = {
+            study:Number(localState && localState.updatedAt) || 0,
+            learningStats:getLearningStatsUpdatedAt(),
+            favorites:getLearningStatsFavoritesUpdatedAt()
+        };
+        const cloudTimes = {
+            study:getBackupGroupUpdatedAt(candidate.payload, 'study', record.ts),
+            learningStats:getBackupGroupUpdatedAt(candidate.payload, 'learningStats', record.ts),
+            favorites:getBackupGroupUpdatedAt(candidate.payload, 'favorites', record.ts)
+        };
+        const groupDecision = getStartupSyncDecision(localTimes, cloudTimes);
+        groupDecision.study = studyComparison.outcome;
+        const supplementalGroups = ['learningStats', 'favorites'].filter(group => groupDecision[group] === 'cloud');
+        const studyNeedsCloud = studyComparison.outcome === 'cloud' || studyComparison.outcome === 'merge';
+        let cloudApplied = false;
+        if(studyNeedsCloud) {
+            const restoredViewState = await applyRestoredState(cloudState, 'cloud', {
+                baselineStatsKeyCount:Math.max(studyComparison.local.statsCount, studyComparison.cloud.statsCount),
+                requireStatsLookupVerification:true,
+                learningStatsGroups:supplementalGroups,
+                silent:true
+            });
+            if(!restoredViewState) throw new Error('startup_cloud_merge_failed');
+            cloudApplied = true;
+        } else if(supplementalGroups.length) {
+            await restoreLearningStatsBackupFields(candidate.payload, supplementalGroups);
+            cloudApplied = true;
+            restorePosition(localState.viewState || {}, 'local');
+        } else {
+            restorePosition(localState.viewState || {}, 'local');
+        }
+        const hasCloudSelection = studyNeedsCloud || supplementalGroups.length > 0;
+        const hasLocalSelection = studyComparison.outcome === 'local' || studyComparison.outcome === 'merge'
+            || groupDecision.learningStats === 'local' || groupDecision.favorites === 'local';
+        const outcome = studyComparison.outcome === 'merge' || (hasCloudSelection && hasLocalSelection)
+            ? 'merge'
+            : (studyComparison.outcome === 'cloud' || hasCloudSelection ? 'cloud' : studyComparison.outcome);
+        if(cloudApplied) {
+            refreshLearningStatsAfterCloudRestore();
+            safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(Date.now()));
+        }
+        return {
+            ...studyComparison,
+            outcome,
+            fastPath:false,
+            requestCount:learningStatsEventLedgerActive ? 3 : 2,
+            payloadRequestCount:1,
+            payloadScope:'backupIndex:last-50 + latest-normal-backup' + (learningStatsEventLedgerActive ? ' + learningStatsEvents' : ''),
+            elapsedMs:performance.now() - startupSyncStartedAt
+        };
+    }
+
     async function syncLatestFirebaseBackupOnStartup(options = {}) {
         learningStatsStartupSyncInProgress = true;
         learningStatsReady = false;
         let finalResult = { outcome:'read-failed' };
+        const startupSyncStartedAt = performance.now();
         try {
-            const startupSyncStartedAt = performance.now();
             console.log('AUTO_SYNC_START');
             const prefetchedRecords = options.startupRecordsPromise ? await options.startupRecordsPromise : null;
             if(prefetchedRecords && prefetchedRecords.error) throw prefetchedRecords.error;
             const startupRecords = prefetchedRecords && Array.isArray(prefetchedRecords.records)
                 ? prefetchedRecords.records
                 : await fetchStartupBootstrapBackupCandidates();
-            const startupBootstrapState = getStartupBootstrapState();
-            if (startupBootstrapState.invalid) {
-                const bootstrapResult = await bootstrapStatsFromFirebaseOnInvalidLocal(startupBootstrapState, startupRecords);
-                if (bootstrapResult.attempted) {
-                    finalResult = bootstrapResult.ok
-                        ? { outcome:'local-empty', local:{ statsCount:0 }, cloud:{ statsCount:Number(bootstrapResult.statsKeyCount) || 0 } }
-                        : { outcome:'read-failed' };
-                    console.log('AUTO_SYNC_COMPLETE');
-                    return finalResult;
-                }
-            }
             const startupIndexCandidate = getStartupIndexCandidate(startupRecords);
             if(!startupIndexCandidate) {
                 const error = new Error('startup_backup_invalid');
                 error.code = 'STARTUP_BACKUP_INVALID';
                 throw error;
             }
-            const localMetadata = options.localMetadataPromise
-                ? await options.localMetadataPromise
-                : getStartupLocalMetadata();
-            const cloudMetadata = getStartupCloudMetadata(startupIndexCandidate);
-            const metadataDecision = getStartupMetadataDecision(localMetadata, cloudMetadata);
-            console.log('[MK_STARTUP_METADATA_COMPARISON]', {
-                local:localMetadata,
-                cloud:cloudMetadata,
-                decision:metadataDecision,
-                backupTimestamp:startupIndexCandidate.ts
-            });
-            if(metadataDecision === 'same' || metadataDecision === 'local') {
+
+            const latestBackupId = String(startupIndexCandidate.ts);
+            const lastAppliedBackupId = getLastAppliedBackupId();
+            const dirty = isLocalDataDirty();
+            let decision = getStartupBackupIdDecision(latestBackupId, lastAppliedBackupId, dirty, !!lastAppliedBackupId);
+
+            if(decision === 'migrate') {
+                const startupBootstrapState = getStartupBootstrapState();
+                if(startupBootstrapState.invalid) {
+                    const bootstrapResult = await bootstrapStatsFromFirebaseOnInvalidLocal(startupBootstrapState, [startupIndexCandidate]);
+                    if(!bootstrapResult.ok) throw new Error(bootstrapResult.reasonCode || 'startup_bootstrap_failed');
+                    setStartupBackupBaseline(latestBackupId, false);
+                    finalResult = { outcome:'local-empty', requestCount:2, payloadRequestCount:1, elapsedMs:performance.now() - startupSyncStartedAt };
+                    return finalResult;
+                }
+                const localMetadata = options.localMetadataFactory
+                    ? await options.localMetadataFactory()
+                    : getStartupLocalMetadata();
+                const metadataDecision = getStartupMetadataDecision(localMetadata, getStartupCloudMetadata(startupIndexCandidate));
+                if(metadataDecision === 'same') {
+                    setStartupBackupBaseline(latestBackupId, false);
+                    decision = 'current';
+                } else {
+                    const migrationResult = await runStartupDetailedMerge(startupIndexCandidate, options, startupSyncStartedAt);
+                    const migrationDirty = migrationResult.outcome === 'local' || migrationResult.outcome === 'merge';
+                    setStartupBackupBaseline(latestBackupId, migrationDirty);
+                    finalResult = {
+                        ...migrationResult,
+                        outcome:migrationResult.outcome === 'cloud' ? 'remote-applied'
+                            : (migrationResult.outcome === 'merge' ? 'merged'
+                            : (migrationResult.outcome === 'local' ? 'local-dirty' : 'current')),
+                        migration:true
+                    };
+                    return finalResult;
+                }
+            }
+
+            if(decision === 'current' || decision === 'local-dirty') {
+                restorePosition(getTrustedStartupViewState(), 'local');
                 finalResult = {
-                    outcome:metadataDecision,
-                    local:{ statsCount:localMetadata.statsKeyCount },
-                    cloud:{ statsCount:cloudMetadata.statsKeyCount },
+                    outcome:decision,
                     fastPath:true,
                     requestCount:1,
+                    payloadRequestCount:0,
                     payloadScope:'backupIndex:last-50',
                     elapsedMs:performance.now() - startupSyncStartedAt
                 };
-                restorePosition(getTrustedStartupViewState(), 'local');
-                console.log('RESTORE_SOURCE local-metadata');
-                console.log('AUTO_SYNC_SOURCE local-metadata');
-                console.log('AUTO_SYNC_APPLIED', false);
-                console.log('AUTO_SYNC_COMPLETE', { fastPath:true, elapsedMs:finalResult.elapsedMs });
                 return finalResult;
             }
 
-            if(options.detailPreparation) await options.detailPreparation();
-            const candidatePromise = getStartupCloudCandidateWithTimeout(2500, startupRecords);
-            const ledgerPromise = learningStatsEventLedgerActive
-                ? syncLearningStatsEventLedgerWithFirebase({ upload:true })
-                : Promise.resolve(null);
-            const [candidate] = await Promise.all([candidatePromise, ledgerPromise]);
-            const localState = loadLocalStudyState();
-            const localUpdatedAt = Number(localState && localState.updatedAt) || 0;
-            console.log(`LOCAL_UPDATED_AT ${localUpdatedAt}`);
-            if(!candidate) throw new Error('startup_normal_backup_not_found');
-            const cloudState = candidate.normalized || normalizeBackupPayload(candidate.payload, 'cloud', candidate.record.ts);
-            const studyComparison = getStartupDataDecision(localState, cloudState, { backupHealthy:true });
-            const localTimes = {
-                study: localUpdatedAt,
-                learningStats: getLearningStatsUpdatedAt(),
-                favorites: getLearningStatsFavoritesUpdatedAt()
-            };
-            const cloudTimes = {
-                study: getBackupGroupUpdatedAt(candidate.payload, 'study', candidate.record.ts),
-                learningStats: getBackupGroupUpdatedAt(candidate.payload, 'learningStats', candidate.record.ts),
-                favorites: getBackupGroupUpdatedAt(candidate.payload, 'favorites', candidate.record.ts)
-            };
-            const groupDecision = getStartupSyncDecision(localTimes, cloudTimes);
-            groupDecision.study = studyComparison.outcome;
-            const localTrace = getLearningStatsSyncTrace(learningStatsMemoryStore, learningStatsFavoriteDecksMemory);
-            const cloudTrace = getLearningStatsSyncTrace(
-                hasBackupLearningStats(candidate.payload) ? candidate.payload[LEARNING_STATS_STORAGE_KEY] : null,
-                hasBackupLearningStatsFavorites(candidate.payload) ? (candidate.payload[LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY] || []) : null
-            );
-            console.log('[MK_STARTUP_LATEST_COMPARISON]', {
-                appVersion:APP_VERSION,
-                standalone:!!getStudyEnvironment().isPWA,
-                local:{ ...localTimes, ...localTrace, ...studyComparison.local },
-                cloud:{ ...cloudTimes, ...cloudTrace, ...studyComparison.cloud },
-                selection:groupDecision,
-                cloudLearningDayKeys:Object.keys(normalizeLearningStatsBackupPayload(candidate.payload[LEARNING_STATS_STORAGE_KEY]).days),
-                backupTimestamp:candidate.record.ts
-            });
-
-            const supplementalGroups = ['learningStats', 'favorites'].filter(group => groupDecision[group] === 'cloud');
-            const studyNeedsCloud = studyComparison.outcome === 'cloud' || studyComparison.outcome === 'merge';
-            let cloudApplied = false;
-            if(studyNeedsCloud) {
-                const restoredViewState = await applyRestoredState(cloudState, 'cloud', {
-                    baselineStatsKeyCount:Math.max(studyComparison.local.statsCount, studyComparison.cloud.statsCount),
-                    requireStatsLookupVerification:true,
-                    learningStatsGroups:supplementalGroups,
-                    silent:true
-                });
-                if(!restoredViewState) throw new Error('startup_cloud_merge_failed');
-                cloudApplied = true;
-            } else if(supplementalGroups.length) {
-                await restoreLearningStatsBackupFields(candidate.payload, supplementalGroups);
-                cloudApplied = true;
-                restorePosition(localState.viewState || {}, 'local');
-            } else {
-                restorePosition(localState.viewState || {}, 'local');
+            if(decision === 'apply') {
+                const startupBootstrapState = getStartupBootstrapState();
+                if(startupBootstrapState.invalid) {
+                    const bootstrapResult = await bootstrapStatsFromFirebaseOnInvalidLocal(startupBootstrapState, [startupIndexCandidate]);
+                    if(!bootstrapResult.ok) throw new Error(bootstrapResult.reasonCode || 'startup_bootstrap_failed');
+                    setStartupBackupBaseline(latestBackupId, false);
+                    finalResult = { outcome:'local-empty', requestCount:2, payloadRequestCount:1, elapsedMs:performance.now() - startupSyncStartedAt };
+                    return finalResult;
+                }
+                await applyCleanStartupBackup(startupIndexCandidate, options);
+                setStartupBackupBaseline(latestBackupId, false);
+                finalResult = {
+                    outcome:'remote-applied',
+                    fastPath:false,
+                    requestCount:2,
+                    payloadRequestCount:1,
+                    payloadScope:'backupIndex:last-50 + latest-normal-backup',
+                    elapsedMs:performance.now() - startupSyncStartedAt
+                };
+                return finalResult;
             }
 
-            const hasCloudSelection = studyNeedsCloud || supplementalGroups.length > 0;
-            const hasLocalSelection = studyComparison.outcome === 'local' || studyComparison.outcome === 'merge'
-                || groupDecision.learningStats === 'local' || groupDecision.favorites === 'local';
-            const outcome = studyComparison.outcome === 'merge' || (hasCloudSelection && hasLocalSelection)
-                ? 'merge'
-                : (studyComparison.outcome === 'cloud' || hasCloudSelection ? 'cloud' : studyComparison.outcome);
-            finalResult = {
-                ...studyComparison,
-                outcome,
-                fastPath:false,
-                requestCount:learningStatsEventLedgerActive ? 3 : 2,
-                payloadScope:'backupIndex:last-50 + latest-normal-backup' + (learningStatsEventLedgerActive ? ' + learningStatsEvents' : ''),
-                elapsedMs:performance.now() - startupSyncStartedAt
-            };
-            if(cloudApplied) {
-                refreshLearningStatsAfterCloudRestore();
-                safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(Date.now()));
-            }
-            logStudyStateSnapshot(cloudApplied ? 'auto-sync-merged' : 'auto-sync-local', cloudApplied ? loadLocalStudyState() : localState);
-            console.log('RESTORE_SOURCE', cloudApplied ? 'cloud-merge' : 'local');
-            console.log('AUTO_SYNC_SOURCE', cloudApplied ? 'cloud-merge' : 'local');
-            console.log('AUTO_SYNC_APPLIED', cloudApplied);
-            console.log('AUTO_SYNC_COMPLETE');
+            const mergeResult = await runStartupDetailedMerge(startupIndexCandidate, options, startupSyncStartedAt);
+            setStartupBackupBaseline(latestBackupId, true);
+            finalResult = { ...mergeResult, outcome:'merged' };
             return finalResult;
         } catch(e) {
             console.error('[MK Auto Cloud Sync Error]', e);
-            finalResult = { outcome:e && e.code === 'STARTUP_BACKUP_INVALID' ? 'backup-invalid' : 'read-failed' };
+            const payloadRequestCount = e && e.startupPayloadRequested ? 1 : 0;
+            finalResult = { outcome:e && e.code === 'STARTUP_BACKUP_INVALID' ? 'backup-invalid' : 'read-failed', requestCount:1 + payloadRequestCount, payloadRequestCount };
             if(learningStatsRestoreState === 'pending') {
-                setLearningStatsRestoreState('failed', {
-                    source:'startup-cloud-sync',
-                    reason:e && e.message ? e.message : String(e)
-                });
+                setLearningStatsRestoreState('failed', { source:'startup-cloud-sync', reason:e && e.message ? e.message : String(e) });
             }
-            console.log('RESTORE_SOURCE local');
-            console.log('AUTO_SYNC_SOURCE local');
-            console.log('AUTO_SYNC_APPLIED', false);
-            console.log('AUTO_SYNC_COMPLETE');
             return finalResult;
         } finally {
             learningStatsStartupSyncInProgress = false;
             learningStatsReady = learningStatsRestoreState === 'success';
+            console.log('AUTO_SYNC_COMPLETE', finalResult);
             showToast(getStartupSyncNotice(finalResult), finalResult.outcome === 'read-failed' || finalResult.outcome === 'backup-invalid' ? 'error' : 'success');
         }
     }
@@ -11909,7 +11984,7 @@ function getIOImageGroups() {
         });
     };
     function getStats(id) { return getStatsById(id); }
-    async function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; if(!await ensureStatsStoreReady('toggleTag')) return; const data = cloneStatsObject(getStatsStore()); const found = findStatsForCard(card, data, card && card.id); const id = found.key || String(card && card.id || ''); if(!id) return; if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; data[id].updatedAt = Date.now(); guardedStatsWrite(JSON.stringify(data), 'toggleTag'); markLocalDataUpdated(data[id].updatedAt); updateIconsUI(data[id]); scheduleBackup(); }
+    async function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; if(!await ensureStatsStoreReady('toggleTag')) return; const data = cloneStatsObject(getStatsStore()); const found = findStatsForCard(card, data, card && card.id); const id = found.key || String(card && card.id || ''); if(!id) return; if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; data[id].updatedAt = Date.now(); guardedStatsWrite(JSON.stringify(data), 'toggleTag'); markLocalDataUpdated(data[id].updatedAt); updateIconsUI(data[id]); scheduleBackup('stats'); }
     function updateIconsUI(s) { ['mem','cmp','fav','num','date','pen'].forEach(t => document.getElementById(`${t}-btn`).classList.toggle('active', !!s[t])); }
     function filterCards() { todayEssentialState.active = false; todayNewState.active = false; const q = document.getElementById('search-input').value.toLowerCase(); localStorage.setItem('anki_search_query', q); if(!q) { applyFilterAndSort(true); persistCurrentViewState(true); return; } activeDeck = originalDeck.filter(c => c.q.toLowerCase().includes(q) || c.a.toLowerCase().includes(q)); currentIndex = 0; try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {} showCard(); persistCurrentViewState(true); }
 

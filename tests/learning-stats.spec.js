@@ -56,6 +56,8 @@ const context = {
     LEARNING_STATS_BACKUP_DAY_KEYS: ['requiredDone', 'newDone', 'otherDone', 'allDone', 'trackedDone'],
     STORAGE_KEY_LEARNING_STATS_UPDATED_AT: 'mk_learning_stats_updated_at',
     STORAGE_KEY_LEARNING_STATS_FAVORITES_UPDATED_AT: 'mk_learning_stats_favorites_updated_at',
+    STORAGE_KEY_LAST_APPLIED_BACKUP_ID: 'mk_last_applied_backup_id',
+    STORAGE_KEY_LOCAL_DATA_DIRTY: 'mk_local_data_dirty',
     STORAGE_KEY_REVIEW_HISTORY: 'anki_final_review_history_v1',
     isDataChanged: false,
     learningStatsLibraryRevision: 0,
@@ -158,7 +160,7 @@ async function commitLearningStatsWriteAtomically(store, updatedAt, writeContext
     'createLearningStatsReviewDelta', 'persistLearningStatsReviewDeltaQueue', 'queueLearningStatsReviewDelta', 'applyLearningStatsReviewDeltas',
     'evaluateLearningStatsBackupHealth',
     'verifyCoreBackupPayloadIntegrity',
-    'getHistoryItemTime', 'getHistoryLatestTime', 'getStatLatestTime', 'getStartupStudyMetrics', 'compareStartupStudyStates', 'getStartupDataDecision', 'getStartupSyncNotice', 'getStartupMetadataDecision',
+    'getHistoryItemTime', 'getHistoryLatestTime', 'getStatLatestTime', 'getStartupStudyMetrics', 'compareStartupStudyStates', 'getStartupDataDecision', 'getStartupSyncNotice', 'getStartupMetadataDecision', 'getStartupBackupIdDecision',
     'getStartupSyncDecision', 'getLocalGroupUpdatedAt',
     'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'getCurrentDeckRecommendedStudyCards', 'buildLearningStatsModel',
     'getLearningStatsImmediateChildren', 'getLearningStatsFavoriteDecks', 'saveLearningStatsFavoriteDecks', 'toggleLearningStatsFavorite'
@@ -295,36 +297,62 @@ const startupCloudOlder = { updatedAt:100, stats:{ A:{ total:1, updatedAt:100, f
 const startupCloudNewer = { updatedAt:300, stats:{ A:{ total:3, updatedAt:300, fsrs:{ reps:3 } } }, reviewHistory:{ A:[...startupLocal.reviewHistory.A, { id:'cloud-review', time:300, score:4 }] } };
 const startupSameDecision = context.getStartupDataDecision(startupLocal, startupCloudSame, { backupHealthy:true });
 assert.strictEqual(startupSameDecision.outcome, 'same', 'startup keeps identical local/Firebase study data unchanged');
-assert.strictEqual(context.getStartupSyncNotice(startupSameDecision), '데이터 확인 완료 · 최신 상태입니다 (Stats 1)', 'identical data shows the final latest-state notice');
+assert.strictEqual(context.getStartupSyncNotice(startupSameDecision), '데이터 확인 완료 · 최신 상태입니다', 'identical data shows the final latest-state notice');
 const startupLocalDecision = context.getStartupDataDecision(startupLocal, startupCloudOlder, { backupHealthy:true });
 assert.strictEqual(startupLocalDecision.outcome, 'local', 'startup keeps local data when UUID evidence, event time, and reps are newer');
-assert.strictEqual(context.getStartupSyncNotice(startupLocalDecision), '데이터 확인 완료 · 로컬 최신 상태 유지 (로컬 1 / Firebase 1)', 'newer local data shows the local-retained notice');
+assert.strictEqual(context.getStartupSyncNotice(startupLocalDecision), '로컬 최신 학습 기록 유지', 'newer local data shows the local-retained notice');
 const startupCloudDecision = context.getStartupDataDecision(startupLocal, startupCloudNewer, { backupHealthy:true });
 assert.strictEqual(startupCloudDecision.outcome, 'cloud', 'startup applies Firebase when its UUID evidence, event time, and reps are newer');
-assert.strictEqual(context.getStartupSyncNotice(startupCloudDecision), '데이터 업데이트 완료 · Firebase 최신 기록 반영 (1개)', 'newer Firebase data shows the applied notice');
+assert.strictEqual(context.getStartupSyncNotice(startupCloudDecision), '최신 백업 적용 완료 · Firebase 데이터 반영', 'newer Firebase data shows the applied notice');
 const startupInvalidDecision = context.getStartupDataDecision(startupLocal, startupCloudNewer, { backupHealthy:false });
 assert.strictEqual(startupInvalidDecision.outcome, 'backup-invalid', 'a sudden-drop or corrupt Firebase candidate keeps local data');
-assert.strictEqual(context.getStartupSyncNotice(startupInvalidDecision), '백업 이상 감지 · 안전하게 로컬 데이터 유지', 'an unhealthy backup shows the safety notice');
+assert.strictEqual(context.getStartupSyncNotice(startupInvalidDecision), '백업 이상 감지 · 기존 로컬 데이터 유지', 'an unhealthy backup shows the safety notice');
 const startupReadFailure = context.getStartupDataDecision(startupLocal, {}, { readFailed:true });
 assert.strictEqual(startupReadFailure.outcome, 'read-failed', 'a Firebase read failure keeps local data');
-assert.strictEqual(context.getStartupSyncNotice(startupReadFailure), '최신 데이터 확인 실패 · 기존 로컬 데이터로 시작', 'a Firebase read failure never reports success');
+assert.strictEqual(context.getStartupSyncNotice(startupReadFailure), '최신 백업 확인 실패 · 로컬 데이터로 시작', 'a Firebase read failure never reports success');
 const startupMergeDecision = context.getStartupDataDecision(
     startupLocal,
     { updatedAt:300, stats:{ B:{ total:1, updatedAt:300, fsrs:{ reps:1 } } }, reviewHistory:{ B:[{ id:'cloud-only', time:300, score:3 }] } },
     { backupHealthy:true }
 );
 assert.strictEqual(startupMergeDecision.outcome, 'merge', 'different latest UUID evidence on both sides selects the existing safe merge path');
-assert.strictEqual(context.getStartupSyncNotice(startupMergeDecision), '데이터 동기화 완료 · 로컬 + Firebase 최신 기록 병합 (최신 학습 기록 1개 반영)', 'two-sided changes show the merged notice');
+assert.strictEqual(context.getStartupSyncNotice(startupMergeDecision), '최신 학습 기록 병합 완료', 'two-sided changes show the merged notice');
 const startupSyncSource = readFunction('syncLatestFirebaseBackupOnStartup');
-assert(startupSyncSource.includes("applyRestoredState(cloudState, 'cloud'"), 'normal startup cloud updates reuse the UUID/history merge restore path');
-assert(!startupSyncSource.includes('applyStartupBootstrapPayload(candidate'), 'normal non-empty startup never force-reinstalls the whole cloud snapshot');
+const startupCleanApplySource = readFunction('applyCleanStartupBackup');
+const startupDetailedMergeSource = readFunction('runStartupDetailedMerge');
+const startupIndexCandidateSource = readFunction('getStartupIndexCandidate');
+const scheduleBackupSource = readFunction('scheduleBackup');
+const performBackupSource = readFunction('performFirebaseBackup');
+assert(startupCleanApplySource.includes("applyRestoredState(cloudState, 'cloud'"), 'clean Firebase updates reuse the safe restore path');
+assert(startupDetailedMergeSource.includes("applyRestoredState(cloudState, 'cloud'"), 'dirty conflicts reuse the UUID/history merge path');
 assert.strictEqual((startupSyncSource.match(/showToast\(/g) || []).length, 1, 'startup emits exactly one final toast after comparison and apply');
 const fastLocalMetadata = { statsUpdatedAt:300, statsKeyCount:12, learningStatsUpdatedAt:400, learningStatsEntryCount:20, favoritesUpdatedAt:200 };
 assert.strictEqual(context.getStartupMetadataDecision(fastLocalMetadata, { ...fastLocalMetadata }), 'same', 'matching index metadata exits through the fast path');
 assert.strictEqual(context.getStartupMetadataDecision(fastLocalMetadata, { ...fastLocalMetadata, statsUpdatedAt:200 }), 'local', 'clearly newer local metadata exits without a backup payload');
 assert.strictEqual(context.getStartupMetadataDecision(fastLocalMetadata, { ...fastLocalMetadata, learningStatsUpdatedAt:500 }), 'detail', 'newer Firebase metadata requests the verified payload');
-assert(startupSyncSource.indexOf('fetchStartupBootstrapBackupCandidates()') < startupSyncSource.indexOf('getStartupCloudCandidateWithTimeout(2500, startupRecords)'), 'startup reads the small index before any backup payload');
-assert(startupSyncSource.indexOf("if(metadataDecision === 'same' || metadataDecision === 'local')") < startupSyncSource.indexOf('syncLearningStatsEventLedgerWithFirebase'), 'same/local metadata exits before full event-ledger sync');
+const startupCases = [
+    { name:'same-clean', latest:'200', applied:'200', dirty:false, decision:'current', payloadGets:0, notice:'데이터 확인 완료 · 최신 상태입니다' },
+    { name:'new-clean', latest:'200', applied:'100', dirty:false, decision:'apply', payloadGets:1, notice:'최신 백업 적용 완료 · Firebase 데이터 반영' },
+    { name:'same-dirty', latest:'200', applied:'200', dirty:true, decision:'local-dirty', payloadGets:0, notice:'로컬 최신 학습 기록 유지' },
+    { name:'new-dirty', latest:'200', applied:'100', dirty:true, decision:'merge', payloadGets:1, notice:'최신 학습 기록 병합 완료' }
+];
+startupCases.forEach(testCase => {
+    assert.strictEqual(context.getStartupBackupIdDecision(testCase.latest, testCase.applied, testCase.dirty, true), testCase.decision, `${testCase.name} selects the ID/dirty policy branch`);
+    assert.strictEqual(testCase.payloadGets, testCase.decision === 'apply' || testCase.decision === 'merge' ? 1 : 0, `${testCase.name} payload request count`);
+    const noticeOutcome = ({ current:'current', apply:'remote-applied', 'local-dirty':'local-dirty', merge:'merged' })[testCase.decision];
+    assert.strictEqual(context.getStartupSyncNotice({outcome:noticeOutcome}), testCase.notice, `${testCase.name} final notice`);
+});
+assert.strictEqual(context.getStartupSyncNotice({outcome:'backup-invalid'}), '백업 이상 감지 · 기존 로컬 데이터 유지', 'invalid latest backup keeps local with the safety notice');
+assert.strictEqual(context.getStartupSyncNotice({outcome:'read-failed'}), '최신 백업 확인 실패 · 로컬 데이터로 시작', 'backupIndex failure keeps local with the failure notice');
+assert(startupSyncSource.indexOf("if(decision === 'current' || decision === 'local-dirty')") < startupSyncSource.indexOf("if(decision === 'apply')"), 'same-ID fast paths exit before payload branches');
+assert(!startupSyncSource.slice(startupSyncSource.indexOf("if(decision === 'current' || decision === 'local-dirty')"), startupSyncSource.indexOf("if(decision === 'apply')")).includes('getLocalStatsKeyCount'), 'same-ID fast path performs no Stats scan');
+const sameIdFastPathSource = startupSyncSource.slice(startupSyncSource.indexOf("if(decision === 'current' || decision === 'local-dirty')"), startupSyncSource.indexOf("if(decision === 'apply')"));
+['getVerifiedStartupCandidate', 'loadLocalStudyState', 'getStartupDataDecision', 'syncLearningStatsEventLedgerWithFirebase'].forEach(name => {
+    assert(!sameIdFastPathSource.includes(name), `same-ID fast path skips ${name}`);
+});
+assert(startupIndexCandidateSource.includes('statsKeyBaseline * STATS_MIN_RETAIN_RATIO'), 'latest-normal index selection preserves sudden Stats-drop blocking');
+assert(scheduleBackupSource.includes('if(reason) setLocalDataDirty(true)'), 'actual learning-data save reasons persist dirty=true');
+assert(performBackupSource.indexOf('if(!indexWriteOk)') < performBackupSource.indexOf('setStartupBackupBaseline(data.timestamp, false)'), 'dirty clears only after both payload and backupIndex writes succeed');
 const mediaDisposeSource = readFunction('disposeCardMediaResources');
 const mediaBindSource = readFunction('bindImageZoomHandlers');
 const backupScriptSource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'backup-firebase-user-data.js'), 'utf8');
