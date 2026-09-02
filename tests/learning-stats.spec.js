@@ -158,6 +158,7 @@ async function commitLearningStatsWriteAtomically(store, updatedAt, writeContext
     'createLearningStatsReviewDelta', 'persistLearningStatsReviewDeltaQueue', 'queueLearningStatsReviewDelta', 'applyLearningStatsReviewDeltas',
     'evaluateLearningStatsBackupHealth',
     'verifyCoreBackupPayloadIntegrity',
+    'getHistoryItemTime', 'getHistoryLatestTime', 'getStatLatestTime', 'getStartupStudyMetrics', 'compareStartupStudyStates', 'getStartupDataDecision', 'getStartupSyncNotice',
     'getStartupSyncDecision', 'getLocalGroupUpdatedAt',
     'getLearningStatsCardLookup', 'restoreTodayLearningStatsTotal', 'getAllRecommendedStudyCards', 'getCurrentDeckRecommendedStudyCards', 'buildLearningStatsModel',
     'getLearningStatsImmediateChildren', 'getLearningStatsFavoriteDecks', 'saveLearningStatsFavoriteDecks', 'toggleLearningStatsFavorite'
@@ -288,6 +289,36 @@ assert.strictEqual(context.verifyCoreBackupPayloadIntegrity(coreBackup).ok, fals
 assert.deepStrictEqual({ ...context.getStartupSyncDecision({ study:100, learningStats:100, favorites:100 }, { study:110, learningStats:110, favorites:110 }) }, { study:'cloud', learningStats:'cloud', favorites:'cloud' }, 'newer verified Firebase groups are selected');
 assert.deepStrictEqual({ ...context.getStartupSyncDecision({ study:110, learningStats:110, favorites:110 }, { study:100, learningStats:100, favorites:100 }) }, { study:'local', learningStats:'local', favorites:'local' }, 'newer local groups are protected');
 assert.deepStrictEqual({ ...context.getStartupSyncDecision({ study:110, learningStats:110, favorites:110 }, { study:110, learningStats:110, favorites:110 }) }, { study:'same', learningStats:'same', favorites:'same' }, 'equal timestamps avoid unnecessary restore');
+const startupLocal = { updatedAt:200, stats:{ A:{ total:2, updatedAt:200, fsrs:{ reps:2 } } }, reviewHistory:{ A:[{ id:'old-review', time:100, score:2 }, { id:'local-review', time:200, score:3 }] } };
+const startupCloudSame = JSON.parse(JSON.stringify(startupLocal));
+const startupCloudOlder = { updatedAt:100, stats:{ A:{ total:1, updatedAt:100, fsrs:{ reps:1 } } }, reviewHistory:{ A:[{ id:'old-review', time:100, score:2 }] } };
+const startupCloudNewer = { updatedAt:300, stats:{ A:{ total:3, updatedAt:300, fsrs:{ reps:3 } } }, reviewHistory:{ A:[...startupLocal.reviewHistory.A, { id:'cloud-review', time:300, score:4 }] } };
+const startupSameDecision = context.getStartupDataDecision(startupLocal, startupCloudSame, { backupHealthy:true });
+assert.strictEqual(startupSameDecision.outcome, 'same', 'startup keeps identical local/Firebase study data unchanged');
+assert.strictEqual(context.getStartupSyncNotice(startupSameDecision), '데이터 확인 완료 · 최신 상태입니다 (Stats 1)', 'identical data shows the final latest-state notice');
+const startupLocalDecision = context.getStartupDataDecision(startupLocal, startupCloudOlder, { backupHealthy:true });
+assert.strictEqual(startupLocalDecision.outcome, 'local', 'startup keeps local data when UUID evidence, event time, and reps are newer');
+assert.strictEqual(context.getStartupSyncNotice(startupLocalDecision), '데이터 확인 완료 · 로컬 최신 상태 유지 (로컬 1 / Firebase 1)', 'newer local data shows the local-retained notice');
+const startupCloudDecision = context.getStartupDataDecision(startupLocal, startupCloudNewer, { backupHealthy:true });
+assert.strictEqual(startupCloudDecision.outcome, 'cloud', 'startup applies Firebase when its UUID evidence, event time, and reps are newer');
+assert.strictEqual(context.getStartupSyncNotice(startupCloudDecision), '데이터 업데이트 완료 · Firebase 최신 기록 반영 (1개)', 'newer Firebase data shows the applied notice');
+const startupInvalidDecision = context.getStartupDataDecision(startupLocal, startupCloudNewer, { backupHealthy:false });
+assert.strictEqual(startupInvalidDecision.outcome, 'backup-invalid', 'a sudden-drop or corrupt Firebase candidate keeps local data');
+assert.strictEqual(context.getStartupSyncNotice(startupInvalidDecision), '백업 이상 감지 · 안전하게 로컬 데이터 유지', 'an unhealthy backup shows the safety notice');
+const startupReadFailure = context.getStartupDataDecision(startupLocal, {}, { readFailed:true });
+assert.strictEqual(startupReadFailure.outcome, 'read-failed', 'a Firebase read failure keeps local data');
+assert.strictEqual(context.getStartupSyncNotice(startupReadFailure), '최신 데이터 확인 실패 · 기존 로컬 데이터로 시작', 'a Firebase read failure never reports success');
+const startupMergeDecision = context.getStartupDataDecision(
+    startupLocal,
+    { updatedAt:300, stats:{ B:{ total:1, updatedAt:300, fsrs:{ reps:1 } } }, reviewHistory:{ B:[{ id:'cloud-only', time:300, score:3 }] } },
+    { backupHealthy:true }
+);
+assert.strictEqual(startupMergeDecision.outcome, 'merge', 'different latest UUID evidence on both sides selects the existing safe merge path');
+assert.strictEqual(context.getStartupSyncNotice(startupMergeDecision), '데이터 동기화 완료 · 로컬 + Firebase 최신 기록 병합 (최신 학습 기록 1개 반영)', 'two-sided changes show the merged notice');
+const startupSyncSource = readFunction('syncLatestFirebaseBackupOnStartup');
+assert(startupSyncSource.includes("applyRestoredState(cloudState, 'cloud'"), 'normal startup cloud updates reuse the UUID/history merge restore path');
+assert(!startupSyncSource.includes('applyStartupBootstrapPayload(candidate'), 'normal non-empty startup never force-reinstalls the whole cloud snapshot');
+assert.strictEqual((startupSyncSource.match(/showToast\(/g) || []).length, 1, 'startup emits exactly one final toast after comparison and apply');
 storage.delete(context.STORAGE_KEY_LEARNING_STATS_UPDATED_AT);
 storage.set(context.LEARNING_STATS_STORAGE_KEY, JSON.stringify({ version:1, days:{} }));
 assert.strictEqual(context.getLocalGroupUpdatedAt(context.STORAGE_KEY_LEARNING_STATS_UPDATED_AT, context.LEARNING_STATS_STORAGE_KEY), 0, 'an existing empty learning-stats key never inherits the Stats timestamp');
