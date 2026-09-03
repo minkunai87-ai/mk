@@ -1811,13 +1811,15 @@
                     state.overlayBaseScale = state.overlayBaseRect.width / Math.max(1, img.naturalWidth);
                 }
                 if (!state.overlay) {
-                    const overlay = document.createElement('img');
+                    const overlay = document.createElement('div');
+                    const source = img.dataset.originalSrc || img.getAttribute('src') || img.currentSrc || '';
                     overlay.className = 'mk-high-res-zoom-layer';
-                    overlay.src = img.dataset.originalSrc || img.getAttribute('src') || img.currentSrc || '';
-                    overlay.decoding = 'async';
-                    overlay.draggable = false;
+                    overlay.setAttribute('aria-hidden', 'true');
+                    overlay.style.setProperty('background-image', `url(${JSON.stringify(source)})`, 'important');
+                    overlay.style.setProperty('background-repeat', 'no-repeat', 'important');
+                    overlay.style.setProperty('background-size', '100% 100%', 'important');
                     overlay.style.setProperty('width', `${img.naturalWidth}px`, 'important');
-                    overlay.style.setProperty('height', 'auto', 'important');
+                    overlay.style.setProperty('height', `${img.naturalHeight}px`, 'important');
                     overlay.style.setProperty('max-width', 'none', 'important');
                     document.body.appendChild(overlay);
                     state.overlay = overlay;
@@ -1826,7 +1828,7 @@
                         naturalHeight: img.naturalHeight,
                         displayWidth: state.overlayBaseRect.width,
                         baseScale: state.overlayBaseScale,
-                        src: overlay.src
+                        src: source
                     });
                 }
                 return state.overlay;
