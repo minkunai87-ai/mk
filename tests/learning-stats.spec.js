@@ -78,6 +78,8 @@ const context = {
     learningStatsEventLedgerActive: false,
     activeDeck: [],
     originalDeck: [],
+    currentFilterMode: 'wrong',
+    currentIndex: 7,
     todayEssentialState: { active:false },
     todayNewState: { active:false },
     document: { getElementById: () => null },
@@ -320,40 +322,19 @@ const startupMergeDecision = context.getStartupDataDecision(
 assert.strictEqual(startupMergeDecision.outcome, 'merge', 'different latest UUID evidence on both sides selects the existing safe merge path');
 assert.strictEqual(context.getStartupSyncNotice(startupMergeDecision), '최신 학습 기록 병합 완료', 'two-sided changes show the merged notice');
 const startupSyncSource = readFunction('syncLatestFirebaseBackupOnStartup');
-const startupCleanApplySource = readFunction('applyCleanStartupBackup');
-const startupDetailedMergeSource = readFunction('runStartupDetailedMerge');
 const startupIndexCandidateSource = readFunction('getStartupIndexCandidate');
 const scheduleBackupSource = readFunction('scheduleBackup');
 const performBackupSource = readFunction('performFirebaseBackup');
 const gradeSource = readFunction('grade');
 const saveStudyStateSource = readFunction('saveStudyState');
-assert(startupCleanApplySource.includes("applyRestoredState(cloudState, 'cloud'"), 'clean Firebase updates reuse the safe restore path');
-assert(startupDetailedMergeSource.includes("applyRestoredState(cloudState, 'cloud'"), 'dirty conflicts reuse the UUID/history merge path');
+const incrementalEventSyncSource = readFunction('syncLearningStatsEventLedgerWithFirebase');
+const incrementalEventFetchSource = readFunction('fetchFirebaseLearningStatsEventsAfter');
 assert.strictEqual((startupSyncSource.match(/showToast\(/g) || []).length, 1, 'startup emits exactly one final toast after comparison and apply');
-const fastLocalMetadata = { statsUpdatedAt:300, statsKeyCount:12, learningStatsUpdatedAt:400, learningStatsEntryCount:20, favoritesUpdatedAt:200 };
-assert.strictEqual(context.getStartupMetadataDecision(fastLocalMetadata, { ...fastLocalMetadata }), 'same', 'matching index metadata exits through the fast path');
-assert.strictEqual(context.getStartupMetadataDecision(fastLocalMetadata, { ...fastLocalMetadata, statsUpdatedAt:200 }), 'local', 'clearly newer local metadata exits without a backup payload');
-assert.strictEqual(context.getStartupMetadataDecision(fastLocalMetadata, { ...fastLocalMetadata, learningStatsUpdatedAt:500 }), 'detail', 'newer Firebase metadata requests the verified payload');
-const startupCases = [
-    { name:'same-clean', latest:'200', applied:'200', dirty:false, decision:'current', payloadGets:0, notice:'데이터 확인 완료 · 최신 상태입니다' },
-    { name:'new-clean', latest:'200', applied:'100', dirty:false, decision:'apply', payloadGets:1, notice:'최신 백업 적용 완료 · Firebase 데이터 반영' },
-    { name:'same-dirty', latest:'200', applied:'200', dirty:true, decision:'local-dirty', payloadGets:0, notice:'로컬 최신 학습 기록 유지' },
-    { name:'new-dirty', latest:'200', applied:'100', dirty:true, decision:'merge', payloadGets:1, notice:'최신 학습 기록 병합 완료' }
-];
-startupCases.forEach(testCase => {
-    assert.strictEqual(context.getStartupBackupIdDecision(testCase.latest, testCase.applied, testCase.dirty, true), testCase.decision, `${testCase.name} selects the ID/dirty policy branch`);
-    assert.strictEqual(testCase.payloadGets, testCase.decision === 'apply' || testCase.decision === 'merge' ? 1 : 0, `${testCase.name} payload request count`);
-    const noticeOutcome = ({ current:'current', apply:'remote-applied', 'local-dirty':'local-dirty', merge:'merged' })[testCase.decision];
-    assert.strictEqual(context.getStartupSyncNotice({outcome:noticeOutcome}), testCase.notice, `${testCase.name} final notice`);
-});
 assert.strictEqual(context.getStartupSyncNotice({outcome:'backup-invalid'}), '백업 이상 감지 · 기존 로컬 데이터 유지', 'invalid latest backup keeps local with the safety notice');
 assert.strictEqual(context.getStartupSyncNotice({outcome:'read-failed'}), '최신 백업 확인 실패 · 로컬 데이터로 시작', 'backupIndex failure keeps local with the failure notice');
-assert(startupSyncSource.indexOf("if(decision === 'current' || decision === 'local-dirty')") < startupSyncSource.indexOf("if(decision === 'apply')"), 'same-ID fast paths exit before payload branches');
-assert(!startupSyncSource.slice(startupSyncSource.indexOf("if(decision === 'current' || decision === 'local-dirty')"), startupSyncSource.indexOf("if(decision === 'apply')")).includes('getLocalStatsKeyCount'), 'same-ID fast path performs no Stats scan');
-const sameIdFastPathSource = startupSyncSource.slice(startupSyncSource.indexOf("if(decision === 'current' || decision === 'local-dirty')"), startupSyncSource.indexOf("if(decision === 'apply')"));
-['getVerifiedStartupCandidate', 'loadLocalStudyState', 'getStartupDataDecision', 'syncLearningStatsEventLedgerWithFirebase'].forEach(name => {
-    assert(!sameIdFastPathSource.includes(name), `same-ID fast path skips ${name}`);
-});
+assert(startupSyncSource.includes('if(!startupBootstrapState.invalid) return finalResult'), 'normal local startup exits before every snapshot request');
+assert(!startupSyncSource.includes('applyRestoredState') && !startupSyncSource.includes('runStartupDetailedMerge'), 'normal startup snapshot apply/merge paths are absent');
+assert(startupSyncSource.includes('bootstrapStatsFromFirebaseOnInvalidLocal'), 'snapshot restore remains available only for invalid or empty local recovery');
 assert(startupIndexCandidateSource.includes('statsKeyBaseline * STATS_MIN_RETAIN_RATIO'), 'latest-normal index selection preserves sudden Stats-drop blocking');
 assert(scheduleBackupSource.includes('if(reason) setLocalDataDirty(true)'), 'actual learning-data save reasons persist dirty=true');
 assert(performBackupSource.indexOf('if(!indexWriteOk)') < performBackupSource.indexOf('setStartupBackupBaseline(data.timestamp, false)'), 'dirty clears only after both payload and backupIndex writes succeed');
@@ -367,8 +348,68 @@ for(let review = 0; review < 100; review++) {
 assert(!gradeSource.includes('syncLatestFirebaseBackupOnStartup') && !gradeSource.includes('fetchStartupBootstrapBackupCandidates'), 'card grading never starts startup sync or backupIndex reads');
 assert(!performBackupSource.includes('syncLatestFirebaseBackupOnStartup') && !performBackupSource.includes('fetchStartupBootstrapBackupCandidates'), 'automatic backup completion never starts startup sync or backupIndex reads');
 const onloadSource = html.slice(html.indexOf('window.onload = async function()'), html.indexOf('\n    function openFirebaseSettings'));
-assert(onloadSource.indexOf('await syncLatestFirebaseBackupOnStartup') < onloadSource.indexOf('initApp();'), 'the learning UI opens only after cold-start sync has fully finished');
+assert(onloadSource.includes('if(startupBootstrapState.invalid)') && !onloadSource.includes('startupRecordsPromise'), 'normal local startup never requests backupIndex or snapshot payload');
+assert(onloadSource.indexOf('initApp();') < onloadSource.indexOf('learningStatsInitPromise.then'), 'local UI opens before background event synchronization');
 assert.strictEqual((html.match(/syncLatestFirebaseBackupOnStartup\(/g) || []).length, 2, 'production code has exactly one startup call site plus the function definition');
+assert(!incrementalEventSyncSource.includes('fetchFirebaseLearningStatsEvents()'), 'background sync never downloads the complete learningStatsEvents collection');
+assert(incrementalEventSyncSource.includes('STORAGE_KEY_LAST_APPLIED_LEARNING_EVENT_ID'), 'background sync advances the applied event cursor');
+assert(incrementalEventSyncSource.includes('learningStatsEventSyncPromise'), 'event synchronization rejects concurrent re-entry');
+assert(incrementalEventFetchSource.includes("searchParams.set('startAt'") && incrementalEventFetchSource.includes("'limitToFirst'"), 'remote event reads are cursor-bounded incremental queries');
+const remoteStats = { remoteCard:{ updatedAt:100, total:1 }, untouched:{ updatedAt:500, total:9 } };
+const remoteHistory = { remoteCard:[{ id:'old', time:100 }] };
+const preservedFilterState = { filter:'wrong', currentCardId:'current-card', activeIds:['remoteCard','untouched'] };
+const remoteEventContext = {
+    Array, Object, Number, Math, Promise,
+    learningStatsPersistenceQueue:Promise.resolve({ok:true}),
+    normalizeLearningStatsEvent:event => event,
+    getCanonicalStatsStore:() => remoteStats,
+    getStatLatestTime:stat => Number(stat && stat.updatedAt) || 0,
+    applyCanonicalStatsCardPatch:(uuid, stat) => { remoteStats[uuid] = stat; return {ok:true}; },
+    readLocalReviewHistoryCached:() => remoteHistory,
+    reviewHistoryItemIdentity:(uuid, item) => String(item && item.id || `${uuid}:${item && item.time}`),
+    writeLocalReviewHistory:history => history,
+    applyLearningStatsReviewDeltas:(store, deltas) => ({...store, applied:deltas.map(delta => delta.cardId)}),
+    getLearningStatsStore:() => ({version:1}),
+    saveLearningStatsStore:value => { remoteEventContext.learningStore = value; remoteEventContext.learningStatsPersistenceQueue = Promise.resolve({ok:true}); return true; }
+};
+vm.createContext(remoteEventContext);
+vm.runInContext(readFunction('applyRemoteLearningStatsEvents'), remoteEventContext);
+const remoteApplyResult = await remoteEventContext.applyRemoteLearningStatsEvents([{
+    eventId:'review_200_remote', source:'review', uuid:'remoteCard', studyDate:'2026-09-03', category:'other', deckPath:'A__filtered', timestamp:200,
+    stat:{updatedAt:200,total:2}, historyItem:{id:'new-remote',time:200}
+}]);
+assert.deepStrictEqual({...remoteStats.remoteCard}, {updatedAt:200,total:2}, 'one remote event patches only its UUID Stats value');
+assert.deepStrictEqual({...remoteStats.untouched}, {updatedAt:500,total:9}, 'one remote event leaves unrelated Stats untouched');
+assert.strictEqual(remoteHistory.remoteCard.length, 2, 'one remote event appends only its UUID history item');
+assert.deepStrictEqual(preservedFilterState, { filter:'wrong', currentCardId:'current-card', activeIds:['remoteCard','untouched'] }, 'remote event apply preserves filter and current-card session state');
+assert.deepStrictEqual({...remoteApplyResult}, {applied:1,statsPatched:1,historyPatched:1}, 'one remote event is applied exactly once');
+const incrementalStorage = new Map([
+    ['mk_last_applied_learning_event_id', 'review_200_current'],
+    ['mk_learning_events_meta_updated_at', '300']
+]);
+const incrementalSyncContext = {
+    console, Promise,
+    learningStatsEventSyncPromise:null,
+    learningStatsPersistenceQueue:Promise.resolve({ok:true}),
+    STORAGE_KEY_LEARNING_EVENTS_META_UPDATED_AT:'mk_learning_events_meta_updated_at',
+    STORAGE_KEY_LAST_APPLIED_LEARNING_EVENT_ID:'mk_last_applied_learning_event_id',
+    STORAGE_KEY_LAST_UPLOADED_LEARNING_EVENT_ID:'mk_last_uploaded_learning_event_id',
+    localStorage:{ getItem:key => incrementalStorage.get(key) || null },
+    readAllLearningStatsEvents:async () => [],
+    fetchFirebaseLearningStatsEventsMeta:async () => ({latestReviewEventId:'review_200_current',updatedAt:300}),
+    fetchFirebaseLearningStatsEventsAfter:async () => { incrementalSyncContext.eventRequests++; return []; },
+    getLatestReviewLearningEventId:() => '',
+    appendLearningStatsEvents:async () => ({inserted:0}),
+    applyRemoteLearningStatsEvents:async () => ({applied:0,statsPatched:0,historyPatched:0}),
+    getDeviceId:() => 'test-device',
+    safeRestoreLocalStorage:(key,value) => { incrementalStorage.set(key,String(value)); return {ok:true}; },
+    eventRequests:0
+};
+vm.createContext(incrementalSyncContext);
+vm.runInContext(readFunction('syncLearningStatsEventLedgerWithFirebase'), incrementalSyncContext);
+const noRemoteEventResult = await incrementalSyncContext.syncLearningStatsEventLedgerWithFirebase({upload:false});
+assert.strictEqual(noRemoteEventResult.metaRequests, 1, 'no-change background sync performs one metadata request');
+assert.strictEqual(noRemoteEventResult.eventRequests, 0, 'no-change background sync downloads no event payload');
 const mediaDisposeSource = readFunction('disposeCardMediaResources');
 const mediaBindSource = readFunction('bindImageZoomHandlers');
 const backupScriptSource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'backup-firebase-user-data.js'), 'utf8');
@@ -379,7 +420,6 @@ assert(!mediaDisposeSource.includes("img.removeAttribute('src')"), 'card transit
 assert(!mediaDisposeSource.includes('mkIOElementsParseCache.delete'), 'card transition preserves bounded immutable mask parses');
 assert(html.includes('MK_IO_IMAGE_WARM_CACHE_LIMIT = 2') && html.includes('scheduleAdjacentIOImageWarmup()'), 'IO keeps a bounded decoded-image warm cache for the next image');
 assert(!html.includes('}, 1800);'), 'startup comparison is not held behind the former 1.8 second timer');
-assert(html.indexOf('const startupRecordsPromise = fetchStartupBootstrapBackupCandidates()') < html.indexOf('const statsInitPromise = initializeStatsStore();'), 'backupIndex starts in parallel with local startup loading');
 assert(mediaBindSource.includes('signal:state.controller.signal'), 'zoom listeners are owned by a disposable controller');
 assert(mediaBindSource.includes('translate3d(') && !mediaBindSource.includes('wrapper.style.transform = `matrix('), 'pan/zoom uses compositor transforms');
 const touchMoveSource = mediaBindSource.slice(mediaBindSource.indexOf("wrapper.addEventListener('touchmove'"), mediaBindSource.indexOf("wrapper.addEventListener('touchend'"));
@@ -459,7 +499,7 @@ assert.strictEqual(model.aggregates.get('B').newTarget.size, 2, 'sibling deck de
 
 const sourceHook = html.match(/const learningStatsSource = ([^;]+);/);
 assert(sourceHook && sourceHook[1].includes("'new'") && sourceHook[1].includes("'required'") && sourceHook[1].includes("'other'"), 'grade captures all three sources before saving');
-assert(html.includes('recordLearningStatsReview(card, learningStatsSource);'), 'grade records the captured source');
+assert(html.includes('recordLearningStatsReview(card, learningStatsSource, { stat:data[id], historyItem });'), 'grade records the captured source with its UUID Stats/history delta');
 assert(html.includes('[LEARNING_STATS_STORAGE_KEY]: learningStatsBackup'), 'Firebase payload includes the compact learning-stats field under its local key');
 assert(html.includes('[LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: learningStatsFavoriteDecksBackup'), 'Firebase payload includes favorite deck paths under its local key');
 assert(!html.includes('unionLearningStatsTargets'), 'snapshot/union targets are removed from denominator flow');
@@ -589,14 +629,21 @@ assert.strictEqual(restoreStorage.has('anki_final_library'), false, 'only rebuil
 
 const filteredReviewCards = Array.from({length:100}, (_, index) => ({ id:`filtered-session-${index + 1}`, deck:'A__filtered' }));
 context.activeDeck = filteredReviewCards.slice();
-for(const card of filteredReviewCards.slice(0, 20)) context.recordLearningStatsReview(card, 'other');
+const filterBeforeReviews = context.currentFilterMode;
+const cardIndexBeforeReviews = context.currentIndex;
+for(const card of filteredReviewCards.slice(0, 30)) context.recordLearningStatsReview(card, 'other');
 await context.learningStatsPersistenceQueue;
 let filteredReviewDay = context.getLearningStatsStore().days[context.getLearningStatsDateKey()];
-assert(filteredReviewCards.slice(0, 20).every(card => filteredReviewDay.allDone.includes(card.id)), '20 filtered-session reviews remain recorded without startup synchronization');
-for(const card of filteredReviewCards.slice(20)) context.recordLearningStatsReview(card, 'other');
+assert(filteredReviewCards.slice(0, 30).every(card => filteredReviewDay.allDone.includes(card.id)), '30 filtered-session reviews remain recorded without snapshot synchronization');
+for(const card of filteredReviewCards.slice(30, 40)) context.recordLearningStatsReview(card, 'other');
+await context.learningStatsPersistenceQueue;
+assert(filteredReviewCards.slice(0, 40).every(card => context.getLearningStatsStore().days[context.getLearningStatsDateKey()].allDone.includes(card.id)), '40 reviews survive an intervening debounced-backup completion path');
+for(const card of filteredReviewCards.slice(40)) context.recordLearningStatsReview(card, 'other');
 await context.learningStatsPersistenceQueue;
 filteredReviewDay = context.getLearningStatsStore().days[context.getLearningStatsDateKey()];
 assert(filteredReviewCards.every(card => filteredReviewDay.allDone.includes(card.id)), '100 filtered-session reviews remain recorded without reload or data loss');
+assert.strictEqual(context.currentFilterMode, filterBeforeReviews, '100 reviews do not reset the active filter');
+assert.strictEqual(context.currentIndex, cardIndexBeforeReviews, 'background learning event persistence does not force the current card position');
 
 console.log('learning stats scenarios passed');
 }

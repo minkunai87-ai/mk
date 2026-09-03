@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.193-startup-session-guard -->
+<!-- deployment: v18.5.194-event-sync-local-authority -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.193 - 세션 동기화 가드)</title>
+<title>MK (v18.5.194 - 로컬 우선 이벤트 동기화)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -560,7 +560,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.193 - 세션 동기화 가드)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.194 - 로컬 우선 이벤트 동기화)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -854,7 +854,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.193 - 세션 동기화 가드';
+    const APP_VERSION = 'v18.5.194 - 로컬 우선 이벤트 동기화';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -1029,6 +1029,9 @@
     const STORAGE_KEY_LAST_APPLIED_BACKUP_ID = 'mk_last_applied_backup_id';
     const STORAGE_KEY_LAST_CREATED_BACKUP_ID = 'mk_last_created_backup_id';
     const STORAGE_KEY_LOCAL_DATA_DIRTY = 'mk_local_data_dirty';
+    const STORAGE_KEY_LAST_APPLIED_LEARNING_EVENT_ID = 'mk_last_applied_learning_event_id';
+    const STORAGE_KEY_LAST_UPLOADED_LEARNING_EVENT_ID = 'mk_last_uploaded_learning_event_id';
+    const STORAGE_KEY_LEARNING_EVENTS_META_UPDATED_AT = 'mk_learning_events_meta_updated_at';
     const STORAGE_KEY_LAST_GOOD_BACKUP_TIMESTAMP = 'mk_last_good_backup_timestamp';
     const STORAGE_KEY_LAST_GOOD_STATS_COUNT = 'mk_last_good_stats_count';
     const STORAGE_KEY_BOOTSTRAP_FAILURE_NOTIFIED = 'mk_bootstrap_failure_notified';
@@ -1102,6 +1105,7 @@
     let localDataChangeRevision = 0;
     let startupSyncStarted = false;
     let startupSyncCompleted = false;
+    let learningStatsEventSyncPromise = null;
 
     let targetRetention = parseFloat(localStorage.getItem('anki_target_retention')) || 0.90;
 
@@ -2215,10 +2219,8 @@
         updateTRButton();
         cleanupOversizedViewState();
         cleanupLegacyRecoverySnapshotsAndRestoreCache('startup');
-        const startupRecordsPromise = fetchStartupBootstrapBackupCandidates()
-            .then(records => ({ records, error:null }), error => ({ records:null, error }));
         const statsInitPromise = initializeStatsStore();
-        const learningStatsInitPromise = initializeLearningStatsStore()
+        const learningStatsInitPromise = initializeLearningStatsStore({ incrementalOnly:true })
             .then(result => { learningStatsReady = learningStatsRestoreState === 'success'; return result; })
             .catch(error => { console.warn('[MK_BACKGROUND_LEARNING_STATS_INIT_FAILED]', error); return null; });
         await statsInitPromise;
@@ -2232,17 +2234,24 @@
             }
             return Promise.all([learningStatsInitPromise, reviewHistoryInitPromise]);
         };
-        try {
-            await syncLatestFirebaseBackupOnStartup({
-                startupRecordsPromise,
-                localMetadataFactory:() => getStartupLocalMetadataFast(statsInitPromise),
-                detailPreparation:prepareStartupDetail
-            });
+        const startupBootstrapState = getStartupBootstrapState();
+        if(startupBootstrapState.invalid) {
+            try {
+                await syncLatestFirebaseBackupOnStartup({ startupBootstrapState, detailPreparation:prepareStartupDetail });
+            }
+            catch(error) { console.warn('[MK_BACKGROUND_FIREBASE_RECOVERY_FAILED]', error); }
+        } else {
+            startupSyncStarted = true;
+            startupSyncCompleted = true;
         }
-        catch(error) { console.warn('[MK_BACKGROUND_FIREBASE_SYNC_FAILED]', error); }
         initApp();
         document.getElementById('loading').style.display = 'none';
         learningStatsReady = learningStatsRestoreState === 'success';
+        learningStatsInitPromise.then(async result => {
+            if(!result || !learningStatsEventLedgerActive) return;
+            const eventSync = await syncLearningStatsEventLedgerWithFirebase({ upload:true });
+            if(eventSync && eventSync.applied > 0) showToast(`새 학습 기록 ${eventSync.applied}건 동기화`, 'success');
+        }).catch(error => console.warn('[MK_BACKGROUND_LEARNING_EVENT_SYNC_FAILED]', error));
         scheduleDateDomMutationLog('after-startup-sync');
         loadTodayNewBaselineSnapshot()
             .then(() => registerTodayNewCards())
@@ -3022,6 +3031,8 @@
             appVersion:String(value.appVersion || APP_VERSION),
             deviceId:String(value.deviceId || getDeviceId()),
             platform:String(value.platform || getLearningStatsPlatform()),
+            stat:value.stat && typeof value.stat === 'object' && !Array.isArray(value.stat) ? parseJSONSafe(JSON.stringify(value.stat), null) : null,
+            historyItem:value.historyItem && typeof value.historyItem === 'object' && !Array.isArray(value.historyItem) ? { ...value.historyItem } : null,
             ...(conflictOfEventId ? { conflictOfEventId, conflictVariants } : {})
         };
     }
@@ -5293,97 +5304,6 @@
         }
     }
 
-    async function getVerifiedStartupCandidate(record) {
-        try {
-            const candidate = await getStartupCloudCandidateWithTimeout(2500, [record]);
-            if(candidate) return candidate;
-            const error = new Error('startup_backup_invalid');
-            error.code = 'STARTUP_BACKUP_INVALID';
-            throw error;
-        } catch(error) {
-            error.startupPayloadRequested = true;
-            throw error;
-        }
-    }
-
-    async function applyCleanStartupBackup(record, options = {}) {
-        if(options.detailPreparation) await options.detailPreparation();
-        const candidate = await getVerifiedStartupCandidate(record);
-        const cloudState = candidate.normalized || normalizeBackupPayload(candidate.payload, 'cloud', record.ts);
-        const restoredViewState = await applyRestoredState(cloudState, 'cloud', {
-            baselineStatsKeyCount:Math.max(getLocalStatsKeyCount(), Number(record.statsKeyCount) || 0),
-            requireStatsLookupVerification:true,
-            learningStatsGroups:['learningStats', 'favorites'],
-            silent:true
-        });
-        if(!restoredViewState) throw new Error('startup_cloud_apply_failed');
-        refreshLearningStatsAfterCloudRestore();
-        safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(Date.now()));
-        return candidate;
-    }
-
-    async function runStartupDetailedMerge(record, options = {}, startupSyncStartedAt = performance.now()) {
-        if(options.detailPreparation) await options.detailPreparation();
-        const candidatePromise = getVerifiedStartupCandidate(record);
-        const ledgerPromise = learningStatsEventLedgerActive
-            ? syncLearningStatsEventLedgerWithFirebase({ upload:true })
-            : Promise.resolve(null);
-        const [candidate] = await Promise.all([candidatePromise, ledgerPromise]);
-        const localState = loadLocalStudyState();
-        const cloudState = candidate.normalized || normalizeBackupPayload(candidate.payload, 'cloud', record.ts);
-        const studyComparison = getStartupDataDecision(localState, cloudState, { backupHealthy:true });
-        const localTimes = {
-            study:Number(localState && localState.updatedAt) || 0,
-            learningStats:getLearningStatsUpdatedAt(),
-            favorites:getLearningStatsFavoritesUpdatedAt()
-        };
-        const cloudTimes = {
-            study:getBackupGroupUpdatedAt(candidate.payload, 'study', record.ts),
-            learningStats:getBackupGroupUpdatedAt(candidate.payload, 'learningStats', record.ts),
-            favorites:getBackupGroupUpdatedAt(candidate.payload, 'favorites', record.ts)
-        };
-        const groupDecision = getStartupSyncDecision(localTimes, cloudTimes);
-        groupDecision.study = studyComparison.outcome;
-        const supplementalGroups = ['learningStats', 'favorites'].filter(group => groupDecision[group] === 'cloud');
-        const studyNeedsCloud = studyComparison.outcome === 'cloud' || studyComparison.outcome === 'merge';
-        let cloudApplied = false;
-        if(studyNeedsCloud) {
-            const restoredViewState = await applyRestoredState(cloudState, 'cloud', {
-                baselineStatsKeyCount:Math.max(studyComparison.local.statsCount, studyComparison.cloud.statsCount),
-                requireStatsLookupVerification:true,
-                learningStatsGroups:supplementalGroups,
-                silent:true
-            });
-            if(!restoredViewState) throw new Error('startup_cloud_merge_failed');
-            cloudApplied = true;
-        } else if(supplementalGroups.length) {
-            await restoreLearningStatsBackupFields(candidate.payload, supplementalGroups);
-            cloudApplied = true;
-            restorePosition(localState.viewState || {}, 'local');
-        } else {
-            restorePosition(localState.viewState || {}, 'local');
-        }
-        const hasCloudSelection = studyNeedsCloud || supplementalGroups.length > 0;
-        const hasLocalSelection = studyComparison.outcome === 'local' || studyComparison.outcome === 'merge'
-            || groupDecision.learningStats === 'local' || groupDecision.favorites === 'local';
-        const outcome = studyComparison.outcome === 'merge' || (hasCloudSelection && hasLocalSelection)
-            ? 'merge'
-            : (studyComparison.outcome === 'cloud' || hasCloudSelection ? 'cloud' : studyComparison.outcome);
-        if(cloudApplied) {
-            refreshLearningStatsAfterCloudRestore();
-            safeRestoreLocalStorage(STORAGE_KEY_LAST_AUTO_CLOUD_SYNC_AT, String(Date.now()));
-        }
-        return {
-            ...studyComparison,
-            outcome,
-            fastPath:false,
-            requestCount:learningStatsEventLedgerActive ? 3 : 2,
-            payloadRequestCount:1,
-            payloadScope:'backupIndex:last-50 + latest-normal-backup' + (learningStatsEventLedgerActive ? ' + learningStatsEvents' : ''),
-            elapsedMs:performance.now() - startupSyncStartedAt
-        };
-    }
-
     function claimStartupSyncSession() {
         if(startupSyncStarted) return false;
         startupSyncStarted = true;
@@ -5397,101 +5317,26 @@
         }
         learningStatsStartupSyncInProgress = true;
         learningStatsReady = false;
-        let finalResult = { outcome:'read-failed' };
-        const startupSyncStartedAt = performance.now();
+        let finalResult = { outcome:'local-authoritative', requestCount:0, payloadRequestCount:0 };
         try {
-            console.log('AUTO_SYNC_START');
-            const prefetchedRecords = options.startupRecordsPromise ? await options.startupRecordsPromise : null;
-            if(prefetchedRecords && prefetchedRecords.error) throw prefetchedRecords.error;
-            const startupRecords = prefetchedRecords && Array.isArray(prefetchedRecords.records)
-                ? prefetchedRecords.records
-                : await fetchStartupBootstrapBackupCandidates();
+            const startupBootstrapState = options.startupBootstrapState || getStartupBootstrapState();
+            if(!startupBootstrapState.invalid) return finalResult;
+            if(options.detailPreparation) await options.detailPreparation();
+            const startupRecords = await fetchStartupBootstrapBackupCandidates();
             const startupIndexCandidate = getStartupIndexCandidate(startupRecords);
             if(!startupIndexCandidate) {
                 const error = new Error('startup_backup_invalid');
                 error.code = 'STARTUP_BACKUP_INVALID';
                 throw error;
             }
-
-            const latestBackupId = String(startupIndexCandidate.ts);
-            const lastAppliedBackupId = getLastAppliedBackupId();
-            const dirty = isLocalDataDirty();
-            let decision = getStartupBackupIdDecision(latestBackupId, lastAppliedBackupId, dirty, !!lastAppliedBackupId);
-
-            if(decision === 'migrate') {
-                const startupBootstrapState = getStartupBootstrapState();
-                if(startupBootstrapState.invalid) {
-                    const bootstrapResult = await bootstrapStatsFromFirebaseOnInvalidLocal(startupBootstrapState, [startupIndexCandidate]);
-                    if(!bootstrapResult.ok) throw new Error(bootstrapResult.reasonCode || 'startup_bootstrap_failed');
-                    setStartupBackupBaseline(latestBackupId, false);
-                    finalResult = { outcome:'local-empty', requestCount:2, payloadRequestCount:1, elapsedMs:performance.now() - startupSyncStartedAt };
-                    return finalResult;
-                }
-                const localMetadata = options.localMetadataFactory
-                    ? await options.localMetadataFactory()
-                    : getStartupLocalMetadata();
-                const metadataDecision = getStartupMetadataDecision(localMetadata, getStartupCloudMetadata(startupIndexCandidate));
-                if(metadataDecision === 'same') {
-                    setStartupBackupBaseline(latestBackupId, false);
-                    decision = 'current';
-                } else {
-                    const migrationResult = await runStartupDetailedMerge(startupIndexCandidate, options, startupSyncStartedAt);
-                    const migrationDirty = migrationResult.outcome === 'local' || migrationResult.outcome === 'merge';
-                    setStartupBackupBaseline(latestBackupId, migrationDirty);
-                    finalResult = {
-                        ...migrationResult,
-                        outcome:migrationResult.outcome === 'cloud' ? 'remote-applied'
-                            : (migrationResult.outcome === 'merge' ? 'merged'
-                            : (migrationResult.outcome === 'local' ? 'local-dirty' : 'current')),
-                        migration:true
-                    };
-                    return finalResult;
-                }
-            }
-
-            if(decision === 'current' || decision === 'local-dirty') {
-                restorePosition(getTrustedStartupViewState(), 'local');
-                finalResult = {
-                    outcome:decision,
-                    fastPath:true,
-                    requestCount:1,
-                    payloadRequestCount:0,
-                    payloadScope:'backupIndex:last-50',
-                    elapsedMs:performance.now() - startupSyncStartedAt
-                };
-                return finalResult;
-            }
-
-            if(decision === 'apply') {
-                const startupBootstrapState = getStartupBootstrapState();
-                if(startupBootstrapState.invalid) {
-                    const bootstrapResult = await bootstrapStatsFromFirebaseOnInvalidLocal(startupBootstrapState, [startupIndexCandidate]);
-                    if(!bootstrapResult.ok) throw new Error(bootstrapResult.reasonCode || 'startup_bootstrap_failed');
-                    setStartupBackupBaseline(latestBackupId, false);
-                    finalResult = { outcome:'local-empty', requestCount:2, payloadRequestCount:1, elapsedMs:performance.now() - startupSyncStartedAt };
-                    return finalResult;
-                }
-                await applyCleanStartupBackup(startupIndexCandidate, options);
-                setStartupBackupBaseline(latestBackupId, false);
-                finalResult = {
-                    outcome:'remote-applied',
-                    fastPath:false,
-                    requestCount:2,
-                    payloadRequestCount:1,
-                    payloadScope:'backupIndex:last-50 + latest-normal-backup',
-                    elapsedMs:performance.now() - startupSyncStartedAt
-                };
-                return finalResult;
-            }
-
-            const mergeResult = await runStartupDetailedMerge(startupIndexCandidate, options, startupSyncStartedAt);
-            setStartupBackupBaseline(latestBackupId, true);
-            finalResult = { ...mergeResult, outcome:'merged' };
+            const bootstrapResult = await bootstrapStatsFromFirebaseOnInvalidLocal(startupBootstrapState, [startupIndexCandidate]);
+            if(!bootstrapResult.ok) throw new Error(bootstrapResult.reasonCode || 'startup_bootstrap_failed');
+            setStartupBackupBaseline(startupIndexCandidate.ts, false);
+            finalResult = { outcome:'local-empty', requestCount:2, payloadRequestCount:1 };
             return finalResult;
         } catch(e) {
             console.error('[MK Auto Cloud Sync Error]', e);
-            const payloadRequestCount = e && e.startupPayloadRequested ? 1 : 0;
-            finalResult = { outcome:e && e.code === 'STARTUP_BACKUP_INVALID' ? 'backup-invalid' : 'read-failed', requestCount:1 + payloadRequestCount, payloadRequestCount };
+            finalResult = { outcome:e && e.code === 'STARTUP_BACKUP_INVALID' ? 'backup-invalid' : 'read-failed' };
             if(learningStatsRestoreState === 'pending') {
                 setLearningStatsRestoreState('failed', { source:'startup-cloud-sync', reason:e && e.message ? e.message : String(e) });
             }
@@ -5501,7 +5346,9 @@
             learningStatsStartupSyncInProgress = false;
             learningStatsReady = learningStatsRestoreState === 'success';
             console.log('AUTO_SYNC_COMPLETE', finalResult);
-            showToast(getStartupSyncNotice(finalResult), finalResult.outcome === 'read-failed' || finalResult.outcome === 'backup-invalid' ? 'error' : 'success');
+            if(finalResult.outcome !== 'local-authoritative') {
+                showToast(getStartupSyncNotice(finalResult), finalResult.outcome === 'read-failed' || finalResult.outcome === 'backup-invalid' ? 'error' : 'success');
+            }
         }
     }
 
@@ -6345,8 +6192,8 @@
         return true;
     }
 
-    function queueLearningStatsReviewPersistence(card, source) {
-        const delta = createLearningStatsReviewDelta(card, source);
+    function queueLearningStatsReviewPersistence(card, source, studyData = {}) {
+        const delta = createLearningStatsReviewDelta(card, source, studyData);
         if(!delta) return null;
         const writeSource = `review-event-${delta.category}`;
         const expectedRevision = learningStatsMemoryRevision;
@@ -6588,6 +6435,78 @@
         return Object.values(value && typeof value === 'object' && !Array.isArray(value) ? value : {}).map(normalizeLearningStatsEvent).filter(Boolean);
     }
 
+    function getLatestReviewLearningEventId(events = []) {
+        return (Array.isArray(events) ? events : [])
+            .map(normalizeLearningStatsEvent)
+            .filter(event => event && event.source === 'review' && event.eventId.startsWith('review_'))
+            .reduce((latest, event) => event.eventId > latest ? event.eventId : latest, '');
+    }
+
+    function ensureLearningStatsUploadCursorBaseline(events = []) {
+        if(localStorage.getItem(STORAGE_KEY_LAST_UPLOADED_LEARNING_EVENT_ID)) return;
+        const latest = getLatestReviewLearningEventId((Array.isArray(events) ? events : []).filter(event => event && event.deviceId === getDeviceId()));
+        if(latest) safeRestoreLocalStorage(STORAGE_KEY_LAST_UPLOADED_LEARNING_EVENT_ID, latest);
+    }
+
+    async function fetchFirebaseLearningStatsEventsAfter(cursor = '', limit = 500) {
+        const url = new URL(`${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_PATH}.json`);
+        url.searchParams.set('orderBy', JSON.stringify('$key'));
+        url.searchParams.set('startAt', JSON.stringify(cursor || 'review_'));
+        url.searchParams.set('endAt', JSON.stringify('review_\uf8ff'));
+        url.searchParams.set(cursor ? 'limitToFirst' : 'limitToLast', String(cursor ? limit + 1 : 1));
+        url.searchParams.set('_t', String(Date.now()));
+        const response = await fetch(url.href, { cache:'no-store' });
+        if(!response.ok) throw new Error(`learning_stats_incremental_cloud_read_${response.status}`);
+        const value = await response.json();
+        const events = Object.values(value && typeof value === 'object' && !Array.isArray(value) ? value : {})
+            .map(normalizeLearningStatsEvent)
+            .filter(event => event && event.source === 'review' && event.eventId.startsWith('review_') && (!cursor || event.eventId > cursor))
+            .sort((a, b) => a.eventId.localeCompare(b.eventId));
+        return events.slice(0, limit);
+    }
+
+    async function applyRemoteLearningStatsEvents(events = []) {
+        const incoming = (Array.isArray(events) ? events : []).map(normalizeLearningStatsEvent).filter(Boolean);
+        if(!incoming.length) return { applied:0, statsPatched:0, historyPatched:0 };
+        let statsPatched = 0;
+        let historyPatched = 0;
+        const history = readLocalReviewHistoryCached();
+        incoming.forEach(event => {
+            const currentStat = getCanonicalStatsStore()[event.uuid];
+            if(event.stat && getStatLatestTime(event.stat) > getStatLatestTime(currentStat)) {
+                applyCanonicalStatsCardPatch(event.uuid, event.stat, 'firebase-learning-event');
+                statsPatched++;
+            }
+            if(event.historyItem) {
+                const items = Array.isArray(history[event.uuid]) ? history[event.uuid] : [];
+                const identity = reviewHistoryItemIdentity(event.uuid, event.historyItem);
+                if(!items.some(item => reviewHistoryItemIdentity(event.uuid, item) === identity)) {
+                    history[event.uuid] = [event.historyItem, ...items]
+                        .sort((a, b) => (Number(b && b.time) || 0) - (Number(a && a.time) || 0))
+                        .slice(0, 300);
+                    historyPatched++;
+                }
+            }
+        });
+        if(historyPatched) writeLocalReviewHistory(history);
+        const deltas = incoming.map(event => ({
+            cardId:event.uuid,
+            dateKey:event.studyDate,
+            category:event.category,
+            source:event.category,
+            deck:event.deckPath,
+            updatedAt:event.timestamp
+        }));
+        const nextLearningStats = applyLearningStatsReviewDeltas(getLearningStatsStore(), deltas);
+        saveLearningStatsStore(nextLearningStats, {
+            source:'firebase-incremental-events',
+            updatedAt:Math.max(...incoming.map(event => Number(event.timestamp) || 0)),
+            allowDuringRestore:true
+        });
+        await learningStatsPersistenceQueue;
+        return { applied:incoming.length, statsPatched, historyPatched };
+    }
+
     async function fetchFirebaseLearningStatsEventsMeta() {
         const response = await fetch(`${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_META_PATH}/migration_v1.json?_t=${Date.now()}`, { cache:'no-store' });
         if(!response.ok) return null;
@@ -6614,55 +6533,95 @@
     }
 
     async function syncLearningStatsEventLedgerWithFirebase(options = {}) {
-        try {
-            const [localBefore, cloudEvents] = await Promise.all([readAllLearningStatsEvents(), fetchFirebaseLearningStatsEvents()]);
-            const cloudById = new Map(cloudEvents.map(event => [event.eventId, event]));
-            const downloadResult = await appendLearningStatsEvents(cloudEvents, 'firebase-ledger-union-download');
-            const mergedLocal = await readAllLearningStatsEvents();
-            const upload = mergedLocal.filter(event => !cloudById.has(event.eventId));
-            let uploaded = 0;
-            if(upload.length && options.upload !== false) {
-                const conflictCorrections = upload.filter(isLearningStatsConflictCorrectionEvent);
-                const ordinaryAdditions = upload.filter(event => !isLearningStatsConflictCorrectionEvent(event));
-                if(ordinaryAdditions.length) {
-                    const additions = Object.fromEntries(ordinaryAdditions.map(event => [event.eventId, event]));
-                    const response = await fetch(`${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_PATH}.json`, {
-                        method:'PATCH',
-                        headers:{ 'Content-Type':'application/json' },
-                        body:JSON.stringify(additions)
-                    });
-                    if(!response.ok) throw new Error(`learning_stats_ledger_cloud_append_${response.status}`);
-                    uploaded += ordinaryAdditions.length;
+        if(learningStatsEventSyncPromise) return learningStatsEventSyncPromise;
+        learningStatsEventSyncPromise = (async () => {
+            try {
+                await learningStatsPersistenceQueue.catch(() => null);
+                const localEvents = await readAllLearningStatsEvents();
+                const cloudMeta = await fetchFirebaseLearningStatsEventsMeta();
+                const storedMetaUpdatedAt = Number(localStorage.getItem(STORAGE_KEY_LEARNING_EVENTS_META_UPDATED_AT)) || 0;
+                let appliedCursor = String(localStorage.getItem(STORAGE_KEY_LAST_APPLIED_LEARNING_EVENT_ID) || '');
+                let eventRequests = 0;
+                let remoteEvents = [];
+                if(!appliedCursor) {
+                    const latest = String(cloudMeta && cloudMeta.latestReviewEventId || '');
+                    if(latest) appliedCursor = latest;
+                    else {
+                        const tail = await fetchFirebaseLearningStatsEventsAfter('');
+                        eventRequests++;
+                        appliedCursor = getLatestReviewLearningEventId(tail);
+                    }
+                    if(appliedCursor) safeRestoreLocalStorage(STORAGE_KEY_LAST_APPLIED_LEARNING_EVENT_ID, appliedCursor);
+                } else {
+                    const remoteLatest = String(cloudMeta && cloudMeta.latestReviewEventId || '');
+                    const metaChanged = Number(cloudMeta && cloudMeta.updatedAt) > storedMetaUpdatedAt;
+                    if((remoteLatest && remoteLatest > appliedCursor) || (!remoteLatest && metaChanged)) {
+                        remoteEvents = await fetchFirebaseLearningStatsEventsAfter(appliedCursor);
+                        eventRequests++;
+                    }
                 }
-                for(const event of conflictCorrections) {
-                    const result = await appendLearningStatsConflictEventToFirebaseIfAbsent(event);
-                    uploaded += result.inserted;
+
+                let downloadResult = { inserted:0 };
+                let appliedResult = { applied:0, statsPatched:0, historyPatched:0 };
+                if(remoteEvents.length) {
+                    downloadResult = await appendLearningStatsEvents(remoteEvents, 'firebase-incremental-download');
+                    appliedResult = await applyRemoteLearningStatsEvents(remoteEvents);
+                    appliedCursor = getLatestReviewLearningEventId(remoteEvents) || appliedCursor;
+                    safeRestoreLocalStorage(STORAGE_KEY_LAST_APPLIED_LEARNING_EVENT_ID, appliedCursor);
                 }
+
+                let uploaded = 0;
+                if(options.upload !== false) {
+                    let uploadedCursor = String(localStorage.getItem(STORAGE_KEY_LAST_UPLOADED_LEARNING_EVENT_ID) || '');
+                    const localReviewEvents = localEvents
+                        .filter(event => event.source === 'review' && event.eventId.startsWith('review_') && event.deviceId === getDeviceId())
+                        .sort((a, b) => a.eventId.localeCompare(b.eventId));
+                    if(!uploadedCursor) {
+                        uploadedCursor = getLatestReviewLearningEventId(localReviewEvents);
+                        if(uploadedCursor) safeRestoreLocalStorage(STORAGE_KEY_LAST_UPLOADED_LEARNING_EVENT_ID, uploadedCursor);
+                    } else {
+                        const additions = localReviewEvents.filter(event => event.eventId > uploadedCursor);
+                        if(additions.length) {
+                            const response = await fetch(`${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_PATH}.json`, {
+                                method:'PATCH',
+                                headers:{ 'Content-Type':'application/json' },
+                                body:JSON.stringify(Object.fromEntries(additions.map(event => [event.eventId, event])))
+                            });
+                            if(!response.ok) throw new Error(`learning_stats_incremental_cloud_append_${response.status}`);
+                            uploaded = additions.length;
+                            const nextUploadedCursor = additions[additions.length - 1].eventId;
+                            const nextAppliedCursor = nextUploadedCursor > appliedCursor ? nextUploadedCursor : appliedCursor;
+                            const metaResponse = await fetch(`${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_META_PATH}/migration_v1.json`, {
+                                method:'PATCH',
+                                headers:{ 'Content-Type':'application/json' },
+                                body:JSON.stringify({ latestReviewEventId:nextAppliedCursor, updatedAt:Date.now(), appVersion:APP_VERSION })
+                            });
+                            if(!metaResponse.ok) throw new Error(`learning_stats_incremental_meta_append_${metaResponse.status}`);
+                            uploadedCursor = nextUploadedCursor;
+                            appliedCursor = nextAppliedCursor;
+                            safeRestoreLocalStorage(STORAGE_KEY_LAST_UPLOADED_LEARNING_EVENT_ID, uploadedCursor);
+                            safeRestoreLocalStorage(STORAGE_KEY_LAST_APPLIED_LEARNING_EVENT_ID, appliedCursor);
+                        }
+                    }
+                }
+                safeRestoreLocalStorage(STORAGE_KEY_LEARNING_EVENTS_META_UPDATED_AT, String(Number(cloudMeta && cloudMeta.updatedAt) || Date.now()));
+                return {
+                    ok:true,
+                    metaRequests:1,
+                    eventRequests,
+                    downloaded:downloadResult.inserted,
+                    applied:appliedResult.applied,
+                    statsPatched:appliedResult.statsPatched,
+                    historyPatched:appliedResult.historyPatched,
+                    uploaded
+                };
+            } catch(error) {
+                console.error('[MK_LEARNING_STATS_INCREMENTAL_SYNC_FAILED_LOCAL_KEPT]', error);
+                return { ok:false, localKept:true, reason:error && error.message ? error.message : String(error) };
             }
-            const cache = await commitLearningStatsCacheFromLedger('firebase-ledger-union-cache');
-            const finalEvents = cache.events || await readAllLearningStatsEvents();
-            if(options.upload !== false) {
-                try {
-                    await fetch(`${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_META_PATH}/migration_v1.json`, {
-                        method:'PUT',
-                        headers:{ 'Content-Type':'application/json' },
-                        body:JSON.stringify({
-                            status:'completed',
-                            version:LEARNING_STATS_EVENTS_MIGRATION_VERSION,
-                            eventCount:finalEvents.length,
-                            entryCount:getLearningStatsEntryCount(buildLearningStatsStoreFromEvents(finalEvents)),
-                            updatedAt:Date.now(),
-                            appVersion:APP_VERSION
-                        })
-                    });
-                } catch(error) { console.warn('[MK_LEARNING_STATS_LEDGER_META_WRITE_FAILED]', error); }
-            }
-            console.log('[MK_LEARNING_STATS_LEDGER_FIREBASE_UNION]', { localBefore:localBefore.length, cloud:cloudEvents.length, downloaded:downloadResult.inserted, conflicts:downloadResult.conflicts, uploaded:options.upload === false ? 0 : uploaded, final:finalEvents.length });
-            return { ok:true, localBefore:localBefore.length, cloud:cloudEvents.length, downloaded:downloadResult.inserted, conflicts:downloadResult.conflicts, uploaded:options.upload === false ? 0 : uploaded, final:finalEvents.length, cache };
-        } catch(error) {
-            console.error('[MK_LEARNING_STATS_LEDGER_FIREBASE_SYNC_FAILED_LOCAL_KEPT]', error);
-            return { ok:false, localKept:true, reason:error && error.message ? error.message : String(error) };
-        }
+        })();
+        try { return await learningStatsEventSyncPromise; }
+        finally { learningStatsEventSyncPromise = null; }
     }
 
     async function initializeLearningStatsEventLedger(legacyStore, options = {}) {
@@ -6671,6 +6630,7 @@
         const marker = parseJSONSafe(markerRaw, {});
         const existingEvents = await readAllLearningStatsEvents();
         if(marker && marker.status === 'completed' && Number(marker.version) === LEARNING_STATS_EVENTS_MIGRATION_VERSION && existingEvents.length) {
+            ensureLearningStatsUploadCursorBaseline(existingEvents);
             const cache = await commitLearningStatsCacheFromLedger('startup-ledger-cache');
             return { ok:true, migrated:false, marker, eventCount:existingEvents.length, cache };
         }
@@ -6680,10 +6640,12 @@
             }
             let cloudEvents = [];
             let cloudMeta = null;
-            try { [cloudEvents, cloudMeta] = await Promise.all([fetchFirebaseLearningStatsEvents(), fetchFirebaseLearningStatsEventsMeta()]); } catch(error) { console.warn('[MK_LEARNING_STATS_LEDGER_INITIAL_CLOUD_READ_FAILED]', error); }
+            if(!options.incrementalOnly) {
+                try { [cloudEvents, cloudMeta] = await Promise.all([fetchFirebaseLearningStatsEvents(), fetchFirebaseLearningStatsEventsMeta()]); } catch(error) { console.warn('[MK_LEARNING_STATS_LEDGER_INITIAL_CLOUD_READ_FAILED]', error); }
+            }
             if(cloudEvents.length) await appendLearningStatsEvents(cloudEvents, 'migration-cloud-ledger-seed');
             const cloudMigrationComplete = !!(cloudMeta && cloudMeta.status === 'completed' && Number(cloudMeta.version) === LEARNING_STATS_EVENTS_MIGRATION_VERSION && Number(cloudMeta.eventCount) <= cloudEvents.length);
-            const collected = await collectLearningStatsMigrationEvents(legacy, { includeFirebaseHistory:options.includeFirebaseHistory !== false && !cloudMigrationComplete });
+            const collected = await collectLearningStatsMigrationEvents(legacy, { includeFirebaseHistory:!options.incrementalOnly && options.includeFirebaseHistory !== false && !cloudMigrationComplete });
             const seedEvents = filterLearningStatsMigrationSeedEvents([...existingEvents, ...cloudEvents], collected.events);
             const appendResult = await appendLearningStatsEvents(seedEvents, 'legacy-migration-seed');
             const ledgerEvents = await readAllLearningStatsEvents();
@@ -6717,6 +6679,7 @@
                 appVersion:APP_VERSION
             };
             await writeStatsDatabaseValue(LEARNING_STATS_EVENTS_MIGRATION_KEY, JSON.stringify(markerValue));
+            ensureLearningStatsUploadCursorBaseline(ledgerEvents);
             console.log('[MK_LEARNING_STATS_LEDGER_MIGRATION_COMPLETE]', { ...markerValue, inserted:appendResult.inserted, duplicates:appendResult.duplicates });
             return { ok:true, migrated:true, marker:markerValue, eventCount:ledgerEvents.length, cache:cacheResult };
         } catch(error) {
@@ -6736,7 +6699,7 @@
         return { ok:true, flushed:queued.length, append, cache };
     }
 
-    async function initializeLearningStatsStore() {
+    async function initializeLearningStatsStore(options = {}) {
         initializeLearningStatsInstanceCoordination();
         setLearningStatsRestoreState('pending', { source:'startup-hydration' });
         try {
@@ -6768,14 +6731,14 @@
                     if(!migrationResult.ok) throw migrationResult.error || new Error(migrationResult.reason || 'learning_stats_migration_failed');
                     setLearningStatsMemoryStore(migrationResult.store, { source:'legacy-migration-committed-memory', updatedAt:migrationResult.updatedAt, revision:migrationResult.revision });
                 }
-                const ledgerMigration = await initializeLearningStatsEventLedger(getLearningStatsStore());
+                const ledgerMigration = await initializeLearningStatsEventLedger(getLearningStatsStore(), { incrementalOnly:options.incrementalOnly === true });
                 learningStatsEventLedgerActive = !!ledgerMigration.ok;
                 if(learningStatsEventLedgerActive) await flushQueuedLearningStatsEventsToLedger();
                 setLearningStatsRestoreState('success', { source:ledgerMigration.ok ? 'indexeddb-event-ledger' : (indexedValue === null ? 'legacy-localstorage-fallback' : 'indexeddb-v156-fallback') });
                 return { ok:true, source:ledgerMigration.ok ? 'indexeddb-event-ledger' : (indexedValue === null ? 'legacy-localstorage-fallback' : 'indexeddb-v156-fallback'), ledgerMigration };
             }
             setLearningStatsMemoryStore({ version:1, days:{} }, { source:'startup-empty-memory', updatedAt:Number(indexedUpdatedAt || localStorage.getItem(STORAGE_KEY_LEARNING_STATS_UPDATED_AT)) || 0, revision:learningStatsMemoryRevision });
-            const ledgerMigration = await initializeLearningStatsEventLedger(getLearningStatsStore());
+            const ledgerMigration = await initializeLearningStatsEventLedger(getLearningStatsStore(), { incrementalOnly:options.incrementalOnly === true });
             learningStatsEventLedgerActive = !!ledgerMigration.ok;
             if(learningStatsEventLedgerActive) await flushQueuedLearningStatsEventsToLedger();
             if(ledgerMigration.ok && getLearningStatsEntryCount(learningStatsMemoryStore)) {
@@ -7221,7 +7184,7 @@
         return { ok:true };
     }
 
-    function createLearningStatsReviewDelta(card, source) {
+    function createLearningStatsReviewDelta(card, source, studyData = {}) {
         const cardId = getTodayEssentialCardId(card);
         if(!cardId) return null;
         const timestamp = Date.now();
@@ -7248,7 +7211,9 @@
             statsRevision:learningStatsMemoryRevision,
             appVersion:APP_VERSION,
             deviceId:getDeviceId(),
-            platform:getLearningStatsPlatform()
+            platform:getLearningStatsPlatform(),
+            stat:studyData.stat && typeof studyData.stat === 'object' ? parseJSONSafe(JSON.stringify(studyData.stat), null) : null,
+            historyItem:studyData.historyItem && typeof studyData.historyItem === 'object' ? { ...studyData.historyItem } : null
         };
     }
 
@@ -7269,8 +7234,8 @@
         return learningStatsPersistenceQueue;
     }
 
-    function queueLearningStatsReviewDelta(card, source) {
-        const delta = createLearningStatsReviewDelta(card, source);
+    function queueLearningStatsReviewDelta(card, source, studyData = {}) {
+        const delta = createLearningStatsReviewDelta(card, source, studyData);
         if(!delta) return null;
         learningStatsReviewDeltaQueue.push(delta);
         persistLearningStatsReviewDeltaQueue();
@@ -7402,14 +7367,14 @@
         if(id) day.deckByCard[id] = normalizeDeckPath(card && card.deck, fallbackDeck || currentDeckName || '');
     }
 
-    function recordLearningStatsReview(card, source) {
+    function recordLearningStatsReview(card, source, studyData = {}) {
         const id = getTodayEssentialCardId(card);
         if(!id) return;
         if(!learningStatsReady || learningStatsRestoreState !== 'success' || learningStatsStartupSyncInProgress) {
-            queueLearningStatsReviewDelta(card, source);
+            queueLearningStatsReviewDelta(card, source, studyData);
             return;
         }
-        return queueLearningStatsReviewPersistence(card, source);
+        return queueLearningStatsReviewPersistence(card, source, studyData);
     }
 
     function getLearningStatsCardLookup() {
@@ -11551,7 +11516,7 @@ function getIOImageGroups() {
         });
         markLocalDataUpdated(data[id].updatedAt); saveStudyState('review', { backup: true });
 
-        const learningStatsDelta = recordLearningStatsReview(card, learningStatsSource);
+        const learningStatsDelta = recordLearningStatsReview(card, learningStatsSource, { stat:data[id], historyItem });
         console.log('[MK_LEARNING_STATS_REVIEW_FLOW]', {
             stage:'learning-stats-delta-recorded',
             reviewedUuid:String(id),
