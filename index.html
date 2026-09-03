@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.197-instant-stable-startup -->
+<!-- deployment: v18.5.198-startup-filter-pdf-stability -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.197 - 즉시 시작 안정화)</title>
+<title>MK (v18.5.198 - 시작·필터·PDF 안정화)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -458,6 +458,13 @@
   position: relative;
   z-index: 2;
 }
+.mk-pdf-annotation-icon[href^="mkpdf://"] {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.mk-pdf-image-annotation .mk-pdf-annotation-content {
+  pointer-events: auto;
+}
 .mk-pdf-annotation-content {
   min-width: 0;
   max-width: 100%;
@@ -560,7 +567,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.197 - 즉시 시작 안정화)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.198 - 시작·필터·PDF 안정화)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -854,7 +861,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.197 - 즉시 시작 안정화';
+    const APP_VERSION = 'v18.5.198 - 시작·필터·PDF 안정화';
     const mkStartupClockStartedAt = performance.now();
     const mkStartupTiming = {
         version:APP_VERSION,
@@ -2318,8 +2325,15 @@
 
     let appInitializationStarted = false;
     let appInitializationCompleted = false;
+    let startupRestoreCompleted = false;
+    let userInteractionRevision = 0;
     let learningStatsInitializationPromise = null;
     let backgroundStartupPromise = null;
+
+    function markUserUiInteraction() {
+        if(startupRestoreCompleted) userInteractionRevision++;
+        return userInteractionRevision;
+    }
 
     function startLearningStatsInitialization() {
         if(learningStatsInitializationPromise) return learningStatsInitializationPromise;
@@ -2354,11 +2368,14 @@
         markMkStartupPhase('windowLoad');
         updateTRButton();
         markMkStartupPhase('localDataLoadStart');
+        const pdfAnnotationIndexPromise = loadPdfAnnotationSourceIndex(fetch);
         const statsInitPromise = initializeStatsStore();
         await statsInitPromise;
         markMkStartupPhase('statsLoaded');
         const hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
         if(!hasCachedLibrary) await autoScanGitHub();
+        await pdfAnnotationIndexPromise;
+        markMkStartupPhase('pdfAnnotationIndexReady', { pdfAnnotationCount:pdfAnnotationSourceIndex.size });
         markMkStartupPhase('deckLoaded', { deckSource:hasCachedLibrary ? 'indexeddb' : 'github' });
         let reviewHistoryInitPromise = null;
         const prepareStartupDetail = () => {
@@ -2379,6 +2396,7 @@
             startupSyncCompleted = true;
         }
         initApp();
+        startupRestoreCompleted = true;
         document.getElementById('loading').style.display = 'none';
         markMkStartupPhase('loadingHidden');
         requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -2392,14 +2410,6 @@
                     .catch(error => console.warn('[MK_BACKGROUND_TODAY_NEW_INIT_FAILED]', error));
             });
         }));
-        setTimeout(() => { prepareStartupDetail(); }, 10000);
-        setTimeout(() => {
-            runWhenIdle(() => {
-                autoScanGitHub({silent:true})
-                    .then(() => registerTodayNewCards())
-                    .catch(error => console.warn('[MK_BACKGROUND_DECK_REFRESH_FAILED]', error));
-            });
-        }, 30000);
     };
 
     function openFirebaseSettings() { document.getElementById('gh-token-input').value = ghRepoToken; showAuthSection(); document.getElementById('fb-modal').style.display = 'flex'; }
@@ -5576,6 +5586,7 @@
     function openRecentDeck(index) {
         const item = parseRecentDecks()[index];
         if (!item || !item.deck) return;
+        markUserUiInteraction();
         setCurrentFilterModeWithTrace(item.filter, 'openRecentDeck');
         currentSortMode = item.sort || 'original';
         currentSecondarySortMode = item.secondarySort || 'none';
@@ -5886,11 +5897,14 @@
         return { files: data.filter(file => file.name.endsWith('.txt')), source: 'github-api', listResponse };
     }
 
-    async function loadPdfAnnotationSourceIndex(fetchImpl = fetch) {
+    let pdfAnnotationIndexLoadPromise = null;
+    function loadPdfAnnotationSourceIndex(fetchImpl = fetch) {
+        if(pdfAnnotationIndexLoadPromise) return pdfAnnotationIndexLoadPromise;
+        pdfAnnotationIndexLoadPromise = (async () => {
         try {
             const url = new URL('pdf-annotations.json', document.baseURI);
             url.searchParams.set('v', APP_VERSION);
-            const response = await fetchImpl(url.href, { cache: 'no-store' });
+            const response = await fetchImpl(url.href, { cache: 'force-cache' });
             if (!response.ok) throw new Error(`PDF annotation index status ${response.status}`);
             const payload = await response.json();
             if (!payload || ![1, 2].includes(payload.schemaVersion) || !payload.annotations) throw new Error('invalid PDF annotation index');
@@ -5898,12 +5912,15 @@
             pdfAnnotationResolveCache.clear();
             console.log('[PDF-BLOCKREF] source index loaded:', pdfAnnotationSourceIndex.size);
             observeDynamicPdfAnnotations();
-            decoratePdfAnnotations(document.body);
+            return true;
         } catch(error) {
             pdfAnnotationSourceIndex = new Map();
             pdfAnnotationResolveCache.clear();
             console.warn('[PDF-BLOCKREF] source index unavailable:', error);
+            return false;
         }
+        })();
+        return pdfAnnotationIndexLoadPromise;
     }
 
     async function autoScanGitHub(options = {}) {
@@ -8116,6 +8133,10 @@
     }
 
     function restoreStartupSelectedDeck(viewState = {}, savedDeck = '', targetCardId = '') {
+        if(startupRestoreCompleted) {
+            appendFilterResetTrace('DELAYED_STARTUP_RESTORE_BLOCKED', { userInteractionRevision }, true);
+            return false;
+        }
         const deck = normalizeDeckPath(viewState.selectedDeckPath || viewState.selectedDeckName || viewState.deck || savedDeck || '');
         if (!deck) return false;
         applyStartupViewState({ ...viewState, deck }, deck);
@@ -8160,6 +8181,10 @@
     }
 
     function applyStartupViewState(viewState = {}, fallbackDeck = '') {
+        if(startupRestoreCompleted) {
+            appendFilterResetTrace('DELAYED_STARTUP_STATE_APPLY_BLOCKED', { userInteractionRevision }, true);
+            return false;
+        }
         if (viewState.filter) setCurrentFilterModeWithTrace(viewState.filter, 'applyStartupViewState');
         if (viewState.sort) currentSortMode = viewState.sort;
         if (viewState.secondarySort) currentSecondarySortMode = viewState.secondarySort;
@@ -8172,6 +8197,7 @@
         saveCompactViewState({ ...viewState, deck: viewState.deck || fallbackDeck, cardId });
         saveFilterState();
         highlightFilter();
+        return true;
     }
 
     function findCardLocationById(cardId) {
@@ -8422,16 +8448,30 @@ function preserveCardContentLineBreaks(root) {
     function openPdfAnnotationOnIOS(annotationData) {
         const url = buildPdfHelperDeepLink(annotationData);
         if(!url) return false;
+        if(typeof window.__mkPdfNavigationTestHook === 'function') {
+            window.__mkPdfNavigationTestHook(url, annotationData);
+            return true;
+        }
         window.location.href = url;
         return true;
     }
 
     function bindPdfAnnotationIconAction(icon, annotationData) {
+        const deepLink = buildPdfHelperDeepLink(annotationData);
+        if(!deepLink) return;
+        icon.setAttribute('href', deepLink);
+        icon.setAttribute('role', 'link');
+        icon.setAttribute('tabindex', '0');
         icon.addEventListener('click', event => {
-            if(!isIOSDevice()) return;
-            if(!openPdfAnnotationOnIOS(annotationData)) return;
             event.preventDefault();
             event.stopPropagation();
+            openPdfAnnotationOnIOS(annotationData);
+        });
+        icon.addEventListener('keydown', event => {
+            if(event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            event.stopPropagation();
+            openPdfAnnotationOnIOS(annotationData);
         });
     }
 
@@ -8655,11 +8695,22 @@ function preserveCardContentLineBreaks(root) {
         region.dataset.mkPdfAnnotationDecorated = '1';
         region.dataset.mkPdfAnnotationSourceUuid = annotationData.sourceUuid || annotationData.annotationId || '';
         region.classList.add('mk-pdf-annotation');
-        bindPdfAnnotationRegionAction(region, annotationData);
+        const imageContent = contentElement?.querySelector?.('img') || region.querySelector?.('img');
+        if(imageContent) {
+            region.classList.add('mk-pdf-image-annotation');
+            const stopImageNavigation = event => {
+                event.preventDefault();
+                event.stopPropagation();
+            };
+            imageContent.addEventListener('click', stopImageNavigation);
+            imageContent.addEventListener('dblclick', stopImageNavigation);
+        } else {
+            bindPdfAnnotationRegionAction(region, annotationData);
+        }
         const icon = createPdfAnnotationSvg(annotationData);
         if(contentElement && contentElement.parentNode === region) region.insertBefore(icon, contentElement);
         else region.insertBefore(icon, region.firstChild);
-        recordPdfDiagnosticStep('apply-complete', { sourceUuid: annotationData.sourceUuid || null, iconInserted: icon.parentNode === region, handlerBound: region.dataset.mkPdfRegionBound === '1', outerHTML: region.outerHTML });
+        recordPdfDiagnosticStep('apply-complete', { sourceUuid: annotationData.sourceUuid || null, iconInserted: icon.parentNode === region, handlerBound: region.dataset.mkPdfRegionBound === '1', imageInteractionIsolated:!!imageContent, outerHTML: region.outerHTML });
         return true;
     }
 
@@ -10284,6 +10335,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         showToast('이전 목록으로 돌아왔습니다', 'success');
     }
     function setFilterMode(mode) {
+        markUserUiInteraction();
         todayEssentialState.active = false;
         todayNewState.active = false;
         if(mode === 'default') {
@@ -10294,9 +10346,9 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         }
         saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true);
     }
-    function setSortMode(mode) { todayEssentialState.active = false; todayNewState.active = false; currentSortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
-    function setSecondarySortMode(mode) { todayEssentialState.active = false; todayNewState.active = false; currentSecondarySortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
-    function resetFilters() { todayEssentialState.active = false; todayNewState.active = false; setCurrentFilterModeWithTrace('default', 'resetFilters'); currentSortMode = 'original'; currentSecondarySortMode = 'none'; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
+    function setSortMode(mode) { markUserUiInteraction(); todayEssentialState.active = false; todayNewState.active = false; currentSortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
+    function setSecondarySortMode(mode) { markUserUiInteraction(); todayEssentialState.active = false; todayNewState.active = false; currentSecondarySortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
+    function resetFilters() { markUserUiInteraction(); todayEssentialState.active = false; todayNewState.active = false; setCurrentFilterModeWithTrace('default', 'resetFilters'); currentSortMode = 'original'; currentSecondarySortMode = 'none'; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
     function saveFilterState() { localStorage.setItem(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: getFilterStateForStorage(), sort: currentSortMode, secondarySort: currentSecondarySortMode })); }
     function highlightFilter() {
         document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
@@ -10346,6 +10398,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
     }
 
     function selectDeck(name, isRestore = false, options = {}) {
+        if(!isRestore) markUserUiInteraction();
         todayEssentialState.active = false;
         todayNewState.active = false;
         currentDeckName = name;
@@ -10356,6 +10409,7 @@ localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
     }
 
     function selectDeckGroup(prefix, isRestore = false, options = {}) {
+        if(!isRestore) markUserUiInteraction();
         todayEssentialState.active = false;
         todayNewState.active = false;
         let merged = getDeckGroupCards(prefix);
@@ -12172,7 +12226,7 @@ function getIOImageGroups() {
     function getStats(id) { return getStatsById(id); }
     async function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; if(!await ensureStatsStoreReady('toggleTag')) return; const data = cloneStatsObject(getStatsStore()); const found = findStatsForCard(card, data, card && card.id); const id = found.key || String(card && card.id || ''); if(!id) return; if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; data[id].updatedAt = Date.now(); guardedStatsWrite(JSON.stringify(data), 'toggleTag'); markLocalDataUpdated(data[id].updatedAt); updateIconsUI(data[id]); scheduleBackup('stats'); }
     function updateIconsUI(s) { ['mem','cmp','fav','num','date','pen'].forEach(t => document.getElementById(`${t}-btn`).classList.toggle('active', !!s[t])); }
-    function filterCards() { todayEssentialState.active = false; todayNewState.active = false; const q = document.getElementById('search-input').value.toLowerCase(); localStorage.setItem('anki_search_query', q); applyFilterAndSort(false); persistCurrentViewState(true); }
+    function filterCards() { markUserUiInteraction(); todayEssentialState.active = false; todayNewState.active = false; const q = document.getElementById('search-input').value.toLowerCase(); localStorage.setItem('anki_search_query', q); applyFilterAndSort(false); persistCurrentViewState(true); }
 
     function toggleSliderPanel() {
         const panel = document.getElementById('slider-panel');

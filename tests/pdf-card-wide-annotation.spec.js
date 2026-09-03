@@ -68,17 +68,18 @@ async function main() {
                         const region = refRegion || element;
                         const icon = region.querySelector(':scope > .mk-pdf-annotation-icon');
                         const decorated = !!icon && region.dataset.mkPdfAnnotationDecorated === '1';
-                        const handled = region.dataset.mkPdfRegionBound === '1';
+                        const imageIsolated = region.classList.contains('mk-pdf-image-annotation');
+                        const handled = imageIsolated ? region.dataset.mkPdfRegionBound !== '1' : region.dataset.mkPdfRegionBound === '1';
                         if(decorated) group.decorated++; if(handled) group.handlers++; if(!decorated || !handled) { group.failed++; if(stats.failures.length < 10) stats.failures.push({ position, uuid:link.uuid, html:element.outerHTML, parent:element.parentElement?.outerHTML || null }); }
                         if(isRefDisplay) { stats.refs.pdf++; if(decorated) stats.refs.decorated++; if(handled) stats.refs.handlers++; if(!decorated || !handled) stats.refs.failed++; }
                         const data = icon && JSON.parse(icon.dataset.annotation || 'null');
                         if(!data || data.sourceUuid !== link.uuid || data.page !== source.page || data.pdfFileName !== source.pdfFileName) stats.metadataFailures++;
-                        const deepLink = data && buildPdfHelperDeepLink(data); if(!deepLink || !deepLink.startsWith('mkpdf://open?')) stats.deepLinkFailures++;
+                        const deepLink = data && buildPdfHelperDeepLink(data); if(!deepLink || !deepLink.startsWith('mkpdf://open?') || icon?.getAttribute('href') !== deepLink) stats.deepLinkFailures++;
                         if(source.annotationType === 'area') { stats.area.found++; if(decorated) stats.area.decorated++; if(handled) stats.area.handlers++; if(!decorated || !handled) stats.area.failed++; }
                     });
                     rendered.querySelectorAll('b[data-mk-pdf-annotation-decorated="1"]').forEach(page => {
                         stats.direct.found++; const wrapper = page.parentElement; const icon = wrapper && wrapper.querySelector(':scope > .mk-pdf-annotation-icon');
-                        const decorated = !!icon; const handled = !!wrapper && wrapper.dataset.mkPdfRegionBound === '1';
+                        const decorated = !!icon; const imageIsolated = !!wrapper?.classList.contains('mk-pdf-image-annotation'); const handled = !!wrapper && (imageIsolated ? wrapper.dataset.mkPdfRegionBound !== '1' : wrapper.dataset.mkPdfRegionBound === '1');
                         if(decorated) stats.direct.decorated++; if(handled) stats.direct.handlers++; if(!decorated || !handled) stats.direct.failed++;
                         if(wrapper && wrapper.querySelector('.mk-pdf-annotation-content img')) { stats.area.found++; if(decorated) stats.area.decorated++; if(handled) stats.area.handlers++; if(!decorated || !handled) stats.area.failed++; }
                     });
@@ -118,7 +119,8 @@ async function main() {
                 const fixtures = {};
                 for(const [name, card] of Object.entries(fixtureCases)) {
                     const rendered = createDOM(card, false); const icons = [...rendered.querySelectorAll('.mk-pdf-annotation-icon')];
-                    fixtures[name] = { icons: icons.length, handlers: rendered.querySelectorAll('[data-mk-pdf-region-bound="1"]').length,
+                    const regions = [...rendered.querySelectorAll('.mk-pdf-annotation')];
+                    fixtures[name] = { icons: icons.length, handlers: regions.filter(region => region.classList.contains('mk-pdf-image-annotation') ? region.dataset.mkPdfRegionBound !== '1' : region.dataset.mkPdfRegionBound === '1').length,
                         ids: icons.map(icon => JSON.parse(icon.dataset.annotation || '{}').sourceUuid || null), area: !!rendered.querySelector('.mk-pdf-annotation-content img') };
                 }
                 const repeated = createDOM(fixture(ref(ids[0]) + ' ' + ref(ids[0])), false);
@@ -129,7 +131,7 @@ async function main() {
                 fixtures.outside = { icons: outside.querySelectorAll('.mk-extra-content .mk-pdf-annotation-icon').length, handlers: outside.querySelectorAll('.mk-extra-content[data-mk-pdf-region-bound="1"], .mk-extra-content [data-mk-pdf-region-bound="1"]').length };
                 const visibleAreaUuid = '6a69ef21-c0f1-4182-a125-f34e23de8d0e';
                 const visibleArea = createDOM(fixture('<img src="178_' + visibleAreaUuid + '_1785327393144.png">'), false);
-                fixtures.visibleArea = { icons: visibleArea.querySelectorAll('.mk-pdf-annotation-icon').length, handlers: visibleArea.querySelectorAll('[data-mk-pdf-region-bound="1"]').length, uuid: visibleArea.querySelector('.mk-pdf-annotation')?.dataset.mkPdfAnnotationSourceUuid || null };
+                fixtures.visibleArea = { icons: visibleArea.querySelectorAll('.mk-pdf-annotation-icon').length, handlers: visibleArea.querySelector('.mk-pdf-image-annotation')?.dataset.mkPdfRegionBound === undefined ? 1 : 0, uuid: visibleArea.querySelector('.mk-pdf-annotation')?.dataset.mkPdfAnnotationSourceUuid || null };
                 const fireSafetyUuid = '6a69ea3c-f982-4696-9b6c-aac4c22c3cc0';
                 const fireSafety = createDOM(fixture('ref. ' + ref(fireSafetyUuid)), false);
                 const fireSafetyRegion = fireSafety.querySelector('.mk-pdf-ref-text'); const fireSafetyIcon = fireSafetyRegion?.querySelector(':scope > .mk-pdf-annotation-icon'); const fireSafetyData = fireSafetyIcon && JSON.parse(fireSafetyIcon.dataset.annotation || 'null');
@@ -140,9 +142,27 @@ async function main() {
                 const exactFireUuid = '6a4f3b08-01d4-46e7-a855-092c846f6330'; const exactFire = createDOM(fixture('ref. ' + ref(exactFireUuid).replace('>' + exactFireUuid.slice(0, 4) + '<', '>화재안전조사<')), false); const exactFireRegion = exactFire.querySelector('.mk-pdf-ref-text'); const exactFireIcon = exactFireRegion?.querySelector(':scope > .mk-pdf-annotation-icon'); const exactFireData = exactFireIcon && JSON.parse(exactFireIcon.dataset.annotation || 'null');
                 fixtures.exactFireSafety = { text: exactFireRegion?.textContent.trim() || null, uuid: exactFireRegion?.dataset.sourceUuid || null, icon: !!exactFireIcon, handler: exactFireRegion?.dataset.mkPdfRegionBound === '1', annotation: exactFireData, deepLink: exactFireData && buildPdfHelperDeepLink(exactFireData) };
                 const dynamic = document.createElement('div'); dynamic.innerHTML = '<img src="178_' + visibleAreaUuid + '_dynamic.png">'; decorateDynamicPdfAnnotationSubtree(dynamic);
-                fixtures.dynamic = { icons: dynamic.querySelectorAll('.mk-pdf-annotation-icon').length, handlers: dynamic.querySelectorAll('[data-mk-pdf-region-bound="1"]').length };
+                fixtures.dynamic = { icons: dynamic.querySelectorAll('.mk-pdf-annotation-icon').length, handlers: dynamic.querySelector('.mk-pdf-image-annotation')?.dataset.mkPdfRegionBound === undefined ? 1 : 0 };
                 const dynamicRef = document.createElement('div'); dynamicRef.innerHTML = 'ref. ' + ref(fireSafetyUuid); decorateDynamicPdfAnnotationSubtree(dynamicRef);
                 fixtures.dynamicRef = { icons: dynamicRef.querySelectorAll('.mk-pdf-ref-text > .mk-pdf-annotation-icon').length, handlers: dynamicRef.querySelectorAll('.mk-pdf-ref-text[data-mk-pdf-region-bound="1"]').length };
+                const interactionHost = createDOM(fixture('<span data-source-uuid="' + visibleAreaUuid + '"><img src="178_' + visibleAreaUuid + '_interaction.png"></span>'), false);
+                const interactionRegion = interactionHost.querySelector('.mk-pdf-image-annotation');
+                const interactionImage = interactionRegion?.querySelector('img');
+                const interactionIcon = interactionRegion?.querySelector(':scope > .mk-pdf-annotation-icon');
+                bindImageZoomHandlers(interactionHost);
+                let imageNavigation = 0; let helperNavigation = 0;
+                interactionRegion?.addEventListener('click', () => imageNavigation++);
+                window.__mkPdfNavigationTestHook = () => { helperNavigation++; };
+                const snapshotInteraction = () => ({icon:!!interactionIcon,href:interactionIcon?.getAttribute('href') || '',imageLinked:!!interactionImage?.closest('[href^="mkpdf://"]'),regionBound:interactionRegion?.dataset.mkPdfRegionBound || '',zoomBound:interactionImage?.dataset.mediaZoomBound || ''});
+                const at0=snapshotInteraction();
+                interactionImage?.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));
+                interactionImage?.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true}));
+                const imageNavigationAfterGestures=imageNavigation;
+                interactionIcon?.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));
+                delete window.__mkPdfNavigationTestHook;
+                await new Promise(resolve => setTimeout(resolve,100)); const at100=snapshotInteraction();
+                await new Promise(resolve => setTimeout(resolve,400)); const at500=snapshotInteraction();
+                fixtures.imageInteraction={at0,at100,at500,imageNavigation:imageNavigationAfterGestures,helperNavigation};
                 const globalHost = document.createElement('section');
                 globalHost.id = 'future-renderer-without-pdf-specific-selector';
                 document.body.appendChild(globalHost);
@@ -169,8 +189,8 @@ async function main() {
                 const iosSpaceLink = buildPdfHelperDeepLink({ pdfFileName:'file name.pdf', page:2, annotationId:ids[0] });
                 fixtures.appWide = {
                     icons: globalHost.querySelectorAll('.mk-pdf-annotation-icon').length,
-                    handlers: globalHost.querySelectorAll('[data-mk-pdf-region-bound="1"]').length,
-                    allRegionsClickable: globalRegions.every(region => region.dataset.mkPdfRegionBound === '1'),
+                    handlers: globalRegions.filter(region => region.classList.contains('mk-pdf-image-annotation') ? region.dataset.mkPdfRegionBound !== '1' : region.dataset.mkPdfRegionBound === '1').length,
+                    allRegionsClickable: globalRegions.every(region => region.classList.contains('mk-pdf-image-annotation') ? region.dataset.mkPdfRegionBound !== '1' : region.dataset.mkPdfRegionBound === '1'),
                     idempotent: globalHost.querySelectorAll('.mk-pdf-annotation-icon').length === beforeIdempotent,
                     ordinaryFalsePositive: !!globalHost.querySelector('[data-source-uuid="' + ordinaryUuid + '"] > .mk-pdf-annotation-icon'),
                     nested: !!globalHost.querySelector('[data-original-uuid="' + ids[1] + '"] > .mk-pdf-annotation-icon'),
@@ -212,7 +232,8 @@ async function main() {
         if(stats.ordinaryDecorated || stats.deepLinkFailures || stats.metadataFailures || stats.direct.failed || stats.area.failed || stats.refs.failed || stats.refs.ordinaryFalsePositives) throw new Error(`render failures: ${JSON.stringify(stats)}`);
         const expected = { A: 1, B: 1, C: 2, D: 1, E: 3, F: 1, G: 1 };
         for(const [name, count] of Object.entries(expected)) if(fixtures[name].icons !== count || fixtures[name].handlers !== count) throw new Error(`fixture ${name}: ${JSON.stringify(fixtures[name])}`);
-        if(!fixtures.G.area || fixtures.repeated.icons !== 2 || fixtures.repeated.handlers !== 2 || fixtures.answer.icons !== 1 || fixtures.answer.handlers !== 1 || fixtures.outside.icons !== 1 || fixtures.outside.handlers !== 1 || fixtures.visibleArea.icons !== 1 || fixtures.visibleArea.handlers !== 1 || fixtures.visibleArea.uuid !== '6a69ef21-c0f1-4182-a125-f34e23de8d0e' || fixtures.fireSafety.icons !== 1 || fixtures.fireSafety.handlers !== 1 || fixtures.fireSafety.uuid !== '6a69ea3c-f982-4696-9b6c-aac4c22c3cc0' || fixtures.fireSafety.text !== 'ref. 6a69' || !fixtures.fireSafety.deepLink?.startsWith('mkpdf://open?') || !fixtures.actualFireSafety.found || !fixtures.actualFireSafety.icon || !fixtures.actualFireSafety.handler || fixtures.actualFireSafety.uuid !== '6a69ea3c-f982-4696-9b6c-aac4c22c3cc0' || !fixtures.actualFireSafety.text?.includes('ref.') || !fixtures.actualFireSafety.text?.includes('화재안전조사') || !fixtures.actualFireSafety.deepLink?.startsWith('mkpdf://open?') || fixtures.exactFireSafety.text !== 'ref. 화재안전조사' || fixtures.exactFireSafety.uuid !== '6a4f3b08-01d4-46e7-a855-092c846f6330' || !fixtures.exactFireSafety.icon || !fixtures.exactFireSafety.handler || !fixtures.exactFireSafety.deepLink?.startsWith('mkpdf://open?') || fixtures.dynamic.icons !== 1 || fixtures.dynamic.handlers !== 1 || fixtures.dynamicRef.icons !== 1 || fixtures.dynamicRef.handlers !== 1 || fixtures.actualScreenCard.before?.iconCount !== 0 || fixtures.actualScreenCard.uuid !== '6a69e428-694f-489e-8a59-5b86f9306595' || fixtures.actualScreenCard.iconCount !== 1 || !fixtures.actualScreenCard.handler || !fixtures.actualScreenCard.answerRevealed || !fixtures.actualScreenCard.survived || !fixtures.actualScreenCard.deepLink?.startsWith('mkpdf://open?') || fixtures.directSourceCards.some(item => !item.rawPreserved || !item.icon || !item.handler || !item.lookup || !item.deepLink?.startsWith('mkpdf://open?')) || fixtures.appWide.icons !== 10 || fixtures.appWide.handlers !== 10 || !fixtures.appWide.allRegionsClickable || !fixtures.appWide.idempotent || fixtures.appWide.ordinaryFalsePositive || !fixtures.appWide.nested || !fixtures.appWide.lateAttribute || !fixtures.appWide.desktopHrefPreserved || !fixtures.appWide.desktopFallback || !fixtures.appWide.iosSpaceEncoded || !fixtures.appWide.observerRootIsBody) throw new Error(`area/position/dynamic/repeated/app-wide fixture: ${JSON.stringify(fixtures)}`);
+        const interaction=fixtures.imageInteraction;
+        if(!fixtures.G.area || fixtures.repeated.icons !== 2 || fixtures.repeated.handlers !== 2 || fixtures.answer.icons !== 1 || fixtures.answer.handlers !== 1 || fixtures.outside.icons !== 1 || fixtures.outside.handlers !== 1 || fixtures.visibleArea.icons !== 1 || fixtures.visibleArea.handlers !== 1 || fixtures.visibleArea.uuid !== '6a69ef21-c0f1-4182-a125-f34e23de8d0e' || fixtures.fireSafety.icons !== 1 || fixtures.fireSafety.handlers !== 1 || fixtures.fireSafety.uuid !== '6a69ea3c-f982-4696-9b6c-aac4c22c3cc0' || fixtures.fireSafety.text !== 'ref. 6a69' || !fixtures.fireSafety.deepLink?.startsWith('mkpdf://open?') || !fixtures.actualFireSafety.found || !fixtures.actualFireSafety.icon || !fixtures.actualFireSafety.handler || fixtures.actualFireSafety.uuid !== '6a69ea3c-f982-4696-9b6c-aac4c22c3cc0' || !fixtures.actualFireSafety.text?.includes('ref.') || !fixtures.actualFireSafety.text?.includes('화재안전조사') || !fixtures.actualFireSafety.deepLink?.startsWith('mkpdf://open?') || fixtures.exactFireSafety.text !== 'ref. 화재안전조사' || fixtures.exactFireSafety.uuid !== '6a4f3b08-01d4-46e7-a855-092c846f6330' || !fixtures.exactFireSafety.icon || !fixtures.exactFireSafety.handler || !fixtures.exactFireSafety.deepLink?.startsWith('mkpdf://open?') || fixtures.dynamic.icons !== 1 || fixtures.dynamic.handlers !== 1 || fixtures.dynamicRef.icons !== 1 || fixtures.dynamicRef.handlers !== 1 || !interaction?.at0.icon || !interaction.at0.href.startsWith('mkpdf://open?') || interaction.at0.imageLinked || interaction.at0.regionBound || interaction.at0.zoomBound !== '1' || JSON.stringify(interaction.at0) !== JSON.stringify(interaction.at100) || JSON.stringify(interaction.at0) !== JSON.stringify(interaction.at500) || interaction.imageNavigation !== 0 || interaction.helperNavigation !== 1 || fixtures.actualScreenCard.before?.iconCount !== 0 || fixtures.actualScreenCard.uuid !== '6a69e428-694f-489e-8a59-5b86f9306595' || fixtures.actualScreenCard.iconCount !== 1 || !fixtures.actualScreenCard.handler || !fixtures.actualScreenCard.answerRevealed || !fixtures.actualScreenCard.survived || !fixtures.actualScreenCard.deepLink?.startsWith('mkpdf://open?') || fixtures.directSourceCards.some(item => !item.rawPreserved || !item.icon || !item.handler || !item.lookup || !item.deepLink?.startsWith('mkpdf://open?')) || fixtures.appWide.icons !== 10 || fixtures.appWide.handlers !== 10 || !fixtures.appWide.allRegionsClickable || !fixtures.appWide.idempotent || fixtures.appWide.ordinaryFalsePositive || !fixtures.appWide.nested || !fixtures.appWide.lateAttribute || !fixtures.appWide.desktopHrefPreserved || !fixtures.appWide.desktopFallback || !fixtures.appWide.iosSpaceEncoded || !fixtures.appWide.observerRootIsBody) throw new Error(`area/position/dynamic/repeated/app-wide fixture: ${JSON.stringify(fixtures)}`);
         console.log(JSON.stringify({
             stats,
             fixtures: {
@@ -222,6 +243,7 @@ async function main() {
                 visibleArea: fixtures.visibleArea,
                 dynamic: fixtures.dynamic,
                 dynamicRef: fixtures.dynamicRef,
+                imageInteraction: fixtures.imageInteraction,
                 appWide: fixtures.appWide,
                 actualScreenCard: {
                     iconCount: fixtures.actualScreenCard.iconCount,

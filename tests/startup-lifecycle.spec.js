@@ -10,7 +10,10 @@ const baselineHtml = childProcess.execFileSync('git', ['show','HEAD:index.html']
 const profilePath = fs.mkdtempSync(path.join(os.tmpdir(), 'mk-startup-'));
 const edgePath = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
-const fixture = Array.from({length:200}, (_, index) => `fixture\tfixture question ${index}\tfixture answer ${index}`).join('\n');
+const startupPdfUuid = '6a69ef21-c0f1-4182-a125-f34e23de8d0e';
+const fixture = Array.from({length:200}, (_, index) => index === 0
+    ? `fixture\t<span data-source-uuid="${startupPdfUuid}"><img src="178_${startupPdfUuid}_startup.png"> fixture question 0</span>\tfixture answer 0`
+    : `fixture\tfixture question ${index}\tfixture answer ${index}`).join('\n');
 const server = http.createServer((request, response) => {
     const pathname = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname);
     if(pathname === '/baseline.html') return response.writeHead(200, {'Content-Type':'text/html; charset=utf-8'}).end(baselineHtml);
@@ -108,7 +111,9 @@ async function main() {
                 filter:JSON.stringify(getFilterStateForStorage()), search:getCurrentFilterSearchQuery(),
                 sort:currentSortMode, secondary:currentSecondarySortMode, card:getCurrentCardId(),
                 renders:ioZoomDiagnostics.cardRenders, initCount:filterResetInitAppCount,
-                traceWrites:(dumpMkFilterResetTrace() || []).length
+                traceWrites:(dumpMkFilterResetTrace() || []).length,
+                pdfIcon:!!document.querySelector('#question-section .mk-pdf-annotation-icon'),
+                pdfHref:document.querySelector('#question-section .mk-pdf-annotation-icon')?.getAttribute('href') || ''
             })`);
             return {mode,timing,state,externalPaintMs,requestStart,navStart};
         };
@@ -135,10 +140,20 @@ async function main() {
         assert.strictEqual(normal.state.filter,'["mem"]',JSON.stringify({saved,normal}));
         assert.strictEqual(normal.state.search,'fixture');
         assert.strictEqual(normal.state.card,saved.card);
+        assert.strictEqual(normal.state.pdfIcon,true);
+        assert(normal.state.pdfHref.startsWith('mkpdf://open?'),JSON.stringify(normal.state));
+        await delay(100);
+        const pdfAt100=await evaluate(`document.querySelector('#question-section .mk-pdf-annotation-icon')?.getAttribute('href') || ''`);
+        await delay(400);
+        const pdfAt500=await evaluate(`document.querySelector('#question-section .mk-pdf-annotation-icon')?.getAttribute('href') || ''`);
+        assert.strictEqual(pdfAt100,normal.state.pdfHref);
+        assert.strictEqual(pdfAt500,normal.state.pdfHref);
+
+        let postPaintFilter; let postPaintFilterAfter;
 
         const delayed=await reload('delay');
         assert(delayed.externalPaintMs < 1500, JSON.stringify(delayed));
-        const beforeDelayedSync={...delayed.state};
+        const beforeDelayedSync=await evaluate(`(() => { setFilterMode('due'); return {pageInstanceId:filterResetPageInstanceId,filter:JSON.stringify(getFilterStateForStorage()),search:getCurrentFilterSearchQuery(),card:getCurrentCardId(),initCount:filterResetInitAppCount,renders:ioZoomDiagnostics.cardRenders,revision:userInteractionRevision}; })()`);
         await delay(5400);
         const afterDelayedSync=await evaluate(`({timing:getMkStartupTiming(),pageInstanceId:filterResetPageInstanceId,filter:JSON.stringify(getFilterStateForStorage()),search:getCurrentFilterSearchQuery(),card:getCurrentCardId(),initCount:filterResetInitAppCount,renders:ioZoomDiagnostics.cardRenders})`);
         assert.strictEqual(afterDelayedSync.pageInstanceId,beforeDelayedSync.pageInstanceId);
@@ -147,6 +162,7 @@ async function main() {
         assert.strictEqual(afterDelayedSync.card,beforeDelayedSync.card);
         assert.strictEqual(afterDelayedSync.initCount,1);
         assert.strictEqual(afterDelayedSync.renders,beforeDelayedSync.renders);
+        await evaluate(`(() => { setFilterMode('due'); return JSON.stringify(getFilterStateForStorage()); })()`);
 
         const failure=await reload('failure');
         await delay(300);
@@ -163,8 +179,27 @@ async function main() {
             assert.strictEqual(result.timing.firstRenderCount,1);
             assert.strictEqual(result.state.filter,'["mem"]');
             repeated.push({firstVisiblePaint:result.timing.firstVisiblePaint,externalPaintMs:result.externalPaintMs,initCount:result.state.initCount,firstRenderCount:result.timing.firstRenderCount});
-            await delay(250);
+            for(let attempt=0; attempt<100; attempt++) {
+                if(await evaluate(`getMkStartupTiming().backgroundSyncCompleted`)) break;
+                await delay(20);
+            }
+            await delay(500);
         }
+        postPaintFilter=await evaluate(`(() => {
+            window.__mkDelayedFilterTest={fullDeckFallbacks:0};
+            const originalSetActiveDeckWithTrace=setActiveDeckWithTrace;
+            setActiveDeckWithTrace=(next,caller) => { if(next === originalDeck) window.__mkDelayedFilterTest.fullDeckFallbacks++; return originalSetActiveDeckWithTrace(next,caller); };
+            setFilterMode('due');
+            return {filter:JSON.stringify(getFilterStateForStorage()),card:getCurrentCardId(),revision:userInteractionRevision,renders:ioZoomDiagnostics.cardRenders,pageInstanceId:filterResetPageInstanceId};
+        })()`);
+        await delay(10200);
+        postPaintFilterAfter=await evaluate(`({filter:JSON.stringify(getFilterStateForStorage()),card:getCurrentCardId(),revision:userInteractionRevision,renders:ioZoomDiagnostics.cardRenders,pageInstanceId:filterResetPageInstanceId,fullDeckFallbacks:window.__mkDelayedFilterTest.fullDeckFallbacks,backgroundComplete:getMkStartupTiming().backgroundSyncCompleted})`);
+        assert.strictEqual(postPaintFilterAfter.filter,postPaintFilter.filter);
+        assert.strictEqual(postPaintFilterAfter.card,postPaintFilter.card);
+        assert.strictEqual(postPaintFilterAfter.pageInstanceId,postPaintFilter.pageInstanceId);
+        assert.strictEqual(postPaintFilterAfter.renders,postPaintFilter.renders);
+        assert.strictEqual(postPaintFilterAfter.fullDeckFallbacks,0);
+        assert.strictEqual(postPaintFilterAfter.backgroundComplete,true);
         const duplicateGuard=await evaluate(`(() => { const before=ioZoomDiagnostics.cardRenders; const result=initApp(); return {result,initCount:filterResetInitAppCount,renderDelta:ioZoomDiagnostics.cardRenders-before}; })()`);
         assert.deepStrictEqual(duplicateGuard,{result:false,initCount:1,renderDelta:0});
         assert.strictEqual(firebaseWrites,0);
@@ -184,7 +219,7 @@ async function main() {
         }
         assert(baseline && baseline.card, 'baseline startup did not render');
         const delayedRequests=firebaseRequests.slice(delayed.requestStart).filter(item => item.mode === 'delay');
-        process.stdout.write(JSON.stringify({baseline,normal:{timing:normal.timing,externalPaintMs:normal.externalPaintMs,traceWrites:normal.state.traceWrites},delayed:{timing:delayed.timing,externalPaintMs:delayed.externalPaintMs,requests:delayedRequests.length,after:afterDelayedSync},failure:{timing:failure.timing,after:failureAfter},repeated,duplicateGuard,navigations,firebaseWrites},null,2)+'\n');
+        process.stdout.write(JSON.stringify({baseline,normal:{timing:normal.timing,externalPaintMs:normal.externalPaintMs,traceWrites:normal.state.traceWrites,pdf:{at0:normal.state.pdfHref,at100:pdfAt100,at500:pdfAt500}},postPaintFilter:{before:postPaintFilter,after:postPaintFilterAfter},delayed:{timing:delayed.timing,externalPaintMs:delayed.externalPaintMs,requests:delayedRequests.length,before:beforeDelayedSync,after:afterDelayedSync},failure:{timing:failure.timing,after:failureAfter},repeated,duplicateGuard,navigations,firebaseWrites},null,2)+'\n');
     } finally {
         if(socket && socket.readyState === WebSocket.OPEN) socket.close();
         edge.kill(); server.close(); await delay(500);
