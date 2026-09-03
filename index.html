@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.195-filter-session-invariant -->
+<!-- deployment: v18.5.196-filter-reset-diagnostics -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.195 - 필터 세션 유지)</title>
+<title>MK (v18.5.196 - 필터 리셋 진단)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -560,7 +560,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.195 - 필터 세션 유지)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.196 - 필터 리셋 진단)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -854,7 +854,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.195 - 필터 세션 유지';
+    const APP_VERSION = 'v18.5.196 - 필터 리셋 진단';
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -1106,6 +1106,83 @@
         return getActiveFilterModes().length > 0 || !!getCurrentFilterSearchQuery();
     }
 
+    const FILTER_RESET_TRACE_KEY = 'mk_debug_filter_reset_trace';
+    const FILTER_RESET_NAVIGATION_KEY = 'mk_debug_filter_navigation_count';
+    const filterResetPageInstanceId = `mkpage_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    let filterResetNavigationCount = (Number(localStorage.getItem(FILTER_RESET_NAVIGATION_KEY)) || 0) + 1;
+    let filterResetInitAppCount = 0;
+    let filterResetGradeInProgress = false;
+    try { localStorage.setItem(FILTER_RESET_NAVIGATION_KEY, String(filterResetNavigationCount)); } catch(error) {}
+
+    function getFilterResetTraceState() {
+        const card = activeDeck && activeDeck[currentIndex];
+        return {
+            filter:getFilterStateForStorage(),
+            search:getCurrentFilterSearchQuery(),
+            sort:currentSortMode,
+            secondarySort:currentSecondarySortMode,
+            activeCount:Array.isArray(activeDeck) ? activeDeck.length : -1,
+            originalCount:Array.isArray(originalDeck) ? originalDeck.length : -1,
+            card:String(card && card.id || ''),
+            index:Number(currentIndex) || 0,
+            activeIsOriginal:activeDeck === originalDeck,
+            startupSync:!!learningStatsStartupSyncInProgress,
+            eventSync:!!learningStatsEventSyncPromise,
+            grading:!!filterResetGradeInProgress,
+            visibility:document.visibilityState,
+            readyState:document.readyState,
+            navigation:filterResetNavigationCount,
+            pageInstanceId:filterResetPageInstanceId
+        };
+    }
+
+    function appendFilterResetTrace(event, detail = {}, includeStack = false) {
+        try {
+            const records = parseJSONSafe(localStorage.getItem(FILTER_RESET_TRACE_KEY), []);
+            const entry = {
+                timestamp:new Date().toISOString(),
+                event:String(event || ''),
+                ...getFilterResetTraceState(),
+                ...detail
+            };
+            if(includeStack) entry.stack = String(new Error(event).stack || '').split('\n').slice(2, 6).join('\n');
+            const next = (Array.isArray(records) ? records : []).concat(entry).slice(-160);
+            localStorage.setItem(FILTER_RESET_TRACE_KEY, JSON.stringify(next));
+            return entry;
+        } catch(error) { return null; }
+    }
+
+    function setActiveDeckWithTrace(nextDeck, caller) {
+        const before = Array.isArray(activeDeck) ? activeDeck : [];
+        const next = Array.isArray(nextDeck) ? nextDeck : [];
+        const beforeFirst = String(before[0] && before[0].id || '');
+        const nextFirst = String(next[0] && next[0].id || '');
+        activeDeck = next;
+        const suspicious = next === originalDeck || next.length === 0 || before.length === 0 ||
+            (hasActiveCardFilter() && originalDeck.length > 0 && next.length === originalDeck.length);
+        appendFilterResetTrace('ACTIVE_DECK_CHANGE', {
+            caller:String(caller || ''),
+            fromCount:before.length,
+            toCount:next.length,
+            fromFirst:beforeFirst,
+            toFirst:nextFirst,
+            toOriginalReference:next === originalDeck
+        }, suspicious);
+        return activeDeck;
+    }
+
+    function setCurrentFilterModeWithTrace(nextMode, caller) {
+        const before = getFilterStateForStorage(currentFilterMode);
+        const next = getFilterStateForStorage(nextMode);
+        const beforeKey = getFilterKey(before);
+        const nextKey = getFilterKey(next);
+        currentFilterMode = next;
+        if(beforeKey !== nextKey) appendFilterResetTrace('FILTER_MODE_CHANGE', { caller:String(caller || ''), from:before, to:next }, true);
+        return currentFilterMode;
+    }
+
+    window.dumpMkFilterResetTrace = () => parseJSONSafe(localStorage.getItem(FILTER_RESET_TRACE_KEY), []);
+
     let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
     let backupTimer = null;
     let isBackupInFlight = false;
@@ -1115,6 +1192,7 @@
     let startupSyncStarted = false;
     let startupSyncCompleted = false;
     let learningStatsEventSyncPromise = null;
+    appendFilterResetTrace('PAGE_INSTANCE_START', { href:location.href }, true);
 
     let targetRetention = parseFloat(localStorage.getItem('anki_target_retention')) || 0.90;
 
@@ -5449,7 +5527,7 @@
     function openRecentDeck(index) {
         const item = parseRecentDecks()[index];
         if (!item || !item.deck) return;
-        currentFilterMode = getFilterStateForStorage(item.filter);
+        setCurrentFilterModeWithTrace(item.filter, 'openRecentDeck');
         currentSortMode = item.sort || 'original';
         currentSecondarySortMode = item.secondarySort || 'none';
         saveFilterState();
@@ -6477,6 +6555,7 @@
     async function applyRemoteLearningStatsEvents(events = []) {
         const incoming = (Array.isArray(events) ? events : []).map(normalizeLearningStatsEvent).filter(Boolean);
         if(!incoming.length) return { applied:0, statsPatched:0, historyPatched:0 };
+        if(typeof appendFilterResetTrace === 'function') appendFilterResetTrace('EVENT_APPLY', { eventCount:incoming.length, eventIds:incoming.slice(0, 3).map(event => event.eventId) });
         let statsPatched = 0;
         let historyPatched = 0;
         const history = readLocalReviewHistoryCached();
@@ -6544,6 +6623,7 @@
     async function syncLearningStatsEventLedgerWithFirebase(options = {}) {
         if(learningStatsEventSyncPromise) return learningStatsEventSyncPromise;
         learningStatsEventSyncPromise = (async () => {
+            if(typeof appendFilterResetTrace === 'function') appendFilterResetTrace('EVENT_SYNC_START', { upload:options.upload !== false });
             try {
                 await learningStatsPersistenceQueue.catch(() => null);
                 const localEvents = await readAllLearningStatsEvents();
@@ -6630,7 +6710,10 @@
             }
         })();
         try { return await learningStatsEventSyncPromise; }
-        finally { learningStatsEventSyncPromise = null; }
+        finally {
+            if(typeof appendFilterResetTrace === 'function') appendFilterResetTrace('EVENT_SYNC_END');
+            learningStatsEventSyncPromise = null;
+        }
     }
 
     async function initializeLearningStatsEventLedger(legacyStore, options = {}) {
@@ -7909,13 +7992,15 @@
     }
 
     function initApp() {
+        filterResetInitAppCount++;
+        appendFilterResetTrace('INIT_APP', { callCount:filterResetInitAppCount }, filterResetInitAppCount > 1);
         renderDeckTree();
         renderRecentDecks();
         const savedViewState = getStartupViewState();
         const last = (savedViewState && savedViewState.deck) || localStorage.getItem(STORAGE_KEY_LAST_DECK);
         const savedFilter = JSON.parse(localStorage.getItem(STORAGE_KEY_FILTER_STATE) || '{}');
-        if(savedViewState.filter) currentFilterMode = getFilterStateForStorage(savedViewState.filter);
-        else if(savedFilter.filter) currentFilterMode = getFilterStateForStorage(savedFilter.filter);
+        if(savedViewState.filter) setCurrentFilterModeWithTrace(savedViewState.filter, 'initApp:saved-view');
+        else if(savedFilter.filter) setCurrentFilterModeWithTrace(savedFilter.filter, 'initApp:saved-filter');
         if(savedViewState.sort) currentSortMode = savedViewState.sort;
         else if(savedFilter.sort) currentSortMode = savedFilter.sort;
         if(savedViewState.secondarySort) currentSecondarySortMode = savedViewState.secondarySort;
@@ -8013,7 +8098,7 @@
     }
 
     function applyStartupViewState(viewState = {}, fallbackDeck = '') {
-        if (viewState.filter) currentFilterMode = getFilterStateForStorage(viewState.filter);
+        if (viewState.filter) setCurrentFilterModeWithTrace(viewState.filter, 'applyStartupViewState');
         if (viewState.sort) currentSortMode = viewState.sort;
         if (viewState.secondarySort) currentSecondarySortMode = viewState.secondarySort;
         if (typeof viewState.searchQuery === 'string') {
@@ -8048,29 +8133,35 @@
     }
 
     function ensureVisibleCard() {
+        appendFilterResetTrace('ENSURE_VISIBLE_CARD_START', {}, true);
         if (activeDeck && activeDeck.length > 0) {
             if (currentIndex < 0 || currentIndex >= activeDeck.length) currentIndex = 0;
             showCard();
+            appendFilterResetTrace('ENSURE_VISIBLE_CARD_END', { fallback:'none' });
             return true;
         }
         if(hasActiveCardFilter()) {
             currentIndex = 0;
             showCard();
+            appendFilterResetTrace('ENSURE_VISIBLE_CARD_END', { fallback:'filtered-empty-preserved' });
             return true;
         }
         const firstDeck = getFirstValidDeckName();
         if (firstDeck && currentDeckName !== firstDeck) {
+            appendFilterResetTrace('ENSURE_VISIBLE_CARD_FALLBACK', { fallback:'select-first-deck', targetDeck:firstDeck }, true);
             selectDeck(firstDeck, false);
             return true;
         }
         if (firstDeck && Array.isArray(library[firstDeck]) && library[firstDeck].length) {
             currentDeckName = firstDeck;
             originalDeck = library[firstDeck];
-            activeDeck = [...originalDeck];
+            setActiveDeckWithTrace([...originalDeck], 'ensureVisibleCard:full-deck-fallback');
             currentIndex = 0;
             showCard();
+            appendFilterResetTrace('ENSURE_VISIBLE_CARD_END', { fallback:'full-deck' }, true);
             return true;
         }
+        appendFilterResetTrace('ENSURE_VISIBLE_CARD_END', { fallback:'no-card' });
         return false;
     }
 
@@ -9714,7 +9805,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         if(recommendedStudySheetMode === 'required') {
             const activeFilters = getActiveFilterModes();
             if(!activeFilters.includes('due')) {
-                currentFilterMode = [...activeFilters, 'due'];
+                setCurrentFilterModeWithTrace([...activeFilters, 'due'], 'startRecommendedStudy:required');
                 saveFilterState();
                 highlightFilter();
             }
@@ -9745,7 +9836,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                 localStorage.setItem(TODAY_NEW_SELECTION_STORAGE_KEY, JSON.stringify(saved));
             } catch(e) {}
         }
-        activeDeck = selectedCards;
+        setActiveDeckWithTrace(selectedCards, 'startRecommendedStudy');
         currentIndex = 0;
         previousCardIndex = null;
         try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {}
@@ -9767,12 +9858,12 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             state.prepared = null;
             document.getElementById('essential-sheet-overlay').classList.remove('open');
             if(snapshot) {
-                currentFilterMode = getFilterStateForStorage(snapshot.filter);
+                setCurrentFilterModeWithTrace(snapshot.filter, 'releaseRecommendedStudy:restore-filter');
                 currentSortMode = snapshot.sort || 'original';
                 currentSecondarySortMode = snapshot.secondarySort || 'none';
                 saveFilterState();
                 highlightFilter();
-                activeDeck = Array.isArray(snapshot.activeCards) ? snapshot.activeCards.slice() : originalDeck.slice();
+                setActiveDeckWithTrace(Array.isArray(snapshot.activeCards) ? snapshot.activeCards.slice() : originalDeck.slice(), 'releaseRecommendedStudy:restore-deck');
                 const restoredIndex = activeDeck.findIndex(card => getTodayEssentialCardId(card) === snapshot.cardId);
                 currentIndex = restoredIndex >= 0 ? restoredIndex : Math.min(snapshot.index || 0, Math.max(0, activeDeck.length - 1));
             }
@@ -9784,7 +9875,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         const previousCardId = state.previousCardId;
         state.active = false;
         state.prepared = null;
-        activeDeck = cards;
+        setActiveDeckWithTrace(cards, 'releaseRecommendedStudy:required');
         const restoredIndex = cards.findIndex(card => getTodayEssentialCardId(card) === previousCardId);
         currentIndex = restoredIndex >= 0 ? restoredIndex : Math.min(currentIndex, Math.max(0, cards.length - 1));
         document.getElementById('essential-sheet-overlay').classList.remove('open');
@@ -9826,7 +9917,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         const state = getRecommendedStudyState(mode);
         const processed = state.processedIds;
         const candidates = state.todayCandidates || state.candidates || [];
-        activeDeck = candidates.filter(card => !processed.has(getTodayEssentialCardId(card)));
+        setActiveDeckWithTrace(candidates.filter(card => !processed.has(getTodayEssentialCardId(card))), 'continueRemainingRecommendedStudy');
         state.active = false;
         document.getElementById('essential-complete-modal').style.display = 'none';
         currentIndex = 0;
@@ -9986,7 +10077,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             }
             return getOriginalOrder(a) - getOriginalOrder(b);
         });
-        activeDeck = filtered;
+        setActiveDeckWithTrace(filtered, 'applyFilterAndSort');
         try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {}
         const preferredIds = Array.isArray(options.preferredCardIds) ? options.preferredCardIds.map(String) : [];
         const preferredIndex = preferredIds.reduce((found, id) => found >= 0 ? found : activeDeck.findIndex(card => String(card && card.id) === id), -1);
@@ -10097,7 +10188,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             answerRevealed: isAnswerCurrentlyRevealed(),
             label: getOriginalOrderContextLabel()
         };
-        activeDeck = getOriginalOrderFullDeck();
+        setActiveDeckWithTrace(getOriginalOrderFullDeck(), 'enterOriginalOrderContext');
         const targetIndex = activeDeck.findIndex(card => String(card && card.id) === String(currentCardId));
         currentIndex = targetIndex >= 0 ? targetIndex : 0;
         previousCardIndex = null;
@@ -10112,11 +10203,11 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         const snapshot = originalOrderContext;
         if(!snapshot || !snapshot.active) return;
         currentDeckName = snapshot.deck;
-        currentFilterMode = getFilterStateForStorage(snapshot.filter);
+        setCurrentFilterModeWithTrace(snapshot.filter, 'exitOriginalOrderContext');
         currentSortMode = snapshot.sort || 'original';
         currentSecondarySortMode = snapshot.secondarySort || 'none';
         originalDeck = cloneCardList(snapshot.originalDeck);
-        activeDeck = cloneCardList(snapshot.activeDeck);
+        setActiveDeckWithTrace(cloneCardList(snapshot.activeDeck), 'exitOriginalOrderContext');
         const targetCardId = snapshot.cardId;
         const restoredIndex = activeDeck.findIndex(card => String(card && card.id) === String(targetCardId));
         currentIndex = restoredIndex >= 0 ? restoredIndex : Math.min(snapshot.index || 0, Math.max(0, activeDeck.length - 1));
@@ -10139,16 +10230,16 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         todayEssentialState.active = false;
         todayNewState.active = false;
         if(mode === 'default') {
-            currentFilterMode = 'default';
+            setCurrentFilterModeWithTrace('default', 'setFilterMode:default');
         } else {
             const modes = getActiveFilterModes();
-            currentFilterMode = modes.includes(mode) ? modes.filter(item => item !== mode) : [...modes, mode];
+            setCurrentFilterModeWithTrace(modes.includes(mode) ? modes.filter(item => item !== mode) : [...modes, mode], `setFilterMode:${mode}`);
         }
         saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true);
     }
     function setSortMode(mode) { todayEssentialState.active = false; todayNewState.active = false; currentSortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
     function setSecondarySortMode(mode) { todayEssentialState.active = false; todayNewState.active = false; currentSecondarySortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
-    function resetFilters() { todayEssentialState.active = false; todayNewState.active = false; currentFilterMode = 'default'; currentSortMode = 'original'; currentSecondarySortMode = 'none'; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
+    function resetFilters() { todayEssentialState.active = false; todayNewState.active = false; setCurrentFilterModeWithTrace('default', 'resetFilters'); currentSortMode = 'original'; currentSecondarySortMode = 'none'; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
     function saveFilterState() { localStorage.setItem(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: getFilterStateForStorage(), sort: currentSortMode, secondarySort: currentSecondarySortMode })); }
     function highlightFilter() {
         document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
@@ -10446,7 +10537,7 @@ function getIOImageGroups() {
         disposeCardMediaResources(document.getElementById('answer-section'));
         document.querySelectorAll('.mk-io-other-masks-toggle').forEach(button => button.remove());
         if (!activeDeck || activeDeck.length === 0) updateIOImageNavigation(null);
-        if (!activeDeck || activeDeck.length === 0) { reviewTimingState = null; updateDeckPathTitle(null); document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub); text-align:center;'>카드가 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
+        if (!activeDeck || activeDeck.length === 0) { appendFilterResetTrace('SHOW_CARD_EMPTY'); reviewTimingState = null; updateDeckPathTitle(null); document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub); text-align:center;'>카드가 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
         if(currentIndex >= activeDeck.length) currentIndex = 0;
         const card = activeDeck[currentIndex];
         const isIOCard = isMkImageOcclusionCardFast(card);
@@ -11497,6 +11588,8 @@ function getIOImageGroups() {
         console.log('REVIEW_BUTTON_CLICK', { score, currentCardUuid: getCurrentCardId() });
         const card = activeDeck[currentIndex];
         if(!card) return;
+        filterResetGradeInProgress = true;
+        appendFilterResetTrace('GRADE_START', { score:Number(score), scheduled:['stats-fast-flush','learning-stats-persistence','backup-debounce'] });
         const filteredDeckBeforeReview = activeDeck.slice();
         const learningStatsSource = todayNewState.active ? 'new' : (todayEssentialState.active ? 'required' : 'other');
         recordReviewDuration(card);
@@ -11566,6 +11659,8 @@ function getIOImageGroups() {
         if(activeRecommendedMode === 'new' && score !== 3) markTodayNewCompleted(card);
         if(score === 3) {
             revealAnswer();
+            appendFilterResetTrace('GRADE_END', { score:Number(score), action:'reveal-answer' });
+            filterResetGradeInProgress = false;
             return;
         }
         if(activeRecommendedState) activeRecommendedState.processedIds.add(getTodayEssentialCardId(card));
@@ -11588,6 +11683,8 @@ function getIOImageGroups() {
                 showRecommendedStudyCompletion(activeRecommendedMode);
             }
             console.log('NEXT_CARD_SUCCESS', { currentCardUuid: getCurrentCardId(), currentCardIndex: currentIndex });
+            appendFilterResetTrace('GRADE_END', { score:Number(score), action:'recommended-next' });
+            filterResetGradeInProgress = false;
             return;
         }
         const filteredRefresh = refreshFilteredDeckAfterReview(id, filteredDeckBeforeReview);
@@ -11595,10 +11692,14 @@ function getIOImageGroups() {
             persistCurrentViewState(true);
             showCard();
             console.log('NEXT_CARD_SUCCESS', { currentCardUuid:getCurrentCardId(), currentCardIndex:currentIndex, filteredCount:filteredRefresh.count });
+            appendFilterResetTrace('GRADE_END', { score:Number(score), action:'filtered-next', filteredCount:filteredRefresh.count });
+            filterResetGradeInProgress = false;
             return;
         }
         if(currentIndex < activeDeck.length - 1) moveCard(1); else { alert("학습 완료!"); moveCard(0); }
         console.log('NEXT_CARD_SUCCESS', { currentCardUuid: getCurrentCardId(), currentCardIndex: currentIndex });
+        appendFilterResetTrace('GRADE_END', { score:Number(score), action:'ordinary-next' });
+        filterResetGradeInProgress = false;
     }
 
     function getVirtualDate(ts) { const d = new Date(ts); if(d.getHours() < 4) d.setDate(d.getDate()-1); d.setHours(0,0,0,0); return d; }
@@ -11895,7 +11996,7 @@ function getIOImageGroups() {
     function restoreDeckViewState(deck) {
         const state = getDeckViewStates()[normalizeDeckPath(deck)];
         if(!state) return;
-        currentFilterMode = getFilterStateForStorage(state.filter);
+        setCurrentFilterModeWithTrace(state.filter, 'restoreDeckViewState');
         currentSortMode = state.sort || 'original';
         currentSecondarySortMode = state.secondarySort || 'none';
         if(typeof state.searchQuery === 'string') {
@@ -11969,12 +12070,12 @@ function getIOImageGroups() {
     function closeAllNotesModal() { const modal = document.getElementById('all-notes-modal'); if(modal) modal.style.display = 'none'; }
     function setNotesSortMode(mode) { notesSortMode = mode; ['recent','wrong','lowRate'].forEach(key => { const el = document.getElementById('note-sort-' + key); if(el) el.classList.toggle('active', key === mode); }); renderAllNotesList(); }
     function renderAllNotesList() { const list = document.getElementById('all-notes-list'); if(!list) return; const query = String((document.getElementById('notes-search-input') || {}).value || '').trim().toLowerCase(); let entries = getNoteEntries(); const totalCount = entries.length; if(query) entries = entries.filter(item => item.searchText.includes(query)); entries.sort((a,b) => notesSortMode === 'wrong' ? ((b.wrong - a.wrong) || (b.updatedAt - a.updatedAt)) : (notesSortMode === 'lowRate' ? ((a.rate - b.rate) || (b.wrong - a.wrong) || (b.updatedAt - a.updatedAt)) : (b.updatedAt - a.updatedAt))); const title = document.getElementById('all-notes-title'); if(title) title.textContent = '📝 전체 메모 ' + totalCount + '개'; if(!entries.length) { list.innerHTML = '<div style="color:var(--text-sub); padding:16px; text-align:center;">표시할 메모가 없습니다.</div>'; return; } list.innerHTML = entries.map(item => '<div class="note-item">' + '<div class="note-deck">' + escapeNoteHtml((item.deckPath || '덱 없음').replace(/__/g, ' > ')) + '</div>' + '<div class="note-meta">정답률 ' + item.rate + '% · 오답 ' + item.wrong + '회 · 최근 복습 ' + escapeNoteHtml(getRelativeReviewText(item.lastDate)) + '</div>' + '<div class="note-body">' + escapeNoteHtml(item.note) + '</div>' + '<button class="note-jump-btn" data-card-id="' + escapeNoteHtml(item.cardId) + '" onclick="jumpToNoteCard(this.dataset.cardId)">카드 이동</button>' + '</div>').join(''); }
-    function jumpToNoteCard(cardId) { const location = findCardLocationById(cardId); if(!location || !location.card) { showToast('카드를 찾을 수 없습니다.', 'error'); return false; } selectDeck(location.deck, true); const targetId = String(cardId); let index = activeDeck.findIndex(card => String(card && card.id) === targetId || (Array.isArray(card && card.idCandidates) && card.idCandidates.map(String).includes(targetId))); if(index < 0) { originalDeck = getDeckCards(location.deck); activeDeck = [location.card].concat((activeDeck || []).filter(card => String(card && card.id) !== targetId)); index = 0; } currentIndex = Math.max(0, index); localStorage.setItem(STORAGE_KEY_LAST_DECK, location.deck); saveCurrentProgress(); persistCurrentViewState(true); showCard(); closeAllNotesModal(); showToast('카드로 이동했습니다.', 'success'); return true; }
+    function jumpToNoteCard(cardId) { const location = findCardLocationById(cardId); if(!location || !location.card) { showToast('카드를 찾을 수 없습니다.', 'error'); return false; } selectDeck(location.deck, true); const targetId = String(cardId); let index = activeDeck.findIndex(card => String(card && card.id) === targetId || (Array.isArray(card && card.idCandidates) && card.idCandidates.map(String).includes(targetId))); if(index < 0) { originalDeck = getDeckCards(location.deck); setActiveDeckWithTrace([location.card].concat((activeDeck || []).filter(card => String(card && card.id) !== targetId)), 'jumpToNoteCard:fallback'); index = 0; } currentIndex = Math.max(0, index); localStorage.setItem(STORAGE_KEY_LAST_DECK, location.deck); saveCurrentProgress(); persistCurrentViewState(true); showCard(); closeAllNotesModal(); showToast('카드로 이동했습니다.', 'success'); return true; }
 
     function getRelativeReviewText(ts) { const time = Number(ts) || 0; if(!time) return '기록 없음'; const days = Math.max(0, Math.floor((Date.now() - time) / 86400000)); return days === 0 ? '오늘' : days + '일 전'; }
     function getNoteEntries() { const notes = normalizeNotesByCardUuid(getNotesByCardUuid()); return Object.entries(notes).map(([cardId, noteData]) => { const location = findCardLocationById(cardId); const card = location && location.card ? location.card : findCardById(cardId); const stats = card ? getStatsForCard(card) : getStatsById(cardId); const accuracy = getAccuracyStats(cardId, stats); const total = Number(accuracy.total) || 0; const correct = Number(accuracy.correct) || 0; const rate = total > 0 ? Math.round((correct / total) * 100) : 0; const wrong = Math.max(0, Math.round(total - correct)); const cardText = getNoteCardText(card); const note = String(noteData && noteData.note || '').trim(); return { cardId:String(cardId), note, deckPath:String((location && location.deck) || (noteData && noteData.deckPath) || (card && card.deck) || ''), updatedAt:Number(noteData && noteData.updatedAt) || 0, card, cardText, rate, wrong, lastDate:Number(stats && stats.lastDate) || 0, searchText:[note, location && location.deck, noteData && noteData.deckPath, cardText].join(' ').toLowerCase() }; }).filter(item => item.note); }
     function renderAllNotesList() { const list = document.getElementById('all-notes-list'); if(!list) return; const query = String((document.getElementById('notes-search-input') || {}).value || '').trim().toLowerCase(); let entries = getNoteEntries(); const totalCount = entries.length; if(query) entries = entries.filter(item => item.searchText.includes(query)); entries.sort((a,b) => notesSortMode === 'wrong' ? ((b.wrong - a.wrong) || (b.updatedAt - a.updatedAt)) : (notesSortMode === 'lowRate' ? ((a.rate - b.rate) || (b.wrong - a.wrong) || (b.updatedAt - a.updatedAt)) : (b.updatedAt - a.updatedAt))); const title = document.getElementById('all-notes-title'); if(title) title.textContent = '📝 전체 메모 ' + totalCount + '개'; if(!entries.length) { list.innerHTML = '<div style="color:var(--text-sub); padding:16px; text-align:center;">표시할 메모가 없습니다.</div>'; return; } list.innerHTML = entries.map(item => '<div class="note-item">' + '<div class="note-deck">' + escapeNoteHtml((item.deckPath || '덱 없음').replace(/__/g, ' > ')) + '</div>' + '<div class="note-meta">정답률 ' + item.rate + '% · 오답 ' + item.wrong + '회 · 최근 복습 ' + escapeNoteHtml(getRelativeReviewText(item.lastDate)) + '</div>' + '<div class="note-meta">' + escapeNoteHtml((item.cardText || item.cardId).slice(0, 160)) + '</div>' + '<div class="note-body">' + escapeNoteHtml(item.note) + '</div>' + '<button class="note-jump-btn" data-card-id="' + escapeNoteHtml(item.cardId) + '" onclick="jumpToNoteCard(this.dataset.cardId)">카드 이동</button>' + '</div>').join(''); }
-    function jumpToNoteCard(cardId) { const location = findCardLocationById(cardId); if(!location || !location.card) { showToast('카드를 찾을 수 없습니다.', 'error'); return false; } selectDeck(location.deck, true); const targetId = String(cardId); let index = activeDeck.findIndex(card => String(card && card.id) === targetId || (Array.isArray(card && card.idCandidates) && card.idCandidates.map(String).includes(targetId))); if(index < 0) { originalDeck = getDeckCards(location.deck); activeDeck = [location.card].concat((activeDeck || []).filter(card => String(card && card.id) !== targetId)); index = 0; } currentIndex = Math.max(0, index); localStorage.setItem(STORAGE_KEY_LAST_DECK, location.deck); saveCurrentProgress(); persistCurrentViewState(true); showCard(); closeAllNotesModal(); showToast('카드로 이동했습니다.', 'success'); return true; }
+    function jumpToNoteCard(cardId) { const location = findCardLocationById(cardId); if(!location || !location.card) { showToast('카드를 찾을 수 없습니다.', 'error'); return false; } selectDeck(location.deck, true); const targetId = String(cardId); let index = activeDeck.findIndex(card => String(card && card.id) === targetId || (Array.isArray(card && card.idCandidates) && card.idCandidates.map(String).includes(targetId))); if(index < 0) { originalDeck = getDeckCards(location.deck); setActiveDeckWithTrace([location.card].concat((activeDeck || []).filter(card => String(card && card.id) !== targetId)), 'jumpToNoteCard:fallback'); index = 0; } currentIndex = Math.max(0, index); localStorage.setItem(STORAGE_KEY_LAST_DECK, location.deck); saveCurrentProgress(); persistCurrentViewState(true); showCard(); closeAllNotesModal(); showToast('카드로 이동했습니다.', 'success'); return true; }
 
     function getStatsForCard(card) {
         const stat = getCardStat(card, card && card.id);
@@ -12092,8 +12193,10 @@ function getIOImageGroups() {
     });
     document.addEventListener('visibilitychange', () => {
         if(document.hidden) invalidateReviewTiming();
+        appendFilterResetTrace('VISIBILITY_CHANGE', { hidden:document.hidden });
     });
     window.addEventListener('pagehide', () => {
+        appendFilterResetTrace('PAGE_HIDE');
         invalidateReviewTiming();
         if(statsFastFlushTimer) {
             clearTimeout(statsFastFlushTimer);
@@ -12101,10 +12204,14 @@ function getIOImageGroups() {
             queueStatsPersistence(getCanonicalStatsStore(), 'pagehide-fast-flush').catch(() => null);
         }
     });
-    window.addEventListener('blur', invalidateReviewTiming);
+    window.addEventListener('pageshow', event => appendFilterResetTrace('PAGE_SHOW', { persisted:!!event.persisted }));
+    window.addEventListener('blur', () => { appendFilterResetTrace('WINDOW_BLUR'); invalidateReviewTiming(); });
     window.addEventListener('focus', () => {
+        appendFilterResetTrace('WINDOW_FOCUS');
         if(reviewTimingState && document.hidden) reviewTimingState.invalid = true;
     });
+    window.addEventListener('error', event => appendFilterResetTrace('WINDOW_ERROR', { message:String(event && event.message || ''), source:String(event && event.filename || ''), line:Number(event && event.lineno) || 0 }, true));
+    window.addEventListener('unhandledrejection', event => appendFilterResetTrace('UNHANDLED_REJECTION', { reason:String(event && event.reason && (event.reason.stack || event.reason.message) || event && event.reason || '') }, true));
     </script>
 </body>
 </html>
