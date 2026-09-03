@@ -349,7 +349,8 @@ assert(!gradeSource.includes('syncLatestFirebaseBackupOnStartup') && !gradeSourc
 assert(!performBackupSource.includes('syncLatestFirebaseBackupOnStartup') && !performBackupSource.includes('fetchStartupBootstrapBackupCandidates'), 'automatic backup completion never starts startup sync or backupIndex reads');
 const onloadSource = html.slice(html.indexOf('window.onload = async function()'), html.indexOf('\n    function openFirebaseSettings'));
 assert(onloadSource.includes('if(startupBootstrapState.invalid)') && !onloadSource.includes('startupRecordsPromise'), 'normal local startup never requests backupIndex or snapshot payload');
-assert(onloadSource.indexOf('initApp();') < onloadSource.indexOf('learningStatsInitPromise.then'), 'local UI opens before background event synchronization');
+assert(onloadSource.indexOf('initApp();') < onloadSource.indexOf('startBackgroundStartupWork();'), 'local UI opens before background event synchronization');
+assert(onloadSource.indexOf("markMkStartupPhase('firstVisiblePaint')") < onloadSource.indexOf('startBackgroundStartupWork();'), 'background synchronization starts only after the first visible paint');
 assert.strictEqual((html.match(/syncLatestFirebaseBackupOnStartup\(/g) || []).length, 2, 'production code has exactly one startup call site plus the function definition');
 assert(!incrementalEventSyncSource.includes('fetchFirebaseLearningStatsEvents()'), 'background sync never downloads the complete learningStatsEvents collection');
 assert(incrementalEventSyncSource.includes('STORAGE_KEY_LAST_APPLIED_LEARNING_EVENT_ID'), 'background sync advances the applied event cursor');

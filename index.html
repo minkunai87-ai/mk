@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.196-filter-reset-diagnostics -->
+<!-- deployment: v18.5.197-instant-stable-startup -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.196 - 필터 리셋 진단)</title>
+<title>MK (v18.5.197 - 즉시 시작 안정화)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -560,7 +560,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.196 - 필터 리셋 진단)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.197 - 즉시 시작 안정화)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -854,7 +854,22 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.196 - 필터 리셋 진단';
+    const APP_VERSION = 'v18.5.197 - 즉시 시작 안정화';
+    const mkStartupClockStartedAt = performance.now();
+    const mkStartupTiming = {
+        version:APP_VERSION,
+        jsStart:0,
+        initAppCalls:0,
+        firstRenderCount:0,
+        backgroundSyncStarted:false,
+        backgroundSyncCompleted:false
+    };
+    function markMkStartupPhase(name, detail = {}) {
+        if(mkStartupTiming[name] === undefined) mkStartupTiming[name] = Math.round((performance.now() - mkStartupClockStartedAt) * 10) / 10;
+        Object.assign(mkStartupTiming, detail);
+        return mkStartupTiming[name];
+    }
+    window.getMkStartupTiming = () => ({ ...mkStartupTiming });
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -1158,16 +1173,15 @@
         const beforeFirst = String(before[0] && before[0].id || '');
         const nextFirst = String(next[0] && next[0].id || '');
         activeDeck = next;
-        const suspicious = next === originalDeck || next.length === 0 || before.length === 0 ||
-            (hasActiveCardFilter() && originalDeck.length > 0 && next.length === originalDeck.length);
-        appendFilterResetTrace('ACTIVE_DECK_CHANGE', {
+        const suspicious = hasActiveCardFilter() && originalDeck.length > 0 && next === originalDeck;
+        if(suspicious) appendFilterResetTrace('ACTIVE_DECK_FILTER_INVARIANT', {
             caller:String(caller || ''),
             fromCount:before.length,
             toCount:next.length,
             fromFirst:beforeFirst,
             toFirst:nextFirst,
             toOriginalReference:next === originalDeck
-        }, suspicious);
+        }, true);
         return activeDeck;
     }
 
@@ -1177,7 +1191,8 @@
         const beforeKey = getFilterKey(before);
         const nextKey = getFilterKey(next);
         currentFilterMode = next;
-        if(beforeKey !== nextKey) appendFilterResetTrace('FILTER_MODE_CHANGE', { caller:String(caller || ''), from:before, to:next }, true);
+        const suspiciousClear = beforeKey !== 'default' && nextKey === 'default' && String(caller || '') !== 'resetFilters';
+        if(suspiciousClear) appendFilterResetTrace('FILTER_MODE_UNEXPECTED_CLEAR', { caller:String(caller || ''), from:before, to:next }, true);
         return currentFilterMode;
     }
 
@@ -1192,7 +1207,6 @@
     let startupSyncStarted = false;
     let startupSyncCompleted = false;
     let learningStatsEventSyncPromise = null;
-    appendFilterResetTrace('PAGE_INSTANCE_START', { href:location.href }, true);
 
     let targetRetention = parseFloat(localStorage.getItem('anki_target_retention')) || 0.90;
 
@@ -2302,24 +2316,57 @@
         requestAnimationFrame(() => setTimeout(run, options.delay ?? 80));
     }
 
-    window.onload = async function() {
-        updateTRButton();
-        cleanupOversizedViewState();
-        cleanupLegacyRecoverySnapshotsAndRestoreCache('startup');
-        const statsInitPromise = initializeStatsStore();
-        const learningStatsInitPromise = initializeLearningStatsStore({ incrementalOnly:true })
+    let appInitializationStarted = false;
+    let appInitializationCompleted = false;
+    let learningStatsInitializationPromise = null;
+    let backgroundStartupPromise = null;
+
+    function startLearningStatsInitialization() {
+        if(learningStatsInitializationPromise) return learningStatsInitializationPromise;
+        learningStatsInitializationPromise = initializeLearningStatsStore({ incrementalOnly:true })
             .then(result => { learningStatsReady = learningStatsRestoreState === 'success'; return result; })
             .catch(error => { console.warn('[MK_BACKGROUND_LEARNING_STATS_INIT_FAILED]', error); return null; });
+        return learningStatsInitializationPromise;
+    }
+
+    function startBackgroundStartupWork() {
+        if(backgroundStartupPromise) return backgroundStartupPromise;
+        markMkStartupPhase('firebaseEventSyncStart', { backgroundSyncStarted:true });
+        backgroundStartupPromise = startLearningStatsInitialization()
+            .then(async result => {
+                if(!result || !learningStatsEventLedgerActive) return result;
+                return syncLearningStatsEventLedgerWithFirebase({ upload:true });
+            })
+            .then(result => {
+                markMkStartupPhase('firebaseEventSyncComplete', { backgroundSyncCompleted:true });
+                if(result && result.applied > 0) showToast(`새 학습 기록 ${result.applied}건 동기화`, 'success');
+                return result;
+            })
+            .catch(error => {
+                markMkStartupPhase('firebaseEventSyncComplete', { backgroundSyncCompleted:true, backgroundSyncFailed:true });
+                console.warn('[MK_BACKGROUND_LEARNING_EVENT_SYNC_FAILED]', error);
+                return null;
+            });
+        return backgroundStartupPromise;
+    }
+
+    window.onload = async function() {
+        markMkStartupPhase('windowLoad');
+        updateTRButton();
+        markMkStartupPhase('localDataLoadStart');
+        const statsInitPromise = initializeStatsStore();
         await statsInitPromise;
+        markMkStartupPhase('statsLoaded');
         const hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
         if(!hasCachedLibrary) await autoScanGitHub();
+        markMkStartupPhase('deckLoaded', { deckSource:hasCachedLibrary ? 'indexeddb' : 'github' });
         let reviewHistoryInitPromise = null;
         const prepareStartupDetail = () => {
             if(!reviewHistoryInitPromise) {
                 reviewHistoryInitPromise = initializeReviewHistoryLedger()
                     .catch(error => { console.warn('[MK_BACKGROUND_REVIEW_HISTORY_INIT_FAILED]', error); return null; });
             }
-            return Promise.all([learningStatsInitPromise, reviewHistoryInitPromise]);
+            return Promise.all([startLearningStatsInitialization(), reviewHistoryInitPromise]);
         };
         const startupBootstrapState = getStartupBootstrapState();
         if(startupBootstrapState.invalid) {
@@ -2333,16 +2380,18 @@
         }
         initApp();
         document.getElementById('loading').style.display = 'none';
-        learningStatsReady = learningStatsRestoreState === 'success';
-        learningStatsInitPromise.then(async result => {
-            if(!result || !learningStatsEventLedgerActive) return;
-            const eventSync = await syncLearningStatsEventLedgerWithFirebase({ upload:true });
-            if(eventSync && eventSync.applied > 0) showToast(`새 학습 기록 ${eventSync.applied}건 동기화`, 'success');
-        }).catch(error => console.warn('[MK_BACKGROUND_LEARNING_EVENT_SYNC_FAILED]', error));
-        scheduleDateDomMutationLog('after-startup-sync');
-        loadTodayNewBaselineSnapshot()
-            .then(() => registerTodayNewCards())
-            .catch(error => console.warn('[MK_BACKGROUND_TODAY_NEW_INIT_FAILED]', error));
+        markMkStartupPhase('loadingHidden');
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            markMkStartupPhase('firstVisiblePaint');
+            startBackgroundStartupWork();
+            runWhenIdle(() => {
+                cleanupOversizedViewState();
+                cleanupLegacyRecoverySnapshotsAndRestoreCache('startup-background');
+                loadTodayNewBaselineSnapshot()
+                    .then(() => registerTodayNewCards())
+                    .catch(error => console.warn('[MK_BACKGROUND_TODAY_NEW_INIT_FAILED]', error));
+            });
+        }));
         setTimeout(() => { prepareStartupDetail(); }, 10000);
         setTimeout(() => {
             runWhenIdle(() => {
@@ -6555,7 +6604,6 @@
     async function applyRemoteLearningStatsEvents(events = []) {
         const incoming = (Array.isArray(events) ? events : []).map(normalizeLearningStatsEvent).filter(Boolean);
         if(!incoming.length) return { applied:0, statsPatched:0, historyPatched:0 };
-        if(typeof appendFilterResetTrace === 'function') appendFilterResetTrace('EVENT_APPLY', { eventCount:incoming.length, eventIds:incoming.slice(0, 3).map(event => event.eventId) });
         let statsPatched = 0;
         let historyPatched = 0;
         const history = readLocalReviewHistoryCached();
@@ -6623,7 +6671,6 @@
     async function syncLearningStatsEventLedgerWithFirebase(options = {}) {
         if(learningStatsEventSyncPromise) return learningStatsEventSyncPromise;
         learningStatsEventSyncPromise = (async () => {
-            if(typeof appendFilterResetTrace === 'function') appendFilterResetTrace('EVENT_SYNC_START', { upload:options.upload !== false });
             try {
                 await learningStatsPersistenceQueue.catch(() => null);
                 const localEvents = await readAllLearningStatsEvents();
@@ -6711,7 +6758,6 @@
         })();
         try { return await learningStatsEventSyncPromise; }
         finally {
-            if(typeof appendFilterResetTrace === 'function') appendFilterResetTrace('EVENT_SYNC_END');
             learningStatsEventSyncPromise = null;
         }
     }
@@ -7992,11 +8038,18 @@
     }
 
     function initApp() {
+        if(appInitializationStarted) {
+            appendFilterResetTrace('INIT_APP_DUPLICATE_BLOCKED', { completed:appInitializationCompleted }, true);
+            return false;
+        }
+        appInitializationStarted = true;
         filterResetInitAppCount++;
-        appendFilterResetTrace('INIT_APP', { callCount:filterResetInitAppCount }, filterResetInitAppCount > 1);
+        mkStartupTiming.initAppCalls = filterResetInitAppCount;
+        markMkStartupPhase('initAppStart');
         renderDeckTree();
         renderRecentDecks();
         const savedViewState = getStartupViewState();
+        markMkStartupPhase('sessionRestoreStart');
         const last = (savedViewState && savedViewState.deck) || localStorage.getItem(STORAGE_KEY_LAST_DECK);
         const savedFilter = JSON.parse(localStorage.getItem(STORAGE_KEY_FILTER_STATE) || '{}');
         if(savedViewState.filter) setCurrentFilterModeWithTrace(savedViewState.filter, 'initApp:saved-view');
@@ -8007,6 +8060,7 @@
         else if(savedFilter.secondarySort) currentSecondarySortMode = savedFilter.secondarySort;
         if(typeof savedViewState.searchQuery === 'string') document.getElementById('search-input').value = savedViewState.searchQuery;
         updateFilterStatusUI(); highlightFilter();
+        markMkStartupPhase('sessionStateRestored');
 
         const targetCardId = getStartupTargetCardId(savedViewState);
         console.log(`RESTORE_SELECTED_DECK ${last || ''}`);
@@ -8016,19 +8070,22 @@
 
         if (restoreStartupSelectedDeck(savedViewState, last, targetCardId)) {
             console.log(`RESTORE_RESULT selected-deck deck=${currentDeckName || ''} index=${currentIndex}`);
-            ensureVisibleCard();
             persistCurrentViewState(false);
             console.log(`FINAL_SELECTED_DECK ${currentDeckName || ''}`);
             console.log(`FINAL_CURRENT_CARD_UUID ${getCurrentCardId()}`);
             console.log(`FINAL_CURRENT_INDEX ${currentIndex}`);
             pendingStartupViewState = null;
-            return;
+            appInitializationCompleted = true;
+            markMkStartupPhase('initAppComplete');
+            return true;
         }
 
         const targetLocation = findCardLocationById(targetCardId);
         if (targetLocation) {
             applyStartupViewState({ ...savedViewState, deck: savedViewState.deck || targetLocation.deck }, targetLocation.deck);
-            selectDeck(targetLocation.deck, true);
+            selectDeck(targetLocation.deck, true, { render:false });
+            const visibleTargetIndex = activeDeck.findIndex(card => String(card && card.id) === String(targetCardId));
+            if(visibleTargetIndex >= 0) currentIndex = visibleTargetIndex;
             console.log(`RESTORE_RESULT uuid-fallback deck=${targetLocation.deck} index=${currentIndex}`);
             ensureVisibleCard();
             persistCurrentViewState(false);
@@ -8036,14 +8093,16 @@
             console.log(`FINAL_CURRENT_CARD_UUID ${getCurrentCardId()}`);
             console.log(`FINAL_CURRENT_INDEX ${currentIndex}`);
             pendingStartupViewState = null;
-            return;
+            appInitializationCompleted = true;
+            markMkStartupPhase('initAppComplete');
+            return true;
         }
         if (targetCardId) console.log(`RESTORE_POSITION result=uuid-not-found uuid=${targetCardId}`);
 
         if (last) {
-            if (library[last]) selectDeck(last, true);
-            else if (getDeckGroupCards(last).length || getDeckGroupCards(last + '__').length) selectDeckGroup(last, true); 
-        } else if (Object.keys(library).length) { selectDeck(Object.keys(library)[0], false); }
+            if (library[last]) selectDeck(last, true, { render:false });
+            else if (getDeckGroupCards(last).length || getDeckGroupCards(last + '__').length) selectDeckGroup(last, true, { render:false });
+        } else if (Object.keys(library).length) { selectDeck(Object.keys(library)[0], false, { render:false }); }
         const ensured = ensureVisibleCard();
         if (ensured) console.log(`RESTORE_RESULT fallback deck=${currentDeckName || ''} index=${currentIndex}`);
         if (ensured) persistCurrentViewState(false);
@@ -8051,6 +8110,9 @@
         console.log(`FINAL_CURRENT_CARD_UUID ${getCurrentCardId()}`);
         console.log(`FINAL_CURRENT_INDEX ${currentIndex}`);
         pendingStartupViewState = null;
+        appInitializationCompleted = true;
+        markMkStartupPhase('initAppComplete');
+        return true;
     }
 
     function restoreStartupSelectedDeck(viewState = {}, savedDeck = '', targetCardId = '') {
@@ -8062,9 +8124,9 @@
         const hasGroupDeck = getDeckGroupCards(deck).length > 0 || getDeckGroupCards(deck + '__').length > 0;
         const shouldUseGroup = mode.includes('parent') || mode === 'group' || (!hasExactDeck && hasGroupDeck);
 
-        if (shouldUseGroup && hasGroupDeck) selectDeckGroup(deck, true);
-        else if (hasExactDeck) selectDeck(deck, true);
-        else if (hasGroupDeck) selectDeckGroup(deck, true);
+        if (shouldUseGroup && hasGroupDeck) selectDeckGroup(deck, true, { render:false });
+        else if (hasExactDeck) selectDeck(deck, true, { render:false });
+        else if (hasGroupDeck) selectDeckGroup(deck, true, { render:false });
         else return false;
 
         if (targetCardId) {
@@ -8084,7 +8146,7 @@
         currentIndex = Math.min(Math.max(0, fallbackIndex), Math.max(0, activeDeck.length - 1));
         showCard();
         persistCurrentViewState(false);
-        return activeDeck.length > 0;
+        return true;
     }
 
     function getStartupViewState() {
@@ -8133,17 +8195,14 @@
     }
 
     function ensureVisibleCard() {
-        appendFilterResetTrace('ENSURE_VISIBLE_CARD_START', {}, true);
         if (activeDeck && activeDeck.length > 0) {
             if (currentIndex < 0 || currentIndex >= activeDeck.length) currentIndex = 0;
             showCard();
-            appendFilterResetTrace('ENSURE_VISIBLE_CARD_END', { fallback:'none' });
             return true;
         }
         if(hasActiveCardFilter()) {
             currentIndex = 0;
             showCard();
-            appendFilterResetTrace('ENSURE_VISIBLE_CARD_END', { fallback:'filtered-empty-preserved' });
             return true;
         }
         const firstDeck = getFirstValidDeckName();
@@ -8158,10 +8217,8 @@
             setActiveDeckWithTrace([...originalDeck], 'ensureVisibleCard:full-deck-fallback');
             currentIndex = 0;
             showCard();
-            appendFilterResetTrace('ENSURE_VISIBLE_CARD_END', { fallback:'full-deck' }, true);
             return true;
         }
-        appendFilterResetTrace('ENSURE_VISIBLE_CARD_END', { fallback:'no-card' });
         return false;
     }
 
@@ -10288,17 +10345,17 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         } else { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
     }
 
-    function selectDeck(name, isRestore = false) { 
+    function selectDeck(name, isRestore = false, options = {}) {
         todayEssentialState.active = false;
         todayNewState.active = false;
         currentDeckName = name;
 originalDeck = getDeckCards(name);
 localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
         if(!isRestore) restoreDeckViewState(name);
-        applyFilterAndSort(isRestore); if(!isRestore) { persistCurrentViewState(true); toggleMenu(false); }
+        applyFilterAndSort(isRestore, { render:options.render !== false }); if(!isRestore) { persistCurrentViewState(true); toggleMenu(false); }
     }
 
-    function selectDeckGroup(prefix, isRestore = false) {
+    function selectDeckGroup(prefix, isRestore = false, options = {}) {
         todayEssentialState.active = false;
         todayNewState.active = false;
         let merged = getDeckGroupCards(prefix);
@@ -10307,7 +10364,7 @@ localStorage.setItem(STORAGE_KEY_LAST_DECK, name);
 
 originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckName);
         if(!isRestore) restoreDeckViewState(currentDeckName);
-        applyFilterAndSort(isRestore); if(!isRestore) { persistCurrentViewState(true); toggleMenu(false); }
+        applyFilterAndSort(isRestore, { render:options.render !== false }); if(!isRestore) { persistCurrentViewState(true); toggleMenu(false); }
     }
 
     function getImageOcclusionGroupKey(card) {
@@ -10532,12 +10589,19 @@ function getIOImageGroups() {
 
     function showCard() {
         ioZoomDiagnostics.cardRenders += 1;
+        if(mkStartupTiming.firstVisiblePaint === undefined) {
+            mkStartupTiming.firstRenderCount += 1;
+            markMkStartupPhase('firstShowCard', {
+                firstCardId:String(activeDeck && activeDeck[currentIndex] && activeDeck[currentIndex].id || ''),
+                activeDeckCount:Array.isArray(activeDeck) ? activeDeck.length : 0
+            });
+        }
         resetZoom();
         disposeCardMediaResources(document.getElementById('question-section'));
         disposeCardMediaResources(document.getElementById('answer-section'));
         document.querySelectorAll('.mk-io-other-masks-toggle').forEach(button => button.remove());
         if (!activeDeck || activeDeck.length === 0) updateIOImageNavigation(null);
-        if (!activeDeck || activeDeck.length === 0) { appendFilterResetTrace('SHOW_CARD_EMPTY'); reviewTimingState = null; updateDeckPathTitle(null); document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub); text-align:center;'>카드가 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
+        if (!activeDeck || activeDeck.length === 0) { reviewTimingState = null; updateDeckPathTitle(null); document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub); text-align:center;'>카드가 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
         if(currentIndex >= activeDeck.length) currentIndex = 0;
         const card = activeDeck[currentIndex];
         const isIOCard = isMkImageOcclusionCardFast(card);
@@ -11589,7 +11653,6 @@ function getIOImageGroups() {
         const card = activeDeck[currentIndex];
         if(!card) return;
         filterResetGradeInProgress = true;
-        appendFilterResetTrace('GRADE_START', { score:Number(score), scheduled:['stats-fast-flush','learning-stats-persistence','backup-debounce'] });
         const filteredDeckBeforeReview = activeDeck.slice();
         const learningStatsSource = todayNewState.active ? 'new' : (todayEssentialState.active ? 'required' : 'other');
         recordReviewDuration(card);
@@ -11659,7 +11722,6 @@ function getIOImageGroups() {
         if(activeRecommendedMode === 'new' && score !== 3) markTodayNewCompleted(card);
         if(score === 3) {
             revealAnswer();
-            appendFilterResetTrace('GRADE_END', { score:Number(score), action:'reveal-answer' });
             filterResetGradeInProgress = false;
             return;
         }
@@ -11683,7 +11745,6 @@ function getIOImageGroups() {
                 showRecommendedStudyCompletion(activeRecommendedMode);
             }
             console.log('NEXT_CARD_SUCCESS', { currentCardUuid: getCurrentCardId(), currentCardIndex: currentIndex });
-            appendFilterResetTrace('GRADE_END', { score:Number(score), action:'recommended-next' });
             filterResetGradeInProgress = false;
             return;
         }
@@ -11692,13 +11753,11 @@ function getIOImageGroups() {
             persistCurrentViewState(true);
             showCard();
             console.log('NEXT_CARD_SUCCESS', { currentCardUuid:getCurrentCardId(), currentCardIndex:currentIndex, filteredCount:filteredRefresh.count });
-            appendFilterResetTrace('GRADE_END', { score:Number(score), action:'filtered-next', filteredCount:filteredRefresh.count });
             filterResetGradeInProgress = false;
             return;
         }
         if(currentIndex < activeDeck.length - 1) moveCard(1); else { alert("학습 완료!"); moveCard(0); }
         console.log('NEXT_CARD_SUCCESS', { currentCardUuid: getCurrentCardId(), currentCardIndex: currentIndex });
-        appendFilterResetTrace('GRADE_END', { score:Number(score), action:'ordinary-next' });
         filterResetGradeInProgress = false;
     }
 
@@ -12193,10 +12252,8 @@ function getIOImageGroups() {
     });
     document.addEventListener('visibilitychange', () => {
         if(document.hidden) invalidateReviewTiming();
-        appendFilterResetTrace('VISIBILITY_CHANGE', { hidden:document.hidden });
     });
     window.addEventListener('pagehide', () => {
-        appendFilterResetTrace('PAGE_HIDE');
         invalidateReviewTiming();
         if(statsFastFlushTimer) {
             clearTimeout(statsFastFlushTimer);
@@ -12204,10 +12261,8 @@ function getIOImageGroups() {
             queueStatsPersistence(getCanonicalStatsStore(), 'pagehide-fast-flush').catch(() => null);
         }
     });
-    window.addEventListener('pageshow', event => appendFilterResetTrace('PAGE_SHOW', { persisted:!!event.persisted }));
-    window.addEventListener('blur', () => { appendFilterResetTrace('WINDOW_BLUR'); invalidateReviewTiming(); });
+    window.addEventListener('blur', () => { invalidateReviewTiming(); });
     window.addEventListener('focus', () => {
-        appendFilterResetTrace('WINDOW_FOCUS');
         if(reviewTimingState && document.hidden) reviewTimingState.invalid = true;
     });
     window.addEventListener('error', event => appendFilterResetTrace('WINDOW_ERROR', { message:String(event && event.message || ''), source:String(event && event.filename || ''), line:Number(event && event.lineno) || 0 }, true));
