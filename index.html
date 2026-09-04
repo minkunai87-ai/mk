@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.199-firebase-migration-guard -->
+<!-- deployment: v18.5.200-deck-cache-version-check -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.199 - Firebase 이전 보호)</title>
+<title>MK (v18.5.200 - 덱 캐시 버전 검증)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -567,7 +567,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.199 - Firebase 이전 보호)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.200 - 덱 캐시 버전 검증)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -861,7 +861,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.199 - Firebase 이전 보호';
+    const APP_VERSION = 'v18.5.200 - 덱 캐시 버전 검증';
     const mkStartupClockStartedAt = performance.now();
     const mkStartupTiming = {
         version:APP_VERSION,
@@ -1024,6 +1024,7 @@
     
     const STORAGE_KEY_LIBRARY = 'anki_final_library', STORAGE_KEY_STATS = 'anki_final_stats', STORAGE_KEY_PROGRESS = 'anki_final_progress_v2', STORAGE_KEY_LAST_DECK = 'anki_final_last_deck';
     const LIBRARY_CACHE_DB_KEY = 'mk_library_cache_v1';
+    const LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY = 'mk_library_cache_manifest_version_v1';
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
     const REVIEW_HISTORY_EVENTS_DB_KEY_PREFIX = 'mk_review_history_events_v1::';
     const REVIEW_HISTORY_TOMBSTONE_DB_KEY_PREFIX = 'mk_review_history_tombstone_v1::';
@@ -2377,10 +2378,16 @@
         await statsInitPromise;
         markMkStartupPhase('statsLoaded');
         const hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
-        if(!hasCachedLibrary) await autoScanGitHub();
+        let deckSource = hasCachedLibrary ? 'indexeddb' : 'github';
+        if(hasCachedLibrary) {
+            const refreshResult = await refreshCachedLibraryIfNeeded(fetch);
+            if(refreshResult.refreshed) deckSource = 'github';
+        } else {
+            await autoScanGitHub();
+        }
         await pdfAnnotationIndexPromise;
         markMkStartupPhase('pdfAnnotationIndexReady', { pdfAnnotationCount:pdfAnnotationSourceIndex.size });
-        markMkStartupPhase('deckLoaded', { deckSource:hasCachedLibrary ? 'indexeddb' : 'github' });
+        markMkStartupPhase('deckLoaded', { deckSource });
         let reviewHistoryInitPromise = null;
         const prepareStartupDetail = () => {
             if(!reviewHistoryInitPromise) {
@@ -5960,19 +5967,23 @@
         };
     }
 
+    async function loadDeckManifest(fetchImpl = fetch) {
+        const manifestUrl = new URL('decks-manifest.json', document.baseURI).href;
+        const manifestRes = await fetchImpl(manifestUrl, { cache: 'no-store' });
+        if (!manifestRes.ok) throw new Error(`manifest status ${manifestRes.status}`);
+        const manifest = await manifestRes.json();
+        const isLegacyManifest = manifest && manifest.version === 1;
+        const isVersionedManifest = manifest && manifest.schemaVersion === 1 && typeof manifest.version === 'string' && manifest.version;
+        if ((!isLegacyManifest && !isVersionedManifest) || !Array.isArray(manifest.files) || manifest.files.length === 0) throw new Error('invalid deck manifest');
+        const publishVersion = isVersionedManifest ? manifest.version : '';
+        const files = manifest.files.map(name => getManifestDeckFile(name, publishVersion));
+        if (files.some(file => !file)) throw new Error('invalid deck manifest file');
+        return { files, source: 'manifest', listResponse: null, publishVersion };
+    }
+
     async function loadDeckFileList(headers, fetchImpl = fetch) {
         try {
-            const manifestUrl = new URL('decks-manifest.json', document.baseURI).href;
-            const manifestRes = await fetchImpl(manifestUrl, { cache: 'no-store' });
-            if (!manifestRes.ok) throw new Error(`manifest status ${manifestRes.status}`);
-            const manifest = await manifestRes.json();
-            const isLegacyManifest = manifest && manifest.version === 1;
-            const isVersionedManifest = manifest && manifest.schemaVersion === 1 && typeof manifest.version === 'string' && manifest.version;
-            if ((!isLegacyManifest && !isVersionedManifest) || !Array.isArray(manifest.files) || manifest.files.length === 0) throw new Error('invalid deck manifest');
-            const publishVersion = isVersionedManifest ? manifest.version : '';
-            const files = manifest.files.map(name => getManifestDeckFile(name, publishVersion));
-            if (files.some(file => !file)) throw new Error('invalid deck manifest file');
-            return { files, source: 'manifest', listResponse: null, publishVersion };
+            return await loadDeckManifest(fetchImpl);
         } catch (manifestError) {}
 
         const listUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/`;
@@ -6011,12 +6022,13 @@
 
     async function autoScanGitHub(options = {}) {
         const silent = !!(options && options.silent);
+        let deckImported = false;
         if(!silent) document.getElementById('loading').style.display = 'block';
         const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
         
         try {
             await loadPdfAnnotationSourceIndex();
-            const deckFileList = await loadDeckFileList(headers);
+            const deckFileList = options.deckFileList || await loadDeckFileList(headers);
             const res = deckFileList.listResponse;
             
             if(!deckFileList.files) {
@@ -6031,7 +6043,8 @@
             const savedStats = cloneStatsObject(getStatsStore());
             const savedStatsCountBeforeMigration = Object.keys(savedStats || {}).length;
             
-            let newLibrary = {}; 
+            let newLibrary = {};
+            let deckImportFailed = false;
             
             for (const file of files) {
                 let text = null;
@@ -6048,10 +6061,16 @@
                     }
                     processAnkiText(text, file.name, savedStats, newLibrary);
                 } catch(err) {
+                    deckImportFailed = true;
                     console.error("File skip:", file.name);
                     showToast(`덱 다운로드 실패: ${file.name}`, "error");
                 }
                 finally { text = null; }
+            }
+
+            if(deckImportFailed) {
+                if(!silent) document.getElementById('loading').style.display = 'none';
+                return false;
             }
             
             let mergeCount = 0;
@@ -6110,16 +6129,18 @@
     });
 
     library = newLibrary;
-    persistLibraryCacheInBackground(newLibrary);
+    persistLibraryCacheInBackground(newLibrary, deckFileList.publishVersion);
     learningStatsLibraryRevision++;
     learningStatsCardIndexCache = null;
     learningStatsModelCache = null;
 
     registerTodayNewCards();
     renderDeckTree(); 
+    deckImported = true;
 }
         } catch (e) { console.log(e); }
         if(!silent) document.getElementById('loading').style.display = 'none';
+        return deckImported;
     }
 
     function* iterateAnkiRows(str) {
@@ -8123,12 +8144,38 @@
         }
     }
 
-    function persistLibraryCacheInBackground(value) {
+    async function readCachedLibraryManifestVersion() {
+        const value = await readStatsDatabaseValue(LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY);
+        return typeof value === 'string' ? value.trim() : '';
+    }
+
+    async function refreshCachedLibraryIfNeeded(fetchImpl = fetch) {
+        try {
+            const [localVersion, remoteManifest] = await Promise.all([
+                readCachedLibraryManifestVersion(),
+                loadDeckManifest(fetchImpl)
+            ]);
+            if(localVersion && localVersion === remoteManifest.publishVersion) {
+                return { checked:true, refreshed:false, localVersion, remoteVersion:remoteManifest.publishVersion };
+            }
+            const refreshed = await autoScanGitHub({ silent:true, deckFileList:remoteManifest });
+            return { checked:true, refreshed:!!refreshed, localVersion, remoteVersion:remoteManifest.publishVersion };
+        } catch(error) {
+            console.warn('[MK_LIBRARY_MANIFEST_CHECK_FAILED]', error);
+            return { checked:false, refreshed:false };
+        }
+    }
+
+    function persistLibraryCacheInBackground(value, manifestVersion = '') {
         if(!value || typeof value !== 'object' || !Object.keys(value).length) return;
-        const run = () => writeStatsDatabaseValue(LIBRARY_CACHE_DB_KEY, JSON.stringify(value))
+        const run = async () => {
+            await writeStatsDatabaseValue(LIBRARY_CACHE_DB_KEY, JSON.stringify(value));
+            if(manifestVersion) await writeStatsDatabaseValue(LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY, manifestVersion);
+        };
+        const guardedRun = () => run()
             .catch(error => console.warn('[MK_LIBRARY_CACHE_WRITE_FAILED]', error));
-        if(typeof requestIdleCallback === 'function') requestIdleCallback(run, {timeout:1500});
-        else setTimeout(run, 0);
+        if(typeof requestIdleCallback === 'function') requestIdleCallback(guardedRun, {timeout:1500});
+        else setTimeout(guardedRun, 0);
     }
 
     function loadLocalLibrary() { 

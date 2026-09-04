@@ -23,10 +23,13 @@ const context = {
     URL,
     document: { baseURI: 'https://example.test/mk/' },
     repoOwner: 'minkunai87-ai',
-    repoName: 'mk'
+    repoName: 'mk',
+    LIBRARY_CACHE_DB_KEY: 'mk_library_cache_v1',
+    LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY: 'mk_library_cache_manifest_version_v1',
+    console
 };
 vm.createContext(context);
-vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('loadDeckFileList')}\nthis.loadDeckFileList = loadDeckFileList;`, context);
+vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('loadDeckManifest')}\n${extractFunction('loadDeckFileList')}\n${extractFunction('refreshCachedLibraryIfNeeded')}\n${extractFunction('persistLibraryCacheInBackground')}\nthis.loadDeckFileList = loadDeckFileList;\nthis.refreshCachedLibraryIfNeeded = refreshCachedLibraryIfNeeded;\nthis.persistLibraryCacheInBackground = persistLibraryCacheInBackground;`, context);
 
 (async () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'decks-manifest.json'), 'utf8'));
@@ -58,10 +61,57 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
     assert.equal(fallbackCalls.length, 2);
     assert.equal(fallbackResult.files.length, manifest.files.length);
 
+    const manifestFetch = async () => ({ ok:true, status:200, json:async () => manifest });
+    let importCalls = 0;
+    context.autoScanGitHub = async options => {
+        importCalls++;
+        assert.equal(options.silent, true);
+        assert.equal(options.deckFileList.publishVersion, manifest.version);
+        return true;
+    };
+
+    context.readCachedLibraryManifestVersion = async () => manifest.version;
+    const sameVersion = await context.refreshCachedLibraryIfNeeded(manifestFetch);
+    assert.equal(sameVersion.refreshed, false);
+    assert.equal(importCalls, 0);
+
+    context.readCachedLibraryManifestVersion = async () => 'older-version';
+    const changedVersion = await context.refreshCachedLibraryIfNeeded(manifestFetch);
+    assert.equal(changedVersion.refreshed, true);
+    assert.equal(importCalls, 1);
+
+    context.readCachedLibraryManifestVersion = async () => '';
+    const missingVersion = await context.refreshCachedLibraryIfNeeded(manifestFetch);
+    assert.equal(missingVersion.refreshed, true);
+    assert.equal(importCalls, 2);
+
+    const callsBeforeFailure = importCalls;
+    const manifestFailure = await context.refreshCachedLibraryIfNeeded(async () => ({ ok:false, status:503 }));
+    assert.equal(manifestFailure.checked, false);
+    assert.equal(manifestFailure.refreshed, false);
+    assert.equal(importCalls, callsBeforeFailure);
+
+    const cacheWrites = [];
+    let idleWrite;
+    context.writeStatsDatabaseValue = async (key, value) => cacheWrites.push({ key, value });
+    context.requestIdleCallback = callback => { idleWrite = Promise.resolve(callback()); };
+    context.persistLibraryCacheInBackground({ fixture:[] }, manifest.version);
+    await idleWrite;
+    assert.deepEqual(cacheWrites.map(write => write.key), [
+        context.LIBRARY_CACHE_DB_KEY,
+        context.LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY
+    ]);
+    assert.equal(cacheWrites[1].value, manifest.version);
+
     process.stdout.write(JSON.stringify({
         manifestWithBlockedApi: 'passed',
         apiCallsWhenManifestSucceeds: 0,
         fallbackWhenManifestMissing: 'passed',
+        cachedSameVersionImports: 0,
+        cachedChangedVersionImports: 1,
+        cachedMissingVersionImports: 1,
+        cachedManifestFailureImports: 0,
+        cacheVersionPersistedAfterLibrary: true,
         files: manifest.files
     }) + '\n');
 })().catch(error => {
