@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.198-startup-filter-pdf-stability -->
+<!-- deployment: v18.5.199-firebase-migration-guard -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.198 - 시작·필터·PDF 안정화)</title>
+<title>MK (v18.5.199 - Firebase 이전 보호)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -567,7 +567,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.198 - 시작·필터·PDF 안정화)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.199 - Firebase 이전 보호)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -644,7 +644,7 @@
             </div>
             
             <div class="header-center">
-                <div class="header-title" id="deck-title" onclick="isDataChanged = true; flushBackupToFirebase(false);" style="cursor:pointer;" title="수동 백업 쏘기">
+                <div class="header-title" id="deck-title" onclick="requestManualFirebaseBackup();" style="cursor:pointer;" title="수동 백업 쏘기">
                     <span id="deck-title-text">MK</span>
                     <span id="cloud-icon" class="cloud-icon">🔥</span>
                 </div>
@@ -860,8 +860,8 @@
 <script>
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
-    const FIREBASE_DB_URL = "https://mkapp-87823-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.198 - 시작·필터·PDF 안정화';
+    const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
+    const APP_VERSION = 'v18.5.199 - Firebase 이전 보호';
     const mkStartupClockStartedAt = performance.now();
     const mkStartupTiming = {
         version:APP_VERSION,
@@ -883,6 +883,7 @@
     const FIREBASE_BACKUP_KEEP_COUNT = 20;
     const FIREBASE_LEARNING_STATS_EVENTS_PATH = '/apps/mk/learningStatsEvents';
     const FIREBASE_LEARNING_STATS_EVENTS_META_PATH = '/apps/mk/learningStatsEventsMeta';
+    const FIREBASE_MIGRATION_MIN_STATS_COUNT = 13102;
 
     const footerElement = document.querySelector('.footer');
     const syncFooterHeightCssVar = () => {
@@ -1214,6 +1215,7 @@
     let startupSyncStarted = false;
     let startupSyncCompleted = false;
     let learningStatsEventSyncPromise = null;
+    let firebaseMigrationStatusPromise = null;
 
     let targetRetention = parseFloat(localStorage.getItem('anki_target_retention')) || 0.90;
 
@@ -2417,7 +2419,77 @@
     function openFirebaseSettings() { document.getElementById('gh-token-input').value = ghRepoToken; showAuthSection(); document.getElementById('fb-modal').style.display = 'flex'; }
     function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
     function updateCloudIcon(status) { const icon = document.getElementById('cloud-icon'); if(!icon) return; icon.className = `cloud-icon ${status}`; icon.innerText = status === 'active' ? '🔄' : (status === 'error' ? '❌' : '🔥'); }
-    async function testFirebaseSync() { document.getElementById('fb-modal').style.display = 'none'; ghRepoToken = document.getElementById('gh-token-input').value.trim(); localStorage.setItem('gh_repo_token', ghRepoToken); isDataChanged = true; await flushBackupToFirebase(false); }
+    async function requestManualFirebaseBackup() {
+        isDataChanged = true;
+        setLocalDataDirty(true);
+        return flushBackupToFirebase(false, { manual:true });
+    }
+
+    async function testFirebaseSync() { document.getElementById('fb-modal').style.display = 'none'; ghRepoToken = document.getElementById('gh-token-input').value.trim(); localStorage.setItem('gh_repo_token', ghRepoToken); await requestManualFirebaseBackup(); }
+
+    async function getFirebaseMigrationStatus(options = {}) {
+        if(options.refresh) firebaseMigrationStatusPromise = null;
+        if(firebaseMigrationStatusPromise) return firebaseMigrationStatusPromise;
+        firebaseMigrationStatusPromise = (async () => {
+            try {
+                const url = new URL(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json`);
+                url.searchParams.set('orderBy', JSON.stringify('$key'));
+                url.searchParams.set('limitToLast', '50');
+                url.searchParams.set('_t', String(Date.now()));
+                const response = await fetch(url, { cache:'no-store' });
+                if(!response.ok) throw new Error(`firebase_migration_index_http_${response.status}`);
+                const index = await response.json();
+                const records = Object.entries(index && typeof index === 'object' ? index : {})
+                    .filter(([id, data]) => /^\d+$/.test(String(id)) && isMkBackupRecord(data || {}))
+                    .map(([id, data]) => ({
+                        id:String(id),
+                        data,
+                        platform:String(data && data.metadata && data.metadata.platform || ''),
+                        statsKeyCount:Number(data && data.statsKeyCount) || 0
+                    }))
+                    .sort((a, b) => Number(b.id) - Number(a.id));
+                const normalRecords = records.filter(record => isAllowedStatsRestoreCount(record.statsKeyCount));
+                const qualifyingRecord = normalRecords.find(record =>
+                    record.platform === 'iPhone' && record.statsKeyCount >= FIREBASE_MIGRATION_MIN_STATS_COUNT
+                ) || null;
+                return {
+                    ok:true,
+                    complete:!!qualifyingRecord,
+                    empty:records.length === 0,
+                    hasNormalBackup:normalRecords.length > 0,
+                    qualifyingRecord
+                };
+            } catch(error) {
+                firebaseMigrationStatusPromise = null;
+                return { ok:false, complete:false, empty:false, hasNormalBackup:false, error };
+            }
+        })();
+        return firebaseMigrationStatusPromise;
+    }
+
+    async function canWriteFirebaseDuringMigration(options = {}) {
+        const status = await getFirebaseMigrationStatus({ refresh:!!options.refresh });
+        if(status.complete) return { allowed:true, bootstrap:false, status };
+        if(!options.manual) return { allowed:false, bootstrap:false, reason:'migration_locked', status };
+        if(!status.ok) return { allowed:false, bootstrap:false, reason:'migration_status_unavailable', status };
+        if(!status.empty || status.hasNormalBackup) return { allowed:false, bootstrap:false, reason:'cloud_not_empty', status };
+        if(detectPlatform() !== 'iPhone') return { allowed:false, bootstrap:false, reason:'iphone_required', status };
+        const statsKeyCount = getLocalStatsKeyCount();
+        if(statsKeyCount < FIREBASE_MIGRATION_MIN_STATS_COUNT) {
+            return { allowed:false, bootstrap:false, reason:'insufficient_stats', statsKeyCount, status };
+        }
+        return { allowed:true, bootstrap:true, status, statsKeyCount };
+    }
+
+    function showFirebaseMigrationBlockedReason(result) {
+        const messages = {
+            migration_status_unavailable:'Firebase 이전 상태를 확인할 수 없어 백업하지 않았습니다.',
+            cloud_not_empty:'새 Firebase가 비어 있지 않아 최초 백업을 중단했습니다.',
+            iphone_required:'최초 Firebase 백업은 iPhone에서만 실행할 수 있습니다.',
+            insufficient_stats:`최초 Firebase 백업은 Stats ${FIREBASE_MIGRATION_MIN_STATS_COUNT.toLocaleString()}개 이상이 필요합니다.`
+        };
+        showToast(messages[result && result.reason] || 'Firebase 이전 완료 전에는 자동 백업이 차단됩니다.', 'error');
+    }
 
     function scheduleBackup(reason = '') {
         if(reason) setLocalDataDirty(true);
@@ -2431,23 +2503,27 @@
 
     async function flushBackupToFirebase(isAuto = true, options = {}) {
         if (!isDataChanged || isBackupInFlight) return false;
-        if (learningStatsRestoreState !== 'success' || learningStatsStartupSyncInProgress) {
-            console.warn('[MK_BACKUP_BLOCKED_LEARNING_STATS_NOT_RESTORED]', {
-                state: learningStatsRestoreState,
-                startupSyncInProgress: learningStatsStartupSyncInProgress,
-                queuedReviewDeltas: learningStatsReviewDeltaQueue.length
-            });
-            if(!isAuto) showToast('학습통계 복원이 완료되지 않아 백업을 중단했습니다.', 'error');
-            return false;
-        }
-        if (backupTimer) {
-            clearTimeout(backupTimer);
-            backupTimer = null;
-        }
-
         isBackupInFlight = true;
         try {
-            return await performFirebaseBackup(isAuto, options);
+            const migrationWrite = await canWriteFirebaseDuringMigration({ manual:!isAuto && options.manual === true });
+            if(!migrationWrite.allowed) {
+                if(!isAuto) showFirebaseMigrationBlockedReason(migrationWrite);
+                return false;
+            }
+            if (learningStatsRestoreState !== 'success' || learningStatsStartupSyncInProgress) {
+                console.warn('[MK_BACKUP_BLOCKED_LEARNING_STATS_NOT_RESTORED]', {
+                    state: learningStatsRestoreState,
+                    startupSyncInProgress: learningStatsStartupSyncInProgress,
+                    queuedReviewDeltas: learningStatsReviewDeltaQueue.length
+                });
+                if(!isAuto) showToast('학습통계 복원이 완료되지 않아 백업을 중단했습니다.', 'error');
+                return false;
+            }
+            if (backupTimer) {
+                clearTimeout(backupTimer);
+                backupTimer = null;
+            }
+            return await performFirebaseBackup(isAuto, { ...options, migrationBootstrap:migrationWrite.bootstrap });
         } finally {
             isBackupInFlight = false;
         }
@@ -2468,7 +2544,7 @@
             updateCloudIcon('error');
             return false;
         }
-        const ledgerSync = learningStatsEventLedgerActive ? await syncLearningStatsEventLedgerWithFirebase({ upload:true }) : null;
+        const ledgerSync = learningStatsEventLedgerActive ? await syncLearningStatsEventLedgerWithFirebase({ upload:!options.migrationBootstrap }) : null;
         await refreshLearningStatsMemoryFromIndexedDB('firebase-backup-read');
         const learningStatsEvents = learningStatsEventLedgerActive ? await readAllLearningStatsEvents() : [];
         const statsRaw = JSON.stringify(getStatsStore());
@@ -2599,6 +2675,14 @@
                     updateCloudIcon('error');
                     if(!isAuto) showToast("백업 index 저장 실패", "error");
                     return false;
+                }
+                if(options.migrationBootstrap) {
+                    const migrationStatus = await getFirebaseMigrationStatus({ refresh:true });
+                    if(!migrationStatus.complete || migrationStatus.qualifyingRecord.id !== String(data.timestamp)) {
+                        updateCloudIcon('error');
+                        if(!isAuto) showToast('최초 백업 검증에 실패해 Firebase 이전 잠금을 유지합니다.', 'error');
+                        return false;
+                    }
                 }
                 console.log('BACKUP_WRITE_SUCCESS', true);
                 rememberGoodBackupTimestamp(data.timestamp, statsKeyCount);
@@ -6670,6 +6754,8 @@
     }
 
     async function appendLearningStatsConflictEventToFirebaseIfAbsent(event) {
+        const migrationWrite = await canWriteFirebaseDuringMigration();
+        if(!migrationWrite.allowed) return { ok:false, inserted:0, duplicate:0, migrationLocked:true };
         event = normalizeLearningStatsEvent(event);
         if(!isLearningStatsConflictCorrectionEvent(event)) throw new Error('learning_stats_conflict_append_invalid_event');
         const eventUrl = `${FIREBASE_DB_URL}${FIREBASE_LEARNING_STATS_EVENTS_PATH}/${encodeURIComponent(event.eventId)}.json`;
@@ -6691,6 +6777,11 @@
         if(learningStatsEventSyncPromise) return learningStatsEventSyncPromise;
         learningStatsEventSyncPromise = (async () => {
             try {
+                let uploadAllowed = options.upload !== false;
+                if(uploadAllowed) {
+                    const migrationWrite = await canWriteFirebaseDuringMigration();
+                    uploadAllowed = migrationWrite.allowed;
+                }
                 await learningStatsPersistenceQueue.catch(() => null);
                 const localEvents = await readAllLearningStatsEvents();
                 const cloudMeta = await fetchFirebaseLearningStatsEventsMeta();
@@ -6726,7 +6817,7 @@
                 }
 
                 let uploaded = 0;
-                if(options.upload !== false) {
+                if(uploadAllowed) {
                     let uploadedCursor = String(localStorage.getItem(STORAGE_KEY_LAST_UPLOADED_LEARNING_EVENT_ID) || '');
                     const localReviewEvents = localEvents
                         .filter(event => event.source === 'review' && event.eventId.startsWith('review_') && event.deviceId === getDeviceId())
@@ -6768,7 +6859,8 @@
                     applied:appliedResult.applied,
                     statsPatched:appliedResult.statsPatched,
                     historyPatched:appliedResult.historyPatched,
-                    uploaded
+                    uploaded,
+                    uploadBlockedByMigration:options.upload !== false && !uploadAllowed
                 };
             } catch(error) {
                 console.error('[MK_LEARNING_STATS_INCREMENTAL_SYNC_FAILED_LOCAL_KEPT]', error);

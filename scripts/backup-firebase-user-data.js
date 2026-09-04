@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { once } = require('node:events');
 
-const FIREBASE_ROOT = 'https://mkapp-87823-default-rtdb.firebaseio.com/apps/mk';
+const FIREBASE_ROOT = 'https://mk87-66a88-default-rtdb.firebaseio.com/apps/mk';
 const REQUEST_TIMEOUT_MS = 60_000;
 const STATS_RESTORE_ALLOW_MIN_COUNT = 9_000;
 const STATS_MIN_RETAIN_RATIO = 0.8;
