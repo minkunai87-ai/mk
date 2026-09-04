@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.200-deck-cache-version-check -->
+<!-- deployment: v18.5.201-deck-cache-first-render -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.200 - 덱 캐시 버전 검증)</title>
+<title>MK (v18.5.201 - 덱 캐시 첫 렌더 복구)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -567,7 +567,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.200 - 덱 캐시 버전 검증)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.201 - 덱 캐시 첫 렌더 복구)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -861,7 +861,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.200 - 덱 캐시 버전 검증';
+    const APP_VERSION = 'v18.5.201 - 덱 캐시 첫 렌더 복구';
     const mkStartupClockStartedAt = performance.now();
     const mkStartupTiming = {
         version:APP_VERSION,
@@ -2378,11 +2378,8 @@
         await statsInitPromise;
         markMkStartupPhase('statsLoaded');
         const hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
-        let deckSource = hasCachedLibrary ? 'indexeddb' : 'github';
-        if(hasCachedLibrary) {
-            const refreshResult = await refreshCachedLibraryIfNeeded(fetch);
-            if(refreshResult.refreshed) deckSource = 'github';
-        } else {
+        const deckSource = hasCachedLibrary ? 'indexeddb' : 'github';
+        if(!hasCachedLibrary) {
             await autoScanGitHub();
         }
         await pdfAnnotationIndexPromise;
@@ -2410,6 +2407,9 @@
         startupRestoreCompleted = true;
         document.getElementById('loading').style.display = 'none';
         markMkStartupPhase('loadingHidden');
+        if(hasCachedLibrary) {
+            refreshCachedLibraryIfNeeded(fetch);
+        }
         requestAnimationFrame(() => requestAnimationFrame(() => {
             markMkStartupPhase('firstVisiblePaint');
             startBackgroundStartupWork();
@@ -6022,6 +6022,7 @@
 
     async function autoScanGitHub(options = {}) {
         const silent = !!(options && options.silent);
+        const preserveCurrentView = !!(options && options.preserveCurrentView);
         let deckImported = false;
         if(!silent) document.getElementById('loading').style.display = 'block';
         const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
@@ -6124,6 +6125,7 @@
             }
             
             if (Object.keys(newLibrary).length > 0) {
+    const currentViewState = preserveCurrentView && appInitializationCompleted ? getCurrentViewState(true) : null;
     Object.keys(newLibrary).forEach(deckName => {
         newLibrary[deckName].sort((a, b) => (a.sourceOrder ?? 999999) - (b.sourceOrder ?? 999999));
     });
@@ -6135,7 +6137,7 @@
     learningStatsModelCache = null;
 
     registerTodayNewCards();
-    renderDeckTree(); 
+    if(!restoreLibraryViewAfterBackgroundImport(currentViewState)) renderDeckTree();
     deckImported = true;
 }
         } catch (e) { console.log(e); }
@@ -8158,7 +8160,7 @@
             if(localVersion && localVersion === remoteManifest.publishVersion) {
                 return { checked:true, refreshed:false, localVersion, remoteVersion:remoteManifest.publishVersion };
             }
-            const refreshed = await autoScanGitHub({ silent:true, deckFileList:remoteManifest });
+            const refreshed = await autoScanGitHub({ silent:true, deckFileList:remoteManifest, preserveCurrentView:true });
             return { checked:true, refreshed:!!refreshed, localVersion, remoteVersion:remoteManifest.publishVersion };
         } catch(error) {
             console.warn('[MK_LIBRARY_MANIFEST_CHECK_FAILED]', error);
@@ -8176,6 +8178,34 @@
             .catch(error => console.warn('[MK_LIBRARY_CACHE_WRITE_FAILED]', error));
         if(typeof requestIdleCallback === 'function') requestIdleCallback(guardedRun, {timeout:1500});
         else setTimeout(guardedRun, 0);
+    }
+
+    function restoreLibraryViewAfterBackgroundImport(viewState) {
+        if(!viewState || !appInitializationCompleted) return false;
+        let deck = normalizeDeckPath(viewState.deck || currentDeckName || '');
+        const targetCardId = String(viewState.currentCardUuid || viewState.cardId || '');
+        const useGroup = String(viewState.deckMode || '').toLowerCase() === 'group';
+        let cards = useGroup ? getDeckGroupCards(deck) : getDeckCards(deck);
+        if(!cards.length && targetCardId) {
+            const targetLocation = findCardLocationById(targetCardId);
+            if(targetLocation) {
+                deck = targetLocation.deck;
+                cards = getDeckCards(deck);
+            }
+        }
+        if(!cards.length) {
+            deck = Object.keys(library)[0] || '';
+            cards = getDeckCards(deck);
+        }
+        if(!deck || !cards.length) return false;
+        currentDeckName = deck;
+        originalDeck = cards;
+        applyFilterAndSort(false, { render:false, preferredCardIds:[targetCardId] });
+        renderDeckTree();
+        renderRecentDecks();
+        showCard();
+        persistCurrentViewState(false);
+        return true;
     }
 
     function loadLocalLibrary() { 

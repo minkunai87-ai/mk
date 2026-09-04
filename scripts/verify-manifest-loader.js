@@ -66,6 +66,7 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
     context.autoScanGitHub = async options => {
         importCalls++;
         assert.equal(options.silent, true);
+        assert.equal(options.preserveCurrentView, true);
         assert.equal(options.deckFileList.publishVersion, manifest.version);
         return true;
     };
@@ -86,10 +87,12 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
     assert.equal(importCalls, 2);
 
     const callsBeforeFailure = importCalls;
+    const libraryBeforeFailure = context.library = { cached:[{ id:'cached-card' }] };
     const manifestFailure = await context.refreshCachedLibraryIfNeeded(async () => ({ ok:false, status:503 }));
     assert.equal(manifestFailure.checked, false);
     assert.equal(manifestFailure.refreshed, false);
     assert.equal(importCalls, callsBeforeFailure);
+    assert.equal(context.library, libraryBeforeFailure);
 
     const cacheWrites = [];
     let idleWrite;
@@ -103,6 +106,60 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
     ]);
     assert.equal(cacheWrites[1].value, manifest.version);
 
+    const onloadStart = source.indexOf('window.onload = async function()');
+    const onloadEnd = source.indexOf('\n    };', onloadStart);
+    const onloadSource = source.slice(onloadStart, onloadEnd);
+    const initIndex = onloadSource.indexOf('initApp();');
+    const refreshIndex = onloadSource.indexOf('refreshCachedLibraryIfNeeded(fetch)');
+    assert.ok(initIndex >= 0 && refreshIndex > initIndex);
+    assert.equal(onloadSource.includes('await refreshCachedLibraryIfNeeded(fetch)'), false);
+    assert.equal(onloadSource.includes('if(!hasCachedLibrary) {\n            await autoScanGitHub();'), true);
+
+    const viewContext = {
+        appInitializationCompleted: true,
+        currentDeckName: 'deck-a',
+        currentIndex: 0,
+        originalDeck: [{ id:'old-card' }],
+        activeDeck: [{ id:'old-card' }],
+        currentFilterMode: ['due'],
+        searchQuery: 'kept',
+        library: { 'deck-a': [{ id:'same-card' }, { id:'other-card' }] },
+        normalizeDeckPath: value => String(value || ''),
+        getDeckCards: deck => [...(viewContext.library[deck] || [])],
+        getDeckGroupCards: deck => Object.entries(viewContext.library).filter(([name]) => name === deck || name.startsWith(`${deck}__`)).flatMap(([, cards]) => cards),
+        findCardLocationById: id => Object.entries(viewContext.library).flatMap(([deck, cards]) => cards.map(card => ({ deck, card }))).find(item => item.card.id === id) || null,
+        applyFilterAndSort: (_restore, options) => {
+            viewContext.activeDeck = viewContext.originalDeck.filter(card => card.id !== 'other-card');
+            viewContext.currentIndex = viewContext.activeDeck.findIndex(card => options.preferredCardIds.includes(card.id));
+            if(viewContext.currentIndex < 0) viewContext.currentIndex = 0;
+        },
+        renderDeckTree: () => { viewContext.deckRenderCalls++; },
+        renderRecentDecks: () => { viewContext.recentRenderCalls++; },
+        showCard: () => { viewContext.cardRenderCalls++; },
+        persistCurrentViewState: markChanged => { assert.equal(markChanged, false); viewContext.persistCalls++; },
+        deckRenderCalls: 0,
+        recentRenderCalls: 0,
+        cardRenderCalls: 0,
+        persistCalls: 0
+    };
+    vm.createContext(viewContext);
+    vm.runInContext(`${extractFunction('restoreLibraryViewAfterBackgroundImport')}\nthis.restoreLibraryViewAfterBackgroundImport = restoreLibraryViewAfterBackgroundImport;`, viewContext);
+    const restored = viewContext.restoreLibraryViewAfterBackgroundImport({
+        deck:'deck-a', deckMode:'deck', cardId:'same-card', searchQuery:'kept', filter:'due'
+    });
+    assert.equal(restored, true);
+    assert.equal(viewContext.currentDeckName, 'deck-a');
+    assert.equal(viewContext.activeDeck[viewContext.currentIndex].id, 'same-card');
+    assert.deepEqual(viewContext.currentFilterMode, ['due']);
+    assert.equal(viewContext.searchQuery, 'kept');
+    assert.deepEqual([viewContext.deckRenderCalls, viewContext.recentRenderCalls, viewContext.cardRenderCalls, viewContext.persistCalls], [1, 1, 1, 1]);
+
+    const autoScanStart = source.indexOf('async function autoScanGitHub(');
+    const autoScanEnd = source.indexOf('function* iterateAnkiRows(', autoScanStart);
+    const autoScanSource = source.slice(autoScanStart, autoScanEnd);
+    assert.ok(autoScanSource.indexOf('if(deckImportFailed)') < autoScanSource.indexOf('library = newLibrary'));
+    assert.ok(autoScanSource.indexOf('getCurrentViewState(true)') < autoScanSource.indexOf('library = newLibrary'));
+
     process.stdout.write(JSON.stringify({
         manifestWithBlockedApi: 'passed',
         apiCallsWhenManifestSucceeds: 0,
@@ -111,6 +168,11 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
         cachedChangedVersionImports: 1,
         cachedMissingVersionImports: 1,
         cachedManifestFailureImports: 0,
+        cachedMissingVersionFirstRenderBlocked: false,
+        cachedRefreshRunsAfterInitApp: true,
+        backgroundRefreshPreservesDeckFilterSearchAndCard: true,
+        failedRefreshKeepsExistingLibrary: true,
+        uncachedStartupStillAwaitsInitialImport: true,
         cacheVersionPersistedAfterLibrary: true,
         files: manifest.files
     }) + '\n');
