@@ -29,7 +29,7 @@ const server = http.createServer((request, response) => {
 async function main() {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const debugPort = 9500 + Math.floor(Math.random() * 300);
-    const edge = childProcess.spawn(edgePath, ['--headless','--disable-gpu','--no-first-run',`--user-data-dir=${profilePath}`,`--remote-debugging-port=${debugPort}`,'about:blank'], {stdio:'ignore', windowsHide:true});
+    const edge = childProcess.spawn(edgePath, ['--headless','--disable-gpu','--no-first-run','--disable-background-timer-throttling','--disable-renderer-backgrounding','--disable-backgrounding-occluded-windows',`--user-data-dir=${profilePath}`,`--remote-debugging-port=${debugPort}`,'about:blank'], {stdio:'ignore', windowsHide:true});
     let socket;
     try {
         let target;
@@ -46,6 +46,7 @@ async function main() {
         let firebaseRequests=[];
         let firebaseWrites=0;
         let navigations=0;
+        const browserErrors=[];
         const send=(method,params={}) => new Promise((resolve,reject) => {
             const id=++nextId;
             const timer=setTimeout(() => { pending.delete(id); reject(new Error(`${method} timed out`)); }, 15000);
@@ -55,6 +56,7 @@ async function main() {
         const post=(method,params={}) => socket.send(JSON.stringify({id:++nextId,method,params}));
         socket.onmessage=event => {
             const message=JSON.parse(event.data);
+            if(message.method === 'Runtime.exceptionThrown') browserErrors.push(message.params.exceptionDetails);
             if(message.id && pending.has(message.id)) { pending.get(message.id)(message); pending.delete(message.id); return; }
             if(message.method === 'Page.frameNavigated' && message.params.frame.parentId === undefined) navigations++;
             if(message.method !== 'Fetch.requestPaused') return;
@@ -72,6 +74,7 @@ async function main() {
         };
         await send('Runtime.enable');
         await send('Page.enable');
+        await send('Page.bringToFront');
         await send('Fetch.enable',{patterns:[{urlPattern:'*firebaseio.com/*',requestStage:'Request'}]});
         await send('Page.addScriptToEvaluateOnNewDocument',{source:`(() => {
             if(localStorage.getItem('mk_startup_test_seeded')) return;
@@ -94,7 +97,7 @@ async function main() {
                 } catch(error) {}
                 await delay(20);
             }
-            throw new Error('first visible paint timed out');
+            throw new Error('first visible paint timed out: ' + JSON.stringify({state:await evaluate(`(async()=>({ready:document.readyState,visibility:document.visibilityState,raf:await Promise.race([new Promise(r=>requestAnimationFrame(()=>r(true))),new Promise(r=>setTimeout(()=>r(false),500))]),timing:getMkStartupTiming(),loading:document.getElementById('loading')?.style.display}))()`),browserErrors}));
         };
         const reload=async mode => {
             firebaseMode=mode;
@@ -104,6 +107,9 @@ async function main() {
             await send('Page.reload',{ignoreCache:true});
             for(let attempt=0; attempt<200 && navigations <= navStart; attempt++) await delay(10);
             assert(navigations > navStart, 'requested reload did not navigate');
+            // Repeated headless reloads can stop compositor frames despite an active page.
+            await send('Page.bringToFront');
+            await send('Page.captureScreenshot',{format:'png'});
             const timing=await waitForPaint();
             const externalPaintMs=Date.now()-started;
             const state=await evaluate(`({
@@ -180,7 +186,7 @@ async function main() {
             assert.strictEqual(result.state.filter,'["mem"]');
             repeated.push({firstVisiblePaint:result.timing.firstVisiblePaint,externalPaintMs:result.externalPaintMs,initCount:result.state.initCount,firstRenderCount:result.timing.firstRenderCount});
             for(let attempt=0; attempt<100; attempt++) {
-                if(await evaluate(`getMkStartupTiming().backgroundSyncCompleted`)) break;
+                if(await evaluate(`learningStatsReady && reviewHistoryLedgerReady`)) break;
                 await delay(20);
             }
             await delay(500);
@@ -193,7 +199,7 @@ async function main() {
             return {filter:JSON.stringify(getFilterStateForStorage()),card:getCurrentCardId(),revision:userInteractionRevision,renders:ioZoomDiagnostics.cardRenders,pageInstanceId:filterResetPageInstanceId};
         })()`);
         await delay(10200);
-        postPaintFilterAfter=await evaluate(`({filter:JSON.stringify(getFilterStateForStorage()),card:getCurrentCardId(),revision:userInteractionRevision,renders:ioZoomDiagnostics.cardRenders,pageInstanceId:filterResetPageInstanceId,fullDeckFallbacks:window.__mkDelayedFilterTest.fullDeckFallbacks,backgroundComplete:getMkStartupTiming().backgroundSyncCompleted})`);
+        postPaintFilterAfter=await evaluate(`({filter:JSON.stringify(getFilterStateForStorage()),card:getCurrentCardId(),revision:userInteractionRevision,renders:ioZoomDiagnostics.cardRenders,pageInstanceId:filterResetPageInstanceId,fullDeckFallbacks:window.__mkDelayedFilterTest.fullDeckFallbacks,backgroundComplete:learningStatsReady && reviewHistoryLedgerReady})`);
         assert.strictEqual(postPaintFilterAfter.filter,postPaintFilter.filter);
         assert.strictEqual(postPaintFilterAfter.card,postPaintFilter.card);
         assert.strictEqual(postPaintFilterAfter.pageInstanceId,postPaintFilter.pageInstanceId);
@@ -203,6 +209,7 @@ async function main() {
         const duplicateGuard=await evaluate(`(() => { const before=ioZoomDiagnostics.cardRenders; const result=initApp(); return {result,initCount:filterResetInitAppCount,renderDelta:ioZoomDiagnostics.cardRenders-before}; })()`);
         assert.deepStrictEqual(duplicateGuard,{result:false,initCount:1,renderDelta:0});
         assert.strictEqual(firebaseWrites,0);
+        assert.strictEqual(firebaseRequests.length,0,'Startup and idle work must not access Firebase');
         await evaluate(`localStorage.removeItem(FILTER_RESET_TRACE_KEY)`);
         firebaseMode='normal';
         const baselineNavStart=navigations;

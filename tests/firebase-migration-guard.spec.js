@@ -30,10 +30,10 @@ const ledgerBody = extractFunction(html, 'syncLearningStatsEventLedgerWithFireba
 const conflictBody = extractFunction(html, 'appendLearningStatsConflictEventToFirebaseIfAbsent');
 assert(flushBody.includes('canWriteFirebaseDuringMigration'));
 assert(flushBody.indexOf('isBackupInFlight = true') < flushBody.indexOf('canWriteFirebaseDuringMigration'));
-assert(backupBody.includes('upload:!options.migrationBootstrap'));
-assert(backupBody.includes('getFirebaseMigrationStatus({ refresh:true })'));
-assert(backupBody.includes("migrationStatus.qualifyingRecord.id !== String(data.timestamp)"));
-assert(ledgerBody.includes('uploadAllowed = migrationWrite.allowed'));
+assert(!backupBody.includes('syncLearningStatsEventLedgerWithFirebase('));
+assert(!backupBody.includes('getFirebaseMigrationStatus('));
+assert(!backupBody.includes('getRemoteMaxStatsKeyCount('));
+assert(ledgerBody.includes('disabled:true, downloaded:0, applied:0, uploaded:0'));
 assert(conflictBody.includes('canWriteFirebaseDuringMigration'));
 assert(html.includes("window.addEventListener('pagehide', flushPendingBackupOnExit)"));
 assert(!/method\s*:\s*['\"]DELETE['\"]/i.test(html));
@@ -41,6 +41,7 @@ assert(!/method\s*:\s*['\"]DELETE['\"]/i.test(html));
 let cloudIndex = {};
 let platform = 'Windows';
 let statsKeyCount = 13102;
+let lastGoodStatsCount = 0;
 const requests = [];
 const context = vm.createContext({
     URL,
@@ -51,6 +52,9 @@ const context = vm.createContext({
     FIREBASE_DB_URL:'https://mk87-66a88-default-rtdb.firebaseio.com',
     FIREBASE_BACKUP_INDEX_PATH:'/apps/mk/backupIndex',
     FIREBASE_MIGRATION_MIN_STATS_COUNT:13102,
+    STATS_RESTORE_ALLOW_MIN_COUNT:9000,
+    STORAGE_KEY_LAST_GOOD_STATS_COUNT:'last-good',
+    localStorage:{ getItem:() => String(lastGoodStatsCount) },
     isMkBackupRecord:value => !!(value && value.appId === 'mk'),
     isAllowedStatsRestoreCount:value => Number(value) >= 9000,
     detectPlatform:() => platform,
@@ -73,6 +77,7 @@ async function authorize(options = {}) {
     assert.strictEqual(pcStartup.allowed, false, 'PC startup automatic write must be blocked');
     assert.strictEqual(pcReview.allowed, false, 'PC review automatic write must be blocked');
     assert.strictEqual(pcPagehide.allowed, false, 'PC pagehide automatic write must be blocked');
+    assert.strictEqual(requests.length, 0, 'Automatic authorization must not GET Firebase');
     assert.strictEqual(requests.filter(request => request.method !== 'GET').length, 0);
 
     platform = 'iPhone';
@@ -96,9 +101,12 @@ async function authorize(options = {}) {
     const completed = await vm.runInContext('getFirebaseMigrationStatus({ refresh:true })', context);
     assert.strictEqual(completed.complete, true);
     assert.strictEqual(completed.qualifyingRecord.id, '1788348879067');
+    lastGoodStatsCount = 13102;
+    const requestsBeforeAuto = requests.length;
     const automaticAfterMigration = await authorize();
     assert.strictEqual(automaticAfterMigration.allowed, true);
     assert.strictEqual(automaticAfterMigration.bootstrap, false);
+    assert.strictEqual(requests.length, requestsBeforeAuto);
     assert.strictEqual(requests.filter(request => request.method !== 'GET').length, 0);
 
     process.stdout.write(JSON.stringify({

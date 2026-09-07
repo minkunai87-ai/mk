@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.201-deck-cache-first-render -->
+<!-- deployment: v18.5.202-manual-firebase-import -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.201 - 덱 캐시 첫 렌더 복구)</title>
+<title>MK (v18.5.202 - Firebase 수동 가져오기)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -559,7 +559,9 @@
             <button class="btn-sub" onclick="document.getElementById('backup-input').click()">📂 로컬 백업 불러오기</button>
             <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importData(this)">
             
-            <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 자동 동기화 설정 (파이어베이스)</button>
+            <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 Firebase 백업 설정</button>
+            <button class="btn-cloud" id="firebase-latest-import-btn" onclick="requestLatestFirebaseImport()">Firebase 최신 데이터 가져오기</button>
+            <div id="empty-local-study-notice" hidden>로컬 학습 데이터가 없습니다<br><button class="btn-sub" onclick="requestLatestFirebaseImport()">Firebase 백업에서 복원</button></div>
             <button class="btn-sub" id="review-history-full-recovery-btn" onclick="recoverAllReviewHistoryFromFirebase()">🛟 과거 히스토리 전체 복구</button>
             <button class="btn-sub" onclick="openUuidMigrationModal()">🔗 UUID 마이그레이션</button>
             <button class="btn-sub" onclick="copyCurrentPdfDiagnostic()">📋 PDF 진단 복사</button>
@@ -567,7 +569,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.201 - 덱 캐시 첫 렌더 복구)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.202 - Firebase 수동 가져오기)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -815,8 +817,8 @@
             <div style="font-weight:bold; font-size:1.2rem; color:var(--text);">🔥 파이어베이스 백업 센터</div>
             <div id="fb-auth-section">
                 <div style="font-size:0.9rem; color:#aaa; margin-bottom:15px; line-height:1.5;">
-                    ✅ <b>모바일-PC 완벽 동기화 완료!</b><br>
-                    더 이상 데이터가 누락되지 않습니다. 10분마다 자동으로 덮어쓰기 저장됩니다.
+                    로컬 학습 기록을 사용하며 자동 백업은 Firebase에 저장합니다.<br>
+                    다른 기기의 기록은 ‘Firebase 최신 데이터 가져오기’를 눌러 가져오세요.
                 </div>
                 <div style="margin-bottom: 15px;">
                     <span class="menu-label">🔒 비공개 문제 가져오기 (GitHub Token)</span>
@@ -861,7 +863,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.201 - 덱 캐시 첫 렌더 복구';
+    const APP_VERSION = 'v18.5.202 - Firebase 수동 가져오기';
     const mkStartupClockStartedAt = performance.now();
     const mkStartupTiming = {
         version:APP_VERSION,
@@ -2350,22 +2352,9 @@
 
     function startBackgroundStartupWork() {
         if(backgroundStartupPromise) return backgroundStartupPromise;
-        markMkStartupPhase('firebaseEventSyncStart', { backgroundSyncStarted:true });
-        backgroundStartupPromise = startLearningStatsInitialization()
-            .then(async result => {
-                if(!result || !learningStatsEventLedgerActive) return result;
-                return syncLearningStatsEventLedgerWithFirebase({ upload:true });
-            })
-            .then(result => {
-                markMkStartupPhase('firebaseEventSyncComplete', { backgroundSyncCompleted:true });
-                if(result && result.applied > 0) showToast(`새 학습 기록 ${result.applied}건 동기화`, 'success');
-                return result;
-            })
-            .catch(error => {
-                markMkStartupPhase('firebaseEventSyncComplete', { backgroundSyncCompleted:true, backgroundSyncFailed:true });
-                console.warn('[MK_BACKGROUND_LEARNING_EVENT_SYNC_FAILED]', error);
-                return null;
-            });
+        backgroundStartupPromise = Promise.all([
+            startLearningStatsInitialization(), initializeReviewHistoryLedger()
+        ]).catch(error => { console.warn('[MK_LOCAL_DETAIL_INIT_FAILED]', error); return null; });
         return backgroundStartupPromise;
     }
 
@@ -2385,25 +2374,10 @@
         await pdfAnnotationIndexPromise;
         markMkStartupPhase('pdfAnnotationIndexReady', { pdfAnnotationCount:pdfAnnotationSourceIndex.size });
         markMkStartupPhase('deckLoaded', { deckSource });
-        let reviewHistoryInitPromise = null;
-        const prepareStartupDetail = () => {
-            if(!reviewHistoryInitPromise) {
-                reviewHistoryInitPromise = initializeReviewHistoryLedger()
-                    .catch(error => { console.warn('[MK_BACKGROUND_REVIEW_HISTORY_INIT_FAILED]', error); return null; });
-            }
-            return Promise.all([startLearningStatsInitialization(), reviewHistoryInitPromise]);
-        };
-        const startupBootstrapState = getStartupBootstrapState();
-        if(startupBootstrapState.invalid) {
-            try {
-                await syncLatestFirebaseBackupOnStartup({ startupBootstrapState, detailPreparation:prepareStartupDetail });
-            }
-            catch(error) { console.warn('[MK_BACKGROUND_FIREBASE_RECOVERY_FAILED]', error); }
-        } else {
-            startupSyncStarted = true;
-            startupSyncCompleted = true;
-        }
+        startupSyncStarted = true;
+        startupSyncCompleted = true;
         initApp();
+        updateEmptyLocalStudyNotice();
         startupRestoreCompleted = true;
         document.getElementById('loading').style.display = 'none';
         markMkStartupPhase('loadingHidden');
@@ -2475,6 +2449,12 @@
     }
 
     async function canWriteFirebaseDuringMigration(options = {}) {
+        // Automatic backups use only established local safety evidence; never read cloud state.
+        if(!options.manual) return {
+            allowed:getLocalStatsKeyCount() >= STATS_RESTORE_ALLOW_MIN_COUNT &&
+                Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) >= STATS_RESTORE_ALLOW_MIN_COUNT,
+            bootstrap:false, reason:'local_backup_baseline_required'
+        };
         const status = await getFirebaseMigrationStatus({ refresh:!!options.refresh });
         if(status.complete) return { allowed:true, bootstrap:false, status };
         if(!options.manual) return { allowed:false, bootstrap:false, reason:'migration_locked', status };
@@ -2509,7 +2489,7 @@
     }
 
     async function flushBackupToFirebase(isAuto = true, options = {}) {
-        if (!isDataChanged || isBackupInFlight) return false;
+        if (!isDataChanged || isBackupInFlight || firebaseManualImportInProgress) return false;
         isBackupInFlight = true;
         try {
             const migrationWrite = await canWriteFirebaseDuringMigration({ manual:!isAuto && options.manual === true });
@@ -2551,13 +2531,13 @@
             updateCloudIcon('error');
             return false;
         }
-        const ledgerSync = learningStatsEventLedgerActive ? await syncLearningStatsEventLedgerWithFirebase({ upload:!options.migrationBootstrap }) : null;
+        const ledgerSync = null; // Snapshot upload does not receive or apply remote events.
         await refreshLearningStatsMemoryFromIndexedDB('firebase-backup-read');
         const learningStatsEvents = learningStatsEventLedgerActive ? await readAllLearningStatsEvents() : [];
         const statsRaw = JSON.stringify(getStatsStore());
         const statsKeyCount = getStatsKeyCount(statsRaw);
         const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
-        const remoteBaselineCount = await getRemoteMaxStatsKeyCount();
+        const remoteBaselineCount = 0;
         const baselineCount = Math.max(lastGoodCount, remoteBaselineCount, STATS_HEALTHY_MIN_COUNT);
         console.log('STATS_BACKUP_COUNT', statsKeyCount);
         if (!statsKeyCount || isDangerouslyLowStatsCount(statsKeyCount) || isSuspiciousStatsDrop(statsKeyCount, baselineCount)) {
@@ -2682,14 +2662,6 @@
                     updateCloudIcon('error');
                     if(!isAuto) showToast("백업 index 저장 실패", "error");
                     return false;
-                }
-                if(options.migrationBootstrap) {
-                    const migrationStatus = await getFirebaseMigrationStatus({ refresh:true });
-                    if(!migrationStatus.complete || migrationStatus.qualifyingRecord.id !== String(data.timestamp)) {
-                        updateCloudIcon('error');
-                        if(!isAuto) showToast('최초 백업 검증에 실패해 Firebase 이전 잠금을 유지합니다.', 'error');
-                        return false;
-                    }
                 }
                 console.log('BACKUP_WRITE_SUCCESS', true);
                 rememberGoodBackupTimestamp(data.timestamp, statsKeyCount);
@@ -5550,6 +5522,7 @@
     }
 
     async function syncLatestFirebaseBackupOnStartup(options = {}) {
+        return { outcome:'local-authoritative', requestCount:0, payloadRequestCount:0, toastCount:0 };
         if(!claimStartupSyncSession()) {
             console.warn('[MK_STARTUP_SYNC_SESSION_GUARD]', { completed:startupSyncCompleted });
             return { outcome:'session-guarded', requestCount:0, payloadRequestCount:0, toastCount:0 };
@@ -5795,9 +5768,60 @@
         return fullRestore;
     }
 
+    function updateEmptyLocalStudyNotice() {
+        const notice = document.getElementById('empty-local-study-notice');
+        if(notice) notice.hidden = getLocalStatsKeyCount() > 0;
+    }
+
+    let firebaseManualImportInProgress = false;
+    async function requestLatestFirebaseImport(timestamp = null) {
+        if(firebaseManualImportInProgress || isBackupInFlight) return false;
+        firebaseManualImportInProgress = true;
+        const previousRestoreState = learningStatsRestoreState;
+        try {
+            const records = await fetchStartupBootstrapBackupCandidates();
+            const record = timestamp ? records.find(item => item.ts === String(timestamp)) : getStartupIndexCandidate(records);
+            if(!record) throw new Error('normal_backup_missing');
+            const payload = await fetchStartupBootstrapPayload(record);
+            if(!payload) throw new Error('invalid_backup');
+            const count = getStatsKeyCount(getBackupStatsCandidate(payload));
+            const baseline = await getStatsRestoreBaseline(records.map(item => ({ ...item, data:item.indexData })));
+            const guard = evaluateStatsRestoreGuard({ backupTimestamp:record.ts, backupStatsKeyCount:count, ...baseline });
+            const integrity = verifyCoreBackupPayloadIntegrity(payload);
+            const health = evaluateLearningStatsBackupHealth(payload);
+            const entryBaseline = Math.max(getLearningStatsEntryCount(getLearningStatsStore()), ...records.map(item => item.learningStatsEntryCount || 0));
+            if(!guard.allowed || !integrity.ok || !health.ok || count !== record.statsKeyCount ||
+                (record.learningStatsEntryCount && record.learningStatsEntryCount !== health.entryCount) ||
+                (entryBaseline && health.entryCount < Math.ceil(entryBaseline * STATS_MIN_RETAIN_RATIO))) {
+                throw new Error('unsafe_backup');
+            }
+            if(!confirm(`Firebase 최신 백업으로 현재 로컬 데이터를 교체하시겠습니까?\n\n백업 시각: ${new Date(Number(record.ts)).toLocaleString()}\nFirebase Stats: ${count.toLocaleString()}\n현재 로컬 Stats: ${getLocalStatsKeyCount().toLocaleString()}`)) return false;
+            await startLearningStatsInitialization();
+            await statsPersistenceQueue;
+            await learningStatsPersistenceQueue;
+            learningStatsReady = false;
+            setLearningStatsRestoreState('pending', { source:'manual-restore' });
+            const result = await forceReinstallNormalStatsBackup({ raw:payload, timestamp:record.ts }, 'manual-restore', {
+                backupTimestamp:record.ts, deferViewState:true, keepProtectionOpen:true
+            });
+            if(!result.ok) throw new Error(result.reason || 'restore_failed');
+            const finished = await finishFirebaseRestore(payload, null, 'Firebase 최신 백업을 불러왔습니다');
+            if(!finished) throw new Error('restore_render_failed');
+            updateEmptyLocalStudyNotice();
+            return true;
+        } catch(error) {
+            console.warn('[MK_MANUAL_FIREBASE_IMPORT_FAILED]', error);
+            showToast('Firebase 백업을 불러오지 못했습니다', 'error');
+            return false;
+        } finally {
+            firebaseManualImportInProgress = false;
+            if(learningStatsRestoreState === 'pending') setLearningStatsRestoreState(previousRestoreState, { source:'manual-import-finished' });
+            learningStatsReady = learningStatsRestoreState === 'success';
+        }
+    }
+
     async function finishFirebaseRestore(targetData, listUI, message = '복구 완료') {
         try {
-            await autoScanGitHub();
             const statsIntegrity = await verifyRestoredStatsPayloadIntegrity(targetData || {}, 'after-startup-scan');
             if (!statsIntegrity.ok) {
                 const errorMessage = `stats restore failed: ${statsIntegrity.reasonCode} (${statsIntegrity.localStatsKeyCount}/${statsIntegrity.payloadStatsKeyCount})`;
@@ -5817,13 +5841,14 @@
             });
             finishRestoreStatsProtection({ backupTimestamp: targetData && targetData.timestamp || null });
             restorePosition(getBackupViewState(targetData || {}), 'manual-restore-final');
-            initApp();
+            restoreLibraryViewAfterBackgroundImport(getBackupViewState(targetData || {}));
             ensureVisibleCard();
             scheduleDateDomMutationLog('after-restore');
             const fbModal = document.getElementById('fb-modal');
             if (fbModal) fbModal.style.display = 'none';
             console.log('RESTORE_COMPLETE');
             showToast(message, 'success');
+            return true;
         } catch(e) {
             console.error('RESTORE_FAILED reason=render', e);
             ensureVisibleCard();
@@ -5832,6 +5857,7 @@
     }
 
     async function restoreFromFirebase(ts) {
+        return requestLatestFirebaseImport(ts);
         const listUI = document.getElementById('fb-list-ui');
         learningStatsReady = false;
         setLearningStatsRestoreState('pending', { source:'manual-restore', backupTimestamp:String(ts) });
@@ -6797,6 +6823,7 @@
     }
 
     async function syncLearningStatsEventLedgerWithFirebase(options = {}) {
+        return { ok:true, disabled:true, downloaded:0, applied:0, uploaded:0 };
         if(learningStatsEventSyncPromise) return learningStatsEventSyncPromise;
         learningStatsEventSyncPromise = (async () => {
             try {
@@ -6897,6 +6924,7 @@
     }
 
     async function initializeLearningStatsEventLedger(legacyStore, options = {}) {
+        options = { ...options, incrementalOnly:true, includeFirebaseHistory:false };
         const legacy = normalizeLearningStatsPersistentStore(legacyStore);
         const markerRaw = await readStatsDatabaseValue(LEARNING_STATS_EVENTS_MIGRATION_KEY);
         const marker = parseJSONSafe(markerRaw, {});
@@ -7017,7 +7045,8 @@
                 setLearningStatsRestoreState('success', { source:'indexeddb-event-ledger-recovery' });
                 return { ok:true, source:'indexeddb-event-ledger-recovery', ledgerMigration };
             }
-            return { ok:true, source:'empty', pending:true, ledgerMigration };
+            setLearningStatsRestoreState('success', { source:'local-empty' });
+            return { ok:true, source:'empty', ledgerMigration };
         } catch(error) {
             setLearningStatsRestoreState('failed', { source:'startup-hydration', reason:error && error.message ? error.message : String(error) });
             return { ok:false, error };
@@ -11240,8 +11269,6 @@ function getIOImageGroups() {
             let state = await readAllReviewHistoryLedgerState();
             let seedHistory = mergeReviewHistoryObjects(buildReviewHistoryFromLedger(state.events, state.tombstones), localHistory);
             if(!marker || marker.version !== 1) {
-                const recoveredCloudHistory = await collectReviewHistoryFromFirebaseBackups(FIREBASE_BACKUP_KEEP_COUNT);
-                seedHistory = mergeReviewHistoryObjects(seedHistory, recoveredCloudHistory);
                 const seedEvents = reviewHistoryObjectToEvents(seedHistory, 'migration-and-firebase-recovery');
                 await appendReviewHistoryEvents(seedEvents, 'migration-and-firebase-recovery');
                 await writeStatsDatabaseValue(REVIEW_HISTORY_MIGRATION_DB_KEY, JSON.stringify({version:1, completedAt:Date.now(), eventCount:seedEvents.length, appVersion:APP_VERSION}));
@@ -11419,18 +11446,7 @@ function getIOImageGroups() {
     }
 
     async function ensureStatsStoreReady(reason = 'stats-write') {
-        const count = getLocalStatsKeyCount();
-        if (count > STATS_LOW_COUNT_BLOCK) return true;
-        console.warn('[MK_STATS_EMPTY_REVIEW_CONTINUES]', { reason, localStatsKeyCount: count, action: 'background-recover-only' });
-        if (!backgroundStatsRecoveryPromise) {
-            backgroundStatsRecoveryPromise = restoreLatestGoodStatsFromCloud(reason)
-                .catch(error => {
-                    console.warn('[MK_BACKGROUND_STATS_RECOVERY_FAILED]', { reason, message: error && error.message ? error.message : String(error) });
-                    return false;
-                })
-                .finally(() => { backgroundStatsRecoveryPromise = null; });
-        }
-        return true;
+        return true; // An empty local store never authorizes a cloud restore.
     }
 
     function clampNumber(value, min, max) {
