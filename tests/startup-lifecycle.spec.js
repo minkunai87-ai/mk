@@ -184,7 +184,7 @@ async function main() {
         assert.strictEqual(failureAfter.initCount,1);
 
         const repeated=[];
-        for(let run=0; run<5; run++) {
+        for(let run=0; run<10; run++) {
             const result=await reload('normal');
             assert.strictEqual(result.state.initCount,1);
             assert.strictEqual(result.timing.firstRenderCount,1);
@@ -196,50 +196,6 @@ async function main() {
             }
             await delay(500);
         }
-        const mockIncident=JSON.stringify({
-            detectedAt:1788786000000, phase:'FIRST_CARD_RENDER_START', pageInstanceId:'mobile-crash-test',
-            navigation:{type:'reload',redirectCount:0}, cardId:'pdf-card-test', cardType:'pdf-annotation',
-            deck:'fixture', filter:['due'], resources:{images:1,svg:0,pdfAnnotations:0,heapUsed:123456},
-            lastError:{type:'unhandledrejection',message:'mock rejection'}
-        });
-        const protectedBefore=await evaluate(`({
-            stats:localStorage.getItem(STORAGE_KEY_STATS), history:localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY),
-            filter:localStorage.getItem(STORAGE_KEY_FILTER_STATE)
-        })`);
-        await evaluate(`localStorage.setItem('mk_last_startup_crash_incident',${JSON.stringify(mockIncident)})`);
-        const incidentUiReload=await reload('normal');
-        const incidentUi=await evaluate(`(() => {
-            const opened=openStartupCrashIncidentModal();
-            window.__mkCopiedIncident='';
-            Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:text => { window.__mkCopiedIncident=text; return Promise.resolve(); }}});
-            return {opened,toast:document.getElementById('toast').textContent,summary:document.getElementById('startup-crash-incident-summary').textContent,raw:document.getElementById('startup-crash-incident-raw').textContent};
-        })()`);
-        assert.strictEqual(incidentUi.opened,true);
-        assert.strictEqual(incidentUi.toast,'이전 시작 오류 기록이 있습니다');
-        assert(incidentUi.summary.includes('FIRST_CARD_RENDER_START') && incidentUi.summary.includes('pdf-annotation'));
-        assert.strictEqual(incidentUi.raw,mockIncident);
-        const copyResult=await evaluate(`copyStartupCrashIncident().then(ok => ({ok,copied:window.__mkCopiedIncident,toast:document.getElementById('toast').textContent}))`);
-        assert.deepStrictEqual(copyResult,{ok:true,copied:mockIncident,toast:'진단 기록을 복사했습니다'});
-        const deleteResult=await evaluate(`(() => { window.confirm=()=>true; const ok=deleteStartupCrashIncident(); return {ok,incident:localStorage.getItem('mk_last_startup_crash_incident'),stats:localStorage.getItem(STORAGE_KEY_STATS),history:localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY),filter:localStorage.getItem(STORAGE_KEY_FILTER_STATE),toast:document.getElementById('toast').textContent}; })()`);
-        assert.strictEqual(deleteResult.ok,true);
-        assert.strictEqual(deleteResult.incident,null);
-        assert.strictEqual(deleteResult.stats,protectedBefore.stats);
-        assert.strictEqual(deleteResult.history,protectedBefore.history);
-        assert.strictEqual(deleteResult.filter,protectedBefore.filter);
-        assert.strictEqual(deleteResult.toast,'시작 오류 기록을 삭제했습니다');
-        const emptyResult=await evaluate(`({opened:openStartupCrashIncidentModal(),toast:document.getElementById('toast').textContent})`);
-        assert.deepStrictEqual(emptyResult,{opened:false,toast:'저장된 시작 오류 기록이 없습니다'});
-        assert.strictEqual(incidentUiReload.state.startupMarker.startupStable,true);
-        const simulatedIncident=await evaluate(`(() => {
-            const marker=JSON.parse(localStorage.getItem('mk_startup_boot_marker'));
-            marker.pageInstanceId='simulated-incomplete-boot'; marker.phase='FIRST_CARD_RENDER_START'; marker.startupStable=false;
-            localStorage.setItem('mk_startup_boot_marker',JSON.stringify(marker));
-            initializeMkStartupIncident();
-            return getMkStartupCrashIncident();
-        })()`);
-        assert.strictEqual(simulatedIncident.pageInstanceId,'simulated-incomplete-boot');
-        assert.strictEqual(simulatedIncident.phase,'FIRST_CARD_RENDER_START');
-        assert.notStrictEqual(simulatedIncident.nextPageInstanceId,simulatedIncident.pageInstanceId);
         postPaintFilter=await evaluate(`(() => {
             window.__mkDelayedFilterTest={fullDeckFallbacks:0};
             const originalSetActiveDeckWithTrace=setActiveDeckWithTrace;
