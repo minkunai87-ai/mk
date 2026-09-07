@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.203-startup-crash-guard -->
+<!-- deployment: v18.5.204-startup-incident-viewer -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.203 - 시작 충돌 방지)</title>
+<title>MK (v18.5.204 - 시작 오류 기록 보기)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -565,11 +565,12 @@
             <button class="btn-sub" id="review-history-full-recovery-btn" onclick="recoverAllReviewHistoryFromFirebase()">🛟 과거 히스토리 전체 복구</button>
             <button class="btn-sub" onclick="openUuidMigrationModal()">🔗 UUID 마이그레이션</button>
             <button class="btn-sub" onclick="copyCurrentPdfDiagnostic()">📋 PDF 진단 복사</button>
+            <button class="btn-sub" onclick="openStartupCrashIncidentModal()">시작 오류 기록 보기</button>
             <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 서버 연결 안정화됨</div>
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.203 - 시작 충돌 방지)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.204 - 시작 오류 기록 보기)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -859,15 +860,32 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="startup-crash-incident-modal">
+        <div class="modal-content" style="max-width:720px; width:94%; max-height:88vh; overflow:auto;">
+            <h3 style="margin-top:0; color:var(--text);">시작 오류 기록</h3>
+            <div id="startup-crash-incident-summary" style="font-size:0.86rem; line-height:1.6; color:var(--text);"></div>
+            <details id="startup-crash-incident-raw-wrap" style="margin-top:14px;">
+                <summary style="cursor:pointer; color:var(--text-sub);">원본 JSON</summary>
+                <pre id="startup-crash-incident-raw" style="white-space:pre-wrap; overflow-wrap:anywhere; font-size:0.72rem; background:var(--input-bg); padding:12px; border-radius:8px;"></pre>
+            </details>
+            <div class="modal-btns">
+                <button class="modal-btn btn-save" onclick="copyStartupCrashIncident()">진단 기록 복사</button>
+                <button class="modal-btn btn-sub" style="margin-top:0; width:auto;" onclick="deleteStartupCrashIncident()">진단 기록 삭제</button>
+                <button class="modal-btn btn-cancel" onclick="closeStartupCrashIncidentModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+
 <script>
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.203 - 시작 충돌 방지';
+    const APP_VERSION = 'v18.5.204 - 시작 오류 기록 보기';
     const mkStartupClockStartedAt = performance.now();
     const MK_STARTUP_BOOT_MARKER_KEY = 'mk_startup_boot_marker';
     const MK_LAST_STARTUP_CRASH_INCIDENT_KEY = 'mk_last_startup_crash_incident';
     const MK_NAVIGATION_COUNTER_KEY = 'mk_navigation_counter';
+    let startupCrashIncidentRaw = null;
     const mkPageInstanceId = `mk_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     let mkStartupLastError = null;
     function getMkNavigationInfo() {
@@ -912,7 +930,8 @@
                     nextNavigationCounter:navigationCounter, nextNavigation:getMkNavigationInfo()
                 }));
             }
-            writeMkStartupMarker('BOOT_START', { navigationCounter });
+            startupCrashIncidentRaw = localStorage.getItem(MK_LAST_STARTUP_CRASH_INCIDENT_KEY);
+            writeMkStartupMarker('BOOT_START', { navigationCounter, startupStable:false });
         } catch(error) {}
     }
     setTimeout(initializeMkStartupIncident, 0);
@@ -932,7 +951,7 @@
     }
     window.getMkStartupTiming = () => ({ ...mkStartupTiming });
     window.getMkStartupCrashIncident = () => {
-        try { return JSON.parse(localStorage.getItem(MK_LAST_STARTUP_CRASH_INCIDENT_KEY) || 'null'); }
+        try { return JSON.parse(startupCrashIncidentRaw || 'null'); }
         catch(error) { return null; }
     };
     window.addEventListener('error', event => {
@@ -2455,6 +2474,7 @@
             markMkStartupPhase('firstVisiblePaint');
             markMkStartupPhase('FIRST_CARD_VISIBLE');
             writeMkStartupMarker('STARTUP_STABLE', { startupStable:true });
+            if(startupCrashIncidentRaw) showToast('이전 시작 오류 기록이 있습니다');
             startBackgroundStartupWork();
             runWhenIdle(() => {
                 loadPdfAnnotationSourceIndex(fetch).then(() => markMkStartupPhase('pdfAnnotationIndexReady', { pdfAnnotationCount:pdfAnnotationSourceIndex.size }));
@@ -2466,6 +2486,102 @@
             });
         }));
     };
+
+    function getStartupCrashIncidentForDisplay() {
+        if(!startupCrashIncidentRaw) return null;
+        try { return JSON.parse(startupCrashIncidentRaw); }
+        catch(error) { return { parseError:String(error && error.message || error) }; }
+    }
+
+    function formatStartupCrashValue(value) {
+        if(value === null || value === undefined || value === '') return '기록 없음';
+        return typeof value === 'object' ? JSON.stringify(value) : String(value);
+    }
+
+    function openStartupCrashIncidentModal() {
+        const incident = getStartupCrashIncidentForDisplay();
+        if(!incident) {
+            showToast('저장된 시작 오류 기록이 없습니다');
+            return false;
+        }
+        const resources = incident.resources || {};
+        const error = incident.lastError || incident.error || null;
+        const rejection = incident.unhandledRejection || (error && error.type === 'unhandledrejection' ? error : null);
+        const jsError = error && error.type !== 'unhandledrejection' ? error : incident.jsError;
+        const occurredAt = Number(incident.detectedAt || incident.updatedAt) || 0;
+        const rows = [
+            ['발생 시각', occurredAt ? new Date(occurredAt).toLocaleString() : null],
+            ['마지막 startup stage', incident.phase || incident.stage],
+            ['pageInstanceId', incident.pageInstanceId],
+            ['navigation', incident.navigation],
+            ['현재 카드 UUID', incident.cardId || incident.currentCardUuid],
+            ['현재 카드 type', incident.cardType || incident.currentCardType],
+            ['선택 덱', incident.deck || incident.selectedDeck],
+            ['필터', incident.filter],
+            ['img / SVG 수', `${formatStartupCrashValue(resources.images ?? incident.imgCount)} / ${formatStartupCrashValue(resources.svg ?? incident.svgCount)}`],
+            ['PDF index 상태', resources.pdfAnnotations ?? incident.pdfIndexState],
+            ['heap', resources.heapUsed ?? incident.heapUsed],
+            ['JS error', jsError],
+            ['unhandled rejection', rejection],
+            ['종료 직전 상태', incident.phase === 'PAGEHIDE' || incident.phase === 'BEFOREUNLOAD' ? incident.phase : incident.exitState]
+        ];
+        const summary = document.getElementById('startup-crash-incident-summary');
+        summary.replaceChildren(...rows.map(([label, value]) => {
+            const row = document.createElement('div');
+            const title = document.createElement('strong');
+            title.textContent = `${label}: `;
+            const content = document.createElement('span');
+            content.textContent = formatStartupCrashValue(value);
+            row.append(title, content);
+            return row;
+        }));
+        document.getElementById('startup-crash-incident-raw').textContent = startupCrashIncidentRaw;
+        document.getElementById('startup-crash-incident-raw-wrap').open = false;
+        document.getElementById('startup-crash-incident-modal').style.display = 'flex';
+        return true;
+    }
+
+    function closeStartupCrashIncidentModal() {
+        document.getElementById('startup-crash-incident-modal').style.display = 'none';
+    }
+
+    async function copyStartupCrashIncident() {
+        if(!startupCrashIncidentRaw) {
+            showToast('저장된 시작 오류 기록이 없습니다');
+            return false;
+        }
+        try {
+            await navigator.clipboard.writeText(startupCrashIncidentRaw);
+        } catch(error) {
+            const textarea = document.createElement('textarea');
+            textarea.value = startupCrashIncidentRaw;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            const copied = document.execCommand('copy');
+            textarea.remove();
+            if(!copied) {
+                showToast('진단 기록 복사에 실패했습니다', 'error');
+                return false;
+            }
+        }
+        showToast('진단 기록을 복사했습니다', 'success');
+        return true;
+    }
+
+    function deleteStartupCrashIncident() {
+        if(!startupCrashIncidentRaw) {
+            showToast('저장된 시작 오류 기록이 없습니다');
+            return false;
+        }
+        if(!confirm('저장된 시작 오류 기록을 삭제할까요?')) return false;
+        localStorage.removeItem(MK_LAST_STARTUP_CRASH_INCIDENT_KEY);
+        startupCrashIncidentRaw = null;
+        closeStartupCrashIncidentModal();
+        showToast('시작 오류 기록을 삭제했습니다', 'success');
+        return true;
+    }
 
     function openFirebaseSettings() { document.getElementById('gh-token-input').value = ghRepoToken; showAuthSection(); document.getElementById('fb-modal').style.display = 'flex'; }
     function showAuthSection() { document.getElementById('fb-auth-section').style.display = 'block'; document.getElementById('fb-list-section').style.display = 'none'; }
