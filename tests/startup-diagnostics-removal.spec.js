@@ -3,14 +3,17 @@ const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert');
+const childProcess = require('node:child_process');
 
 const repoRoot = path.resolve(__dirname, '..');
+const recoveryOnHtml = childProcess.execFileSync('git', ['show','f47044aa:index.html'], {cwd:repoRoot,encoding:'utf8'});
 const profilePath = fs.mkdtempSync(path.join(os.tmpdir(), 'mk-diagnostics-removal-'));
 const edgePath = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const fixture = Array.from({length:20}, (_, index) => `fixture\tquestion ${index}\tanswer ${index}`).join('\n');
 const server = http.createServer((request, response) => {
     const pathname = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname);
+    if(pathname === '/recovery-on.html') return response.writeHead(200, {'Content-Type':'text/html; charset=utf-8'}).end(recoveryOnHtml);
     if(pathname === '/decks-manifest.json') return response.writeHead(200, {'Content-Type':'application/json'}).end(JSON.stringify({schemaVersion:1,version:'diagnostics-removal',files:['fixture.txt']}));
     if(pathname === '/fixture.txt') return response.writeHead(200, {'Content-Type':'text/plain; charset=utf-8'}).end(fixture);
     const filePath = path.resolve(repoRoot, pathname.replace(/^\/+/, '') || 'index.html');
@@ -22,7 +25,7 @@ const server = http.createServer((request, response) => {
 async function main() {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const debugPort = 9800 + Math.floor(Math.random() * 100);
-    const edge = require('node:child_process').spawn(edgePath, ['--headless','--disable-gpu','--no-first-run',`--user-data-dir=${profilePath}`,`--remote-debugging-port=${debugPort}`,'about:blank'], {stdio:'ignore',windowsHide:true});
+    const edge = childProcess.spawn(edgePath, ['--headless','--disable-gpu','--no-first-run',`--user-data-dir=${profilePath}`,`--remote-debugging-port=${debugPort}`,'about:blank'], {stdio:'ignore',windowsHide:true});
     let socket;
     try {
         let target;
@@ -55,22 +58,24 @@ async function main() {
             if(result.result?.exceptionDetails) throw new Error(result.result.exceptionDetails.exception?.description || 'evaluation failed');
             return result.result?.result?.value;
         };
-        const waitForStartup=async () => { for(let attempt=0;attempt<500;attempt++) {
-            const ready=await evaluate(`typeof getMkStartupTiming==='function' && getMkStartupTiming().FIRST_CARD_VISIBLE!==undefined`);
-            if(ready) return;
+        const waitForStartup=async previousPageInstanceId => { for(let attempt=0;attempt<750;attempt++) {
+            const ready=await evaluate(`typeof getMkStartupTiming==='function' && getMkStartupTiming().FIRST_CARD_VISIBLE!==undefined ? mkPageInstanceId : ''`);
+            if(ready && ready !== previousPageInstanceId) return ready;
             await delay(20);
         } throw new Error('startup timeout'); };
         await send('Page.navigate',{url:`http://127.0.0.1:${server.address().port}/index.html`});
-        await waitForStartup();
+        await waitForStartup('');
         const protectedBefore=await evaluate(`(() => {
+            if(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY) === null) localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY,'{}');
             localStorage.setItem('mk_last_startup_crash_incident','legacy-incident');
             localStorage.setItem('mk_startup_failure_count','7');
             localStorage.setItem('mk_navigation_counter','19');
             sessionStorage.setItem('mk_startup_recovery_bypass_once','1');
             return {stats:localStorage.getItem(STORAGE_KEY_STATS),history:localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY),filter:localStorage.getItem(STORAGE_KEY_FILTER_STATE),deck:localStorage.getItem(STORAGE_KEY_LAST_DECK),card:localStorage.getItem(STORAGE_KEY_CURRENT_CARD_ID)};
         })()`);
+        const firstPageInstanceId=await evaluate(`mkPageInstanceId`);
         await send('Page.navigate',{url:`http://127.0.0.1:${server.address().port}/index.html?safe=1`});
-        await waitForStartup();
+        await waitForStartup(firstPageInstanceId);
         const result=await evaluate(`(() => {
             const beforeInit=filterResetInitAppCount;
             const markerBefore=JSON.parse(localStorage.getItem('mk_startup_boot_marker'));
@@ -96,7 +101,56 @@ async function main() {
         assert.deepStrictEqual(result.lifecycle,{normalCount:10,pageInstanceSame:true,persisted:true,lastLifecycle:'pageshow'});
         assert.deepStrictEqual(result.init,{before:1,after:1,duplicateResult:false});
         assert.strictEqual(firebaseRequests,0);
-        process.stdout.write(JSON.stringify({result,firebaseRequests,navigations},null,2)+'\n');
+
+        const idleStart={navigations,pageInstanceId:await evaluate(`mkPageInstanceId`)};
+        await delay(60000);
+        const idle60={navigations:navigations-idleStart.navigations,pageInstanceChanges:Number((await evaluate(`mkPageInstanceId`)) !== idleStart.pageInstanceId),init:await evaluate(`filterResetInitAppCount`),renders:await evaluate(`getMkStartupTiming().firstRenderCount`)};
+        assert.deepStrictEqual(idle60,{navigations:0,pageInstanceChanges:0,init:1,renders:1});
+
+        const coldStarts=[];
+        for(let run=0;run<20;run++) {
+            const previousId=await evaluate(`mkPageInstanceId`); const navStart=navigations;
+            await send('Page.reload',{ignoreCache:true});
+            for(let attempt=0;attempt<200 && navigations<=navStart;attempt++) await delay(10);
+            assert(navigations>navStart,'requested cold start did not navigate');
+            await send('Page.bringToFront');
+            await send('Page.captureScreenshot',{format:'png'});
+            const nextId=await waitForStartup(previousId);
+            await delay(100);
+            coldStarts.push({navigationDelta:navigations-navStart,newDocument:nextId!==previousId,init:await evaluate(`filterResetInitAppCount`),renders:await evaluate(`getMkStartupTiming().firstRenderCount`)});
+        }
+        coldStarts.forEach(item => assert.deepStrictEqual(item,{navigationDelta:1,newDocument:true,init:1,renders:1}));
+
+        const filterStart=await evaluate(`(async () => {
+            const stats=getStatsStore();
+            originalDeck.forEach(card => { stats[String(card.id)]={total:1,correct:1,lastDate:1,updatedAt:1,dueDate:1,mem:true,fsrs:{D:5,S:1,reps:1}}; });
+            setCanonicalStatsStore(stats,'startup-reset-loop-test'); await statsPersistenceQueue;
+            document.getElementById('search-input').value=''; setFilterMode('mem'); persistCurrentViewState(false);
+            return {pageInstanceId:mkPageInstanceId,filter:JSON.stringify(getFilterStateForStorage()),search:getCurrentFilterSearchQuery(),card:getCurrentCardId(),init:filterResetInitAppCount};
+        })()`);
+        const filterNavStart=navigations;
+        await delay(60000);
+        const filterIdle=await evaluate(`({pageInstanceId:mkPageInstanceId,filter:JSON.stringify(getFilterStateForStorage()),search:getCurrentFilterSearchQuery(),card:getCurrentCardId(),init:filterResetInitAppCount})`);
+        assert.strictEqual(navigations-filterNavStart,0);
+        assert.deepStrictEqual(filterIdle,{pageInstanceId:filterStart.pageInstanceId,filter:filterStart.filter,search:filterStart.search,card:filterStart.card,init:1});
+
+        const gradeStart={navigations,pageInstanceId:await evaluate(`mkPageInstanceId`)};
+        const graded=await evaluate(`(async () => { for(let run=0;run<50;run++) await grade(2); return {pageInstanceId:mkPageInstanceId,init:filterResetInitAppCount,filter:JSON.stringify(getFilterStateForStorage()),search:getCurrentFilterSearchQuery()}; })()`);
+        assert.strictEqual(navigations-gradeStart.navigations,0);
+        assert.strictEqual(graded.pageInstanceId,gradeStart.pageInstanceId);
+        assert.strictEqual(graded.init,1);
+        assert(graded.filter.includes('mem'));
+
+        const recoveryOnNavStart=navigations;
+        const recoveryOnPreviousId=await evaluate(`mkPageInstanceId`);
+        await send('Page.navigate',{url:`http://127.0.0.1:${server.address().port}/recovery-on.html`});
+        const recoveryOnPageInstanceId=await waitForStartup(recoveryOnPreviousId);
+        const recoveryOnSteadyNavStart=navigations;
+        await delay(30000);
+        const recoveryOn={navigations:navigations-recoveryOnSteadyNavStart,pageInstanceChanges:Number((await evaluate(`mkPageInstanceId`))!==recoveryOnPageInstanceId),init:await evaluate(`filterResetInitAppCount`),renders:await evaluate(`getMkStartupTiming().firstRenderCount`),entryNavigationDelta:recoveryOnSteadyNavStart-recoveryOnNavStart};
+        assert.deepStrictEqual(recoveryOn,{navigations:0,pageInstanceChanges:0,init:1,renders:1,entryNavigationDelta:1});
+        const recoveryComparison={on:recoveryOn,off:idle60};
+        process.stdout.write(JSON.stringify({result,idle60,coldStarts,filterIdle,graded,recoveryComparison,firebaseRequests,navigations},null,2)+'\n');
     } finally {
         if(socket && socket.readyState === WebSocket.OPEN) socket.close();
         edge.kill(); server.close(); await delay(300);
