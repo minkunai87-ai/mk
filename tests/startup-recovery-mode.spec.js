@@ -54,8 +54,15 @@ async function main() {
             const kind=new URLSearchParams(location.search).get('mock');
             if(!kind || sessionStorage.getItem('mk_recovery_test_seeded') === kind) return;
             sessionStorage.setItem('mk_recovery_test_seeded',kind);
-            const phase=kind === 'boot' ? 'BOOT_START' : 'FIRST_CARD_RENDER_START';
-            localStorage.setItem('mk_startup_boot_marker',JSON.stringify({pageInstanceId:'mock-'+kind,phase,startupStable:false,updatedAt:Date.now(),navigation:{type:'reload'}}));
+            if(kind === 'evidence') {
+                const evidence={"pageInstanceId":"mk_1788788345383_u3z26k0a","navigationCounter":9,"phase":"PAGESHOW","updatedAt":1788788345389,"appVersion":"v18.5.204 - 시작 오류 기록 보기","navigation":{"type":"back_forward","redirectCount":0},"visibility":"visible","cardId":"","deck":"","resources":{"cards":0,"activeCards":0,"images":0,"svg":0,"pdfAnnotations":0,"heapUsed":null},"lastError":null,"detectedAt":1788788345392,"nextPageInstanceId":"mk_1788788345383_u3z26k0a","nextNavigationCounter":10,"nextNavigation":{"type":"back_forward","redirectCount":0}};
+                localStorage.setItem('mk_startup_boot_marker',JSON.stringify(evidence));
+                localStorage.setItem('mk_last_startup_crash_incident',JSON.stringify(evidence));
+                localStorage.setItem('mk_startup_failure_count','0');
+                return;
+            }
+            const phase=kind === 'boot' ? 'BOOT_START' : (kind === 'error' ? 'UNHANDLED_ERROR' : 'FIRST_CARD_RENDER_START');
+            localStorage.setItem('mk_startup_boot_marker',JSON.stringify({pageInstanceId:'mock-'+kind,phase,startupStable:false,updatedAt:Date.now(),navigation:{type:'reload'},lastError:kind === 'error' ? {type:'error',message:'startup failed'} : null}));
             localStorage.removeItem('mk_last_startup_crash_incident');
         })();`});
         const evaluate=async expression => {
@@ -77,6 +84,27 @@ async function main() {
             throw new Error('recovery UI timeout');
         };
 
+        await navigate('?mock=evidence');
+        for(let attempt=0; attempt<300; attempt++) {
+            if(await evaluate(`typeof getMkStartupTiming==='function' && getMkStartupTiming().FIRST_CARD_VISIBLE!==undefined`)) break;
+            await delay(20);
+        }
+        const evidenceReplay=await evaluate(`({mode:!!window.__mkStartupRecoveryMode,init:filterResetInitAppCount,failures:localStorage.getItem('mk_startup_failure_count'),toastShown:document.getElementById('toast').classList.contains('show'),toast:document.getElementById('toast').textContent})`);
+        assert.deepStrictEqual(evidenceReplay,{mode:false,init:1,failures:'0',toastShown:false,toast:'알림 메시지'});
+        const incidentBeforePageshow=await evaluate(`localStorage.getItem('mk_last_startup_crash_incident')`);
+        const retainedEvidence=JSON.parse(incidentBeforePageshow);
+        assert.strictEqual(retainedEvidence.nextPageInstanceId,retainedEvidence.pageInstanceId);
+        assert.strictEqual(retainedEvidence.navigation.type,'back_forward');
+        const pageshowReplay=await evaluate(`(() => {
+            for(let run=0;run<10;run++) window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));
+            const marker=JSON.parse(localStorage.getItem('mk_startup_boot_marker'));
+            return {failures:localStorage.getItem('mk_startup_failure_count'),incident:localStorage.getItem('mk_last_startup_crash_incident'),pageInstanceId:marker.pageInstanceId,lastLifecycle:marker.lastLifecycle,persisted:marker.pageshowPersisted};
+        })()`);
+        assert.strictEqual(pageshowReplay.failures,'0');
+        assert.strictEqual(pageshowReplay.incident,incidentBeforePageshow);
+        assert.strictEqual(pageshowReplay.lastLifecycle,'pageshow');
+        assert.strictEqual(pageshowReplay.persisted,true);
+
         await navigate('?mock=render');
         const renderRecovery=await waitRecovery();
         const promotedRender=await evaluate(`JSON.parse(localStorage.getItem('mk_last_startup_crash_incident'))`);
@@ -88,6 +116,12 @@ async function main() {
         const promotedBoot=await evaluate(`JSON.parse(localStorage.getItem('mk_last_startup_crash_incident'))`);
         assert.strictEqual(promotedBoot.phase,'BOOT_START');
         assert.strictEqual(bootRecovery.init,0);
+
+        await navigate('?mock=error');
+        const errorRecovery=await waitRecovery();
+        const promotedError=await evaluate(`JSON.parse(localStorage.getItem('mk_last_startup_crash_incident'))`);
+        assert.strictEqual(errorRecovery.init,0);
+        assert.strictEqual(promotedError.lastError.message,'startup failed');
 
         await navigate('?safe=1');
         const forcedRecovery=await waitRecovery();
@@ -102,12 +136,11 @@ async function main() {
         const retry=await evaluate(`({mode:!!window.__mkStartupRecoveryMode,init:filterResetInitAppCount,stable:JSON.parse(localStorage.getItem('mk_startup_boot_marker')).startupStable,failures:localStorage.getItem('mk_startup_failure_count')})`);
         assert.deepStrictEqual(retry,{mode:false,init:1,stable:true,failures:'0'});
 
-        await evaluate(`localStorage.setItem('mk_startup_boot_marker',JSON.stringify({pageInstanceId:'retry-failed',phase:'BOOT_START',startupStable:false,updatedAt:Date.now()}))`);
-        await send('Page.reload',{ignoreCache:true});
+        await navigate('?mock=recrash');
         const retryFailure=await waitRecovery();
         assert.strictEqual(retryFailure.init,0);
         assert.strictEqual(firebaseRequests,0);
-        process.stdout.write(JSON.stringify({renderRecovery,promotedRender,bootRecovery,promotedBoot,forcedRecovery,retry,retryFailure,firebaseRequests,navigations},null,2)+'\n');
+        process.stdout.write(JSON.stringify({evidenceReplay,pageshowReplay,renderRecovery,promotedRender,bootRecovery,promotedBoot,errorRecovery,promotedError,forcedRecovery,retry,retryFailure,firebaseRequests,navigations},null,2)+'\n');
     } finally {
         if(socket && socket.readyState === WebSocket.OPEN) socket.close();
         edge.kill(); server.close(); await delay(300);

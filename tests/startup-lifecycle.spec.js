@@ -260,6 +260,7 @@ async function main() {
         assert.strictEqual(firebaseWrites,0);
         assert.strictEqual(firebaseRequests.length,0,'Startup and idle work must not access Firebase');
         await evaluate(`localStorage.removeItem(FILTER_RESET_TRACE_KEY)`);
+        await evaluate(`writeMkStartupMarker('STARTUP_STABLE',{startupStable:true})`);
         firebaseMode='normal';
         const baselineNavStart=navigations;
         const baselineStarted=Date.now();
