@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.202-manual-firebase-import -->
+<!-- deployment: v18.5.203-startup-crash-guard -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.202 - Firebase 수동 가져오기)</title>
+<title>MK (v18.5.203 - 시작 충돌 방지)</title>
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -569,7 +569,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.202 - Firebase 수동 가져오기)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.203 - 시작 충돌 방지)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -863,8 +863,59 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.202 - Firebase 수동 가져오기';
+    const APP_VERSION = 'v18.5.203 - 시작 충돌 방지';
     const mkStartupClockStartedAt = performance.now();
+    const MK_STARTUP_BOOT_MARKER_KEY = 'mk_startup_boot_marker';
+    const MK_LAST_STARTUP_CRASH_INCIDENT_KEY = 'mk_last_startup_crash_incident';
+    const MK_NAVIGATION_COUNTER_KEY = 'mk_navigation_counter';
+    const mkPageInstanceId = `mk_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    let mkStartupLastError = null;
+    function getMkNavigationInfo() {
+        const entry = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+        return entry ? { type:String(entry.type || ''), redirectCount:Number(entry.redirectCount) || 0 } : {};
+    }
+    function getMkStartupResourceCounts() {
+        return {
+            cards:Array.isArray(originalDeck) ? originalDeck.length : 0,
+            activeCards:Array.isArray(activeDeck) ? activeDeck.length : 0,
+            images:document.querySelectorAll('img').length,
+            svg:document.querySelectorAll('svg').length,
+            pdfAnnotations:pdfAnnotationSourceIndex instanceof Map ? pdfAnnotationSourceIndex.size : 0,
+            heapUsed:performance.memory ? Number(performance.memory.usedJSHeapSize) || 0 : null
+        };
+    }
+    function writeMkStartupMarker(phase, extra = {}) {
+        try {
+            const previous = JSON.parse(localStorage.getItem(MK_STARTUP_BOOT_MARKER_KEY) || 'null');
+            const marker = {
+                ...(previous && previous.pageInstanceId === mkPageInstanceId ? previous : {}),
+                pageInstanceId:mkPageInstanceId,
+                navigationCounter:Number(localStorage.getItem(MK_NAVIGATION_COUNTER_KEY)) || 0,
+                phase:String(phase), updatedAt:Date.now(), appVersion:APP_VERSION,
+                navigation:getMkNavigationInfo(), visibility:document.visibilityState,
+                cardId:String(activeDeck && activeDeck[currentIndex] && activeDeck[currentIndex].id || ''),
+                deck:String(currentDeckName || ''), resources:getMkStartupResourceCounts(),
+                lastError:mkStartupLastError, ...extra
+            };
+            localStorage.setItem(MK_STARTUP_BOOT_MARKER_KEY, JSON.stringify(marker));
+            return marker;
+        } catch(error) { return null; }
+    }
+    function initializeMkStartupIncident() {
+        try {
+            const previous = JSON.parse(localStorage.getItem(MK_STARTUP_BOOT_MARKER_KEY) || 'null');
+            const navigationCounter = (Number(localStorage.getItem(MK_NAVIGATION_COUNTER_KEY)) || 0) + 1;
+            localStorage.setItem(MK_NAVIGATION_COUNTER_KEY, String(navigationCounter));
+            if(previous && previous.startupStable !== true) {
+                localStorage.setItem(MK_LAST_STARTUP_CRASH_INCIDENT_KEY, JSON.stringify({
+                    ...previous, detectedAt:Date.now(), nextPageInstanceId:mkPageInstanceId,
+                    nextNavigationCounter:navigationCounter, nextNavigation:getMkNavigationInfo()
+                }));
+            }
+            writeMkStartupMarker('BOOT_START', { navigationCounter });
+        } catch(error) {}
+    }
+    setTimeout(initializeMkStartupIncident, 0);
     const mkStartupTiming = {
         version:APP_VERSION,
         jsStart:0,
@@ -876,9 +927,26 @@
     function markMkStartupPhase(name, detail = {}) {
         if(mkStartupTiming[name] === undefined) mkStartupTiming[name] = Math.round((performance.now() - mkStartupClockStartedAt) * 10) / 10;
         Object.assign(mkStartupTiming, detail);
+        writeMkStartupMarker(name, detail);
         return mkStartupTiming[name];
     }
     window.getMkStartupTiming = () => ({ ...mkStartupTiming });
+    window.getMkStartupCrashIncident = () => {
+        try { return JSON.parse(localStorage.getItem(MK_LAST_STARTUP_CRASH_INCIDENT_KEY) || 'null'); }
+        catch(error) { return null; }
+    };
+    window.addEventListener('error', event => {
+        mkStartupLastError = { type:'error', message:String(event.message || ''), source:String(event.filename || ''), line:Number(event.lineno) || 0 };
+        writeMkStartupMarker('UNHANDLED_ERROR');
+    });
+    window.addEventListener('unhandledrejection', event => {
+        const reason = event.reason;
+        mkStartupLastError = { type:'unhandledrejection', message:String(reason && reason.message || reason || '') };
+        writeMkStartupMarker('UNHANDLED_REJECTION');
+    });
+    window.addEventListener('pageshow', event => writeMkStartupMarker(event.persisted ? 'PAGESHOW_BFCACHE' : 'PAGESHOW'));
+    window.addEventListener('pagehide', event => writeMkStartupMarker('PAGEHIDE', { persisted:!!event.persisted }));
+    window.addEventListener('beforeunload', () => writeMkStartupMarker('BEFOREUNLOAD'));
     const BACKUP_CHECKSUM_VERSION = 2;
     const FIREBASE_BACKUP_PATH = '/apps/mk/backups';
     const FIREBASE_BACKUP_INDEX_PATH = '/apps/mk/backupIndex';
@@ -2362,20 +2430,19 @@
         markMkStartupPhase('windowLoad');
         updateTRButton();
         markMkStartupPhase('localDataLoadStart');
-        const pdfAnnotationIndexPromise = loadPdfAnnotationSourceIndex(fetch);
         const statsInitPromise = initializeStatsStore();
         await statsInitPromise;
-        markMkStartupPhase('statsLoaded');
+        markMkStartupPhase('LOCAL_STATS_READY');
         const hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
         const deckSource = hasCachedLibrary ? 'indexeddb' : 'github';
         if(!hasCachedLibrary) {
             await autoScanGitHub();
         }
-        await pdfAnnotationIndexPromise;
-        markMkStartupPhase('pdfAnnotationIndexReady', { pdfAnnotationCount:pdfAnnotationSourceIndex.size });
-        markMkStartupPhase('deckLoaded', { deckSource });
+        markMkStartupPhase('DECK_READY', { deckSource });
         startupSyncStarted = true;
         startupSyncCompleted = true;
+        markMkStartupPhase('SESSION_READY');
+        markMkStartupPhase('FIRST_CARD_RENDER_START');
         initApp();
         updateEmptyLocalStudyNotice();
         startupRestoreCompleted = true;
@@ -2386,8 +2453,11 @@
         }
         requestAnimationFrame(() => requestAnimationFrame(() => {
             markMkStartupPhase('firstVisiblePaint');
+            markMkStartupPhase('FIRST_CARD_VISIBLE');
+            writeMkStartupMarker('STARTUP_STABLE', { startupStable:true });
             startBackgroundStartupWork();
             runWhenIdle(() => {
+                loadPdfAnnotationSourceIndex(fetch).then(() => markMkStartupPhase('pdfAnnotationIndexReady', { pdfAnnotationCount:pdfAnnotationSourceIndex.size }));
                 cleanupOversizedViewState();
                 cleanupLegacyRecoverySnapshotsAndRestoreCache('startup-background');
                 loadTodayNewBaselineSnapshot()
@@ -6035,6 +6105,8 @@
             pdfAnnotationResolveCache.clear();
             console.log('[PDF-BLOCKREF] source index loaded:', pdfAnnotationSourceIndex.size);
             observeDynamicPdfAnnotations();
+            decorateDynamicPdfAnnotationSubtree(document.getElementById('question-section'));
+            decorateDynamicPdfAnnotationSubtree(document.getElementById('answer-section'));
             return true;
         } catch(error) {
             pdfAnnotationSourceIndex = new Map();
@@ -6054,7 +6126,6 @@
         const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
         
         try {
-            await loadPdfAnnotationSourceIndex();
             const deckFileList = options.deckFileList || await loadDeckFileList(headers);
             const res = deckFileList.listResponse;
             

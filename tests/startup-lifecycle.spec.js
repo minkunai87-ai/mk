@@ -114,6 +114,7 @@ async function main() {
             const externalPaintMs=Date.now()-started;
             const state=await evaluate(`({
                 timing:getMkStartupTiming(), pageInstanceId:filterResetPageInstanceId,
+                startupMarker:JSON.parse(localStorage.getItem('mk_startup_boot_marker') || 'null'),
                 filter:JSON.stringify(getFilterStateForStorage()), search:getCurrentFilterSearchQuery(),
                 sort:currentSortMode, secondary:currentSecondarySortMode, card:getCurrentCardId(),
                 renders:ioZoomDiagnostics.cardRenders, initCount:filterResetInitAppCount,
@@ -143,17 +144,21 @@ async function main() {
         const normal=await reload('normal');
         assert.strictEqual(normal.state.initCount,1);
         assert.strictEqual(normal.timing.firstRenderCount,1);
+        assert.strictEqual(normal.state.startupMarker.startupStable,true);
+        assert(['STARTUP_STABLE','pdfAnnotationIndexReady'].includes(normal.state.startupMarker.phase));
+        assert.strictEqual(normal.state.startupMarker.pageInstanceId.startsWith('mk_'),true);
         assert.strictEqual(normal.state.filter,'["mem"]',JSON.stringify({saved,normal}));
         assert.strictEqual(normal.state.search,'fixture');
         assert.strictEqual(normal.state.card,saved.card);
-        assert.strictEqual(normal.state.pdfIcon,true);
-        assert(normal.state.pdfHref.startsWith('mkpdf://open?'),JSON.stringify(normal.state));
-        await delay(100);
-        const pdfAt100=await evaluate(`document.querySelector('#question-section .mk-pdf-annotation-icon')?.getAttribute('href') || ''`);
+        let pdfAt100='';
+        for(let attempt=0; attempt<20 && !pdfAt100; attempt++) {
+            await delay(50);
+            pdfAt100=await evaluate(`document.querySelector('#question-section .mk-pdf-annotation-icon')?.getAttribute('href') || ''`);
+        }
+        assert(pdfAt100.startsWith('mkpdf://open?'),JSON.stringify(normal.state));
         await delay(400);
         const pdfAt500=await evaluate(`document.querySelector('#question-section .mk-pdf-annotation-icon')?.getAttribute('href') || ''`);
-        assert.strictEqual(pdfAt100,normal.state.pdfHref);
-        assert.strictEqual(pdfAt500,normal.state.pdfHref);
+        assert.strictEqual(pdfAt500,pdfAt100);
 
         let postPaintFilter; let postPaintFilterAfter;
 
@@ -191,6 +196,16 @@ async function main() {
             }
             await delay(500);
         }
+        const simulatedIncident=await evaluate(`(() => {
+            const marker=JSON.parse(localStorage.getItem('mk_startup_boot_marker'));
+            marker.pageInstanceId='simulated-incomplete-boot'; marker.phase='FIRST_CARD_RENDER_START'; marker.startupStable=false;
+            localStorage.setItem('mk_startup_boot_marker',JSON.stringify(marker));
+            initializeMkStartupIncident();
+            return getMkStartupCrashIncident();
+        })()`);
+        assert.strictEqual(simulatedIncident.pageInstanceId,'simulated-incomplete-boot');
+        assert.strictEqual(simulatedIncident.phase,'FIRST_CARD_RENDER_START');
+        assert.notStrictEqual(simulatedIncident.nextPageInstanceId,simulatedIncident.pageInstanceId);
         postPaintFilter=await evaluate(`(() => {
             window.__mkDelayedFilterTest={fullDeckFallbacks:0};
             const originalSetActiveDeckWithTrace=setActiveDeckWithTrace;
