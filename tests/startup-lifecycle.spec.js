@@ -204,13 +204,16 @@ async function main() {
             return {filter:JSON.stringify(getFilterStateForStorage()),card:getCurrentCardId(),revision:userInteractionRevision,renders:ioZoomDiagnostics.cardRenders,pageInstanceId:filterResetPageInstanceId};
         })()`);
         await delay(10200);
-        postPaintFilterAfter=await evaluate(`({filter:JSON.stringify(getFilterStateForStorage()),card:getCurrentCardId(),revision:userInteractionRevision,renders:ioZoomDiagnostics.cardRenders,pageInstanceId:filterResetPageInstanceId,fullDeckFallbacks:window.__mkDelayedFilterTest.fullDeckFallbacks,backgroundComplete:learningStatsReady && reviewHistoryLedgerReady})`);
+        postPaintFilterAfter=await evaluate(`({filter:JSON.stringify(getFilterStateForStorage()),card:getCurrentCardId(),revision:userInteractionRevision,renders:ioZoomDiagnostics.cardRenders,pageInstanceId:filterResetPageInstanceId,fullDeckFallbacks:window.__mkDelayedFilterTest.fullDeckFallbacks,learningStatsReady,reviewHistoryLedgerReady})`);
         assert.strictEqual(postPaintFilterAfter.filter,postPaintFilter.filter);
         assert.strictEqual(postPaintFilterAfter.card,postPaintFilter.card);
         assert.strictEqual(postPaintFilterAfter.pageInstanceId,postPaintFilter.pageInstanceId);
         assert.strictEqual(postPaintFilterAfter.renders,postPaintFilter.renders);
         assert.strictEqual(postPaintFilterAfter.fullDeckFallbacks,0);
-        assert.strictEqual(postPaintFilterAfter.backgroundComplete,true);
+        assert.strictEqual(postPaintFilterAfter.learningStatsReady,true);
+        assert.strictEqual(postPaintFilterAfter.reviewHistoryLedgerReady,false);
+        const lazyLedger=await evaluate(`initializeReviewHistoryLedger().then(() => ({ready:reviewHistoryLedgerReady,samePromise:initializeReviewHistoryLedger()===reviewHistoryLedgerInitializationPromise}))`);
+        assert.deepStrictEqual(lazyLedger,{ready:true,samePromise:true});
         const duplicateGuard=await evaluate(`(() => { const before=ioZoomDiagnostics.cardRenders; const result=initApp(); return {result,initCount:filterResetInitAppCount,renderDelta:ioZoomDiagnostics.cardRenders-before}; })()`);
         assert.deepStrictEqual(duplicateGuard,{result:false,initCount:1,renderDelta:0});
         assert.strictEqual(firebaseWrites,0);
