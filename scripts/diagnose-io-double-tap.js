@@ -83,11 +83,13 @@ async function main() {
             if (await evaluate('Object.values(library||{}).reduce((n,c)=>n+c.length,0)') > 0) break;
         }
         const setup = await evaluate(`(() => {
-            const entry = Object.entries(library).map(([name,cards]) => ({name,cards,io:cards.filter(getImageOcclusionGroupKey),groupCount:new Set(cards.map(getImageOcclusionGroupKey).filter(Boolean)).size})).filter(item => item.groupCount >= 3).sort((a,b) => Math.max(...b.io.map(c=>String(c.q||'').length))-Math.max(...a.io.map(c=>String(c.q||'').length)))[0];
+            const desiredImage='io1-2_1780227484684_0.png';
+            const entries=Object.entries(library).map(([name,cards]) => ({name,cards,io:cards.filter(getImageOcclusionGroupKey),groupCount:new Set(cards.map(getImageOcclusionGroupKey).filter(Boolean)).size}));
+            const entry=entries.find(item=>item.cards.some(card=>getImageOcclusionGroupKey(card)==='image:'+desiredImage)) || entries.filter(item=>item.groupCount>=3).sort((a,b)=>Math.max(...b.io.map(c=>String(c.q||'').length))-Math.max(...a.io.map(c=>String(c.q||'').length)))[0];
             currentDeckName=entry.name; originalDeck=entry.cards; activeDeck=entry.cards.slice(); ioImageGroupCache={cards:null,length:0,groups:[],cardToGroup:new Map()};
-            const groups=getIOImageGroups().groups; currentIndex=groups[0].cardIndices[0]; showCard();
+            const groups=getIOImageGroups().groups; const targetGroup=groups.find(group=>group.key==='image:'+desiredImage)||groups[0]; currentIndex=targetGroup.cardIndices[0]; showCard();
             const wrapper=document.querySelector('#question-section .mk-io-wrapper'); const rect=wrapper.getBoundingClientRect();
-            return {deck:entry.name,groups:groups.length,x:rect.left+rect.width/2,y:Math.min(rect.bottom-4,rect.top+Math.min(180,rect.height/2)),cardId:String(activeDeck[currentIndex].id),group:getImageOcclusionGroupKey(activeDeck[currentIndex]),image:wrapper.dataset.mkIoImage};
+            const img=wrapper.querySelector('img'); return {deck:entry.name,groups:groups.length,x:rect.left+rect.width/2,y:Math.min(rect.bottom-4,rect.top+Math.min(180,rect.height/2)),cardId:String(activeDeck[currentIndex].id),group:getImageOcclusionGroupKey(activeDeck[currentIndex]),image:wrapper.dataset.mkIoImage,natural:[img.naturalWidth,img.naturalHeight],client:[img.clientWidth,img.clientHeight]};
         })()`);
         await delay(1000);
         const listenerCountsBefore = await evaluate(`(() => { const wrapper=document.querySelector('#question-section .mk-io-wrapper'); return {windowResize:(getEventListeners(window).resize||[]).length,touchstart:(getEventListeners(wrapper).touchstart||[]).length,resizeObservers:{...window.__mkResizeObserverDiagnostics},activeTargets:ioZoomDiagnostics.activeTargets,pendingFrames:ioZoomDiagnostics.pendingFrames,images:document.images.length,ioImages:wrapper.querySelectorAll('img').length,svgMasks:wrapper.querySelectorAll('svg,.mk-io-layer').length,overlays:document.querySelectorAll('.mk-high-res-zoom-layer').length,nodes:document.querySelectorAll('*').length,trace:window.getMKIOZoomTrace().length}; })()`);
@@ -103,7 +105,15 @@ async function main() {
                 await delay(70);
             }
         };
-        for (let i = 0; i < 30; i++) { await doubleTap(); await delay(480); }
+        await doubleTap(); await delay(100);
+        const highResZoom = await evaluate(`(() => { const wrapper=document.querySelector('#question-section .mk-io-wrapper');const img=wrapper.querySelector('img');const overlay=document.querySelector('.mk-high-res-zoom-layer');const originalLayer=wrapper.querySelector('.mk-io-layer');const overlayLayer=overlay?.querySelector('.mk-io-layer');const rect=overlay?.getBoundingClientRect();return {scale:wrapper._mediaZoomState.scale,wrapperTransform:wrapper.style.transform,overlayCount:document.querySelectorAll('.mk-high-res-zoom-layer').length,overlaySize:[Number(overlay?.style.width.replace('px',''))||0,Number(overlay?.style.height.replace('px',''))||0],displaySize:rect?[rect.width,rect.height]:[0,0],natural:[img.naturalWidth,img.naturalHeight],maskViewBox:[originalLayer?.getAttribute('viewBox')||'',overlayLayer?.getAttribute('viewBox')||''],maskPathMatch:originalLayer?.innerHTML===overlayLayer?.innerHTML}; })()`);
+        await evaluate(`(() => { const wrapper=document.querySelector('#question-section .mk-io-wrapper');const make=(id,x)=>new Touch({identifier:id,target:wrapper,clientX:x,clientY:180});const start=[make(1,100),make(2,200)];wrapper.dispatchEvent(new TouchEvent('touchstart',{touches:start,targetTouches:start,changedTouches:start,bubbles:true,cancelable:true}));const moved=[make(1,65),make(2,235)];wrapper.dispatchEvent(new TouchEvent('touchmove',{touches:moved,targetTouches:moved,changedTouches:moved,bubbles:true,cancelable:true}));wrapper.dispatchEvent(new TouchEvent('touchend',{touches:[],targetTouches:[],changedTouches:moved,bubbles:true,cancelable:true}));})()`);
+        await delay(100);
+        const pinchZoom = await evaluate(`(() => {const wrapper=document.querySelector('#question-section .mk-io-wrapper');const overlay=document.querySelector('.mk-high-res-zoom-layer');return {scale:wrapper._mediaZoomState.scale,wrapperTransform:wrapper.style.transform,overlayCount:document.querySelectorAll('.mk-high-res-zoom-layer').length,overlayNatural:[Number(overlay?.style.width.replace('px',''))||0,Number(overlay?.style.height.replace('px',''))||0]};})()`);
+        await delay(500);
+        await doubleTap(); await delay(480);
+        for (let i = 0; i < 20; i++) { await doubleTap(); await delay(480); }
+        const cycleResult = await evaluate(`({scale:document.querySelector('#question-section .mk-io-wrapper')._mediaZoomState.scale,overlayCount:document.querySelectorAll('.mk-high-res-zoom-layer').length})`);
         const sameImageDoubleTapStarts = consoleEvents.filter(text => text.includes('DOUBLE_TAP_START')).length;
         const afterTaps = await evaluate(`({scale:document.querySelector('#question-section .mk-io-wrapper')._mediaZoomState.scale,touchstart:(getEventListeners(document.querySelector('#question-section .mk-io-wrapper')).touchstart||[]).length})`);
         for (let i = 0; i < 20; i++) {
@@ -136,7 +146,10 @@ async function main() {
         await delay(100);
         const metrics = await send('Performance.getMetrics');
         const metric = name => metrics.result.metrics.find(item => item.name === name)?.value || 0;
-        console.log(JSON.stringify({setup,listenerCountsBefore,afterTaps,listenerCountsAfter,sameImageDoubleTapStarts,doubleTapStarts:consoleEvents.filter(text=>text.includes('DOUBLE_TAP_START')).length,diagnosticLogCount:consoleEvents.filter(text=>text.includes('MK_IO_ZOOM_FIRST_ERROR')).length,zoomErrors:consoleEvents.filter(text=>/DOUBLE_TAP_ERROR|IMAGE_ZOOM_ERROR|ZOOM_RESET_BY_ERROR/.test(text)),firstException:exceptions[0]||null,exceptionCount:exceptions.length,jsHeapUsed:metric('JSHeapUsedSize'),nodes:metric('Nodes')}));
+        if(highResZoom.scale !== 1.7 || highResZoom.wrapperTransform || highResZoom.overlayCount !== 1 || highResZoom.overlaySize.join('x') !== highResZoom.natural.join('x') || highResZoom.maskViewBox[0] !== highResZoom.maskViewBox[1] || !highResZoom.maskPathMatch) throw new Error('IO high-resolution overlay verification failed');
+        if(pinchZoom.scale <= 1.7 || pinchZoom.wrapperTransform || pinchZoom.overlayCount !== 1 || pinchZoom.overlayNatural.join('x') !== highResZoom.natural.join('x')) throw new Error('IO high-resolution pinch verification failed');
+        if(cycleResult.scale !== 1 || cycleResult.overlayCount !== 0) throw new Error('IO overlay accumulated after 20 cycles');
+        console.log(JSON.stringify({setup,highResZoom,pinchZoom,cycleResult,listenerCountsBefore,afterTaps,listenerCountsAfter,sameImageDoubleTapStarts,doubleTapStarts:consoleEvents.filter(text=>text.includes('DOUBLE_TAP_START')).length,diagnosticLogCount:consoleEvents.filter(text=>text.includes('MK_IO_ZOOM_FIRST_ERROR')).length,zoomErrors:consoleEvents.filter(text=>/DOUBLE_TAP_ERROR|IMAGE_ZOOM_ERROR|ZOOM_RESET_BY_ERROR/.test(text)),firstException:exceptions[0]||null,exceptionCount:exceptions.length,jsHeapUsed:metric('JSHeapUsedSize'),nodes:metric('Nodes')}));
         socket.close();
     } finally {
         browser.kill();

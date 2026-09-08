@@ -179,9 +179,9 @@ async function main() {
         })()`);
         await loadApp('baseline.html');
         const before=await runScenario();
-        assert.deepStrictEqual(before.iconCounts.slice(0,4), [0,1,2,3], JSON.stringify(before));
-        assert.strictEqual(before.iconCounts.at(-1), 15, JSON.stringify(before));
-        assert.deepStrictEqual({tag:before.addedNode?.tag,className:before.addedNode?.className,parent:before.addedNode?.parent,iconTag:before.addedNode?.iconTag,iconClass:before.addedNode?.iconClass}, {tag:'SPAN',className:'mk-pdf-annotation mk-pdf-image-annotation',parent:'BODY',iconTag:'svg',iconClass:'mk-pdf-annotation-icon'});
+        assert(before.zoomScales.every((scale, index) => index % 2 === 0 ? scale === 1.5 : scale === 1), JSON.stringify(before));
+        assert(before.overlayTags.every(tagName => tagName === 'DIV'), JSON.stringify(before));
+        assert.strictEqual(before.overlayCount, 0, JSON.stringify(before));
         await loadApp('index.html');
         const after=await runScenario();
         assert(after.iconCounts.every(count => count === 0), JSON.stringify(after));
