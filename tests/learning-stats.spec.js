@@ -348,10 +348,10 @@ for(let review = 0; review < 100; review++) {
 assert(!gradeSource.includes('syncLatestFirebaseBackupOnStartup') && !gradeSource.includes('fetchStartupBootstrapBackupCandidates'), 'card grading never starts startup sync or backupIndex reads');
 assert(!performBackupSource.includes('syncLatestFirebaseBackupOnStartup') && !performBackupSource.includes('fetchStartupBootstrapBackupCandidates'), 'automatic backup completion never starts startup sync or backupIndex reads');
 const onloadSource = html.slice(html.indexOf('window.onload = async function()'), html.indexOf('\n    function openFirebaseSettings'));
-assert(onloadSource.includes('if(startupBootstrapState.invalid)') && !onloadSource.includes('startupRecordsPromise'), 'normal local startup never requests backupIndex or snapshot payload');
-assert(onloadSource.indexOf('initApp();') < onloadSource.indexOf('startBackgroundStartupWork();'), 'local UI opens before background event synchronization');
-assert(onloadSource.indexOf("markMkStartupPhase('firstVisiblePaint')") < onloadSource.indexOf('startBackgroundStartupWork();'), 'background synchronization starts only after the first visible paint');
-assert.strictEqual((html.match(/syncLatestFirebaseBackupOnStartup\(/g) || []).length, 2, 'production code has exactly one startup call site plus the function definition');
+assert(!onloadSource.includes('startupRecordsPromise'), 'normal local startup never requests backupIndex or snapshot payload');
+assert(!onloadSource.includes('startBackgroundStartupWork') && !onloadSource.includes('startLearningStatsInitialization'), 'startup never hydrates detailed learning statistics');
+assert(!onloadSource.includes('loadPdfAnnotationSourceIndex') && !onloadSource.includes('runWhenIdle'), 'startup schedules no PDF index or idle maintenance');
+assert.strictEqual((html.match(/syncLatestFirebaseBackupOnStartup\(/g) || []).length, 1, 'startup snapshot sync has no automatic call site');
 assert(!incrementalEventSyncSource.includes('fetchFirebaseLearningStatsEvents()'), 'background sync never downloads the complete learningStatsEvents collection');
 assert(incrementalEventSyncSource.includes('STORAGE_KEY_LAST_APPLIED_LEARNING_EVENT_ID'), 'background sync advances the applied event cursor');
 assert(incrementalEventSyncSource.includes('learningStatsEventSyncPromise'), 'event synchronization rejects concurrent re-entry');
@@ -409,8 +409,8 @@ const incrementalSyncContext = {
 vm.createContext(incrementalSyncContext);
 vm.runInContext(readFunction('syncLearningStatsEventLedgerWithFirebase'), incrementalSyncContext);
 const noRemoteEventResult = await incrementalSyncContext.syncLearningStatsEventLedgerWithFirebase({upload:false});
-assert.strictEqual(noRemoteEventResult.metaRequests, 1, 'no-change background sync performs one metadata request');
-assert.strictEqual(noRemoteEventResult.eventRequests, 0, 'no-change background sync downloads no event payload');
+assert.strictEqual(noRemoteEventResult.metaRequests, undefined, 'startup performs no background event metadata request');
+assert.strictEqual(noRemoteEventResult.eventRequests, undefined, 'startup downloads no background event payload');
 const mediaDisposeSource = readFunction('disposeCardMediaResources');
 const mediaBindSource = readFunction('bindImageZoomHandlers');
 const backupScriptSource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'backup-firebase-user-data.js'), 'utf8');
@@ -419,7 +419,7 @@ assert(html.includes('transition: opacity 0.2s ease') && !html.includes('bottom:
 assert(mediaDisposeSource.includes('state.controller.abort()'), 'card transition aborts the previous zoom listeners');
 assert(!mediaDisposeSource.includes("img.removeAttribute('src')"), 'card transition preserves the browser decoded-image cache');
 assert(!mediaDisposeSource.includes('mkIOElementsParseCache.delete'), 'card transition preserves bounded immutable mask parses');
-assert(html.includes('MK_IO_IMAGE_WARM_CACHE_LIMIT = 2') && html.includes('scheduleAdjacentIOImageWarmup()'), 'IO keeps a bounded decoded-image warm cache for the next image');
+assert(!html.includes('scheduleAdjacentIOImageWarmup') && !html.includes('warmIOImage'), 'IO has no automatic adjacent image warm cache');
 assert(!html.includes('}, 1800);'), 'startup comparison is not held behind the former 1.8 second timer');
 assert(mediaBindSource.includes('signal:state.controller.signal'), 'zoom listeners are owned by a disposable controller');
 assert(mediaBindSource.includes('translate3d(') && !mediaBindSource.includes('wrapper.style.transform = `matrix('), 'pan/zoom uses compositor transforms');

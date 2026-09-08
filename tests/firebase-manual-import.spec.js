@@ -69,7 +69,7 @@ async function main() {
         await send('Page.navigate',{url:origin+'/index.html'});
         const ready=async()=>{
             for(let i=0;i<2400;i++){
-                try{if(await evaluate(`typeof startupRestoreCompleted !== 'undefined' && startupRestoreCompleted && learningStatsReady`))return;}catch{}
+                try{if(await evaluate(`typeof startupRestoreCompleted !== 'undefined' && startupRestoreCompleted`))return;}catch{}
                 await pause(50);
             }throw new Error('startup not ready');
         };

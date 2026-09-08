@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.208-lazy-review-history-ledger -->
+<!-- deployment: v18.5.209-lazy-maintenance-startup -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.208 - history ledger lazy init)</title>
+<title>MK (v18.5.209 - lazy maintenance startup)</title>
 
 <script>
     (() => {
@@ -580,7 +580,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.208 - history ledger lazy init)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.209 - lazy maintenance startup)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -874,7 +874,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.208 - history ledger lazy init';
+    const APP_VERSION = 'v18.5.209 - lazy maintenance startup';
     const mkStartupClockStartedAt = performance.now();
     const MK_STARTUP_BOOT_MARKER_KEY = 'mk_startup_boot_marker';
     const mkPageInstanceId = window.__mkBootstrapPageInstanceId || `mk_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -2392,7 +2392,6 @@
     let startupRestoreCompleted = false;
     let userInteractionRevision = 0;
     let learningStatsInitializationPromise = null;
-    let backgroundStartupPromise = null;
     let reviewHistoryLedgerInitializationPromise = null;
 
     function markUserUiInteraction() {
@@ -2406,13 +2405,6 @@
             .then(result => { learningStatsReady = learningStatsRestoreState === 'success'; return result; })
             .catch(error => { console.warn('[MK_BACKGROUND_LEARNING_STATS_INIT_FAILED]', error); return null; });
         return learningStatsInitializationPromise;
-    }
-
-    function startBackgroundStartupWork() {
-        if(backgroundStartupPromise) return backgroundStartupPromise;
-        backgroundStartupPromise = startLearningStatsInitialization()
-            .catch(error => { console.warn('[MK_LOCAL_DETAIL_INIT_FAILED]', error); return null; });
-        return backgroundStartupPromise;
     }
 
     window.onload = async function() {
@@ -2437,22 +2429,10 @@
         startupRestoreCompleted = true;
         document.getElementById('loading').style.display = 'none';
         markMkStartupPhase('loadingHidden');
-        if(hasCachedLibrary) {
-            refreshCachedLibraryIfNeeded(fetch);
-        }
         requestAnimationFrame(() => requestAnimationFrame(() => {
             markMkStartupPhase('firstVisiblePaint');
             markMkStartupPhase('FIRST_CARD_VISIBLE');
             writeMkStartupMarker('STARTUP_STABLE', { startupStable:true });
-            startBackgroundStartupWork();
-            runWhenIdle(() => {
-                loadPdfAnnotationSourceIndex(fetch).then(() => markMkStartupPhase('pdfAnnotationIndexReady', { pdfAnnotationCount:pdfAnnotationSourceIndex.size }));
-                cleanupOversizedViewState();
-                cleanupLegacyRecoverySnapshotsAndRestoreCache('startup-background');
-                loadTodayNewBaselineSnapshot()
-                    .then(() => registerTodayNewCards())
-                    .catch(error => console.warn('[MK_BACKGROUND_TODAY_NEW_INIT_FAILED]', error));
-            });
         }));
     };
 
@@ -2556,6 +2536,8 @@
                 if(!isAuto) showFirebaseMigrationBlockedReason(migrationWrite);
                 return false;
             }
+            // Detailed statistics are hydrated on demand only when an upload is actually due.
+            if(learningStatsRestoreState !== 'success') await startLearningStatsInitialization();
             if (learningStatsRestoreState !== 'success' || learningStatsStartupSyncInProgress) {
                 console.warn('[MK_BACKUP_BLOCKED_LEARNING_STATS_NOT_RESTORED]', {
                     state: learningStatsRestoreState,
@@ -8073,6 +8055,10 @@
         const startedAt = performance.now();
         toggleMenu(false);
         learningStatsViewPath = '';
+        await Promise.all([
+            startLearningStatsInitialization(),
+            todayNewBaselineIds instanceof Set ? Promise.resolve(true) : loadTodayNewBaselineSnapshot()
+        ]);
         // The append-only ledger is the only source of truth for completed learning history.
         // Wait for the current review append, then rebuild the display model from the full ledger.
         const ledgerRead = await refreshLearningStatsReadModelFromLedger('open-learning-stats');
@@ -9220,9 +9206,6 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 }
                 img.onerror = function() { this.style.display = 'none'; };
             }
-            if(img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === '1' || img.closest('.mk-io-wrapper')) {
-                useWarmedIOImageElement(img);
-            }
         });
 
         logPdfCardTrace(trace, 'TRACE-5 after image processing', snapshotPdfTraceHtml(wrap));
@@ -9461,8 +9444,6 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                             delete wrapper.dataset.mkIoTargetRect;
                         }
                         wrapper.dataset.mkIoRendered = '1';
-                        if(wrapper.closest('#question-section')) scheduleAdjacentIOImageWarmup();
-
                         if (
                             wrapper.closest('#question-section') &&
                             document.getElementById('answer-section').style.display === 'none' &&
@@ -10111,7 +10092,8 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         openRecommendedStudySheet({ mode: 'required' });
     }
 
-    function openTodayNewSheet() {
+    async function openTodayNewSheet() {
+        if(!(todayNewBaselineIds instanceof Set)) await loadTodayNewBaselineSnapshot();
         openRecommendedStudySheet({ mode: 'new' });
     }
 
@@ -10714,11 +10696,6 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         return /data-annotation-uuid|data-source-uuid|block-ref|[📌🟡🔵🟢🟣🔴🟠]\s*<b[^>]*>P\d+/i.test(text);
     }
 
-    function runWhenIdle(callback) {
-        if(typeof requestIdleCallback === 'function') return requestIdleCallback(callback, { timeout: 600 });
-        return setTimeout(callback, 32);
-    }
-
 function getIOImageGroups() {
         if(ioImageGroupCache.cards === activeDeck && ioImageGroupCache.length === activeDeck.length) return ioImageGroupCache;
         const groups = [];
@@ -10738,68 +10715,6 @@ function getIOImageGroups() {
         });
         ioImageGroupCache = { cards: activeDeck, length: activeDeck.length, groups, cardToGroup };
         return ioImageGroupCache;
-    }
-
-    const mkIOImageWarmCache = new Map();
-    const MK_IO_IMAGE_WARM_CACHE_LIMIT = 2;
-    function getIOImageUrlFromGroupKey(groupKey) {
-        const imageKey = String(groupKey || '').replace(/^image:/, '');
-        if(!imageKey) return '';
-        if(/^https?:\/\//i.test(imageKey)) return imageKey;
-        let fileName = imageKey.split('/').pop().trim();
-        try { fileName = decodeURIComponent(fileName); } catch(error) {}
-        if(fileName.normalize) fileName = fileName.normalize('NFC');
-        return githubRawBase + encodeURIComponent(fileName);
-    }
-
-    function warmIOImage(groupKey) {
-        const url = getIOImageUrlFromGroupKey(groupKey);
-        if(!url) return null;
-        const cached = mkIOImageWarmCache.get(url);
-        if(cached) {
-            mkIOImageWarmCache.delete(url);
-            mkIOImageWarmCache.set(url, cached);
-            return cached.ready;
-        }
-        const image = new Image();
-        image.decoding = 'async';
-        image.loading = 'eager';
-        image.src = url;
-        const ready = typeof image.decode === 'function'
-            ? image.decode().catch(() => null)
-            : new Promise(resolve => { image.onload = image.onerror = resolve; });
-        mkIOImageWarmCache.set(url, { image, ready });
-        while(mkIOImageWarmCache.size > MK_IO_IMAGE_WARM_CACHE_LIMIT) {
-            const oldestKey = mkIOImageWarmCache.keys().next().value;
-            mkIOImageWarmCache.delete(oldestKey);
-        }
-        return ready;
-    }
-
-    function useWarmedIOImageElement(renderedImage) {
-        const url = renderedImage && (renderedImage.currentSrc || renderedImage.src);
-        const cached = url && mkIOImageWarmCache.get(url);
-        const warmedImage = cached && cached.image;
-        if(!warmedImage || warmedImage === renderedImage || !warmedImage.complete || !warmedImage.naturalWidth) return renderedImage;
-        Array.from(renderedImage.attributes).forEach(attribute => {
-            if(attribute.name !== 'src') warmedImage.setAttribute(attribute.name, attribute.value);
-        });
-        warmedImage.onerror = renderedImage.onerror;
-        renderedImage.replaceWith(warmedImage);
-        mkIOImageWarmCache.delete(url);
-        mkIOImageWarmCache.set(url, cached);
-        return warmedImage;
-    }
-
-    function scheduleAdjacentIOImageWarmup() {
-        const cache = getIOImageGroups();
-        const groupIndex = cache.cardToGroup.get(currentIndex);
-        if(groupIndex === undefined) return;
-        const keys = [
-            cache.groups[groupIndex] && cache.groups[groupIndex].key,
-            cache.groups[groupIndex + 1] && cache.groups[groupIndex + 1].key
-        ].filter(Boolean);
-        runWhenIdle(() => keys.forEach(warmIOImage));
     }
 
     function getIOImageVisitKey(groupKey) {
@@ -10980,21 +10895,10 @@ function getIOImageGroups() {
         bindImageZoomHandlers(qSection);
         updateIOImageNavigation(card);
 
-        if(isIOCard) {
-            // PDF decoration is unrelated to the mask becoming interactive. Defer rare IO+PDF
-            // combinations until idle so first paint / next-card navigation stays instant.
-            if(cardMayContainPdfAnnotation(card, false)) {
-                runWhenIdle(() => {
-                    if(activeDeck && activeDeck[currentIndex] === card && qSection.isConnected) {
-                        decoratePdfAnnotations(qSection, card, currentCardPdfTrace);
-                    }
-                });
-            }
-        } else {
+        if(!isIOCard) {
             decoratePdfAnnotations(qSection, card, currentCardPdfTrace);
             decoratePdfAnnotations(aSection, card);
             bindImageZoomHandlers(aSection);
-            observeDynamicPdfAnnotations();
             scheduleDateDomMutationLog('after-final-dom-update');
         }
 
@@ -11037,16 +10941,7 @@ function getIOImageGroups() {
         renderMkImageOcclusions(aDiv);
         bindImageZoomHandlers(aDiv);
 
-        if(isIOCard) {
-            if(cardMayContainPdfAnnotation(card, true)) {
-                runWhenIdle(() => {
-                    if(activeDeck && activeDeck[currentIndex] === card) {
-                        decoratePdfAnnotations(qDiv, card);
-                        decoratePdfAnnotations(aDiv, card);
-                    }
-                });
-            }
-        } else {
+        if(!isIOCard) {
             decoratePdfAnnotations(qDiv, card);
             decoratePdfAnnotations(aDiv, card);
             bindImageZoomHandlers(qDiv);

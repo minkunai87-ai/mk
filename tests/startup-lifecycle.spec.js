@@ -12,7 +12,7 @@ const edgePath = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const startupPdfUuid = '6a69ef21-c0f1-4182-a125-f34e23de8d0e';
 const fixture = Array.from({length:200}, (_, index) => index === 0
-    ? `fixture\t<span data-source-uuid="${startupPdfUuid}"><img src="178_${startupPdfUuid}_startup.png"> fixture question 0</span>\tfixture answer 0`
+    ? `fixture\t<a href="fixture.pdf"></a>📌<b>P1</b><span data-source-uuid="${startupPdfUuid}"> fixture question 0</span>\tfixture answer 0`
     : `fixture\tfixture question ${index}\tfixture answer ${index}`).join('\n');
 const server = http.createServer((request, response) => {
     const pathname = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname);
@@ -145,20 +145,18 @@ async function main() {
         assert.strictEqual(normal.state.initCount,1);
         assert.strictEqual(normal.timing.firstRenderCount,1);
         assert.strictEqual(normal.state.startupMarker.startupStable,true);
-        assert(['STARTUP_STABLE','pdfAnnotationIndexReady'].includes(normal.state.startupMarker.phase));
+        assert.strictEqual(normal.state.startupMarker.phase,'STARTUP_STABLE');
         assert.strictEqual(normal.state.startupMarker.pageInstanceId.startsWith('mk_'),true);
         assert.strictEqual(normal.state.filter,'["mem"]',JSON.stringify({saved,normal}));
         assert.strictEqual(normal.state.search,'fixture');
         assert.strictEqual(normal.state.card,saved.card);
-        let pdfAt100='';
-        for(let attempt=0; attempt<20 && !pdfAt100; attempt++) {
-            await delay(50);
-            pdfAt100=await evaluate(`document.querySelector('#question-section .mk-pdf-annotation-icon')?.getAttribute('href') || ''`);
-        }
-        assert(pdfAt100.startsWith('mkpdf://open?'),JSON.stringify(normal.state));
-        await delay(400);
-        const pdfAt500=await evaluate(`document.querySelector('#question-section .mk-pdf-annotation-icon')?.getAttribute('href') || ''`);
-        assert.strictEqual(pdfAt500,pdfAt100);
+        const directPdf=await evaluate(`(() => {
+            const card={id:'direct-pdf',q:'<a href="fixture.pdf"></a>📌<b>P1</b>direct',a:''};
+            const rendered=createDOM(card,false);
+            return {href:rendered.querySelector('.mk-pdf-annotation-icon')?.getAttribute('href') || '',indexStarted:pdfAnnotationIndexLoadPromise !== null};
+        })()`);
+        assert(directPdf.href.startsWith('mkpdf://open?'),JSON.stringify(directPdf));
+        assert.strictEqual(directPdf.indexStarted,false);
 
         let postPaintFilter; let postPaintFilterAfter;
 
@@ -190,10 +188,6 @@ async function main() {
             assert.strictEqual(result.timing.firstRenderCount,1);
             assert.strictEqual(result.state.filter,'["mem"]');
             repeated.push({firstVisiblePaint:result.timing.firstVisiblePaint,externalPaintMs:result.externalPaintMs,initCount:result.state.initCount,firstRenderCount:result.timing.firstRenderCount});
-            for(let attempt=0; attempt<100; attempt++) {
-                if(await evaluate(`learningStatsReady && reviewHistoryLedgerReady`)) break;
-                await delay(20);
-            }
             await delay(500);
         }
         postPaintFilter=await evaluate(`(() => {
@@ -210,8 +204,10 @@ async function main() {
         assert.strictEqual(postPaintFilterAfter.pageInstanceId,postPaintFilter.pageInstanceId);
         assert.strictEqual(postPaintFilterAfter.renders,postPaintFilter.renders);
         assert.strictEqual(postPaintFilterAfter.fullDeckFallbacks,0);
-        assert.strictEqual(postPaintFilterAfter.learningStatsReady,true);
+        assert.strictEqual(postPaintFilterAfter.learningStatsReady,false);
         assert.strictEqual(postPaintFilterAfter.reviewHistoryLedgerReady,false);
+        const lazyLearningStats=await evaluate(`startLearningStatsInitialization().then(() => ({ready:learningStatsReady,samePromise:startLearningStatsInitialization()===learningStatsInitializationPromise}))`);
+        assert.deepStrictEqual(lazyLearningStats,{ready:true,samePromise:true});
         const lazyLedger=await evaluate(`initializeReviewHistoryLedger().then(() => ({ready:reviewHistoryLedgerReady,samePromise:initializeReviewHistoryLedger()===reviewHistoryLedgerInitializationPromise}))`);
         assert.deepStrictEqual(lazyLedger,{ready:true,samePromise:true});
         const duplicateGuard=await evaluate(`(() => { const before=ioZoomDiagnostics.cardRenders; const result=initApp(); return {result,initCount:filterResetInitAppCount,renderDelta:ioZoomDiagnostics.cardRenders-before}; })()`);
@@ -235,7 +231,7 @@ async function main() {
         }
         assert(baseline && baseline.card, 'baseline startup did not render');
         const delayedRequests=firebaseRequests.slice(delayed.requestStart).filter(item => item.mode === 'delay');
-        process.stdout.write(JSON.stringify({baseline,normal:{timing:normal.timing,externalPaintMs:normal.externalPaintMs,traceWrites:normal.state.traceWrites,pdf:{at0:normal.state.pdfHref,at100:pdfAt100,at500:pdfAt500}},postPaintFilter:{before:postPaintFilter,after:postPaintFilterAfter},delayed:{timing:delayed.timing,externalPaintMs:delayed.externalPaintMs,requests:delayedRequests.length,before:beforeDelayedSync,after:afterDelayedSync},failure:{timing:failure.timing,after:failureAfter},repeated,duplicateGuard,navigations,firebaseWrites},null,2)+'\n');
+        process.stdout.write(JSON.stringify({baseline,normal:{timing:normal.timing,externalPaintMs:normal.externalPaintMs,traceWrites:normal.state.traceWrites,directPdf},postPaintFilter:{before:postPaintFilter,after:postPaintFilterAfter},lazyLearningStats,lazyLedger,delayed:{timing:delayed.timing,externalPaintMs:delayed.externalPaintMs,requests:delayedRequests.length,before:beforeDelayedSync,after:afterDelayedSync},failure:{timing:failure.timing,after:failureAfter},repeated,duplicateGuard,navigations,firebaseWrites},null,2)+'\n');
     } finally {
         if(socket && socket.readyState === WebSocket.OPEN) socket.close();
         edge.kill(); server.close(); await delay(500);
