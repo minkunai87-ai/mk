@@ -179,7 +179,7 @@ async function main() {
         })()`);
         await loadApp('baseline.html');
         const before=await runScenario();
-        assert(before.zoomScales.every((scale, index) => index % 2 === 0 ? scale === 1.5 : scale === 1), JSON.stringify(before));
+        assert(before.zoomScales.every((scale,index) => index % 2 === 0 ? scale === 1.5 : scale === 1), JSON.stringify(before));
         assert(before.overlayTags.every(tagName => tagName === 'DIV'), JSON.stringify(before));
         assert.strictEqual(before.overlayCount, 0, JSON.stringify(before));
         await loadApp('index.html');
