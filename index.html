@@ -534,6 +534,7 @@
 </style>
 </head>
 <body>
+    <div style="position:fixed;top:calc(env(safe-area-inset-top) + 4px);right:4px;z-index:99999;padding:3px 6px;border-radius:5px;background:rgba(180,40,40,.88);color:#fff;font:700 9px/1.2 sans-serif;letter-spacing:.04em;pointer-events:none;">FIRST-RENDER TEST</div>
     <div id="toast">알림 메시지</div>
 
     <div class="sidebar-overlay" onclick="toggleMenu()"></div>
@@ -2473,8 +2474,11 @@
         await statsInitPromise;
         markMkStartupPhase('LOCAL_STATS_READY');
         const hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
-        const deckSource = hasCachedLibrary ? 'indexeddb' : 'github';
-        if(!hasCachedLibrary) {
+        let deckSource = hasCachedLibrary ? 'indexeddb' : 'github';
+        if(hasCachedLibrary) {
+            const refreshResult = await refreshCachedLibraryIfNeeded(fetch);
+            if(refreshResult.refreshed) deckSource = 'github';
+        } else {
             await autoScanGitHub();
         }
         markMkStartupPhase('DECK_READY', { deckSource });
