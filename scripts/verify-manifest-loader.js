@@ -113,7 +113,7 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
     const refreshIndex = onloadSource.indexOf('refreshCachedLibraryIfNeeded(fetch)');
     assert.ok(initIndex >= 0 && refreshIndex > initIndex);
     assert.equal(onloadSource.includes('await refreshCachedLibraryIfNeeded(fetch)'), false);
-    assert.equal(onloadSource.includes('if(!hasCachedLibrary) {\n            await autoScanGitHub();'), true);
+    assert.match(onloadSource, /if\(!hasCachedLibrary\)\s*\{\s*await autoScanGitHub\(\);/);
 
     const viewContext = {
         appInitializationCompleted: true,

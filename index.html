@@ -2502,6 +2502,9 @@
         startupRestoreCompleted = true;
         document.getElementById('loading').style.display = 'none';
         markMkStartupPhase('loadingHidden');
+        if(hasCachedLibrary) {
+            refreshCachedLibraryIfNeeded(fetch);
+        }
         requestAnimationFrame(() => requestAnimationFrame(() => {
             markMkStartupPhase('firstVisiblePaint');
             markMkStartupPhase('FIRST_CARD_VISIBLE');
