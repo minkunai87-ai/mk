@@ -90,9 +90,12 @@
 
     const renderD = () => {
         const stage = document.getElementById('mk-render-diagnostic-stage');
-        const width = WIDTHS[currentZoom];
-        const height = width * 16433 / 2479;
-        const top = 170 - SOURCE_Y * width / 2479;
+        const live = snapshots.get('A-original');
+        const stageRect = stage.getBoundingClientRect();
+        const width = live?.zoom === currentZoom ? live.img.rect.width : WIDTHS[currentZoom];
+        const height = live?.zoom === currentZoom ? live.img.rect.height : width * 16433 / 2479;
+        const left = live?.zoom === currentZoom ? live.img.rect.left - stageRect.left : 16;
+        const top = live?.zoom === currentZoom ? live.img.rect.top - stageRect.top : 170 - SOURCE_Y * width / 2479;
         stage.innerHTML = '<div class="mk-diag-card card"><div class="card-scroll-area"><div class="zoom-content"><div class="text-area mode-question"><span class="mk-io-wrapper"></span></div></div></div></div>';
         const card = stage.firstElementChild;
         card.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
@@ -103,7 +106,7 @@
         const text = card.querySelector('.text-area');
         text.style.cssText = 'position:relative;width:100%;height:100%;overflow-x:hidden;overflow-y:auto';
         const wrapper = card.querySelector('.mk-io-wrapper');
-        wrapper.style.cssText = `position:absolute;display:block;left:12px;top:${top}px;width:${width}px;height:${height}px;max-width:none;overflow:hidden`;
+        wrapper.style.cssText = `position:absolute;display:block;left:${left}px;top:${top}px;width:${width}px;height:${height}px;max-width:none;overflow:hidden`;
         const img = document.createElement('img');
         img.alt = `D ${IMAGE_NAME}`;
         img.src = IMAGE_URL;
@@ -114,7 +117,9 @@
     };
 
     const captureCurrent = (name, wrapper, img) => {
-        snapshots.set(name, snapshot(name, wrapper, img));
+        const captured = snapshot(name, wrapper, img);
+        captured.zoom = currentZoom;
+        snapshots.set(name, captured);
         info(img, wrapper);
     };
     const prepareLive = async fixed => {
