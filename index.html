@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.212-io-adaptive-raster -->
+<!-- deployment: v18.5.213-io-direct-layout-zoom -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.212 - IO adaptive raster)</title>
+<title>MK (v18.5.213 - IO direct layout zoom)</title>
 
 <script>
     (() => {
@@ -580,7 +580,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.212 - IO adaptive raster)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.213 - IO direct layout zoom)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -874,7 +874,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.212 - IO adaptive raster';
+    const APP_VERSION = 'v18.5.213 - IO direct layout zoom';
     const mkStartupClockStartedAt = performance.now();
     const MK_STARTUP_BOOT_MARKER_KEY = 'mk_startup_boot_marker';
     const mkPageInstanceId = window.__mkBootstrapPageInstanceId || `mk_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -1857,6 +1857,11 @@
                 });
                 wrapper.style.removeProperty('width');
                 wrapper.style.removeProperty('height');
+                wrapper.style.removeProperty('max-width');
+                wrapper.style.removeProperty('margin-right');
+                wrapper.style.removeProperty('margin-bottom');
+                wrapper.style.removeProperty('left');
+                wrapper.style.removeProperty('top');
                 state.ioRasterBase = null;
                 state.ioRasterFactor = 1;
             };
@@ -1876,21 +1881,24 @@
                     };
                 }
                 const base = state.ioRasterBase;
-                const dpr = Math.max(1, Number(window.devicePixelRatio) || 1);
                 const naturalLimit = Math.min(
-                    img.naturalWidth / Math.max(1, base.width * dpr),
-                    img.naturalHeight / Math.max(1, base.height * dpr)
+                    img.naturalWidth / Math.max(1, base.width),
+                    img.naturalHeight / Math.max(1, base.height)
                 );
                 const factor = Math.max(1, Math.min(state.scale, naturalLimit));
-                const inverse = 1 / factor;
-                wrapper.style.width = `${base.width}px`;
-                wrapper.style.height = `${base.height}px`;
+                const layoutWidth = base.width * factor;
+                const layoutHeight = base.height * factor;
+                wrapper.style.setProperty('width', `${layoutWidth}px`, 'important');
+                wrapper.style.setProperty('height', `${layoutHeight}px`, 'important');
+                wrapper.style.setProperty('max-width', 'none', 'important');
+                wrapper.style.marginRight = `${base.width - layoutWidth}px`;
+                wrapper.style.marginBottom = `${base.height - layoutHeight}px`;
                 [img, layer].forEach(el => {
-                    el.style.setProperty('width', `${base.width * factor}px`, 'important');
-                    el.style.setProperty('height', `${base.height * factor}px`, 'important');
+                    el.style.setProperty('width', `${layoutWidth}px`, 'important');
+                    el.style.setProperty('height', `${layoutHeight}px`, 'important');
                     el.style.setProperty('max-width', 'none', 'important');
-                    el.style.transformOrigin = '0 0';
-                    el.style.transform = `scale(${inverse})`;
+                    el.style.removeProperty('transform');
+                    el.style.removeProperty('transform-origin');
                 });
                 state.ioRasterFactor = factor;
             };
@@ -1966,8 +1974,9 @@
                 return true;
             };
             const getBaseRect = (rect = wrapper.getBoundingClientRect()) => {
-                const width = wrapper.offsetWidth || (rect.width / state.scale) || rect.width || 1;
-                const height = wrapper.offsetHeight || (rect.height / state.scale) || rect.height || 1;
+                const ioBase = isIOZoomTarget && state.ioRasterBase;
+                const width = ioBase?.width || wrapper.offsetWidth || (rect.width / state.scale) || rect.width || 1;
+                const height = ioBase?.height || wrapper.offsetHeight || (rect.height / state.scale) || rect.height || 1;
                 if (!Number.isFinite(rect.left) || !Number.isFinite(rect.top) || width <= 0 || height <= 0) {
                     const fallbackRect = scrollContainer.getBoundingClientRect();
                     console.warn('IMAGE_ZOOM_ERROR', 'INVALID_IMAGE_ZOOM_RECT');
@@ -2065,7 +2074,13 @@
                                 resetByError('INVALID_MATRIX_TRANSFORM');
                                 return;
                             }
-                            wrapper.style.transform = `translate3d(${state.translateX}px, ${state.translateY}px, 0) scale(${state.scale})`;
+                            if (isIOZoomTarget) {
+                                wrapper.style.transform = '';
+                                wrapper.style.left = `${state.translateX}px`;
+                                wrapper.style.top = `${state.translateY}px`;
+                            } else {
+                                wrapper.style.transform = `translate3d(${state.translateX}px, ${state.translateY}px, 0) scale(${state.scale})`;
+                            }
                         }
                         wrapper.classList.toggle('is-media-zoomed', state.scale > 1);
                     });
