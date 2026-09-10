@@ -2466,6 +2466,7 @@
     let userInteractionRevision = 0;
     let learningStatsInitializationPromise = null;
     let reviewHistoryLedgerInitializationPromise = null;
+    let deckManifestRefreshScheduled = false;
 
     function markUserUiInteraction() {
         if(startupRestoreCompleted) userInteractionRevision++;
@@ -2478,6 +2479,15 @@
             .then(result => { learningStatsReady = learningStatsRestoreState === 'success'; return result; })
             .catch(error => { console.warn('[MK_BACKGROUND_LEARNING_STATS_INIT_FAILED]', error); return null; });
         return learningStatsInitializationPromise;
+    }
+
+    function scheduleDeckManifestRefreshAfterFirstCardVisible() {
+        if(deckManifestRefreshScheduled) return false;
+        deckManifestRefreshScheduled = true;
+        const run = () => refreshCachedLibraryIfNeeded(fetch);
+        if(typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout:1500 });
+        else setTimeout(run, 0);
+        return true;
     }
 
     window.onload = async function() {
@@ -2502,13 +2512,11 @@
         startupRestoreCompleted = true;
         document.getElementById('loading').style.display = 'none';
         markMkStartupPhase('loadingHidden');
-        if(hasCachedLibrary) {
-            refreshCachedLibraryIfNeeded(fetch);
-        }
         requestAnimationFrame(() => requestAnimationFrame(() => {
             markMkStartupPhase('firstVisiblePaint');
             markMkStartupPhase('FIRST_CARD_VISIBLE');
             writeMkStartupMarker('STARTUP_STABLE', { startupStable:true });
+            if(hasCachedLibrary) scheduleDeckManifestRefreshAfterFirstCardVisible();
         }));
     };
 

@@ -110,10 +110,35 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
     const onloadEnd = source.indexOf('\n    };', onloadStart);
     const onloadSource = source.slice(onloadStart, onloadEnd);
     const initIndex = onloadSource.indexOf('initApp();');
-    const refreshIndex = onloadSource.indexOf('refreshCachedLibraryIfNeeded(fetch)');
-    assert.ok(initIndex >= 0 && refreshIndex > initIndex);
+    const visibleIndex = onloadSource.indexOf("markMkStartupPhase('FIRST_CARD_VISIBLE')");
+    const scheduleIndex = onloadSource.indexOf('scheduleDeckManifestRefreshAfterFirstCardVisible()');
+    assert.ok(initIndex >= 0 && visibleIndex > initIndex && scheduleIndex > visibleIndex);
+    assert.equal(onloadSource.includes('refreshCachedLibraryIfNeeded(fetch)'), false);
     assert.equal(onloadSource.includes('await refreshCachedLibraryIfNeeded(fetch)'), false);
     assert.match(onloadSource, /if\(!hasCachedLibrary\)\s*\{\s*await autoScanGitHub\(\);/);
+
+    const idleCallbacks = [];
+    const idleContext = { fetch:async () => {}, refreshCalls:0,
+        refreshCachedLibraryIfNeeded:async () => { idleContext.refreshCalls++; },
+        requestIdleCallback:callback => idleCallbacks.push(callback), setTimeout:() => assert.fail('idle fallback used') };
+    vm.createContext(idleContext);
+    vm.runInContext(`let deckManifestRefreshScheduled = false;\n${extractFunction('scheduleDeckManifestRefreshAfterFirstCardVisible')}\nthis.scheduleDeckManifestRefreshAfterFirstCardVisible = scheduleDeckManifestRefreshAfterFirstCardVisible;`, idleContext);
+    assert.equal(idleContext.scheduleDeckManifestRefreshAfterFirstCardVisible(), true);
+    assert.equal(idleContext.scheduleDeckManifestRefreshAfterFirstCardVisible(), false);
+    assert.equal(idleContext.refreshCalls, 0);
+    await idleCallbacks[0]();
+    assert.equal(idleContext.refreshCalls, 1);
+
+    let fallbackCallback;
+    const fallbackContext = { fetch:async () => {}, refreshCalls:0,
+        refreshCachedLibraryIfNeeded:async () => { fallbackContext.refreshCalls++; },
+        setTimeout:callback => { fallbackCallback = callback; } };
+    vm.createContext(fallbackContext);
+    vm.runInContext(`let deckManifestRefreshScheduled = false;\n${extractFunction('scheduleDeckManifestRefreshAfterFirstCardVisible')}\nthis.scheduleDeckManifestRefreshAfterFirstCardVisible = scheduleDeckManifestRefreshAfterFirstCardVisible;`, fallbackContext);
+    assert.equal(fallbackContext.scheduleDeckManifestRefreshAfterFirstCardVisible(), true);
+    assert.equal(fallbackContext.refreshCalls, 0);
+    await fallbackCallback();
+    assert.equal(fallbackContext.refreshCalls, 1);
 
     const viewContext = {
         appInitializationCompleted: true,
@@ -169,7 +194,9 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
         cachedMissingVersionImports: 1,
         cachedManifestFailureImports: 0,
         cachedMissingVersionFirstRenderBlocked: false,
-        cachedRefreshRunsAfterInitApp: true,
+        cachedRefreshRunsAfterFirstCardVisibleIdle: true,
+        duplicateRefreshSchedules: 1,
+        noRequestIdleCallbackFallbackRuns: 1,
         backgroundRefreshPreservesDeckFilterSearchAndCard: true,
         failedRefreshKeepsExistingLibrary: true,
         uncachedStartupStillAwaitsInitialImport: true,
