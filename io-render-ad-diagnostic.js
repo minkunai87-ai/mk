@@ -6,7 +6,7 @@
     const lifecycle = [];
     const mutations = [];
     const snapshots = new Map();
-    let currentCase = 'A-original';
+    let currentCase = 'A-old';
     let currentZoom = '1.7';
 
     const now = () => Math.round(performance.now() * 10) / 10;
@@ -90,7 +90,7 @@
 
     const renderD = () => {
         const stage = document.getElementById('mk-render-diagnostic-stage');
-        const live = snapshots.get('A-original');
+        const live = snapshots.get('A-old');
         const stageRect = stage.getBoundingClientRect();
         const width = live?.zoom === currentZoom ? live.img.rect.width : WIDTHS[currentZoom];
         const height = live?.zoom === currentZoom ? live.img.rect.height : width * 16433 / 2479;
@@ -112,7 +112,7 @@
         img.src = IMAGE_URL;
         img.style.cssText = `display:block;position:static;left:0;top:0;width:${width}px!important;height:${height}px!important;max-width:none!important;margin:0!important;transform:none!important;border-radius:0;box-shadow:none`;
         wrapper.appendChild(img);
-        img.addEventListener('load', () => { if(currentCase === 'D') captureCurrent('D', wrapper, img); }, { once:true });
+        img.addEventListener('load', () => { if(currentCase === 'D' && img.isConnected) captureCurrent('D', wrapper, img); }, { once:true });
         if(img.complete) captureCurrent('D', wrapper, img);
     };
 
@@ -122,21 +122,15 @@
         snapshots.set(name, captured);
         info(img, wrapper);
     };
-    const prepareLive = async fixed => {
+    const prepareLive = async directLayout => {
         showCard();
         const wrapper = await waitFor(() => document.querySelector('#question-section .mk-io-wrapper'));
         if(!wrapper) return;
-        if(fixed) {
-            const original = wrapper.querySelector('img.mk-io-image');
-            const replacement = document.createElement('img');
-            Array.from(original.attributes).forEach(attribute => replacement.setAttribute(attribute.name, attribute.value));
-            original.replaceWith(replacement);
-            lifecycle.push(snapshot('fixed-identical-node-replacement', wrapper, replacement));
-        }
-        wrapper._mediaZoomState?.setRenderDiagnosticView(Number(currentZoom), SOURCE_Y);
+        wrapper._mediaZoomState?.setRenderDiagnosticView(Number(currentZoom), SOURCE_Y, directLayout);
         requestAnimationFrame(() => requestAnimationFrame(() => {
             const img = wrapper.querySelector('img.mk-io-image');
-            if(img) captureCurrent(fixed ? 'A-fixed' : 'A-original', wrapper, img);
+            const expected = directLayout ? 'A-new' : 'A-old';
+            if(currentCase === expected && wrapper.isConnected && img) captureCurrent(expected, wrapper, img);
         }));
     };
     const showCase = name => {
@@ -148,10 +142,15 @@
             scrollArea.style.visibility = 'hidden';
             stage.style.display = 'block';
             renderD();
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                const img = stage.querySelector('img');
+                const wrapper = stage.querySelector('.mk-io-wrapper');
+                if(currentCase === 'D' && img?.isConnected && wrapper) captureCurrent('D', wrapper, img);
+            }));
         } else {
             stage.style.display = 'none';
             scrollArea.style.visibility = 'visible';
-            prepareLive(name === 'A-fixed');
+            prepareLive(name === 'A-new');
         }
     };
     const setZoom = value => {
@@ -165,15 +164,15 @@
             .map(key => [key, { A:left[key], D:right[key] }])
     );
     const copyReport = async () => {
-        const a = snapshots.get('A-original');
-        const fixed = snapshots.get('A-fixed');
+        const a = snapshots.get('A-old');
+        const fixed = snapshots.get('A-new');
         const d = snapshots.get('D');
         const report = {
             lifecycle, mutations,
-            dom:{ AOriginal:a, AFixed:fixed, D:d },
+            dom:{ AOld:a, ANew:fixed, D:d },
             computedDiff:{
                 A_vs_D:{ img:diff(a?.img?.computed, d?.img?.computed), wrapper:diff(a?.wrapper?.computed, d?.wrapper?.computed) },
-                fixed_vs_D:{ img:diff(fixed?.img?.computed, d?.img?.computed), wrapper:diff(fixed?.wrapper?.computed, d?.wrapper?.computed) }
+                new_vs_D:{ img:diff(fixed?.img?.computed, d?.img?.computed), wrapper:diff(fixed?.wrapper?.computed, d?.wrapper?.computed) }
             }
         };
         const text = JSON.stringify(report, null, 2);
@@ -181,14 +180,14 @@
     };
     const addUi = () => {
         const style = document.createElement('style');
-        style.textContent = '#mk-render-diagnostic-toolbar{position:fixed;left:4px;right:4px;top:max(4px,env(safe-area-inset-top));z-index:2147483647;background:#111;color:#fff;border:1px solid #74c0fc;border-radius:8px;padding:6px;font:11px/1.3 -apple-system,sans-serif}#mk-render-diagnostic-toolbar>div{margin:2px 0}#mk-render-diagnostic-toolbar button{font-size:11px;padding:3px 7px;margin:1px;border:1px solid #777;border-radius:4px;background:#333;color:#fff}#mk-render-diagnostic-toolbar button.active{background:#1971c2;border-color:#74c0fc}#mk-render-diagnostic-toolbar a{color:#74c0fc}#mk-render-diagnostic-info{word-break:break-all;color:#ced4da}#mk-render-diagnostic-stage{position:absolute;inset:0;z-index:100;background:#fff;overflow:hidden;display:none}';
+        style.textContent = '#mk-render-diagnostic-toolbar{position:fixed;left:4px;right:4px;top:max(4px,env(safe-area-inset-top));z-index:2147483647;background:#111;color:#fff;border:1px solid #74c0fc;border-radius:8px;padding:6px;font:11px/1.3 -apple-system,sans-serif}#mk-render-diagnostic-toolbar>div{margin:2px 0}#mk-render-diagnostic-toolbar button{font-size:11px;padding:3px 7px;margin:1px;border:1px solid #777;border-radius:4px;background:#333;color:#fff}#mk-render-diagnostic-toolbar button.active{background:#1971c2;border-color:#74c0fc}#mk-render-diagnostic-toolbar a{color:#74c0fc}#mk-render-diagnostic-info{word-break:break-all;color:#ced4da}#mk-render-diagnostic-stage{position:fixed;inset:0;z-index:100;background:#fff;overflow:hidden;display:none}';
         document.head.appendChild(style);
         const panel = document.createElement('div');
         panel.id = 'mk-render-diagnostic-toolbar';
-        panel.innerHTML = `<div><b>A/D LIVE IO DIAGNOSTIC</b> · <a href="${IMAGE_URL}" target="_blank" rel="noopener">RAW</a></div><div>${['A-original','A-fixed','D'].map(name => `<button data-mk-diag-case="${name}">${name}</button>`).join('')}</div><div>${Object.keys(WIDTHS).map(value => `<button data-mk-diag-zoom="${value}">${value}×</button>`).join('')}</div><div><button id="mk-copy-render-diff">DOM/STYLE DIFF 복사</button></div><div id="mk-render-diagnostic-info">loading…</div>`;
+        panel.innerHTML = `<div><b>A-OLD / A-NEW / D</b> · <a href="${IMAGE_URL}" target="_blank" rel="noopener">RAW</a></div><div>${['A-old','A-new','D'].map(name => `<button data-mk-diag-case="${name}">${name}</button>`).join('')}</div><div>${Object.keys(WIDTHS).map(value => `<button data-mk-diag-zoom="${value}">${value}×</button>`).join('')}</div><div><button id="mk-copy-render-diff">DOM/STYLE DIFF 복사</button></div><div id="mk-render-diagnostic-info">loading…</div>`;
         const stage = document.createElement('div');
         stage.id = 'mk-render-diagnostic-stage';
-        document.querySelector('.card').appendChild(stage);
+        document.body.appendChild(stage);
         document.body.appendChild(panel);
         panel.querySelectorAll('[data-mk-diag-case]').forEach(button => button.onclick = () => showCase(button.dataset.mkDiagCase));
         panel.querySelectorAll('[data-mk-diag-zoom]').forEach(button => button.onclick = () => setZoom(button.dataset.mkDiagZoom));
@@ -205,7 +204,7 @@
         ioImageGroupCache = { cards:null, length:0, groups:[], cardToGroup:new Map() };
         currentIndex = getIOImageGroups().groups.find(group => group.key === `image:${IMAGE_NAME}`).cardIndices[0];
         addUi();
-        showCase('A-original');
+        showCase('A-old');
     };
     window.__mkADDiagnostic = { snapshots, lifecycle, mutations, showCase, setZoom };
     window.addEventListener('load', start, { once:true });

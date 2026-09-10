@@ -40,16 +40,22 @@ const server = http.createServer((request, response) => {
         const results = {};
         const styleKeys = ['display','position','width','height','min-width','max-width','min-height','max-height','overflow','object-fit','object-position','image-rendering','transform','transform-origin','translate','scale','filter','opacity','backface-visibility','will-change','contain','content-visibility','isolation','mix-blend-mode','perspective','clip','clip-path','visibility','pointer-events','margin','padding','left','top'];
         for(const zoom of ['1.7','2.89','5']) {
-            for(const name of ['A-original','A-fixed','D']) {
+            for(const name of ['A-old','A-new','D']) {
                 await evaluate(`window.__mkADDiagnostic.setZoom('${zoom}');window.__mkADDiagnostic.showCase('${name}')`);
                 await delay(900);
-                results[`${name}-${zoom}`] = await evaluate(`(() => {const s=window.__mkADDiagnostic.snapshots.get('${name}'),keys=${JSON.stringify(styleKeys)},pick=o=>Object.fromEntries(keys.map(k=>[k,o[k]]));return s&&{img:{attributes:Object.fromEntries(Array.from(document.querySelector('${name === 'D' ? '#mk-render-diagnostic-stage img' : '#question-section .mk-io-wrapper img'}').attributes).map(a=>[a.name,a.value])),natural:s.img.natural,client:s.img.client,rect:s.img.rect,computed:pick(s.img.computed)},wrapper:{attributes:Object.fromEntries(Array.from(document.querySelector('${name === 'D' ? '#mk-render-diagnostic-stage .mk-io-wrapper' : '#question-section .mk-io-wrapper'}').attributes).map(a=>[a.name,a.value])),client:s.wrapper.client,rect:s.wrapper.rect,computed:pick(s.wrapper.computed)}};})()`);
+                results[`${name}-${zoom}`] = await evaluate(`(() => {const keys=${JSON.stringify(styleKeys)},pick=o=>Object.fromEntries(keys.map(k=>[k,o[k]])),rect=e=>{const r=e.getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height}},live='${name}'==='D',stage=document.querySelector('#mk-render-diagnostic-stage'),img=live?stage.querySelector('img'):document.querySelector('#question-section .mk-io-wrapper img'),wrapper=live?stage.querySelector('.mk-io-wrapper'):document.querySelector('#question-section .mk-io-wrapper'),m=live?null:document.querySelector('#question-section .mk-io-layer');return img&&wrapper&&{stage:live?{display:getComputedStyle(stage).display,rect:rect(stage),parent:stage.parentElement.tagName}:null,img:{natural:[img.naturalWidth,img.naturalHeight],client:[img.clientWidth,img.clientHeight],rect:rect(img),computed:pick(getComputedStyle(img))},wrapper:{client:[wrapper.clientWidth,wrapper.clientHeight],rect:rect(wrapper),computed:pick(getComputedStyle(wrapper))},mask:m?{rect:rect(m),computed:pick(getComputedStyle(m))}:null};})()`);
                 const shot = await send('Page.captureScreenshot', { format:'png', clip:{ x:0, y:180, width:390, height:500, scale:1 }, captureBeyondViewport:false });
                 fs.writeFileSync(path.join(root, `ad-${name}-${zoom}.png`), Buffer.from(shot.result.data, 'base64'));
             }
         }
         const summary = await evaluate(`(() => {const d=window.__mkADDiagnostic;return {lifecycle:d.lifecycle.map(x=>x.label),mutations:d.mutations.map(x=>({node:x.node,attribute:x.attribute,value:x.value,connected:x.connected})).slice(0,40),images:document.images.length,masks:document.querySelectorAll('.mk-io-layer').length,overlays:document.querySelectorAll('.mk-high-res-zoom-layer').length};})()`);
-        console.log(JSON.stringify({ results, summary }, null, 2));
+        const compact = Object.fromEntries(Object.entries(results).map(([key,value]) => [key, value && {
+            imageClient:value.img.client, imageRect:value.img.rect, imageTransform:value.img.computed.transform,
+            wrapperClient:value.wrapper.client, wrapperRect:value.wrapper.rect, wrapperTransform:value.wrapper.computed.transform,
+            wrapperLeft:value.wrapper.computed.left, wrapperTop:value.wrapper.computed.top,
+            maskRect:value.mask?.rect || null, maskTransform:value.mask?.computed.transform || null, stage:value.stage || null
+        }]));
+        console.log(JSON.stringify({ results:compact, summary:{ lifecycle:[...new Set(summary.lifecycle)], images:summary.images, masks:summary.masks, overlays:summary.overlays } }, null, 2));
         socket.close();
     } finally {
         chrome.kill(); server.close(); await delay(1000); try { fs.rmSync(profile, { recursive:true, force:true, maxRetries:3, retryDelay:300 }); } catch (_) {}

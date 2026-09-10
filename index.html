@@ -1785,6 +1785,7 @@
                 geometry: null,
                 ioRasterBase: null,
                 ioRasterFactor: 1,
+                diagnosticDirectLayout: false,
                 resetIORasterResolution: null,
                 disposed: false,
                 controller: new AbortController()
@@ -1859,6 +1860,11 @@
                 });
                 wrapper.style.removeProperty('width');
                 wrapper.style.removeProperty('height');
+                wrapper.style.removeProperty('max-width');
+                wrapper.style.removeProperty('margin-right');
+                wrapper.style.removeProperty('margin-bottom');
+                wrapper.style.removeProperty('left');
+                wrapper.style.removeProperty('top');
                 state.ioRasterBase = null;
                 state.ioRasterFactor = 1;
             };
@@ -1878,6 +1884,29 @@
                     };
                 }
                 const base = state.ioRasterBase;
+                if (state.diagnosticDirectLayout) {
+                    const factor = Math.max(1, Math.min(
+                        state.scale,
+                        img.naturalWidth / Math.max(1, base.width),
+                        img.naturalHeight / Math.max(1, base.height)
+                    ));
+                    const layoutWidth = base.width * factor;
+                    const layoutHeight = base.height * factor;
+                    wrapper.style.setProperty('width', `${layoutWidth}px`, 'important');
+                    wrapper.style.setProperty('height', `${layoutHeight}px`, 'important');
+                    wrapper.style.setProperty('max-width', 'none', 'important');
+                    wrapper.style.marginRight = `${base.width - layoutWidth}px`;
+                    wrapper.style.marginBottom = `${base.height - layoutHeight}px`;
+                    [img, layer].forEach(el => {
+                        el.style.setProperty('width', `${layoutWidth}px`, 'important');
+                        el.style.setProperty('height', `${layoutHeight}px`, 'important');
+                        el.style.setProperty('max-width', 'none', 'important');
+                        el.style.removeProperty('transform');
+                        el.style.removeProperty('transform-origin');
+                    });
+                    state.ioRasterFactor = factor;
+                    return;
+                }
                 const dpr = Math.max(1, Number(window.devicePixelRatio) || 1);
                 const naturalLimit = Math.min(
                     img.naturalWidth / Math.max(1, base.width * dpr),
@@ -1968,8 +1997,9 @@
                 return true;
             };
             const getBaseRect = (rect = wrapper.getBoundingClientRect()) => {
-                const width = wrapper.offsetWidth || (rect.width / state.scale) || rect.width || 1;
-                const height = wrapper.offsetHeight || (rect.height / state.scale) || rect.height || 1;
+                const directBase = state.diagnosticDirectLayout && state.ioRasterBase;
+                const width = directBase?.width || wrapper.offsetWidth || (rect.width / state.scale) || rect.width || 1;
+                const height = directBase?.height || wrapper.offsetHeight || (rect.height / state.scale) || rect.height || 1;
                 if (!Number.isFinite(rect.left) || !Number.isFinite(rect.top) || width <= 0 || height <= 0) {
                     const fallbackRect = scrollContainer.getBoundingClientRect();
                     console.warn('IMAGE_ZOOM_ERROR', 'INVALID_IMAGE_ZOOM_RECT');
@@ -2067,7 +2097,13 @@
                                 resetByError('INVALID_MATRIX_TRANSFORM');
                                 return;
                             }
-                            wrapper.style.transform = `translate3d(${state.translateX}px, ${state.translateY}px, 0) scale(${state.scale})`;
+                            if (isIOZoomTarget && state.diagnosticDirectLayout) {
+                                wrapper.style.transform = '';
+                                wrapper.style.left = `${state.translateX}px`;
+                                wrapper.style.top = `${state.translateY}px`;
+                            } else {
+                                wrapper.style.transform = `translate3d(${state.translateX}px, ${state.translateY}px, 0) scale(${state.scale})`;
+                            }
                         }
                         wrapper.classList.toggle('is-media-zoomed', state.scale > 1);
                         if (typeof window.__mkIoRenderDiagnosticEvent === 'function') window.__mkIoRenderDiagnosticEvent('zoom-applied', wrapper, getPrimaryImage());
@@ -2077,9 +2113,10 @@
                     resetByError('APPLY_EXCEPTION', err);
                 }
             };
-            state.setRenderDiagnosticView = (nextScale, sourceY = 2400) => {
+            state.setRenderDiagnosticView = (nextScale, sourceY = 2400, directLayout = false) => {
                 if(!isIOZoomTarget) return false;
                 resetIORasterResolution();
+                state.diagnosticDirectLayout = !!directLayout;
                 wrapper.style.transform = '';
                 state.scale = 1;
                 state.translateX = 0;
