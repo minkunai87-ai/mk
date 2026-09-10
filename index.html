@@ -2074,6 +2074,23 @@
                     resetByError('APPLY_EXCEPTION', err);
                 }
             };
+            state.setRenderDiagnosticView = (nextScale, sourceY = 2400) => {
+                if(!isIOZoomTarget) return false;
+                resetIORasterResolution();
+                wrapper.style.transform = '';
+                state.scale = 1;
+                state.translateX = 0;
+                state.translateY = 0;
+                const geometry = captureGeometry();
+                const img = getPrimaryImage();
+                const targetScale = clamp(Number(nextScale) || 1, MIN_SCALE, MAX_SCALE);
+                const sourceToBase = geometry.base.width / Math.max(1, img.naturalWidth);
+                state.scale = targetScale;
+                state.translateX = 16 - geometry.base.left;
+                state.translateY = 250 - geometry.base.top - (Number(sourceY) * sourceToBase * targetScale);
+                apply();
+                return true;
+            };
             const reset = () => {
                 cancelPendingFrame();
                 state.scale = 1; state.translateX = 0; state.translateY = 0;
@@ -12528,5 +12545,6 @@ function getIOImageGroups() {
         if(reviewTimingState && document.hidden) reviewTimingState.invalid = true;
     });
     </script>
+<script src="io-render-diagnostic.js"></script>
 </body>
 </html>
