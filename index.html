@@ -2777,6 +2777,12 @@
                     if(!isAuto) showToast("백업 index 저장 실패", "error");
                     return false;
                 }
+                const backupVerified = await verifyFirebaseBackupWrite(data.timestamp, backupIndexData);
+                if(!backupVerified) {
+                    updateCloudIcon('error');
+                    if(!isAuto) showToast("백업 검증 실패", "error");
+                    return false;
+                }
                 console.log('BACKUP_WRITE_SUCCESS', true);
                 rememberGoodBackupTimestamp(data.timestamp, statsKeyCount);
                 safeRestoreLocalStorage(STORAGE_KEY_LAST_CREATED_BACKUP_ID, String(data.timestamp));
@@ -2786,7 +2792,7 @@
                     isDataChanged = true;
                     safeRestoreLocalStorage(STORAGE_KEY_LOCAL_DATA_DIRTY, 'true');
                 }
-                updateCloudIcon('done'); if(!options.keepalive) cleanupOldBackups(); if(!isAuto) showToast("백업 완료", "success"); return true;
+                updateCloudIcon('done'); await cleanupOldBackups(data.timestamp); if(!isAuto) showToast("백업 완료", "success"); return true;
             } 
             else { console.log('BACKUP_WRITE_SUCCESS', false); updateCloudIcon('error'); if(!isAuto) showToast("❌ 백업 실패", "error"); return false; }
         } catch(e) { console.log('BACKUP_WRITE_SUCCESS', false); updateCloudIcon('error'); if(!isAuto) showToast("❌ 인터넷 연결 오류", "error"); return false; }
@@ -6090,8 +6096,71 @@
         }
     }
 
-    async function cleanupOldBackups() {
-        console.log('[MK_FIREBASE_BACKUP_RETENTION_APPEND_ONLY]', { deleted:0, reason:'learning-stats-evidence-preserved' });
+    async function verifyFirebaseBackupWrite(timestamp, expectedIndex = {}) {
+        try {
+            const id = String(timestamp || '');
+            if(!/^\d+$/.test(id)) return false;
+            const [indexRes, payloadRes] = await Promise.all([
+                fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}/${id}.json?_t=${Date.now()}`, { cache:'no-store' }),
+                fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${id}.json?shallow=true&_t=${Date.now()}`, { cache:'no-store' })
+            ]);
+            if(!indexRes.ok || !payloadRes.ok) return false;
+            const [indexData, payloadKeys] = await Promise.all([indexRes.json(), payloadRes.json()]);
+            return isMkBackupRecord(indexData || {}) && String(indexData.timestamp || '') === id &&
+                Number(indexData.statsKeyCount) === Number(expectedIndex.statsKeyCount) &&
+                payloadKeys && typeof payloadKeys === 'object' && payloadKeys.appId === true &&
+                payloadKeys.timestamp === true && payloadKeys.stats === true && payloadKeys.integrity === true;
+        } catch(error) {
+            console.error('[MK Firebase Backup Verify Error]', error);
+            return false;
+        }
+    }
+
+    async function cleanupOldBackups(verifiedBackupId) {
+        try {
+            const id = String(verifiedBackupId || '');
+            if(!/^\d+$/.test(id)) return false;
+            const [indexRes, payloadRes] = await Promise.all([
+                fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json?_t=${Date.now()}`, { cache:'no-store' }),
+                fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}.json?shallow=true&_t=${Date.now()}`, { cache:'no-store' })
+            ]);
+            if(!indexRes.ok || !payloadRes.ok) return false;
+            const [indexData, payloadData] = await Promise.all([indexRes.json(), payloadRes.json()]);
+            const payloadIds = new Set(Object.keys(payloadData || {}).filter(key => /^\d+$/.test(key)));
+            const records = Object.entries(indexData || {})
+                .filter(([key, value]) => /^\d+$/.test(key) && isMkBackupRecord(value || {}) && payloadIds.has(key))
+                .map(([key, value]) => ({ id:key, statsKeyCount:Number(value.statsKeyCount) || 0,
+                    learningStatsEntryCount:Number(value.learningStatsEntryCount) || 0 }));
+            const statsBaseline = records.reduce((max, record) => Math.max(max, record.statsKeyCount), 0);
+            const learningBaseline = records.reduce((max, record) => Math.max(max, record.learningStatsEntryCount), 0);
+            const keepIds = records.filter(record => isAllowedStatsRestoreCount(record.statsKeyCount) &&
+                    (!statsBaseline || record.statsKeyCount >= Math.ceil(statsBaseline * STATS_MIN_RETAIN_RATIO)) &&
+                    (!learningBaseline || record.learningStatsEntryCount >= Math.ceil(learningBaseline * STATS_MIN_RETAIN_RATIO)))
+                .sort((a, b) => Number(b.id) - Number(a.id)).slice(0, FIREBASE_BACKUP_KEEP_COUNT).map(record => record.id);
+            if(keepIds.length !== FIREBASE_BACKUP_KEEP_COUNT || !keepIds.includes(id)) return false;
+            const keepSet = new Set(keepIds);
+            const allIds = new Set([...Object.keys(indexData || {}), ...payloadIds]);
+            const deleteIds = [...allIds].filter(key => /^\d+$/.test(key) && !keepSet.has(key));
+            if(!deleteIds.length) return true;
+            const updates = {};
+            deleteIds.forEach(key => { updates[`backups/${key}`] = null; updates[`backupIndex/${key}`] = null; });
+            const deleteRes = await fetch(`${FIREBASE_DB_URL}/apps/mk.json`, {
+                method:'PATCH', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(updates)
+            });
+            if(!deleteRes.ok) return false;
+            const [finalIndexRes, finalPayloadRes] = await Promise.all([
+                fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_INDEX_PATH}.json?shallow=true&_t=${Date.now()}`, { cache:'no-store' }),
+                fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}.json?shallow=true&_t=${Date.now()}`, { cache:'no-store' })
+            ]);
+            if(!finalIndexRes.ok || !finalPayloadRes.ok) return false;
+            const [finalIndex, finalPayload] = await Promise.all([finalIndexRes.json(), finalPayloadRes.json()]);
+            const expectedIds = [...keepIds].sort();
+            return JSON.stringify(Object.keys(finalIndex || {}).sort()) === JSON.stringify(expectedIds) &&
+                JSON.stringify(Object.keys(finalPayload || {}).sort()) === JSON.stringify(expectedIds);
+        } catch(error) {
+            console.error('[MK Firebase Backup Cleanup Error]', error);
+            return false;
+        }
     }
 
     function getManifestDeckFile(name, publishVersion = '') {
