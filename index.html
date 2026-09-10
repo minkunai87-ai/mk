@@ -1744,6 +1744,7 @@
             const isIOZoomTarget = wrapper.classList.contains('mk-io-wrapper');
             const mediaImages = wrapper.matches('img') ? [wrapper] : Array.from(wrapper.querySelectorAll('img'));
             mediaImages.forEach(img => {
+                if (typeof window.__mkIoRenderDiagnosticEvent === 'function') window.__mkIoRenderDiagnosticEvent('bind-before', wrapper, img);
                 const originalSrc = img.getAttribute('data-original-src') || img.getAttribute('src') || img.currentSrc || '';
                 if (originalSrc) {
                     img.dataset.originalSrc = originalSrc;
@@ -1753,6 +1754,7 @@
                 img.removeAttribute('sizes');
                 img.decoding = 'async';
                 img.style.imageRendering = 'auto';
+                if (typeof window.__mkIoRenderDiagnosticEvent === 'function') window.__mkIoRenderDiagnosticEvent('bind-after', wrapper, img);
             });
             const state = wrapper._mediaZoomState = {
                 scale: 1,
@@ -2068,6 +2070,7 @@
                             wrapper.style.transform = `translate3d(${state.translateX}px, ${state.translateY}px, 0) scale(${state.scale})`;
                         }
                         wrapper.classList.toggle('is-media-zoomed', state.scale > 1);
+                        if (typeof window.__mkIoRenderDiagnosticEvent === 'function') window.__mkIoRenderDiagnosticEvent('zoom-applied', wrapper, getPrimaryImage());
                     });
                     ioZoomDiagnostics.pendingFrames += 1;
                 } catch (err) {
@@ -9363,6 +9366,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 
                 const img = wrapper.querySelector('img.mk-io-image');
                 if (!img) return;
+                if (typeof window.__mkIoRenderDiagnosticEvent === 'function') window.__mkIoRenderDiagnosticEvent('render-found', wrapper, img);
 
                 const renderMasks = () => {
                     try {
@@ -9512,6 +9516,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                         appendPathNode(targetPathParts, true);
                         layer.appendChild(rotatedFragment);
                         wrapper.appendChild(layer);
+                        if (typeof window.__mkIoRenderDiagnosticEvent === 'function') window.__mkIoRenderDiagnosticEvent('mask-appended', wrapper, img);
                         updateMkIOOtherMasksToggle(wrapper, targetMaskCount, renderedMaskCount);
                         if (targetRectUnion) {
                             wrapper.dataset.mkIoTargetRect = JSON.stringify({ ...targetRectUnion, sourceWidth, sourceHeight });
@@ -9519,6 +9524,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                             delete wrapper.dataset.mkIoTargetRect;
                         }
                         wrapper.dataset.mkIoRendered = '1';
+                        if (typeof window.__mkIoRenderDiagnosticEvent === 'function') window.__mkIoRenderDiagnosticEvent('render-complete', wrapper, img);
                         if (
                             wrapper.closest('#question-section') &&
                             document.getElementById('answer-section').style.display === 'none' &&
@@ -12545,6 +12551,6 @@ function getIOImageGroups() {
         if(reviewTimingState && document.hidden) reviewTimingState.invalid = true;
     });
     </script>
-<script src="io-render-diagnostic.js"></script>
+<script src="io-render-ad-diagnostic.js"></script>
 </body>
 </html>
