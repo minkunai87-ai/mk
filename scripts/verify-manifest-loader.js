@@ -22,6 +22,8 @@ function extractFunction(name) {
 const context = {
     URL,
     document: { baseURI: 'https://example.test/mk/' },
+    window: { matchMedia: () => ({ matches:false }) },
+    navigator: { standalone:false },
     repoOwner: 'minkunai87-ai',
     repoName: 'mk',
     LIBRARY_CACHE_DB_KEY: 'mk_library_cache_v1',
@@ -94,6 +96,20 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
     assert.equal(importCalls, callsBeforeFailure);
     assert.equal(context.library, libraryBeforeFailure);
 
+    let mobileSchedules = 0;
+    context.window.matchMedia = () => ({ matches:true });
+    context.scheduleMobileStandaloneDeckImport = () => { mobileSchedules++; return true; };
+    context.readCachedLibraryManifestVersion = async () => manifest.version;
+    const mobileSameVersion = await context.refreshCachedLibraryIfNeeded(manifestFetch);
+    assert.equal(mobileSameVersion.refreshed, false);
+    assert.equal(mobileSchedules, 0);
+    context.readCachedLibraryManifestVersion = async () => 'mobile-older-version';
+    const mobileChangedVersion = await context.refreshCachedLibraryIfNeeded(manifestFetch);
+    assert.equal(mobileChangedVersion.deferred, true);
+    assert.equal(mobileSchedules, 1);
+    assert.equal(importCalls, callsBeforeFailure);
+    context.window.matchMedia = () => ({ matches:false });
+
     const cacheWrites = [];
     let idleWrite;
     context.writeStatsDatabaseValue = async (key, value) => cacheWrites.push({ key, value });
@@ -139,6 +155,36 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
     assert.equal(fallbackContext.refreshCalls, 0);
     await fallbackCallback();
     assert.equal(fallbackContext.refreshCalls, 1);
+
+    const visibilityListeners = new Set();
+    const mobileTimers = new Map();
+    let nextTimerId = 1;
+    const mobileImportContext = {
+        document: {
+            visibilityState:'visible',
+            addEventListener:(_name, listener) => visibilityListeners.add(listener),
+            removeEventListener:(_name, listener) => visibilityListeners.delete(listener)
+        },
+        setTimeout:callback => { const id = nextTimerId++; mobileTimers.set(id, callback); return id; },
+        clearTimeout:id => mobileTimers.delete(id),
+        importCalls:0,
+        autoScanGitHub:async () => { mobileImportContext.importCalls++; return true; }
+    };
+    vm.createContext(mobileImportContext);
+    vm.runInContext(`let mobileDeckImportTimer = null;\nlet mobileDeckImportStarted = false;\nlet pendingMobileDeckManifest = null;\n${extractFunction('scheduleMobileStandaloneDeckImport')}\nthis.scheduleMobileStandaloneDeckImport = scheduleMobileStandaloneDeckImport;`, mobileImportContext);
+    assert.equal(mobileImportContext.scheduleMobileStandaloneDeckImport({ publishVersion:'new' }), true);
+    assert.equal(mobileImportContext.scheduleMobileStandaloneDeckImport({ publishVersion:'new' }), false);
+    assert.equal(mobileImportContext.importCalls, 0);
+    mobileImportContext.document.visibilityState = 'hidden';
+    visibilityListeners.forEach(listener => listener());
+    assert.equal(mobileTimers.size, 0);
+    mobileImportContext.document.visibilityState = 'visible';
+    visibilityListeners.forEach(listener => listener());
+    assert.equal(mobileTimers.size, 1);
+    await [...mobileTimers.values()][0]();
+    assert.equal(mobileImportContext.importCalls, 1);
+    visibilityListeners.forEach(listener => listener());
+    assert.equal(mobileImportContext.importCalls, 1);
 
     const viewContext = {
         appInitializationCompleted: true,
@@ -197,6 +243,10 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
         cachedRefreshRunsAfterFirstCardVisibleIdle: true,
         duplicateRefreshSchedules: 1,
         noRequestIdleCallbackFallbackRuns: 1,
+        mobileStandaloneSameVersionImports: 0,
+        mobileStandaloneFirst15SecondsImports: 0,
+        mobileStandaloneForegroundImports: 1,
+        mobileStandaloneMaximumSessionImports: 1,
         backgroundRefreshPreservesDeckFilterSearchAndCard: true,
         failedRefreshKeepsExistingLibrary: true,
         uncachedStartupStillAwaitsInitialImport: true,

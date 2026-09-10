@@ -2467,6 +2467,9 @@
     let learningStatsInitializationPromise = null;
     let reviewHistoryLedgerInitializationPromise = null;
     let deckManifestRefreshScheduled = false;
+    let mobileDeckImportTimer = null;
+    let mobileDeckImportStarted = false;
+    let pendingMobileDeckManifest = null;
 
     function markUserUiInteraction() {
         if(startupRestoreCompleted) userInteractionRevision++;
@@ -2487,6 +2490,32 @@
         const run = () => refreshCachedLibraryIfNeeded(fetch);
         if(typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout:1500 });
         else setTimeout(run, 0);
+        return true;
+    }
+
+    function scheduleMobileStandaloneDeckImport(remoteManifest) {
+        if(mobileDeckImportStarted || pendingMobileDeckManifest) return false;
+        pendingMobileDeckManifest = remoteManifest;
+        const schedule = () => {
+            if(mobileDeckImportStarted || mobileDeckImportTimer || document.visibilityState !== 'visible') return;
+            mobileDeckImportTimer = setTimeout(async () => {
+                mobileDeckImportTimer = null;
+                if(document.visibilityState !== 'visible' || mobileDeckImportStarted) return;
+                mobileDeckImportStarted = true;
+                document.removeEventListener('visibilitychange', onVisibilityChange);
+                await autoScanGitHub({ silent:true, deckFileList:pendingMobileDeckManifest, preserveCurrentView:true });
+            }, 15000);
+        };
+        const onVisibilityChange = () => {
+            if(document.visibilityState !== 'visible') {
+                if(mobileDeckImportTimer) clearTimeout(mobileDeckImportTimer);
+                mobileDeckImportTimer = null;
+                return;
+            }
+            schedule();
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        schedule();
         return true;
     }
 
@@ -8387,6 +8416,11 @@
             ]);
             if(localVersion && localVersion === remoteManifest.publishVersion) {
                 return { checked:true, refreshed:false, localVersion, remoteVersion:remoteManifest.publishVersion };
+            }
+            const isStandalone = !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || !!navigator.standalone;
+            if(isStandalone) {
+                const scheduled = scheduleMobileStandaloneDeckImport(remoteManifest);
+                return { checked:true, refreshed:false, deferred:scheduled, localVersion, remoteVersion:remoteManifest.publishVersion };
             }
             const refreshed = await autoScanGitHub({ silent:true, deckFileList:remoteManifest, preserveCurrentView:true });
             return { checked:true, refreshed:!!refreshed, localVersion, remoteVersion:remoteManifest.publishVersion };
