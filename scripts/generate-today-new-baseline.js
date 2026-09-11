@@ -23,7 +23,6 @@ const functionNames = [
     'resolveCardId',
     'resolveStableLogseqCardId',
     'normalizeDeckPath',
-    'splitMkIOCardContent',
     'processAnkiText',
     'sanitizeLogseqSystemJunk'
 ];
