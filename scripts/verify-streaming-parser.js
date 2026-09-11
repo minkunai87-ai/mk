@@ -32,6 +32,7 @@ function buildParser(source, rowParserName) {
         'resolveCardId',
         'resolveStableLogseqCardId',
         'normalizeDeckPath',
+        'splitMkIOCardContent',
         'processAnkiText',
         'sanitizeLogseqSystemJunk'
     ];
@@ -42,7 +43,10 @@ function buildParser(source, rowParserName) {
         rememberLogseqGraphName() {}
     };
     vm.createContext(context);
-    vm.runInContext(`${cyrb53}\n${names.map(name => extractFunction(source, name)).join('\n')}\nthis.run = processAnkiText; this.rows = ${rowParserName};`, context);
+    const functions = names
+        .filter(name => source.includes(`function ${name}(`) || source.includes(`function* ${name}(`))
+        .map(name => extractFunction(source, name));
+    vm.runInContext(`${cyrb53}\n${functions.join('\n')}\nthis.run = processAnkiText; this.rows = ${rowParserName};`, context);
     return context;
 }
 
@@ -59,6 +63,16 @@ for (const filename of files) {
     streaming.run(text, filename, stats, streamingLibrary);
 }
 
+const syntheticLibrary = {};
+const syntheticWrappers = [1, 2, 3].map(index => `<span class="mk-io-wrapper" data-mk-io="1" data-mk-io-image="sample-${index}.png"><img class="mk-io-image" src="sample-${index}.png"></span>`).join('');
+streaming.run(`sample__deck\t11111111-1111-4111-8111-111111111111\t11111111-1111-4111-8111-111111111111\t"${syntheticWrappers.replace(/"/g, '""')}"\t\t[[sample/deck]]`, 'sample.txt', {}, syntheticLibrary);
+const syntheticCards = Object.values(syntheticLibrary).flat();
+assert.equal(syntheticCards.length, 3, 'three IO bullets become three cards');
+assert.deepEqual(syntheticCards.map(card => (card.q.match(/\bmk-io-wrapper\b/g) || []).length), [1, 1, 1]);
+assert.equal(new Set(syntheticCards.map(card => card.id)).size, 3, 'split IO cards have stable unique IDs');
+assert.equal(syntheticCards[0].id, '11111111-1111-4111-8111-111111111111', 'first split card preserves the existing UUID');
+assert(syntheticCards.every((card, index) => index === 0 || card.sourceOrder > syntheticCards[index - 1].sourceOrder), 'split cards preserve source order');
+
 const edgeCases = [
     'deck\t"quoted\nmultiline"\t"escaped ""quote"""',
     'deck\ta\tb\r\ndeck\tc\td\r\n',
@@ -66,8 +80,18 @@ const edgeCases = [
     '#comment\r\ndeck\tlast\trow-without-newline'
 ].join('\n');
 assert.equal(JSON.stringify(Array.from(streaming.rows(edgeCases))), JSON.stringify(legacy.rows(edgeCases)));
-assert.equal(JSON.stringify(streamingLibrary), JSON.stringify(legacyLibrary));
+const countIOWrappers = value => (String(value || '').match(/\bmk-io-wrapper\b/g) || []).length;
+const legacyCards = Object.values(legacyLibrary).flat();
+const streamingCards = Object.values(streamingLibrary).flat();
+const unchangedLegacyCards = legacyCards.filter(card => Math.max(countIOWrappers(card.q), countIOWrappers(card.a)) <= 1);
+unchangedLegacyCards.forEach(card => {
+    const candidate = streamingCards.find(item => item.id === card.id);
+    assert(candidate, `unchanged card missing: ${card.id}`);
+    assert.equal(candidate.q, card.q, `unchanged question changed: ${card.id}`);
+    assert.equal(candidate.a, card.a, `unchanged answer changed: ${card.id}`);
+});
+assert(streamingCards.every(card => Math.max(countIOWrappers(card.q), countIOWrappers(card.a)) <= 1), 'every imported card contains at most one IO wrapper per side');
 
 const deckNames = Object.keys(streamingLibrary);
 const cardCount = deckNames.reduce((count, deck) => count + streamingLibrary[deck].length, 0);
-process.stdout.write(JSON.stringify({ files, deckCount: deckNames.length, cardCount, differences: 0 }) + '\n');
+process.stdout.write(JSON.stringify({ files, deckCount: deckNames.length, cardCount, splitCardsAdded: streamingCards.length - legacyCards.length, multiIOCardsBefore: legacyCards.filter(card => Math.max(countIOWrappers(card.q), countIOWrappers(card.a)) > 1).length, multiIOCardsAfter: streamingCards.filter(card => Math.max(countIOWrappers(card.q), countIOWrappers(card.a)) > 1).length }) + '\n');

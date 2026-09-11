@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.213-io-direct-layout-zoom -->
+<!-- deployment: v18.5.214-one-io-per-card -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.213 - IO direct layout zoom)</title>
+<title>MK (v18.5.214 - IO one card per image)</title>
 
 <script>
     (() => {
@@ -580,7 +580,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.213 - IO direct layout zoom)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.214 - IO one card per image)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -874,7 +874,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.213 - IO direct layout zoom';
+    const APP_VERSION = 'v18.5.214 - IO one card per image';
     const mkStartupClockStartedAt = performance.now();
     const MK_STARTUP_BOOT_MARKER_KEY = 'mk_startup_boot_marker';
     const mkPageInstanceId = window.__mkBootstrapPageInstanceId || `mk_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -8305,14 +8305,63 @@
             const normalizedDeckPath = normalizeDeckPath(deckPath);
             if (!normalizedDeckPath) return;
             if (!normalizedLibrary[normalizedDeckPath]) normalizedLibrary[normalizedDeckPath] = [];
-            (Array.isArray(cards) ? cards : []).forEach(card => {
+            (Array.isArray(cards) ? cards : []).forEach((card, cardIndex) => {
                 if (!card || typeof card !== 'object') return;
-                card.deck = normalizeDeckPath(card.deck, normalizedDeckPath) || normalizedDeckPath;
-                normalizedLibrary[normalizedDeckPath].push(card);
+                const deck = normalizeDeckPath(card.deck, normalizedDeckPath) || normalizedDeckPath;
+                const splitContents = splitMkIOCardContent(card.q, card.a);
+                if(splitContents.length === 1 && splitContents[0].q === card.q && splitContents[0].a === card.a) {
+                    card.deck = deck;
+                    normalizedLibrary[normalizedDeckPath].push(card);
+                    return;
+                }
+                const baseSourceOrder = Number.isFinite(Number(card.sourceOrder)) ? Number(card.sourceOrder) : cardIndex;
+                splitContents.forEach((content, splitIndex) => {
+                    normalizedLibrary[normalizedDeckPath].push({
+                        ...card,
+                        id: splitIndex === 0 ? card.id : `${card.id}__mk_io_${splitIndex + 1}`,
+                        q: content.q,
+                        a: content.a,
+                        sourceOrder: baseSourceOrder + (splitIndex / Math.max(1, splitContents.length)),
+                        deck
+                    });
+                });
             });
         });
 
         return normalizedLibrary;
+    }
+
+    function splitMkIOCardContent(q, a) {
+        const wrapperPattern = /<(span|div)\b[^>]*class=["'][^"']*\bmk-io-wrapper\b[^"']*["'][^>]*>[\s\S]*?<\/\1>/gi;
+        const collect = html => Array.from(String(html || '').matchAll(wrapperPattern), match => ({
+            html: match[0],
+            signature: `${(/data-mk-io-image\s*=\s*["']([^"']+)/i.exec(match[0]) || [])[1] || ''}\n${(/data-mk-io-target-cid\s*=\s*["']([^"']+)/i.exec(match[0]) || [])[1] || ''}`
+        }));
+        const questionWrappers = collect(q);
+        const answerWrappers = collect(a);
+        const occurrences = questionWrappers.map((wrapper, index) => ({ side:'q', index, signature:wrapper.signature }));
+        const questionSignatureCounts = new Map();
+        questionWrappers.forEach(wrapper => questionSignatureCounts.set(wrapper.signature, (questionSignatureCounts.get(wrapper.signature) || 0) + 1));
+        const matchedAnswerCounts = new Map();
+        answerWrappers.forEach((wrapper, index) => {
+            const matchedCount = matchedAnswerCounts.get(wrapper.signature) || 0;
+            if(matchedCount < (questionSignatureCounts.get(wrapper.signature) || 0)) matchedAnswerCounts.set(wrapper.signature, matchedCount + 1);
+            else occurrences.push({ side:'a', index, signature:wrapper.signature });
+        });
+        const keepOnly = (html, keepIndex) => {
+            let index = 0;
+            return String(html || '').replace(wrapperPattern, match => index++ === keepIndex ? match : '');
+        };
+        const removeAll = html => String(html || '').replace(wrapperPattern, '');
+        if(occurrences.length === 0) return [{ q, a }];
+        if(occurrences.length === 1) {
+            if(questionWrappers.length && answerWrappers.length && q !== a) return [{ q, a:removeAll(a) }];
+            return [{ q, a }];
+        }
+        return occurrences.map(occurrence => ({
+            q: occurrence.side === 'q' ? keepOnly(q, occurrence.index) : removeAll(q),
+            a: occurrence.side === 'a' ? keepOnly(a, occurrence.index) : removeAll(a)
+        }));
     }
 
     function processAnkiText(text, filename, stats, targetLib) {
@@ -8374,15 +8423,26 @@
             
             if(!targetLib[deckNameInRow]) targetLib[deckNameInRow] = [];
             
-            const existingCardIndex = targetLib[deckNameInRow].findIndex(c => c.id === finalId);
-            const cardObj = { id: finalId, q, a, isLogseq, blockId, breadcrumb, extra, graphName, sourceOrder, deck: deckNameInRow };
+            const splitContents = splitMkIOCardContent(q, a);
             if (graphName) rememberLogseqGraphName(graphName, 'import');
-
-            if (existingCardIndex !== -1) {
-                targetLib[deckNameInRow].splice(existingCardIndex, 1);
-            }
-
-            targetLib[deckNameInRow].push(cardObj);
+            splitContents.forEach((content, splitIndex) => {
+                const cardId = splitIndex === 0 ? finalId : `${finalId}__mk_io_${splitIndex + 1}`;
+                const existingCardIndex = targetLib[deckNameInRow].findIndex(c => c.id === cardId);
+                const cardObj = {
+                    id: cardId,
+                    q: content.q,
+                    a: content.a,
+                    isLogseq,
+                    blockId,
+                    breadcrumb,
+                    extra,
+                    graphName,
+                    sourceOrder: sourceOrder + (splitIndex / Math.max(1, splitContents.length)),
+                    deck: deckNameInRow
+                };
+                if (existingCardIndex !== -1) targetLib[deckNameInRow].splice(existingCardIndex, 1);
+                targetLib[deckNameInRow].push(cardObj);
+            });
         }
     }
 
