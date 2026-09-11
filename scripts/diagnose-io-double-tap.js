@@ -151,13 +151,32 @@ async function main() {
         const listenerCountsAfter = await evaluate(`(() => { const wrapper=document.querySelector('#question-section .mk-io-wrapper'); return {windowResize:(getEventListeners(window).resize||[]).length,touchstart:(getEventListeners(wrapper).touchstart||[]).length,resizeObservers:{...window.__mkResizeObserverDiagnostics},activeObservers:ioZoomDiagnostics.activeObservers,activeTargets:ioZoomDiagnostics.activeTargets,pendingFrames:ioZoomDiagnostics.pendingFrames,releasedImages:ioZoomDiagnostics.releasedImages,parsedMaskCacheSize:mkIOElementsParseCache.size,activeCard:String(activeDeck[currentIndex].id),activeImage:wrapper?.dataset.mkIoImage||'',domMatches:wrapper?.dataset.mkIoImage===getImageOcclusionGroupKey(activeDeck[currentIndex]).replace(/^image:/,''),images:document.images.length,ioImages:wrapper.querySelectorAll('img').length,svgMasks:wrapper.querySelectorAll('svg,.mk-io-layer').length,overlays:document.querySelectorAll('.mk-high-res-zoom-layer').length,nodes:document.querySelectorAll('*').length,raf:wrapper._mediaZoomState.raf?1:0,timers:wrapper._mediaZoomState.doubleTapUnlockTimer?1:0,trace:window.getMKIOZoomTrace()}; })()`);
         await evaluate(`(() => { const wrapper=document.querySelector('#question-section .mk-io-wrapper'); const error=new Error('diagnostic-dedupe-test'); reportIOZoomError(error,'DIAGNOSTIC_TEST',wrapper,wrapper._mediaZoomState); reportIOZoomError(error,'DIAGNOSTIC_TEST',wrapper,wrapper._mediaZoomState); })()`);
         await delay(100);
+        const coldStarts = [];
+        for(let run = 0; run < 10; run++) {
+            await send('Page.navigate', {url:process.env.MK_TEST_URL || 'http://127.0.0.1:8880/index.html'});
+            await delay(500);
+            for(let wait = 0; wait < 40; wait++) {
+                try {
+                    if(await evaluate('typeof library!=="undefined" && Object.values(library||{}).some(cards=>cards.length)')) break;
+                } catch (_) {}
+                await delay(100);
+            }
+            const state = await evaluate(`(async () => {
+                const desired='image:io1-2_1780227484684_0.png';
+                const entry=Object.entries(library).find(([,cards])=>cards.some(card=>getImageOcclusionGroupKey(card)===desired));
+                currentDeckName=entry[0]; originalDeck=entry[1]; activeDeck=entry[1].slice(); currentIndex=activeDeck.findIndex(card=>getImageOcclusionGroupKey(card)===desired); showCard();
+                await new Promise(resolve=>setTimeout(resolve,900));
+                return {ioImages:document.querySelectorAll('.mk-io-image').length,withSrc:document.querySelectorAll('.mk-io-image[src]').length,masks:document.querySelectorAll('.mk-io-layer').length,loading:ioImageLoadDiagnostics.loading,maxLoading:ioImageLoadDiagnostics.maxLoading,overlays:document.querySelectorAll('.mk-high-res-zoom-layer').length};
+            })()`);
+            coldStarts.push(state);
+        }
         const metrics = await send('Performance.getMetrics');
         const metric = name => metrics.result.metrics.find(item => item.name === name)?.value || 0;
         if(inlineZoom.scale !== 1.7 || inlineZoom.rasterWidth <= imageDimensions.client[0] || inlineZoom.wrapperTransform !== '' || !inlineZoom.wrapperLeft || !inlineZoom.wrapperTop || inlineZoom.overlayCount !== 0 || inlineZoom.ioImages !== 1 || inlineZoom.svgMasks !== 1 || inlineZoom.maskDelta.some(delta=>delta>1)) throw new Error('IO direct-layout zoom verification failed: '+JSON.stringify(inlineZoom));
         if(pinchZoom.scale <= 1.7 || pinchZoom.rasterWidth <= inlineZoom.rasterWidth || pinchZoom.wrapperTransform !== '' || !pinchZoom.wrapperLeft || !pinchZoom.wrapperTop || pinchZoom.overlayCount !== 0) throw new Error('IO direct-layout pinch verification failed: '+JSON.stringify(pinchZoom));
         if(maxZoom.scale !== 5 || dragAfter === dragBefore) throw new Error('IO max zoom/drag verification failed: '+JSON.stringify({maxZoom,dragBefore,dragAfter}));
         if(cycleResult.scale !== 1 || cycleResult.overlayCount !== 0) throw new Error('IO zoom DOM accumulated after 20 cycles: '+JSON.stringify(cycleResult));
-        console.log(JSON.stringify({setup,imageDimensions,inlineZoom,pinchZoom,maxZoom,dragBefore,dragAfter,cycleResult,listenerCountsBefore,afterTaps,listenerCountsAfter,sameImageDoubleTapStarts,doubleTapStarts:consoleEvents.filter(text=>text.includes('DOUBLE_TAP_START')).length,diagnosticLogCount:consoleEvents.filter(text=>text.includes('MK_IO_ZOOM_FIRST_ERROR')).length,zoomErrors:consoleEvents.filter(text=>/DOUBLE_TAP_ERROR|IMAGE_ZOOM_ERROR|ZOOM_RESET_BY_ERROR/.test(text)),firstException:exceptions[0]||null,exceptionCount:exceptions.length,jsHeapUsed:metric('JSHeapUsedSize'),nodes:metric('Nodes')}));
+        console.log(JSON.stringify({setup,imageDimensions,inlineZoom,pinchZoom,maxZoom,dragBefore,dragAfter,cycleResult,coldStarts,listenerCountsBefore,afterTaps,listenerCountsAfter,sameImageDoubleTapStarts,doubleTapStarts:consoleEvents.filter(text=>text.includes('DOUBLE_TAP_START')).length,diagnosticLogCount:consoleEvents.filter(text=>text.includes('MK_IO_ZOOM_FIRST_ERROR')).length,zoomErrors:consoleEvents.filter(text=>/DOUBLE_TAP_ERROR|IMAGE_ZOOM_ERROR|ZOOM_RESET_BY_ERROR/.test(text)),firstException:exceptions[0]||null,exceptionCount:exceptions.length,jsHeapUsed:metric('JSHeapUsedSize'),nodes:metric('Nodes')}));
         socket.close();
     } finally {
         browser.kill();

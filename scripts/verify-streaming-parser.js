@@ -32,6 +32,7 @@ function buildParser(source, rowParserName) {
         'resolveCardId',
         'resolveStableLogseqCardId',
         'normalizeDeckPath',
+        'splitMkIOCardContent',
         'processAnkiText',
         'sanitizeLogseqSystemJunk'
     ];
@@ -42,7 +43,8 @@ function buildParser(source, rowParserName) {
         rememberLogseqGraphName() {}
     };
     vm.createContext(context);
-    vm.runInContext(`${cyrb53}\n${names.map(name => extractFunction(source, name)).join('\n')}\nthis.run = processAnkiText; this.rows = ${rowParserName};`, context);
+    const functions = names.filter(name => source.includes(`function ${name}(`) || source.includes(`function* ${name}(`)).map(name => extractFunction(source, name));
+    vm.runInContext(`${cyrb53}\n${functions.join('\n')}\nthis.run = processAnkiText; this.rows = ${rowParserName};`, context);
     return context;
 }
 
@@ -59,6 +61,14 @@ for (const filename of files) {
     streaming.run(text, filename, stats, streamingLibrary);
 }
 
+const syntheticLibrary = {};
+const syntheticWrappers = [1, 2, 3].map(index => `<span class="mk-io-wrapper" data-mk-io="1" data-mk-io-image="sample-${index}.png"><img class="mk-io-image" src="sample-${index}.png"></span>`).join('');
+streaming.run(`sample__deck\t11111111-1111-4111-8111-111111111111\t11111111-1111-4111-8111-111111111111\t"${syntheticWrappers.replace(/"/g, '""')}"\t\t[[sample/deck]]`, 'sample.txt', {}, syntheticLibrary);
+const syntheticCards = Object.values(syntheticLibrary).flat();
+assert.equal(syntheticCards.length, 3);
+assert(syntheticCards.every(card => (card.q.match(/\bmk-io-wrapper\b/g) || []).length === 1));
+assert.equal(syntheticCards[0].id, '11111111-1111-4111-8111-111111111111');
+
 const edgeCases = [
     'deck\t"quoted\nmultiline"\t"escaped ""quote"""',
     'deck\ta\tb\r\ndeck\tc\td\r\n',
@@ -66,8 +76,17 @@ const edgeCases = [
     '#comment\r\ndeck\tlast\trow-without-newline'
 ].join('\n');
 assert.equal(JSON.stringify(Array.from(streaming.rows(edgeCases))), JSON.stringify(legacy.rows(edgeCases)));
-assert.equal(JSON.stringify(streamingLibrary), JSON.stringify(legacyLibrary));
+const countIOWrappers = value => (String(value || '').match(/\bmk-io-wrapper\b/g) || []).length;
+const legacyCards = Object.values(legacyLibrary).flat();
+const streamingCards = Object.values(streamingLibrary).flat();
+legacyCards.filter(card => Math.max(countIOWrappers(card.q), countIOWrappers(card.a)) <= 1).forEach(card => {
+    const candidate = streamingCards.find(item => item.id === card.id);
+    assert(candidate);
+    assert.equal(candidate.q, card.q);
+    assert.equal(candidate.a, card.a);
+});
+assert(streamingCards.every(card => Math.max(countIOWrappers(card.q), countIOWrappers(card.a)) <= 1));
 
 const deckNames = Object.keys(streamingLibrary);
 const cardCount = deckNames.reduce((count, deck) => count + streamingLibrary[deck].length, 0);
-process.stdout.write(JSON.stringify({ files, deckCount: deckNames.length, cardCount, differences: 0 }) + '\n');
+process.stdout.write(JSON.stringify({ files, deckCount: deckNames.length, cardCount, multiIOCardsBefore:legacyCards.filter(card=>Math.max(countIOWrappers(card.q),countIOWrappers(card.a))>1).length, multiIOCardsAfter:streamingCards.filter(card=>Math.max(countIOWrappers(card.q),countIOWrappers(card.a))>1).length }) + '\n');
