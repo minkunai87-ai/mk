@@ -91,6 +91,16 @@ async function main() {
             const wrapper=document.querySelector('#question-section .mk-io-wrapper'); const rect=wrapper.getBoundingClientRect();
             const img=wrapper.querySelector('img'); return {deck:entry.name,groups:groups.length,x:rect.left+rect.width/2,y:Math.min(rect.bottom-4,rect.top+Math.min(180,rect.height/2)),cardId:String(activeDeck[currentIndex].id),group:getImageOcclusionGroupKey(activeDeck[currentIndex]),image:wrapper.dataset.mkIoImage,natural:[img.naturalWidth,img.naturalHeight],client:[img.clientWidth,img.clientHeight]};
         })()`);
+        await delay(20);
+        const coldZoomBefore = await evaluate(`(() => {const w=document.querySelector('#question-section .mk-io-wrapper'),i=w.querySelector('img');return {complete:i.complete,natural:[i.naturalWidth,i.naturalHeight],ready:w._mediaZoomState.ioZoomReady,srcAssignments:ioImageLoadDiagnostics.srcAssignments,pending:ioZoomDiagnostics.pendingZooms,decodeRuns:ioZoomDiagnostics.decodeRuns};})()`);
+        await evaluate(`(() => {const w=document.querySelector('#question-section .mk-io-wrapper'),r=w.getBoundingClientRect();for(let n=0;n<2;n++){const t=new Touch({identifier:1,target:w,clientX:r.left+24,clientY:r.top+120});w.dispatchEvent(new TouchEvent('touchstart',{touches:[t],targetTouches:[t],changedTouches:[t],bubbles:true,cancelable:true}));w.dispatchEvent(new TouchEvent('touchend',{touches:[],targetTouches:[],changedTouches:[t],bubbles:true,cancelable:true}));}})()`);
+        for(let wait=0; wait<50; wait++) {
+            if(await evaluate(`document.querySelector('#question-section .mk-io-wrapper')?._mediaZoomState?.ioZoomReady===true`)) break;
+            await delay(100);
+        }
+        await delay(100);
+        const coldZoomAfter = await evaluate(`(() => {const w=document.querySelector('#question-section .mk-io-wrapper'),i=w.querySelector('img'),l=w.querySelector('.mk-io-layer'),a=i.getBoundingClientRect(),b=l.getBoundingClientRect();return {complete:i.complete,natural:[i.naturalWidth,i.naturalHeight],ready:w._mediaZoomState.ioZoomReady,scale:w._mediaZoomState.scale,srcAssignments:ioImageLoadDiagnostics.srcAssignments,pending:ioZoomDiagnostics.pendingZooms,decodeRuns:ioZoomDiagnostics.decodeRuns,maxDecodeInFlight:ioZoomDiagnostics.maxDecodeInFlight,readyWaitMs:ioZoomDiagnostics.readyWaitMs,splitFrames:ioZoomDiagnostics.firstZoomSplitFrames,maskDelta:[Math.abs(a.left-b.left),Math.abs(a.top-b.top),Math.abs(a.width-b.width),Math.abs(a.height-b.height)]};})()`);
+        await evaluate(`resetImageZooms(document.getElementById('question-section'))`);
         await delay(1000);
         const imageDimensions = await evaluate(`(() => { const img=document.querySelector('#question-section .mk-io-wrapper img'); return {natural:[img.naturalWidth,img.naturalHeight],client:[img.clientWidth,img.clientHeight]}; })()`);
         const sameCardFilterCycles = await evaluate(`(() => {
@@ -184,7 +194,7 @@ async function main() {
         await evaluate(`(() => { const wrapper=document.querySelector('#question-section .mk-io-wrapper'); const error=new Error('diagnostic-dedupe-test'); reportIOZoomError(error,'DIAGNOSTIC_TEST',wrapper,wrapper._mediaZoomState); reportIOZoomError(error,'DIAGNOSTIC_TEST',wrapper,wrapper._mediaZoomState); })()`);
         await delay(100);
         const coldStarts = [];
-        for(let run = 0; run < 10; run++) {
+        for(let run = 0; run < 20; run++) {
             await send('Page.navigate', {url:process.env.MK_TEST_URL || 'http://127.0.0.1:8880/index.html'});
             await delay(500);
             for(let wait = 0; wait < 40; wait++) {
@@ -197,8 +207,16 @@ async function main() {
                 const desired='image:io1-2_1780227484684_0.png';
                 const entry=Object.entries(library).find(([,cards])=>cards.some(card=>getImageOcclusionGroupKey(card)===desired));
                 currentDeckName=entry[0]; originalDeck=entry[1]; activeDeck=entry[1].slice(); currentIndex=activeDeck.findIndex(card=>getImageOcclusionGroupKey(card)===desired); showCard();
-                await new Promise(resolve=>setTimeout(resolve,900));
-                return {ioImages:document.querySelectorAll('.mk-io-image').length,withSrc:document.querySelectorAll('.mk-io-image[src]').length,masks:document.querySelectorAll('.mk-io-layer').length,loading:ioImageLoadDiagnostics.loading,maxLoading:ioImageLoadDiagnostics.maxLoading,overlays:document.querySelectorAll('.mk-high-res-zoom-layer').length};
+                await new Promise(resolve=>setTimeout(resolve,20));
+                const wrapper=document.querySelector('#question-section .mk-io-wrapper');
+                const srcAssignmentsBeforeZoom=ioImageLoadDiagnostics.srcAssignments;
+                const tap=(type,time)=>wrapper.dispatchEvent(new TouchEvent(type,{bubbles:true,cancelable:true,timeStamp:time,touches:type==='touchend'?[]:[new Touch({identifier:1,target:wrapper,clientX:195,clientY:320})],changedTouches:[new Touch({identifier:1,target:wrapper,clientX:195,clientY:320})]}));
+                tap('touchstart',10); tap('touchend',20); tap('touchstart',100); tap('touchend',110);
+                for(let wait=0; wait<50 && !wrapper._mediaZoomState.ioZoomReady; wait++) await new Promise(resolve=>setTimeout(resolve,100));
+                await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+                const img=wrapper.querySelector('img'), layer=wrapper.querySelector('.mk-io-layer');
+                const imageRect=img.getBoundingClientRect(), maskRect=layer.getBoundingClientRect();
+                return {ioImages:document.querySelectorAll('.mk-io-image').length,withSrc:document.querySelectorAll('.mk-io-image[src]').length,masks:document.querySelectorAll('.mk-io-layer').length,loading:ioImageLoadDiagnostics.loading,maxLoading:ioImageLoadDiagnostics.maxLoading,overlays:document.querySelectorAll('.mk-high-res-zoom-layer').length,ready:wrapper._mediaZoomState.ioZoomReady,scale:wrapper._mediaZoomState.scale,srcAssignmentDelta:ioImageLoadDiagnostics.srcAssignments-srcAssignmentsBeforeZoom,decodeRuns:ioZoomDiagnostics.decodeRuns,maxDecodeInFlight:ioZoomDiagnostics.maxDecodeInFlight,pendingZooms:ioZoomDiagnostics.pendingZooms,splitFrames:ioZoomDiagnostics.firstZoomSplitFrames,readyWaitMs:ioZoomDiagnostics.readyWaitMs,maskDelta:[Math.abs(imageRect.left-maskRect.left),Math.abs(imageRect.top-maskRect.top),Math.abs(imageRect.width-maskRect.width),Math.abs(imageRect.height-maskRect.height)]};
             })()`);
             coldStarts.push(state);
         }
@@ -210,7 +228,9 @@ async function main() {
         if(cycleResult.scale !== 1 || cycleResult.overlayCount !== 0) throw new Error('IO zoom DOM accumulated after 20 cycles: '+JSON.stringify(cycleResult));
         if(!sameCardFilterCycles.sameNode || !sameCardFilterCycles.srcUnchanged || sameCardFilterCycles.renderDelta !== 0 || sameCardFilterCycles.srcAssignmentDelta !== 0 || sameCardFilterCycles.loadDelta !== 0 || sameCardFilterCycles.ioImages !== 1 || sameCardFilterCycles.masks !== 1) throw new Error('Same-card recommended filter reused IO incorrectly: '+JSON.stringify(sameCardFilterCycles));
         if(!differentIOTransition.skipped && (differentIOTransition.sameNode || differentIOTransition.srcAssignmentDelta !== 1 || differentIOTransition.loadDelta !== 1 || differentIOTransition.ioImages !== 1 || differentIOTransition.maxLoading > 1)) throw new Error('Different IO transition lifecycle failed: '+JSON.stringify(differentIOTransition));
-        console.log(JSON.stringify({setup,imageDimensions,sameCardFilterCycles,differentIOTransition,inlineZoom,pinchZoom,maxZoom,dragBefore,dragAfter,cycleResult,coldStarts,listenerCountsBefore,afterTaps,listenerCountsAfter,sameImageDoubleTapStarts,doubleTapStarts:consoleEvents.filter(text=>text.includes('DOUBLE_TAP_START')).length,diagnosticLogCount:consoleEvents.filter(text=>text.includes('MK_IO_ZOOM_FIRST_ERROR')).length,zoomErrors:consoleEvents.filter(text=>/DOUBLE_TAP_ERROR|IMAGE_ZOOM_ERROR|ZOOM_RESET_BY_ERROR/.test(text)),firstException:exceptions[0]||null,exceptionCount:exceptions.length,jsHeapUsed:metric('JSHeapUsedSize'),nodes:metric('Nodes')}));
+        if(!coldZoomAfter.ready || coldZoomAfter.scale !== 1.7 || coldZoomAfter.srcAssignments !== coldZoomBefore.srcAssignments || coldZoomAfter.maxDecodeInFlight > 1 || coldZoomAfter.maskDelta.some(delta=>delta>1)) throw new Error('Cold IO zoom readiness failed: '+JSON.stringify({coldZoomBefore,coldZoomAfter}));
+        if(coldStarts.some(state=>!state.ready || state.scale!==1.7 || state.srcAssignmentDelta!==0 || state.maxDecodeInFlight>1 || state.ioImages!==1 || state.masks!==1 || state.overlays!==0 || state.maskDelta.some(delta=>delta>1))) throw new Error('Cold IO zoom 20-run verification failed: '+JSON.stringify(coldStarts));
+        console.log(JSON.stringify({setup,coldZoomBefore,coldZoomAfter,imageDimensions,sameCardFilterCycles,differentIOTransition,inlineZoom,pinchZoom,maxZoom,dragBefore,dragAfter,cycleResult,coldStarts,listenerCountsBefore,afterTaps,listenerCountsAfter,sameImageDoubleTapStarts,doubleTapStarts:consoleEvents.filter(text=>text.includes('DOUBLE_TAP_START')).length,diagnosticLogCount:consoleEvents.filter(text=>text.includes('MK_IO_ZOOM_FIRST_ERROR')).length,zoomErrors:consoleEvents.filter(text=>/DOUBLE_TAP_ERROR|IMAGE_ZOOM_ERROR|ZOOM_RESET_BY_ERROR/.test(text)),firstException:exceptions[0]||null,exceptionCount:exceptions.length,jsHeapUsed:metric('JSHeapUsedSize'),nodes:metric('Nodes')}));
         socket.close();
     } finally {
         browser.kill();
