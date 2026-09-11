@@ -7,6 +7,7 @@ const path = require('node:path');
 const repoRoot = path.resolve(__dirname, '..');
 const profilePath = fs.mkdtempSync(path.join(os.tmpdir(), 'mk-io-double-tap-'));
 const browserPath = process.env.MK_TEST_BROWSER || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const expectedMaxScale = Number(process.env.MK_IO_EXPECTED_MAX || 5);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const server = http.createServer((request, response) => {
     const relative = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname).replace(/^\/+/, '') || 'index.html';
@@ -174,7 +175,7 @@ async function main() {
         const metric = name => metrics.result.metrics.find(item => item.name === name)?.value || 0;
         if(inlineZoom.scale !== 1.7 || inlineZoom.rasterWidth <= imageDimensions.client[0] || inlineZoom.wrapperTransform !== '' || !inlineZoom.wrapperLeft || !inlineZoom.wrapperTop || inlineZoom.overlayCount !== 0 || inlineZoom.ioImages !== 1 || inlineZoom.svgMasks !== 1 || inlineZoom.maskDelta.some(delta=>delta>1)) throw new Error('IO direct-layout zoom verification failed: '+JSON.stringify(inlineZoom));
         if(pinchZoom.scale <= 1.7 || pinchZoom.rasterWidth <= inlineZoom.rasterWidth || pinchZoom.wrapperTransform !== '' || !pinchZoom.wrapperLeft || !pinchZoom.wrapperTop || pinchZoom.overlayCount !== 0) throw new Error('IO direct-layout pinch verification failed: '+JSON.stringify(pinchZoom));
-        if(maxZoom.scale !== 5 || dragAfter === dragBefore) throw new Error('IO max zoom/drag verification failed: '+JSON.stringify({maxZoom,dragBefore,dragAfter}));
+        if(maxZoom.scale !== expectedMaxScale || dragAfter === dragBefore) throw new Error('IO max zoom/drag verification failed: '+JSON.stringify({expectedMaxScale,maxZoom,dragBefore,dragAfter}));
         if(cycleResult.scale !== 1 || cycleResult.overlayCount !== 0) throw new Error('IO zoom DOM accumulated after 20 cycles: '+JSON.stringify(cycleResult));
         console.log(JSON.stringify({setup,imageDimensions,inlineZoom,pinchZoom,maxZoom,dragBefore,dragAfter,cycleResult,coldStarts,listenerCountsBefore,afterTaps,listenerCountsAfter,sameImageDoubleTapStarts,doubleTapStarts:consoleEvents.filter(text=>text.includes('DOUBLE_TAP_START')).length,diagnosticLogCount:consoleEvents.filter(text=>text.includes('MK_IO_ZOOM_FIRST_ERROR')).length,zoomErrors:consoleEvents.filter(text=>/DOUBLE_TAP_ERROR|IMAGE_ZOOM_ERROR|ZOOM_RESET_BY_ERROR/.test(text)),firstException:exceptions[0]||null,exceptionCount:exceptions.length,jsHeapUsed:metric('JSHeapUsedSize'),nodes:metric('Nodes')}));
         socket.close();

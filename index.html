@@ -1741,7 +1741,8 @@
 
     function bindImageZoomHandlers(root = document) {
         const MIN_SCALE = 1;
-        const MAX_SCALE = 5;
+        const requestedPreviewMaxScale = Number(new URLSearchParams(window.location.search).get('ioMaxScale'));
+        const MAX_SCALE = [3, 4, 5].includes(requestedPreviewMaxScale) ? requestedPreviewMaxScale : 5;
         const targets = new Set();
         root.querySelectorAll('.mk-io-wrapper').forEach(el => targets.add(el));
         root.querySelectorAll('img').forEach(img => targets.add(getMediaZoomTarget(img) || img));
