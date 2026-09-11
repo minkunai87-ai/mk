@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.216-restore-delayed-mobile-deck-import -->
+<!-- deployment: v18.5.218-io-adaptive-raster-stability -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.216 - Restore delayed mobile deck import)</title>
+<title>MK (v18.5.218 - IO adaptive raster stability)</title>
 
 <script>
     (() => {
@@ -580,7 +580,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.216 - Restore delayed mobile deck import)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.218 - IO adaptive raster stability)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -874,7 +874,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.216 - Restore delayed mobile deck import';
+    const APP_VERSION = 'v18.5.218 - IO adaptive raster stability';
     const mkStartupClockStartedAt = performance.now();
     const MK_STARTUP_BOOT_MARKER_KEY = 'mk_startup_boot_marker';
     const mkPageInstanceId = window.__mkBootstrapPageInstanceId || `mk_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -1032,6 +1032,9 @@
     let ioImageGroupCache = { cards: null, length: 0, groups: [], cardToGroup: new Map() };
     const ioImageLastVisitedCard = new Map();
     const ioZoomDiagnostics = { logged: new Set(), lastAction: '', doubleTapRuns: 0, occlusionInitializations: 0, cardRenders: 0, activeObservers: 0, activeTargets: 0, pendingFrames: 0, releasedImages: 0 };
+    const ioImageLoadDiagnostics = { loading:0, maxLoading:0, activations:0, aborted:0 };
+    let activeIOImageLoad = null;
+    let ioImageActivationSequence = 0;
     const IO_ZOOM_TRACE_KEY = 'mk_io_zoom_trace_v1';
     function recordIOZoomTrace(stage, wrapper = null, state = null, input = '') {
         try {
@@ -1648,6 +1651,7 @@
 
     function disposeCardMediaResources(root) {
         if(!root) return;
+        ioImageActivationSequence += 1;
         root.querySelectorAll('.mk-io-wrapper').forEach(wrapper => {
             if(wrapper._mkIoResizeObserver) {
                 wrapper._mkIoResizeObserver.disconnect();
@@ -1674,6 +1678,12 @@
             wrapper.querySelectorAll('.mk-io-layer').forEach(layer => layer.remove());
             if(img) {
                 img.onerror = null;
+                img.removeAttribute('src');
+                if(activeIOImageLoad && activeIOImageLoad.img === img) {
+                    activeIOImageLoad = null;
+                    ioImageLoadDiagnostics.loading = 0;
+                    ioImageLoadDiagnostics.aborted += 1;
+                }
                 ioZoomDiagnostics.releasedImages += 1;
             }
         });
@@ -1698,6 +1708,7 @@
             target.removeAttribute('data-media-zoom-bound');
             ioZoomDiagnostics.activeTargets = Math.max(0, ioZoomDiagnostics.activeTargets - 1);
         });
+        root.querySelectorAll('img.mk-io-image').forEach(img => img.remove());
     }
 
     function resetImageZooms(root = document) {
@@ -1857,11 +1868,6 @@
                 });
                 wrapper.style.removeProperty('width');
                 wrapper.style.removeProperty('height');
-                wrapper.style.removeProperty('max-width');
-                wrapper.style.removeProperty('margin-right');
-                wrapper.style.removeProperty('margin-bottom');
-                wrapper.style.removeProperty('left');
-                wrapper.style.removeProperty('top');
                 state.ioRasterBase = null;
                 state.ioRasterFactor = 1;
             };
@@ -1881,24 +1887,21 @@
                     };
                 }
                 const base = state.ioRasterBase;
+                const dpr = Math.max(1, Number(window.devicePixelRatio) || 1);
                 const naturalLimit = Math.min(
-                    img.naturalWidth / Math.max(1, base.width),
-                    img.naturalHeight / Math.max(1, base.height)
+                    img.naturalWidth / Math.max(1, base.width * dpr),
+                    img.naturalHeight / Math.max(1, base.height * dpr)
                 );
                 const factor = Math.max(1, Math.min(state.scale, naturalLimit));
-                const layoutWidth = base.width * factor;
-                const layoutHeight = base.height * factor;
-                wrapper.style.setProperty('width', `${layoutWidth}px`, 'important');
-                wrapper.style.setProperty('height', `${layoutHeight}px`, 'important');
-                wrapper.style.setProperty('max-width', 'none', 'important');
-                wrapper.style.marginRight = `${base.width - layoutWidth}px`;
-                wrapper.style.marginBottom = `${base.height - layoutHeight}px`;
+                const inverse = 1 / factor;
+                wrapper.style.width = `${base.width}px`;
+                wrapper.style.height = `${base.height}px`;
                 [img, layer].forEach(el => {
-                    el.style.setProperty('width', `${layoutWidth}px`, 'important');
-                    el.style.setProperty('height', `${layoutHeight}px`, 'important');
+                    el.style.setProperty('width', `${base.width * factor}px`, 'important');
+                    el.style.setProperty('height', `${base.height * factor}px`, 'important');
                     el.style.setProperty('max-width', 'none', 'important');
-                    el.style.removeProperty('transform');
-                    el.style.removeProperty('transform-origin');
+                    el.style.transformOrigin = '0 0';
+                    el.style.transform = `scale(${inverse})`;
                 });
                 state.ioRasterFactor = factor;
             };
@@ -1974,9 +1977,8 @@
                 return true;
             };
             const getBaseRect = (rect = wrapper.getBoundingClientRect()) => {
-                const ioBase = isIOZoomTarget && state.ioRasterBase;
-                const width = ioBase?.width || wrapper.offsetWidth || (rect.width / state.scale) || rect.width || 1;
-                const height = ioBase?.height || wrapper.offsetHeight || (rect.height / state.scale) || rect.height || 1;
+                const width = wrapper.offsetWidth || (rect.width / state.scale) || rect.width || 1;
+                const height = wrapper.offsetHeight || (rect.height / state.scale) || rect.height || 1;
                 if (!Number.isFinite(rect.left) || !Number.isFinite(rect.top) || width <= 0 || height <= 0) {
                     const fallbackRect = scrollContainer.getBoundingClientRect();
                     console.warn('IMAGE_ZOOM_ERROR', 'INVALID_IMAGE_ZOOM_RECT');
@@ -2074,13 +2076,7 @@
                                 resetByError('INVALID_MATRIX_TRANSFORM');
                                 return;
                             }
-                            if (isIOZoomTarget) {
-                                wrapper.style.transform = '';
-                                wrapper.style.left = `${state.translateX}px`;
-                                wrapper.style.top = `${state.translateY}px`;
-                            } else {
-                                wrapper.style.transform = `translate3d(${state.translateX}px, ${state.translateY}px, 0) scale(${state.scale})`;
-                            }
+                            wrapper.style.transform = `translate3d(${state.translateX}px, ${state.translateY}px, 0) scale(${state.scale})`;
                         }
                         wrapper.classList.toggle('is-media-zoomed', state.scale > 1);
                     });
@@ -8305,14 +8301,60 @@
             const normalizedDeckPath = normalizeDeckPath(deckPath);
             if (!normalizedDeckPath) return;
             if (!normalizedLibrary[normalizedDeckPath]) normalizedLibrary[normalizedDeckPath] = [];
-            (Array.isArray(cards) ? cards : []).forEach(card => {
+            (Array.isArray(cards) ? cards : []).forEach((card, cardIndex) => {
                 if (!card || typeof card !== 'object') return;
-                card.deck = normalizeDeckPath(card.deck, normalizedDeckPath) || normalizedDeckPath;
-                normalizedLibrary[normalizedDeckPath].push(card);
+                const deck = normalizeDeckPath(card.deck, normalizedDeckPath) || normalizedDeckPath;
+                const splitContents = splitMkIOCardContent(card.q, card.a);
+                if(splitContents.length === 1 && splitContents[0].q === card.q && splitContents[0].a === card.a) {
+                    card.deck = deck;
+                    normalizedLibrary[normalizedDeckPath].push(card);
+                    return;
+                }
+                const baseSourceOrder = Number.isFinite(Number(card.sourceOrder)) ? Number(card.sourceOrder) : cardIndex;
+                splitContents.forEach((content, splitIndex) => normalizedLibrary[normalizedDeckPath].push({
+                    ...card,
+                    id: splitIndex === 0 ? card.id : `${card.id}__mk_io_${splitIndex + 1}`,
+                    q: content.q,
+                    a: content.a,
+                    sourceOrder: baseSourceOrder + (splitIndex / Math.max(1, splitContents.length)),
+                    deck
+                }));
             });
         });
 
         return normalizedLibrary;
+    }
+
+    function splitMkIOCardContent(q, a) {
+        const wrapperPattern = /<(span|div)\b[^>]*class=["'][^"']*\bmk-io-wrapper\b[^"']*["'][^>]*>[\s\S]*?<\/\1>/gi;
+        const collect = html => Array.from(String(html || '').matchAll(wrapperPattern), match => ({
+            signature: `${(/data-mk-io-image\s*=\s*["']([^"']+)/i.exec(match[0]) || [])[1] || ''}\n${(/data-mk-io-target-cid\s*=\s*["']([^"']+)/i.exec(match[0]) || [])[1] || ''}`
+        }));
+        const questionWrappers = collect(q);
+        const answerWrappers = collect(a);
+        const occurrences = questionWrappers.map((wrapper, index) => ({ side:'q', index, signature:wrapper.signature }));
+        const questionSignatureCounts = new Map();
+        questionWrappers.forEach(wrapper => questionSignatureCounts.set(wrapper.signature, (questionSignatureCounts.get(wrapper.signature) || 0) + 1));
+        const matchedAnswerCounts = new Map();
+        answerWrappers.forEach((wrapper, index) => {
+            const matchedCount = matchedAnswerCounts.get(wrapper.signature) || 0;
+            if(matchedCount < (questionSignatureCounts.get(wrapper.signature) || 0)) matchedAnswerCounts.set(wrapper.signature, matchedCount + 1);
+            else occurrences.push({ side:'a', index, signature:wrapper.signature });
+        });
+        const keepOnly = (html, keepIndex) => {
+            let index = 0;
+            return String(html || '').replace(wrapperPattern, match => index++ === keepIndex ? match : '');
+        };
+        const removeAll = html => String(html || '').replace(wrapperPattern, '');
+        if(occurrences.length === 0) return [{ q, a }];
+        if(occurrences.length === 1) {
+            if(questionWrappers.length && answerWrappers.length && q !== a) return [{ q, a:removeAll(a) }];
+            return [{ q, a }];
+        }
+        return occurrences.map(occurrence => ({
+            q: occurrence.side === 'q' ? keepOnly(q, occurrence.index) : removeAll(q),
+            a: occurrence.side === 'a' ? keepOnly(a, occurrence.index) : removeAll(a)
+        }));
     }
 
     function processAnkiText(text, filename, stats, targetLib) {
@@ -8374,15 +8416,15 @@
             
             if(!targetLib[deckNameInRow]) targetLib[deckNameInRow] = [];
             
-            const existingCardIndex = targetLib[deckNameInRow].findIndex(c => c.id === finalId);
-            const cardObj = { id: finalId, q, a, isLogseq, blockId, breadcrumb, extra, graphName, sourceOrder, deck: deckNameInRow };
+            const splitContents = splitMkIOCardContent(q, a);
             if (graphName) rememberLogseqGraphName(graphName, 'import');
-
-            if (existingCardIndex !== -1) {
-                targetLib[deckNameInRow].splice(existingCardIndex, 1);
-            }
-
-            targetLib[deckNameInRow].push(cardObj);
+            splitContents.forEach((content, splitIndex) => {
+                const cardId = splitIndex === 0 ? finalId : `${finalId}__mk_io_${splitIndex + 1}`;
+                const existingCardIndex = targetLib[deckNameInRow].findIndex(c => c.id === cardId);
+                const cardObj = { id:cardId, q:content.q, a:content.a, isLogseq, blockId, breadcrumb, extra, graphName, sourceOrder:sourceOrder + (splitIndex / Math.max(1, splitContents.length)), deck:deckNameInRow };
+                if (existingCardIndex !== -1) targetLib[deckNameInRow].splice(existingCardIndex, 1);
+                targetLib[deckNameInRow].push(cardObj);
+            });
         }
     }
 
@@ -9288,10 +9330,47 @@ function preserveCardContentLineBreaks(root) {
         });
     }
 
+    function deferMkIOImageSources(html) {
+        return String(html || '').replace(/<img\b[^>]*>/gi, tag => {
+            if(!/\bmk-io-image\b|data-mk-io\s*=\s*["']1["']/i.test(tag)) return tag;
+            return tag.replace(/\ssrc\s*=\s*(["'])(.*?)\1/i, ' data-mk-io-pending-src=$1$2$1');
+        });
+    }
+
+    function activateCurrentIOImage(root) {
+        const img = root && root.querySelector ? root.querySelector('img.mk-io-image[data-mk-io-pending-src]') : null;
+        if(!img) return false;
+        const pendingSrc = String(img.dataset.mkIoPendingSrc || '').trim();
+        if(!pendingSrc) return false;
+        const activationSequence = ++ioImageActivationSequence;
+        requestAnimationFrame(() => {
+            if(activationSequence !== ioImageActivationSequence || !img.isConnected) return;
+            if(activeIOImageLoad && activeIOImageLoad.img !== img) {
+                activeIOImageLoad.img.removeAttribute('src');
+                activeIOImageLoad = null;
+                ioImageLoadDiagnostics.loading = 0;
+                ioImageLoadDiagnostics.aborted += 1;
+            }
+            const settle = () => {
+                if(activeIOImageLoad && activeIOImageLoad.img === img) activeIOImageLoad = null;
+                ioImageLoadDiagnostics.loading = 0;
+            };
+            img.addEventListener('load', settle, { once:true });
+            img.addEventListener('error', settle, { once:true });
+            activeIOImageLoad = { img, activationSequence };
+            ioImageLoadDiagnostics.loading = 1;
+            ioImageLoadDiagnostics.maxLoading = Math.max(ioImageLoadDiagnostics.maxLoading, ioImageLoadDiagnostics.loading);
+            ioImageLoadDiagnostics.activations += 1;
+            img.src = pendingSrc;
+        });
+        return true;
+    }
+
 function createDOM(card, isAnswer, trace) {
         let txt = isAnswer ? card.a.trim() : card.q.trim();
         if(txt.startsWith('"') && txt.endsWith('"')) txt = txt.slice(1, -1).replace(/""/g, '"');
         const rawIsIO = txt.includes('data-mk-io="1"') || txt.includes("data-mk-io='1'") || txt.includes('mk-io-wrapper');
+        if(rawIsIO) txt = deferMkIOImageSources(txt);
         if(!rawIsIO) {
             txt = sanitizeLogseqSystemJunk(txt);
             txt = txt.replace(/onclick="window\.open\('([^']+)'\)"/g, 'onclick="window.location.href=\'$1\'; return false;"');
@@ -9363,7 +9442,25 @@ function createDOM(card, isAnswer, trace) {
         // 🔥 [진짜 흑막 체포] 🔥
         // 상위 목차, 본문, 추가해설까지 싹 다 모아놓고, 한 번에 이미지 주소를 깃허브로 싹 다 변환!
         wrap.querySelectorAll('img').forEach(img => { 
-            let src = img.getAttribute('src'); 
+            const isIOImage = img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === '1' || !!img.closest('.mk-io-wrapper');
+            let src = img.getAttribute('src') || img.dataset.mkIoPendingSrc;
+            if(isIOImage && src) {
+                if (!src.startsWith('http') && repoOwner) {
+                    let fname = src.split('/').pop().trim();
+                    try { fname = decodeURIComponent(fname); } catch(e) {}
+                    if(fname.normalize) fname = fname.normalize('NFC');
+                    src = githubRawBase + encodeURIComponent(fname);
+                }
+                img.dataset.mkIoPendingSrc = src;
+                img.removeAttribute('src');
+                img.style.maxWidth = '100%';
+                img.style.display = 'block';
+                img.style.margin = '0';
+                img.style.borderRadius = '0';
+                img.style.boxShadow = 'none';
+                img.onerror = function() { this.style.display = 'none'; };
+                return;
+            }
             if (src && !src.startsWith('http') && repoOwner) {
                 let fname = src.split('/').pop().trim();
                 try { fname = decodeURIComponent(fname); } catch(e) {}
@@ -11080,6 +11177,7 @@ function getIOImageGroups() {
 
         renderMkImageOcclusions(qSection);
         bindImageZoomHandlers(qSection);
+        if(isIOCard) activateCurrentIOImage(qSection);
         updateIOImageNavigation(card);
 
         if(!isIOCard) {
@@ -11127,6 +11225,7 @@ function getIOImageGroups() {
         renderMkImageOcclusions(qDiv);
         renderMkImageOcclusions(aDiv);
         bindImageZoomHandlers(aDiv);
+        if(isIOCard) activateCurrentIOImage(aDiv);
 
         if(!isIOCard) {
             decoratePdfAnnotations(qDiv, card);
