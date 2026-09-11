@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.218-io-adaptive-raster-stability -->
+<!-- preview: v18.5.219-test-io-redecode-fastpath -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.218 - IO adaptive raster stability)</title>
+<title>MK (v18.5.219 TEST - IO redecode fast-path)</title>
 
 <script>
     (() => {
@@ -580,7 +580,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.218 - IO adaptive raster stability)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.219 TEST - IO redecode fast-path)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -874,7 +874,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.218 - IO adaptive raster stability';
+    const APP_VERSION = 'v18.5.219 TEST - IO redecode fast-path';
     const mkStartupClockStartedAt = performance.now();
     const MK_STARTUP_BOOT_MARKER_KEY = 'mk_startup_boot_marker';
     const mkPageInstanceId = window.__mkBootstrapPageInstanceId || `mk_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -1032,7 +1032,7 @@
     let ioImageGroupCache = { cards: null, length: 0, groups: [], cardToGroup: new Map() };
     const ioImageLastVisitedCard = new Map();
     const ioZoomDiagnostics = { logged: new Set(), lastAction: '', doubleTapRuns: 0, occlusionInitializations: 0, cardRenders: 0, activeObservers: 0, activeTargets: 0, pendingFrames: 0, releasedImages: 0 };
-    const ioImageLoadDiagnostics = { loading:0, maxLoading:0, activations:0, aborted:0 };
+    const ioImageLoadDiagnostics = { loading:0, maxLoading:0, activations:0, aborted:0, srcAssignments:0, loadEvents:0, sameSourceSkips:0, reusedNodes:0 };
     let activeIOImageLoad = null;
     let ioImageActivationSequence = 0;
     const IO_ZOOM_TRACE_KEY = 'mk_io_zoom_trace_v1';
@@ -9342,6 +9342,11 @@ function preserveCardContentLineBreaks(root) {
         if(!img) return false;
         const pendingSrc = String(img.dataset.mkIoPendingSrc || '').trim();
         if(!pendingSrc) return false;
+        const currentSrc = String(img.getAttribute('src') || img.currentSrc || '').trim();
+        if(currentSrc && (currentSrc === pendingSrc || img.src === pendingSrc)) {
+            ioImageLoadDiagnostics.sameSourceSkips += 1;
+            return false;
+        }
         const activationSequence = ++ioImageActivationSequence;
         requestAnimationFrame(() => {
             if(activationSequence !== ioImageActivationSequence || !img.isConnected) return;
@@ -9355,12 +9360,13 @@ function preserveCardContentLineBreaks(root) {
                 if(activeIOImageLoad && activeIOImageLoad.img === img) activeIOImageLoad = null;
                 ioImageLoadDiagnostics.loading = 0;
             };
-            img.addEventListener('load', settle, { once:true });
+            img.addEventListener('load', () => { ioImageLoadDiagnostics.loadEvents += 1; settle(); }, { once:true });
             img.addEventListener('error', settle, { once:true });
             activeIOImageLoad = { img, activationSequence };
             ioImageLoadDiagnostics.loading = 1;
             ioImageLoadDiagnostics.maxLoading = Math.max(ioImageLoadDiagnostics.maxLoading, ioImageLoadDiagnostics.loading);
             ioImageLoadDiagnostics.activations += 1;
+            ioImageLoadDiagnostics.srcAssignments += 1;
             img.src = pendingSrc;
         });
         return true;
@@ -10428,6 +10434,17 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         };
     }
 
+    function keepRecommendedStudyCardDom(card) {
+        if(!card || !document.getElementById('question-section').firstElementChild) return false;
+        resetZoom();
+        updateDeckPathTitle(card);
+        updateSliderUI();
+        document.getElementById('card-counter').innerText = `${currentIndex + 1} / ${activeDeck.length}`;
+        updateIOImageNavigation(card);
+        persistCurrentViewState(false);
+        return true;
+    }
+
     function startRecommendedStudy() {
         const state = getRecommendedStudyState();
         const prepared = state.prepared;
@@ -10435,6 +10452,10 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         const optionIndex = Number(document.getElementById('essential-range').value) || 0;
         const selectedCount = prepared.options[optionIndex];
         const selectedCards = prepared.ranked.slice(0, selectedCount).map(item => item.card);
+        const currentCardBeforeFilter = activeDeck[currentIndex] || null;
+        const keepCurrentCardDom = !!currentCardBeforeFilter && !!selectedCards[0] &&
+            getTodayEssentialCardId(currentCardBeforeFilter) === getTodayEssentialCardId(selectedCards[0]) &&
+            !!document.getElementById('question-section').firstElementChild;
         const previousPreState = state.active ? state.preState : getTodayEssentialPreState();
         if(recommendedStudySheetMode === 'required') {
             const activeFilters = getActiveFilterModes();
@@ -10476,7 +10497,11 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {}
         document.getElementById('essential-sheet-overlay').classList.remove('open');
         updateFilterStatusUI();
-        showCard();
+        if(keepCurrentCardDom) {
+            keepRecommendedStudyCardDom(selectedCards[0]);
+        } else {
+            showCard();
+        }
     }
 
     function startTodayEssential() {
@@ -10506,6 +10531,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             return;
         }
         const cards = (state.todayCandidates || state.candidates || []).slice();
+        const currentCardBeforeRelease = activeDeck[currentIndex] || null;
         const previousCardId = state.previousCardId;
         state.active = false;
         state.prepared = null;
@@ -10514,7 +10540,12 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         currentIndex = restoredIndex >= 0 ? restoredIndex : Math.min(currentIndex, Math.max(0, cards.length - 1));
         document.getElementById('essential-sheet-overlay').classList.remove('open');
         updateFilterStatusUI();
-        showCard();
+        const restoredCard = activeDeck[currentIndex] || null;
+        if(currentCardBeforeRelease && restoredCard && getTodayEssentialCardId(currentCardBeforeRelease) === getTodayEssentialCardId(restoredCard)) {
+            keepRecommendedStudyCardDom(restoredCard);
+        } else {
+            showCard();
+        }
     }
 
     function releaseTodayEssential() {
@@ -11109,6 +11140,16 @@ function getIOImageGroups() {
                 activeDeckCount:Array.isArray(activeDeck) ? activeDeck.length : 0
             });
         }
+        const nextCard = activeDeck && activeDeck.length ? activeDeck[Math.min(currentIndex, activeDeck.length - 1)] : null;
+        const nextIOGroup = getImageOcclusionGroupKey(nextCard);
+        const currentQuestionSection = document.getElementById('question-section');
+        const currentIOWrapper = currentQuestionSection && currentQuestionSection.querySelector('.mk-io-wrapper');
+        const currentIOImage = currentIOWrapper && currentIOWrapper.querySelector('img.mk-io-image[src]');
+        const currentIOGroup = currentIOWrapper && currentIOWrapper.dataset.mkIoImage ? `image:${currentIOWrapper.dataset.mkIoImage}` : '';
+        const retainedIOImage = currentIOImage && nextIOGroup && currentIOGroup === nextIOGroup
+            ? { img:currentIOImage, src:String(currentIOImage.getAttribute('src') || currentIOImage.currentSrc || '') }
+            : null;
+        if(retainedIOImage) retainedIOImage.img.remove();
         resetZoom();
         disposeCardMediaResources(document.getElementById('question-section'));
         disposeCardMediaResources(document.getElementById('answer-section'));
@@ -11152,6 +11193,14 @@ function getIOImageGroups() {
         qSection.innerHTML = '';
         qSection.className = 'text-area mode-question';
         qSection.appendChild(createDOM(card, false, currentCardPdfTrace));
+        if(retainedIOImage) {
+            const pendingImage = qSection.querySelector('img.mk-io-image');
+            if(pendingImage) {
+                retainedIOImage.img.dataset.mkIoPendingSrc = retainedIOImage.src;
+                pendingImage.replaceWith(retainedIOImage.img);
+                ioImageLoadDiagnostics.reusedNodes += 1;
+            }
+        }
         if(isPdfDiagnosticCard) console.log('[CURRENT-CARD] rendered HTML:', qSection.innerHTML);
 
         const aSection = document.getElementById('answer-section');
