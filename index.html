@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.221-io-700px-stability -->
+<!-- deployment: v18.5.222-test-zoom-import-serialization -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.221 - IO 700px stability)</title>
+<title>MK (v18.5.222 TEST - Zoom/import serialization)</title>
 
 <script>
     (() => {
@@ -580,7 +580,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.221 - IO 700px stability)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.222 TEST - Zoom/import serialization)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -874,7 +874,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.221 - IO 700px stability';
+    const APP_VERSION = 'v18.5.222 TEST - Zoom/import serialization';
     const IO_RASTER_MAX_WIDTH = 700;
     const mkStartupClockStartedAt = performance.now();
     const MK_STARTUP_BOOT_MARKER_KEY = 'mk_startup_boot_marker';
@@ -2112,6 +2112,7 @@
             };
             const apply = () => {
                 try {
+                    if(isIOZoomTarget && state.scale > MIN_SCALE && deferIOZoomUntilImportCompletes(apply)) return;
                     if(isIOZoomTarget && state.scale > MIN_SCALE && !state.ioZoomReady) {
                         if(!state.pendingIOApply) ioZoomDiagnostics.pendingZooms += 1;
                         state.pendingIOApply = true;
@@ -2152,6 +2153,7 @@
                             }
                         }
                         wrapper.classList.toggle('is-media-zoomed', state.scale > 1);
+                        if(isIOZoomTarget) notifyIOZoomStateChanged();
                     });
                     ioZoomDiagnostics.pendingFrames += 1;
                 } catch (err) {
@@ -2161,6 +2163,7 @@
             const reset = () => {
                 cancelPendingFrame();
                 state.pendingIOApply = false;
+                if(isIOZoomTarget && deckImportRunning) pendingIOZoomApply = null;
                 state.scale = 1; state.translateX = 0; state.translateY = 0;
                 state.geometry = null;
                 wrapper.style.transformOrigin = '0 0';
@@ -2301,6 +2304,7 @@
                         const contentPoint = getContentPoint(c.x, c.y, state.startScale, state.startTranslateX, state.startTranslateY, base);
                         state.startContentX = contentPoint.x;
                         state.startContentY = contentPoint.y;
+                        if(isIOZoomTarget) notifyIOZoomStateChanged();
                         console.log('PINCH_CENTER', c.x, c.y);
                         return;
                     }
@@ -2541,6 +2545,78 @@
     let mobileDeckImportTimer = null;
     let mobileDeckImportStarted = false;
     let pendingMobileDeckManifest = null;
+    let deckImportRunning = false;
+    let deckImportPromise = null;
+    let pendingDeckImportOptions = null;
+    let pendingDeckImportTimer = null;
+    let pendingIOZoomApply = null;
+
+    function isIOZoomBusy() {
+        return Array.from(document.querySelectorAll('.mk-io-wrapper')).some(wrapper => {
+            const state = wrapper._mediaZoomState;
+            return !!state && !state.disposed && (
+                state.scale > 1 || state.startDist > 0 || state.pendingIOApply ||
+                !!state.raf || !!state.ioRasterRaf
+            );
+        });
+    }
+
+    function clearPendingDeckImportTimer() {
+        if(pendingDeckImportTimer) clearTimeout(pendingDeckImportTimer);
+        pendingDeckImportTimer = null;
+    }
+
+    function schedulePendingDeckImportAfterZoom() {
+        clearPendingDeckImportTimer();
+        if(!pendingDeckImportOptions || deckImportRunning || document.visibilityState !== 'visible' || isIOZoomBusy()) return false;
+        pendingDeckImportTimer = setTimeout(() => {
+            pendingDeckImportTimer = null;
+            if(!pendingDeckImportOptions || deckImportRunning || document.visibilityState !== 'visible' || isIOZoomBusy() || ioZoomDiagnostics.decodeInFlight > 0) {
+                schedulePendingDeckImportAfterZoom();
+                return;
+            }
+            const options = pendingDeckImportOptions;
+            pendingDeckImportOptions = null;
+            autoScanGitHub(options);
+        }, 5000);
+        return true;
+    }
+
+    function queueDeckImportUntilZoomIdle(options = {}) {
+        pendingDeckImportOptions = pendingDeckImportOptions || options;
+        schedulePendingDeckImportAfterZoom();
+        return false;
+    }
+
+    function notifyIOZoomStateChanged() {
+        if(isIOZoomBusy()) clearPendingDeckImportTimer();
+        else if(pendingDeckImportOptions) schedulePendingDeckImportAfterZoom();
+    }
+
+    function deferIOZoomUntilImportCompletes(applyZoom) {
+        if(!deckImportRunning) return false;
+        pendingIOZoomApply = applyZoom;
+        return true;
+    }
+
+    function flushPendingIOZoomAfterImport() {
+        const applyZoom = pendingIOZoomApply;
+        pendingIOZoomApply = null;
+        if(!applyZoom) return;
+        requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
+            if(document.visibilityState === 'visible') applyZoom();
+        }, 120)));
+    }
+
+    function cancelPendingDeckImportForHiddenState() {
+        clearPendingDeckImportTimer();
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if(document.visibilityState !== 'visible') cancelPendingDeckImportForHiddenState();
+        else if(pendingDeckImportOptions) schedulePendingDeckImportAfterZoom();
+    });
+    window.addEventListener('pagehide', cancelPendingDeckImportForHiddenState);
 
     function markUserUiInteraction() {
         if(startupRestoreCompleted) userInteractionRevision++;
@@ -2572,9 +2648,16 @@
             mobileDeckImportTimer = setTimeout(async () => {
                 mobileDeckImportTimer = null;
                 if(document.visibilityState !== 'visible' || mobileDeckImportStarted) return;
+                const options = { silent:true, deckFileList:pendingMobileDeckManifest, preserveCurrentView:true };
+                if(isIOZoomBusy() || ioZoomDiagnostics.decodeInFlight > 0) {
+                    mobileDeckImportStarted = true;
+                    document.removeEventListener('visibilitychange', onVisibilityChange);
+                    queueDeckImportUntilZoomIdle(options);
+                    return;
+                }
                 mobileDeckImportStarted = true;
                 document.removeEventListener('visibilitychange', onVisibilityChange);
-                await autoScanGitHub({ silent:true, deckFileList:pendingMobileDeckManifest, preserveCurrentView:true });
+                await autoScanGitHub(options);
             }, 15000);
         };
         const onVisibilityChange = () => {
@@ -6343,6 +6426,21 @@
     }
 
     async function autoScanGitHub(options = {}) {
+        if(isIOZoomBusy() || ioZoomDiagnostics.decodeInFlight > 0) return queueDeckImportUntilZoomIdle(options);
+        if(deckImportRunning) return deckImportPromise;
+        deckImportRunning = true;
+        deckImportPromise = autoScanGitHubNow(options);
+        try {
+            return await deckImportPromise;
+        } finally {
+            deckImportRunning = false;
+            deckImportPromise = null;
+            flushPendingIOZoomAfterImport();
+            if(pendingDeckImportOptions) schedulePendingDeckImportAfterZoom();
+        }
+    }
+
+    async function autoScanGitHubNow(options = {}) {
         const silent = !!(options && options.silent);
         const preserveCurrentView = !!(options && options.preserveCurrentView);
         let deckImported = false;

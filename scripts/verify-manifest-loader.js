@@ -168,6 +168,9 @@ vm.runInContext(`${extractFunction('getManifestDeckFile')}\n${extractFunction('l
         setTimeout:callback => { const id = nextTimerId++; mobileTimers.set(id, callback); return id; },
         clearTimeout:id => mobileTimers.delete(id),
         importCalls:0,
+        isIOZoomBusy:() => false,
+        ioZoomDiagnostics:{ decodeInFlight:0 },
+        queueDeckImportUntilZoomIdle:() => false,
         autoScanGitHub:async () => { mobileImportContext.importCalls++; return true; }
     };
     vm.createContext(mobileImportContext);
