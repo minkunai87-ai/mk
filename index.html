@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- deployment: v18.5.221-io-700px-stability -->
+<!-- deployment: v18.5.222-filter-render-stability -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.221 - IO 700px stability)</title>
+<title>MK (v18.5.222 - filter render stability)</title>
 
 <script>
     (() => {
@@ -625,7 +625,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.221 - IO 700px stability)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.222 - filter render stability)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -919,7 +919,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.221 - IO 700px stability';
+    const APP_VERSION = 'v18.5.222 - filter render stability';
     const IO_RASTER_MAX_WIDTH = 700;
     const mkStartupClockStartedAt = performance.now();
     const MK_STARTUP_BOOT_MARKER_KEY = 'mk_startup_boot_marker';
@@ -10768,8 +10768,42 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         continueRemainingRecommendedStudy();
     }
 
+    let filterRenderSequence = 0;
+    function safelyRenderCardAfterFilterChange(previousCardId = '') {
+        const card = activeDeck && activeDeck[currentIndex];
+        const nextCardId = String(card && card.id || '');
+        const previousId = String(previousCardId || '');
+        const qSection = document.getElementById('question-section');
+
+        // Fast path: the filter/sort result still points at the exact same card.
+        // Keep the live IO <img>, decoded bitmap, masks and handlers intact.
+        if(previousId && nextCardId === previousId && qSection && qSection.firstElementChild) {
+            keepRecommendedStudyCardDom(card);
+            updateStatsUI(getStatsForCard(card));
+            updateIconsUI(getStatsForCard(card));
+            updateNoteButtonState();
+            return 'reused';
+        }
+
+        // Card really changes. Release the previous large IO before creating/activating
+        // the next one, then yield two frames so WebKit can retire its image surface.
+        const renderSequence = ++filterRenderSequence;
+        resetZoom();
+        disposeCardMediaResources(document.getElementById('question-section'));
+        disposeCardMediaResources(document.getElementById('answer-section'));
+        document.querySelectorAll('.mk-io-other-masks-toggle').forEach(button => button.remove());
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            if(renderSequence !== filterRenderSequence) return;
+            const currentCard = activeDeck && activeDeck[currentIndex];
+            if(String(currentCard && currentCard.id || '') !== nextCardId) return;
+            showCard();
+        }));
+        return 'deferred';
+    }
+
     function applyFilterAndSort(isRestore = false, options = {}) {
         if(!currentDeckName) return;
+        const currentCardBeforeFilterId = String(activeDeck && activeDeck[currentIndex] && activeDeck[currentIndex].id || '');
         const stats = getStatsStore();
         const statsVersion = localStorage.getItem(STORAGE_KEY_LOCAL_DATA_UPDATED_AT) || '';
         if(filterSortStatsMatchCacheStore !== stats || filterSortStatsMatchCacheVersion !== statsVersion) {
@@ -10917,10 +10951,16 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         setActiveDeckWithTrace(filtered, 'applyFilterAndSort');
         try { localStorage.removeItem(STORAGE_KEY_ACTIVE_IDS); } catch(e) {}
         const preferredIds = Array.isArray(options.preferredCardIds) ? options.preferredCardIds.map(String) : [];
+        if(options.preserveCurrentCardDom && currentCardBeforeFilterId && !preferredIds.includes(currentCardBeforeFilterId)) {
+            preferredIds.unshift(currentCardBeforeFilterId);
+        }
         const preferredIndex = preferredIds.reduce((found, id) => found >= 0 ? found : activeDeck.findIndex(card => String(card && card.id) === id), -1);
         currentIndex = preferredIndex >= 0 ? preferredIndex : resolveIndexForDeck(isRestore);
         updateFilterStatusUI();
-        if(options.render !== false) showCard();
+        if(options.render !== false) {
+            if(options.safeFilterRender) safelyRenderCardAfterFilterChange(currentCardBeforeFilterId);
+            else showCard();
+        }
         return { count:activeDeck.length, filter:getFilterStateForStorage(), searchQuery };
     }
 
@@ -11073,11 +11113,16 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             const modes = getActiveFilterModes();
             setCurrentFilterModeWithTrace(modes.includes(mode) ? modes.filter(item => item !== mode) : [...modes, mode], `setFilterMode:${mode}`);
         }
-        saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true);
+        // iOS/WebKit: filtering must not tear down/redecode the current large IO image
+        // when the same card remains visible. If the card changes, release the old IO
+        // first and render the replacement after two animation frames.
+        highlightFilter();
+        applyFilterAndSort(false, { preserveCurrentCardDom:true, safeFilterRender:true });
+        persistCurrentViewState(true);
     }
-    function setSortMode(mode) { markUserUiInteraction(); todayEssentialState.active = false; todayNewState.active = false; currentSortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
-    function setSecondarySortMode(mode) { markUserUiInteraction(); todayEssentialState.active = false; todayNewState.active = false; currentSecondarySortMode = mode; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
-    function resetFilters() { markUserUiInteraction(); todayEssentialState.active = false; todayNewState.active = false; setCurrentFilterModeWithTrace('default', 'resetFilters'); currentSortMode = 'original'; currentSecondarySortMode = 'none'; saveFilterState(); highlightFilter(); applyFilterAndSort(false); persistCurrentViewState(true); }
+    function setSortMode(mode) { markUserUiInteraction(); todayEssentialState.active = false; todayNewState.active = false; currentSortMode = mode; highlightFilter(); applyFilterAndSort(false, { preserveCurrentCardDom:true, safeFilterRender:true }); persistCurrentViewState(true); }
+    function setSecondarySortMode(mode) { markUserUiInteraction(); todayEssentialState.active = false; todayNewState.active = false; currentSecondarySortMode = mode; highlightFilter(); applyFilterAndSort(false, { preserveCurrentCardDom:true, safeFilterRender:true }); persistCurrentViewState(true); }
+    function resetFilters() { markUserUiInteraction(); todayEssentialState.active = false; todayNewState.active = false; setCurrentFilterModeWithTrace('default', 'resetFilters'); currentSortMode = 'original'; currentSecondarySortMode = 'none'; highlightFilter(); applyFilterAndSort(false, { preserveCurrentCardDom:true, safeFilterRender:true }); persistCurrentViewState(true); }
     function saveFilterState() { localStorage.setItem(STORAGE_KEY_FILTER_STATE, JSON.stringify({ filter: getFilterStateForStorage(), sort: currentSortMode, secondarySort: currentSecondarySortMode })); }
     function highlightFilter() {
         document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
@@ -12883,7 +12928,7 @@ function getIOImageGroups() {
     function getStats(id) { return getStatsById(id); }
     async function toggleTag(e, type) { e.stopPropagation(); const card = activeDeck[currentIndex]; if(!await ensureStatsStoreReady('toggleTag')) return; const data = cloneStatsObject(getStatsStore()); const found = findStatsForCard(card, data, card && card.id); const id = found.key || String(card && card.id || ''); if(!id) return; if(!data[id]) data[id] = { correct: 0, total: 0 }; data[id][type] = !data[id][type]; data[id].updatedAt = Date.now(); guardedStatsWrite(JSON.stringify(data), 'toggleTag'); markLocalDataUpdated(data[id].updatedAt); updateIconsUI(data[id]); scheduleBackup('stats'); }
     function updateIconsUI(s) { ['mem','cmp','fav','num','date','pen'].forEach(t => document.getElementById(`${t}-btn`).classList.toggle('active', !!s[t])); }
-    function filterCards() { markUserUiInteraction(); todayEssentialState.active = false; todayNewState.active = false; const q = document.getElementById('search-input').value.toLowerCase(); localStorage.setItem('anki_search_query', q); applyFilterAndSort(false); persistCurrentViewState(true); }
+    function filterCards() { markUserUiInteraction(); todayEssentialState.active = false; todayNewState.active = false; const q = document.getElementById('search-input').value.toLowerCase(); localStorage.setItem('anki_search_query', q); applyFilterAndSort(false, { preserveCurrentCardDom:true, safeFilterRender:true }); persistCurrentViewState(true); }
 
     function toggleSliderPanel() {
         const panel = document.getElementById('slider-panel');
