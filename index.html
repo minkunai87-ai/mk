@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.232-test-io-sharp-mask-overlay -->
+<!-- preview: v18.5.233-test-io-mask-overlay-fixed -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.232 TEST - IO sharp + mask overlay)</title>
+<title>MK (v18.5.233 TEST - IO mask overlay fixed)</title>
 
 <script>
     (() => {
@@ -222,14 +222,22 @@
     .mk-io-wrapper.media-zoom-target { transition: none; will-change: auto; backface-visibility: visible; -webkit-transform: none; }
     .mk-high-res-zoom-layer { position: fixed; top: 0; left: 0; z-index: 9997; pointer-events: none; transform-origin: 0 0; image-rendering: auto !important; max-width: none !important; height: auto !important; margin: 0 !important; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.45); will-change: transform; }
     .mk-io-crop-canvas { position: fixed; z-index: 9996; pointer-events: none; display: block; contain: strict; }
-    .mk-io-zoom-mask-overlay {
-        position: fixed;
-        z-index: 9998;
-        pointer-events: none;
-        display: block;
-        overflow: visible;
-        margin: 0;
-        padding: 0;
+    .mk-io-layer.mk-io-zoom-mask-overlay {
+        position: fixed !important;
+        left: 0;
+        top: 0;
+        width: auto;
+        height: auto;
+        max-width: none !important;
+        z-index: 10001 !important;
+        pointer-events: none !important;
+        display: block !important;
+        visibility: visible !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        transform: none !important;
+        transform-origin: 0 0 !important;
     }
     .ios-statusbar-tap-zone { position: fixed; top: 0; left: 0; right: 0; height: max(32px, calc(env(safe-area-inset-top) + 8px)); z-index: 20001; background: transparent; pointer-events: auto; touch-action: manipulation; }
     
@@ -635,7 +643,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.232 TEST - IO sharp + mask overlay)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.233 TEST - IO mask overlay fixed)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -929,7 +937,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.232 TEST - IO sharp + mask overlay';
+    const APP_VERSION = 'v18.5.233 TEST - IO mask overlay fixed';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -2159,6 +2167,8 @@
                             const maskOverlay = sourceLayer.cloneNode(true);
                             maskOverlay.classList.add('mk-io-zoom-mask-overlay');
                             maskOverlay.removeAttribute('style');
+                            maskOverlay.removeAttribute('width');
+                            maskOverlay.removeAttribute('height');
                             maskOverlay.setAttribute('aria-hidden', 'true');
                             document.body.appendChild(maskOverlay);
                             state.ioMaskOverlay = maskOverlay;
@@ -2166,10 +2176,16 @@
                             sourceLayer.style.visibility = 'hidden';
                         }
                         const maskOverlay = state.ioMaskOverlay;
-                        maskOverlay.style.left = `${geometry.imageLeft}px`;
-                        maskOverlay.style.top = `${geometry.imageTop}px`;
-                        maskOverlay.style.width = `${geometry.imageWidth}px`;
-                        maskOverlay.style.height = `${geometry.imageHeight}px`;
+                        maskOverlay.style.setProperty('position', 'fixed', 'important');
+                        maskOverlay.style.setProperty('left', `${geometry.imageLeft}px`, 'important');
+                        maskOverlay.style.setProperty('top', `${geometry.imageTop}px`, 'important');
+                        maskOverlay.style.setProperty('width', `${geometry.imageWidth}px`, 'important');
+                        maskOverlay.style.setProperty('height', `${geometry.imageHeight}px`, 'important');
+                        maskOverlay.style.setProperty('max-width', 'none', 'important');
+                        maskOverlay.style.setProperty('display', 'block', 'important');
+                        maskOverlay.style.setProperty('visibility', 'visible', 'important');
+                        maskOverlay.style.setProperty('transform', 'none', 'important');
+                        maskOverlay.style.setProperty('z-index', '10001', 'important');
                     }
 
                     canvas.dataset.sourceCrop = `${geometry.sourceX},${geometry.sourceY},${geometry.sourceWidth},${geometry.sourceHeight}`;
