@@ -92,6 +92,10 @@ async function main() {
             const img=wrapper.querySelector('img'); return {deck:entry.name,groups:groups.length,x:rect.left+rect.width/2,y:Math.min(rect.bottom-4,rect.top+Math.min(180,rect.height/2)),cardId:String(activeDeck[currentIndex].id),group:getImageOcclusionGroupKey(activeDeck[currentIndex]),image:wrapper.dataset.mkIoImage,natural:[img.naturalWidth,img.naturalHeight],client:[img.clientWidth,img.clientHeight]};
         })()`);
         await delay(20);
+        for(let wait=0; wait<50; wait++) {
+            if(await evaluate(`(document.querySelector('#question-section .mk-io-wrapper img')?.naturalWidth||0)>0`)) break;
+            await delay(100);
+        }
         const coldZoomBefore = await evaluate(`(() => {const w=document.querySelector('#question-section .mk-io-wrapper'),i=w.querySelector('img');return {complete:i.complete,natural:[i.naturalWidth,i.naturalHeight],ready:w._mediaZoomState.ioZoomReady,srcAssignments:ioImageLoadDiagnostics.srcAssignments,pending:ioZoomDiagnostics.pendingZooms,decodeRuns:ioZoomDiagnostics.decodeRuns};})()`);
         await evaluate(`(() => {const w=document.querySelector('#question-section .mk-io-wrapper'),r=w.getBoundingClientRect();for(let n=0;n<2;n++){const t=new Touch({identifier:1,target:w,clientX:r.left+24,clientY:r.top+120});w.dispatchEvent(new TouchEvent('touchstart',{touches:[t],targetTouches:[t],changedTouches:[t],bubbles:true,cancelable:true}));w.dispatchEvent(new TouchEvent('touchend',{touches:[],targetTouches:[],changedTouches:[t],bubbles:true,cancelable:true}));}})()`);
         for(let wait=0; wait<50; wait++) {
@@ -144,7 +148,7 @@ async function main() {
         await delay(100);
         const dragAfter = await evaluate(`document.querySelector('#question-section .mk-io-wrapper').style.transform`);
         await delay(500); await doubleTap(); await delay(480);
-        for (let i = 0; i < 20; i++) { await doubleTap(); await delay(480); }
+        for (let i = 0; i < 30; i++) { await doubleTap(); await delay(480); }
         const cycleResult = await evaluate(`({scale:document.querySelector('#question-section .mk-io-wrapper')._mediaZoomState.scale,overlayCount:document.querySelectorAll('.mk-high-res-zoom-layer').length})`);
         const sameImageDoubleTapStarts = consoleEvents.filter(text => text.includes('DOUBLE_TAP_START')).length;
         const afterTaps = await evaluate(`({scale:document.querySelector('#question-section .mk-io-wrapper')._mediaZoomState.scale,touchstart:(getEventListeners(document.querySelector('#question-section .mk-io-wrapper')).touchstart||[]).length})`);
@@ -205,14 +209,15 @@ async function main() {
         }
         const metrics = await send('Performance.getMetrics');
         const metric = name => metrics.result.metrics.find(item => item.name === name)?.value || 0;
+        const rasterCap = await evaluate('IO_RASTER_MAX_WIDTH');
         if(inlineZoom.scale !== 1.7 || inlineZoom.rasterWidth <= imageDimensions.client[0] || inlineZoom.wrapperWidth !== imageDimensions.client[0] || !inlineZoom.wrapperTransform.includes('scale(1.7)') || !inlineZoom.imageTransform.startsWith('scale(') || inlineZoom.overlayCount !== 0 || inlineZoom.ioImages !== 1 || inlineZoom.svgMasks !== 1 || inlineZoom.maskDelta.some(delta=>delta>0.1)) throw new Error('IO adaptive-raster zoom verification failed: '+JSON.stringify(inlineZoom));
-        if(pinchZoom.scale <= 1.7 || pinchZoom.rasterWidth <= inlineZoom.rasterWidth || pinchZoom.wrapperWidth !== inlineZoom.wrapperWidth || !pinchZoom.wrapperTransform.includes('scale(') || !pinchZoom.imageTransform.startsWith('scale(') || pinchZoom.overlayCount !== 0) throw new Error('IO adaptive-raster pinch verification failed: '+JSON.stringify(pinchZoom));
-        if(maxZoom.scale !== 5 || dragAfter === dragBefore) throw new Error('IO max zoom/drag verification failed: '+JSON.stringify({maxZoom,dragBefore,dragAfter}));
+        if(pinchZoom.scale <= 1.7 || pinchZoom.rasterWidth < inlineZoom.rasterWidth || pinchZoom.rasterWidth > rasterCap || pinchZoom.wrapperWidth !== inlineZoom.wrapperWidth || !pinchZoom.wrapperTransform.includes('scale(') || !pinchZoom.imageTransform.startsWith('scale(') || pinchZoom.overlayCount !== 0) throw new Error('IO adaptive-raster pinch verification failed: '+JSON.stringify(pinchZoom));
+        if(maxZoom.scale !== 5 || maxZoom.rasterWidth > rasterCap || dragAfter === dragBefore) throw new Error('IO max zoom/drag verification failed: '+JSON.stringify({maxZoom,dragBefore,dragAfter}));
         if(cycleResult.scale !== 1 || cycleResult.overlayCount !== 0) throw new Error('IO zoom DOM accumulated after 20 cycles: '+JSON.stringify(cycleResult));
         if(!sameCardFilterCycles.sameNode || !sameCardFilterCycles.srcUnchanged || sameCardFilterCycles.renderDelta !== 0 || sameCardFilterCycles.srcAssignmentDelta !== 0 || sameCardFilterCycles.loadDelta !== 0 || sameCardFilterCycles.decodeDelta !== 0 || sameCardFilterCycles.ioImages !== 1 || sameCardFilterCycles.masks !== 1) throw new Error('Same-card recommended filter reused IO incorrectly: '+JSON.stringify(sameCardFilterCycles));
         if(!coldZoomAfter.ready || coldZoomAfter.scale !== 1.7 || coldZoomAfter.srcAssignments !== coldZoomBefore.srcAssignments || coldZoomAfter.maxDecodeInFlight > 1 || coldZoomAfter.maskDelta.some(delta=>delta>1)) throw new Error('Cold IO zoom readiness failed: '+JSON.stringify({coldZoomBefore,coldZoomAfter}));
         if(coldStarts.some(state=>!state.ready || state.scale!==1.7 || state.srcAssignmentDelta!==0 || state.maxDecodeInFlight>1 || state.ioImages!==1 || state.masks!==1 || state.overlays!==0 || state.maskDelta.some(delta=>delta>1))) throw new Error('Cold IO zoom 20-run verification failed: '+JSON.stringify(coldStarts));
-        console.log(JSON.stringify({setup,coldZoomBefore,coldZoomAfter,imageDimensions,sameCardFilterCycles,inlineZoom,pinchZoom,maxZoom,dragBefore,dragAfter,cycleResult,coldStarts,listenerCountsBefore,afterTaps,listenerCountsAfter,sameImageDoubleTapStarts,doubleTapStarts:consoleEvents.filter(text=>text.includes('DOUBLE_TAP_START')).length,diagnosticLogCount:consoleEvents.filter(text=>text.includes('MK_IO_ZOOM_FIRST_ERROR')).length,zoomErrors:consoleEvents.filter(text=>/DOUBLE_TAP_ERROR|IMAGE_ZOOM_ERROR|ZOOM_RESET_BY_ERROR/.test(text)),firstException:exceptions[0]||null,exceptionCount:exceptions.length,jsHeapUsed:metric('JSHeapUsedSize'),nodes:metric('Nodes')}));
+        console.log(JSON.stringify({rasterCap,setup,coldZoomBefore,coldZoomAfter,imageDimensions,sameCardFilterCycles,inlineZoom,pinchZoom,maxZoom,dragBefore,dragAfter,cycleResult,coldStarts,listenerCountsBefore,afterTaps,listenerCountsAfter,sameImageDoubleTapStarts,doubleTapStarts:consoleEvents.filter(text=>text.includes('DOUBLE_TAP_START')).length,diagnosticLogCount:consoleEvents.filter(text=>text.includes('MK_IO_ZOOM_FIRST_ERROR')).length,zoomErrors:consoleEvents.filter(text=>/DOUBLE_TAP_ERROR|IMAGE_ZOOM_ERROR|ZOOM_RESET_BY_ERROR/.test(text)),firstException:exceptions[0]||null,exceptionCount:exceptions.length,jsHeapUsed:metric('JSHeapUsedSize'),nodes:metric('Nodes')}));
         socket.close();
     } finally {
         browser.kill();
