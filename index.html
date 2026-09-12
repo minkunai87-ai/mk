@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.231-test-io-sharp-pdfhelper -->
+<!-- preview: v18.5.232-test-io-sharp-mask-overlay -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.231 TEST - IO sharp + PDFHelper)</title>
+<title>MK (v18.5.232 TEST - IO sharp + mask overlay)</title>
 
 <script>
     (() => {
@@ -222,6 +222,15 @@
     .mk-io-wrapper.media-zoom-target { transition: none; will-change: auto; backface-visibility: visible; -webkit-transform: none; }
     .mk-high-res-zoom-layer { position: fixed; top: 0; left: 0; z-index: 9997; pointer-events: none; transform-origin: 0 0; image-rendering: auto !important; max-width: none !important; height: auto !important; margin: 0 !important; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.45); will-change: transform; }
     .mk-io-crop-canvas { position: fixed; z-index: 9996; pointer-events: none; display: block; contain: strict; }
+    .mk-io-zoom-mask-overlay {
+        position: fixed;
+        z-index: 9998;
+        pointer-events: none;
+        display: block;
+        overflow: visible;
+        margin: 0;
+        padding: 0;
+    }
     .ios-statusbar-tap-zone { position: fixed; top: 0; left: 0; right: 0; height: max(32px, calc(env(safe-area-inset-top) + 8px)); z-index: 20001; background: transparent; pointer-events: auto; touch-action: manipulation; }
     
     /* ⭐ 17버전 레이아웃 100% 보존 */
@@ -626,7 +635,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.231 TEST - IO sharp + PDFHelper)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.232 TEST - IO sharp + mask overlay)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -920,7 +929,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.231 TEST - IO sharp + PDFHelper';
+    const APP_VERSION = 'v18.5.232 TEST - IO sharp + mask overlay';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -1762,6 +1771,10 @@
             state.overlayBaseRect = null;
             if(state.removeIOCropCanvas) state.removeIOCropCanvas();
             state.removeIOCropCanvas = null;
+            if(state.ioMaskOverlay) state.ioMaskOverlay.remove();
+            state.ioMaskOverlay = null;
+            if(state.ioMaskSourceLayer) state.ioMaskSourceLayer.style.removeProperty('visibility');
+            state.ioMaskSourceLayer = null;
             state.geometry = null;
             if(state.resetIORasterResolution) state.resetIORasterResolution();
             target._mediaZoomState = null;
@@ -1866,6 +1879,8 @@
                 ioCropCanvas: null,
                 ioCropDrawRaf: null,
                 ioCropPendingGeometry: null,
+                ioMaskOverlay: null,
+                ioMaskSourceLayer: null,
                 removeIOCropCanvas: null,
                 disposed: false,
                 controller: new AbortController()
@@ -2053,6 +2068,14 @@
                     state.ioCropCanvas.remove();
                 }
                 state.ioCropCanvas = null;
+                if(state.ioMaskOverlay) {
+                    state.ioMaskOverlay.remove();
+                    state.ioMaskOverlay = null;
+                }
+                if(state.ioMaskSourceLayer) {
+                    state.ioMaskSourceLayer.style.removeProperty('visibility');
+                    state.ioMaskSourceLayer = null;
+                }
                 const img = getPrimaryImage();
                 if(img) img.style.removeProperty('opacity');
                 wrapper.style.removeProperty('z-index');
@@ -2100,7 +2123,14 @@
                     removeIOCropCanvas();
                     return false;
                 }
-                state.ioCropPendingGeometry = { left, top, cssWidth, cssHeight, sourceX, sourceY, sourceWidth, sourceHeight };
+                state.ioCropPendingGeometry = {
+                    left, top, cssWidth, cssHeight,
+                    sourceX, sourceY, sourceWidth, sourceHeight,
+                    imageLeft:imageRect.left,
+                    imageTop:imageRect.top,
+                    imageWidth:imageRect.width,
+                    imageHeight:imageRect.height
+                };
                 if(state.ioCropDrawRaf) return true;
                 state.ioCropDrawRaf = requestAnimationFrame(() => {
                     state.ioCropDrawRaf = null;
@@ -2119,6 +2149,29 @@
                     context.drawImage(img, geometry.sourceX, geometry.sourceY, geometry.sourceWidth, geometry.sourceHeight, 0, 0, canvas.width, canvas.height);
                     img.style.opacity = '0';
                     wrapper.style.zIndex = '9997';
+
+                    // The sharp canvas lives at document-body level. A mask SVG left inside the
+                    // transformed wrapper can fall behind that canvas in iOS WebKit stacking.
+                    // Clone only the lightweight SVG to body and align it to the transformed image.
+                    const sourceLayer = wrapper.querySelector('.mk-io-layer');
+                    if(sourceLayer) {
+                        if(!state.ioMaskOverlay || !state.ioMaskOverlay.isConnected) {
+                            const maskOverlay = sourceLayer.cloneNode(true);
+                            maskOverlay.classList.add('mk-io-zoom-mask-overlay');
+                            maskOverlay.removeAttribute('style');
+                            maskOverlay.setAttribute('aria-hidden', 'true');
+                            document.body.appendChild(maskOverlay);
+                            state.ioMaskOverlay = maskOverlay;
+                            state.ioMaskSourceLayer = sourceLayer;
+                            sourceLayer.style.visibility = 'hidden';
+                        }
+                        const maskOverlay = state.ioMaskOverlay;
+                        maskOverlay.style.left = `${geometry.imageLeft}px`;
+                        maskOverlay.style.top = `${geometry.imageTop}px`;
+                        maskOverlay.style.width = `${geometry.imageWidth}px`;
+                        maskOverlay.style.height = `${geometry.imageHeight}px`;
+                    }
+
                     canvas.dataset.sourceCrop = `${geometry.sourceX},${geometry.sourceY},${geometry.sourceWidth},${geometry.sourceHeight}`;
                     canvas.dataset.drawCount = String((Number(canvas.dataset.drawCount) || 0) + 1);
                 });
