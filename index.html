@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.229-test-deck-single-source -->
+<!-- preview: v18.5.230-test-io-initial-mask-align -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.229 TEST - deck single source)</title>
+<title>MK (v18.5.230 TEST - IO initial mask align)</title>
 
 <script>
     (() => {
@@ -626,7 +626,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.229 TEST - deck single source)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.230 TEST - IO initial mask align)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -920,7 +920,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.229 TEST - deck single source';
+    const APP_VERSION = 'v18.5.230 TEST - IO initial mask align';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -1719,6 +1719,11 @@
             wrapper._mkIoLoadHandler = null;
             if(wrapper._mkIoAutoScrollRaf) cancelAnimationFrame(wrapper._mkIoAutoScrollRaf);
             wrapper._mkIoAutoScrollRaf = null;
+            if(wrapper._mkIoInitialRenderRaf) cancelAnimationFrame(wrapper._mkIoInitialRenderRaf);
+            wrapper._mkIoInitialRenderRaf = null;
+            if(wrapper._mkIoRevealRaf) cancelAnimationFrame(wrapper._mkIoRevealRaf);
+            wrapper._mkIoRevealRaf = null;
+            wrapper._mkIoInitialRect = null;
             if(wrapper._mkIoOtherMasksToggle) wrapper._mkIoOtherMasksToggle.remove();
             wrapper._mkIoOtherMasksToggle = null;
             wrapper._mkIoParsedElements = null;
@@ -9804,6 +9809,11 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                         layer.classList.add('mk-io-layer');
                         layer.setAttribute('viewBox', `0 0 ${sourceWidth} ${sourceHeight}`);
                         layer.setAttribute('preserveAspectRatio', 'none');
+                        layer.setAttribute('width', '100%');
+                        layer.setAttribute('height', '100%');
+                        // iOS Safari can paint the SVG against the image's pre-layout box on the
+                        // very first frame. Keep it hidden until one committed paint after append.
+                        layer.style.visibility = 'hidden';
 
                         // FAST PATH: hundreds of ordinary masks used to become hundreds of
                         // <rect> DOM nodes. Collapse all non-rotated masks into at most two
@@ -9901,31 +9911,85 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
                             delete wrapper.dataset.mkIoTargetRect;
                         }
                         wrapper.dataset.mkIoRendered = '1';
-                        if (
-                            wrapper.closest('#question-section') &&
-                            document.getElementById('answer-section').style.display === 'none' &&
-                            wrapper.dataset.mkIoAutoScrolled !== '1'
-                        ) {
-                            wrapper.dataset.mkIoAutoScrolled = '1';
-                            wrapper._mkIoAutoScrollRaf = requestAnimationFrame(() => {
-                                wrapper._mkIoAutoScrollRaf = null;
-                                if(wrapper.isConnected) scrollToCurrentIOMask(wrapper);
-                            });
-                        }
+
+                        // Wait one more paint after the SVG is in the DOM. A geometry read here
+                        // forces Safari to resolve the final image/wrapper box before revealing it.
+                        wrapper._mkIoRevealRaf = requestAnimationFrame(() => {
+                            wrapper._mkIoRevealRaf = null;
+                            if(!wrapper.isConnected || !layer.isConnected) return;
+                            void wrapper.getBoundingClientRect().width;
+                            void img.getBoundingClientRect().height;
+                            void layer.getBoundingClientRect().width;
+                            layer.style.visibility = 'visible';
+
+                            if (
+                                wrapper.closest('#question-section') &&
+                                document.getElementById('answer-section').style.display === 'none' &&
+                                wrapper.dataset.mkIoAutoScrolled !== '1'
+                            ) {
+                                wrapper.dataset.mkIoAutoScrolled = '1';
+                                wrapper._mkIoAutoScrollRaf = requestAnimationFrame(() => {
+                                    wrapper._mkIoAutoScrollRaf = null;
+                                    if(wrapper.isConnected) scrollToCurrentIOMask(wrapper);
+                                });
+                            }
+                        });
                     } catch (err) {
                         console.log('MK_IO_RENDER_ERROR', err);
                     }
                 };
 
+                const scheduleStableInitialRender = () => {
+                    let attempts = 0;
+                    let stableFrames = 0;
+                    wrapper._mkIoInitialRect = null;
+
+                    const check = () => {
+                        wrapper._mkIoInitialRenderRaf = null;
+                        if(!wrapper.isConnected || !img.isConnected || wrapper.dataset.mkIoRendered === '1') return;
+
+                        const rect = img.getBoundingClientRect();
+                        const width = Number(rect.width) || 0;
+                        const height = Number(rect.height) || 0;
+                        if(!width || !height || !img.naturalWidth || !img.naturalHeight) {
+                            attempts += 1;
+                            if(attempts < 4) wrapper._mkIoInitialRenderRaf = requestAnimationFrame(check);
+                            return;
+                        }
+
+                        const previous = wrapper._mkIoInitialRect;
+                        if(previous &&
+                            Math.abs(previous.width - width) <= 0.5 &&
+                            Math.abs(previous.height - height) <= 0.5) {
+                            stableFrames += 1;
+                        } else {
+                            stableFrames = 0;
+                        }
+                        wrapper._mkIoInitialRect = { width, height };
+                        attempts += 1;
+
+                        if(stableFrames >= 1 || attempts >= 4) {
+                            wrapper._mkIoInitialRect = null;
+                            renderMasks();
+                            return;
+                        }
+                        wrapper._mkIoInitialRenderRaf = requestAnimationFrame(check);
+                    };
+
+                    wrapper._mkIoInitialRenderRaf = requestAnimationFrame(() => {
+                        wrapper._mkIoInitialRenderRaf = requestAnimationFrame(check);
+                    });
+                };
+
                 if (img.complete && (img.naturalWidth || img.width)) {
-                    renderMasks();
+                    scheduleStableInitialRender();
                 } else {
-                    wrapper._mkIoLoadHandler = renderMasks;
-                    img.addEventListener('load', renderMasks, { once: true });
+                    wrapper._mkIoLoadHandler = scheduleStableInitialRender;
+                    img.addEventListener('load', scheduleStableInitialRender, { once: true });
                 }
 
-                // ResizeObserver 제거: SVG viewBox 자체가 리사이즈를 처리한다.
-                // resize 시 DOM 재생성은 긴 이미지/다중 마스크 카드의 주요 병목이었다.
+                // No persistent ResizeObserver: only the initial layout is stabilized.
+                // Continuous resize observation was a major cost on long IO images.
                 wrapper.dataset.mkIoResizeBound = '0';
             } catch (err) {
                 console.log('MK_IO_WRAPPER_ERROR', err);
