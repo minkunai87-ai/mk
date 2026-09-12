@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.227-test-io-canvas-stable -->
+<!-- preview: v18.5.228-test-stability-isolation -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.227 TEST - IO canvas stable)</title>
+<title>MK (v18.5.228 TEST - stability isolation)</title>
 
 <script>
     (() => {
@@ -626,7 +626,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.227 TEST - IO canvas stable)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.228 TEST - stability isolation)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -920,8 +920,10 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.227 TEST - IO canvas stable';
+    const APP_VERSION = 'v18.5.228 TEST - stability isolation';
     const IO_RASTER_MAX_WIDTH = 700;
+    const MK_STABILITY_ISOLATION = true;
+    console.info('[MK_STABILITY_ISOLATION] enabled');
     const mkStartupClockStartedAt = performance.now();
     const MK_STARTUP_BOOT_MARKER_KEY = 'mk_startup_boot_marker';
     const mkPageInstanceId = window.__mkBootstrapPageInstanceId || `mk_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -1857,11 +1859,8 @@
                 ioRasterRaf: null,
                 ioReadyTimer: null,
                 ioCropCanvas: null,
-                ioCropContext: null,
                 ioCropDrawRaf: null,
                 ioCropPendingGeometry: null,
-                ioCropLastDrawAt: 0,
-                ioCropLastDrawKey: '',
                 removeIOCropCanvas: null,
                 disposed: false,
                 controller: new AbortController()
@@ -2043,9 +2042,6 @@
                 if(state.ioCropDrawRaf) cancelAnimationFrame(state.ioCropDrawRaf);
                 state.ioCropDrawRaf = null;
                 state.ioCropPendingGeometry = null;
-                state.ioCropLastDrawAt = 0;
-                state.ioCropLastDrawKey = '';
-                state.ioCropContext = null;
                 if(state.ioCropCanvas) {
                     state.ioCropCanvas.width = 0;
                     state.ioCropCanvas.height = 0;
@@ -2057,144 +2053,12 @@
                 wrapper.style.removeProperty('z-index');
             };
             state.removeIOCropCanvas = removeIOCropCanvas;
-
-            const scheduleIOCropDraw = (canvas, img) => {
-                if(state.ioCropDrawRaf) return;
-                state.ioCropDrawRaf = requestAnimationFrame(timestamp => {
-                    state.ioCropDrawRaf = null;
-                    if(state.disposed || state.ioCropCanvas !== canvas || !canvas.isConnected || state.scale <= MIN_SCALE) return;
-                    if(state.ioCropLastDrawAt && timestamp - state.ioCropLastDrawAt < 28) {
-                        if(state.ioCropPendingGeometry) scheduleIOCropDraw(canvas, img);
-                        return;
-                    }
-                    const geometry = state.ioCropPendingGeometry;
-                    state.ioCropPendingGeometry = null;
-                    if(!geometry) return;
-                    const drawKey = [geometry.left, geometry.top, geometry.cssWidth, geometry.cssHeight, geometry.sourceX, geometry.sourceY, geometry.sourceWidth, geometry.sourceHeight]
-                        .map(value => Math.round(value * 2) / 2).join(',');
-                    if(drawKey === state.ioCropLastDrawKey) return;
-                    const context = state.ioCropContext || canvas.getContext('2d', { alpha:false, desynchronized:true });
-                    if(!context) return;
-                    state.ioCropContext = context;
-                    canvas.style.left = `${geometry.left}px`;
-                    canvas.style.top = `${geometry.top}px`;
-                    canvas.style.width = `${geometry.cssWidth}px`;
-                    canvas.style.height = `${geometry.cssHeight}px`;
-                    context.imageSmoothingEnabled = true;
-                    context.imageSmoothingQuality = 'high';
-                    context.drawImage(img, geometry.sourceX, geometry.sourceY, geometry.sourceWidth, geometry.sourceHeight, 0, 0, canvas.width, canvas.height);
-                    state.ioCropLastDrawAt = timestamp;
-                    state.ioCropLastDrawKey = drawKey;
-                    img.style.opacity = '0';
-                    wrapper.style.zIndex = '9997';
-                    canvas.dataset.sourceCrop = `${geometry.sourceX},${geometry.sourceY},${geometry.sourceWidth},${geometry.sourceHeight}`;
-                    canvas.dataset.drawCount = String((Number(canvas.dataset.drawCount) || 0) + 1);
-                    if(state.ioCropPendingGeometry) scheduleIOCropDraw(canvas, img);
-                });
-            };
-
             const applyIOCropCanvas = () => {
-                if(!isIOZoomTarget || state.scale <= MIN_SCALE) {
-                    removeIOCropCanvas();
-                    return false;
-                }
-                const img = getPrimaryImage();
-                const imageRect = wrapper.getBoundingClientRect();
-                const viewportRect = scrollContainer.getBoundingClientRect();
-                const left = Math.max(imageRect.left, viewportRect.left, 0);
-                const top = Math.max(imageRect.top, viewportRect.top, 0);
-                const right = Math.min(imageRect.right, viewportRect.right, window.innerWidth);
-                const bottom = Math.min(imageRect.bottom, viewportRect.bottom, window.innerHeight);
-                const cssWidth = right - left;
-                const cssHeight = bottom - top;
-                if(!img || !img.complete || !img.naturalWidth || !img.naturalHeight || cssWidth <= 0 || cssHeight <= 0 || imageRect.width <= 0 || imageRect.height <= 0) {
-                    removeIOCropCanvas();
-                    return false;
-                }
-                if(!state.ioCropCanvas) {
-                    const canvas = document.createElement('canvas');
-                    canvas.className = 'mk-io-crop-canvas';
-                    canvas.setAttribute('aria-hidden', 'true');
-                    const renderDpr = Math.min(1.5, Math.max(1, Number(window.devicePixelRatio) || 1));
-                    const viewportWidth = Math.max(1, Math.min(viewportRect.right, window.innerWidth) - Math.max(viewportRect.left, 0));
-                    const viewportHeight = Math.max(1, Math.min(viewportRect.bottom, window.innerHeight) - Math.max(viewportRect.top, 0));
-                    canvas.width = Math.max(1, Math.ceil(viewportWidth * renderDpr));
-                    canvas.height = Math.max(1, Math.ceil(viewportHeight * renderDpr));
-                    canvas.dataset.renderDpr = String(renderDpr);
-                    canvas.dataset.bitmapResizeCount = '1';
-                    canvas.dataset.drawCount = '0';
-                    document.body.appendChild(canvas);
-                    state.ioCropCanvas = canvas;
-                    state.ioCropContext = canvas.getContext('2d', { alpha:false, desynchronized:true });
-                    state.ioCropLastDrawAt = 0;
-                    state.ioCropLastDrawKey = '';
-                }
-                const canvas = state.ioCropCanvas;
-                const sourceX = Math.max(0, (left - imageRect.left) * img.naturalWidth / imageRect.width);
-                const sourceY = Math.max(0, (top - imageRect.top) * img.naturalHeight / imageRect.height);
-                const sourceWidth = Math.min(img.naturalWidth - sourceX, cssWidth * img.naturalWidth / imageRect.width);
-                const sourceHeight = Math.min(img.naturalHeight - sourceY, cssHeight * img.naturalHeight / imageRect.height);
-                if(sourceWidth <= 0 || sourceHeight <= 0) {
-                    removeIOCropCanvas();
-                    return false;
-                }
-                state.ioCropPendingGeometry = { left, top, cssWidth, cssHeight, sourceX, sourceY, sourceWidth, sourceHeight };
-                scheduleIOCropDraw(canvas, img);
-                return true;
+                removeIOCropCanvas();
+                return false;
             };
-            const ensureHighResOverlay = () => {
-                const img = getPrimaryImage();
-                if (!wrapper.matches('img') || !img || !img.naturalWidth || !img.naturalHeight) return null;
-                if (!state.overlayBaseRect) {
-                    const rect = wrapper.getBoundingClientRect();
-                    if (!hasValidRect(rect)) {
-                        resetByError('INVALID_OVERLAY_RECT');
-                        return null;
-                    }
-                    state.overlayBaseRect = {
-                        left: rect.left,
-                        top: rect.top,
-                        width: rect.width || img.clientWidth || 1,
-                        height: rect.height || img.clientHeight || 1
-                    };
-                    state.overlayBaseScale = state.overlayBaseRect.width / Math.max(1, img.naturalWidth);
-                }
-                if (!state.overlay) {
-                    const overlay = document.createElement('div');
-                    const source = img.dataset.originalSrc || img.getAttribute('src') || img.currentSrc || '';
-                    overlay.className = 'mk-high-res-zoom-layer';
-                    overlay.setAttribute('aria-hidden', 'true');
-                    overlay.style.setProperty('background-image', `url(${JSON.stringify(source)})`, 'important');
-                    overlay.style.setProperty('background-repeat', 'no-repeat', 'important');
-                    overlay.style.setProperty('background-size', '100% 100%', 'important');
-                    overlay.style.setProperty('width', `${img.naturalWidth}px`, 'important');
-                    overlay.style.setProperty('height', `${img.naturalHeight}px`, 'important');
-                    overlay.style.setProperty('max-width', 'none', 'important');
-                    document.body.appendChild(overlay);
-                    state.overlay = overlay;
-                    console.log('IMG_HIGH_RES_MODE', {
-                        naturalWidth: img.naturalWidth,
-                        naturalHeight: img.naturalHeight,
-                        displayWidth: state.overlayBaseRect.width,
-                        baseScale: state.overlayBaseScale,
-                        src: source
-                    });
-                }
-                return state.overlay;
-            };
-            const applyHighResOverlay = () => {
-                const overlay = ensureHighResOverlay();
-                if (!overlay || !state.overlayBaseRect) return false;
-                const renderScale = state.overlayBaseScale * state.scale;
-                const x = state.overlayBaseRect.left + state.translateX;
-                const y = state.overlayBaseRect.top + state.translateY;
-                if (!isFiniteNumber(renderScale) || !isFiniteNumber(x) || !isFiniteNumber(y) || renderScale <= 0) {
-                    resetByError('INVALID_OVERLAY_TRANSFORM');
-                    return false;
-                }
-                overlay.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${renderScale})`;
-                return true;
-            };
+            const ensureHighResOverlay = () => null;
+            const applyHighResOverlay = () => false;
             const getBaseRect = (rect = wrapper.getBoundingClientRect()) => {
                 const width = wrapper.offsetWidth || (rect.width / state.scale) || rect.width || 1;
                 const height = wrapper.offsetHeight || (rect.height / state.scale) || rect.height || 1;
@@ -2300,10 +2164,8 @@
                                 return;
                             }
                             wrapper.style.transform = `translate3d(${state.translateX}px, ${state.translateY}px, 0) scale(${state.scale})`;
-                            const ioCanvasActive = isIOZoomTarget && applyIOCropCanvas();
-                            if(ioCanvasActive) {
-                                resetIORasterResolution();
-                            } else if(isIOZoomTarget && state.scale > MIN_SCALE && !state.ioFirstZoomApplied) {
+                            applyIOCropCanvas();
+                            if(isIOZoomTarget && state.scale > MIN_SCALE && !state.ioFirstZoomApplied) {
                                 state.ioFirstZoomApplied = true;
                                 ioZoomDiagnostics.firstZoomSplitFrames += 1;
                                 state.ioRasterRaf = requestAnimationFrame(() => {
@@ -2762,38 +2624,20 @@
     }
 
     function scheduleDeckManifestRefreshAfterFirstCardVisible() {
-        if(deckManifestRefreshScheduled) return false;
-        deckManifestRefreshScheduled = true;
-        const run = () => refreshCachedLibraryIfNeeded(fetch);
-        if(typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout:1500 });
-        else setTimeout(run, 0);
-        return true;
+        console.info('[MK_STABILITY_ISOLATION] background deck manifest refresh disabled');
+        deckManifestRefreshScheduled = false;
+        return false;
     }
 
     function scheduleMobileStandaloneDeckImport(remoteManifest) {
-        if(mobileDeckImportStarted || pendingMobileDeckManifest) return false;
-        pendingMobileDeckManifest = remoteManifest;
-        const schedule = () => {
-            if(mobileDeckImportStarted || mobileDeckImportTimer || document.visibilityState !== 'visible') return;
-            mobileDeckImportTimer = setTimeout(async () => {
-                mobileDeckImportTimer = null;
-                if(document.visibilityState !== 'visible' || mobileDeckImportStarted) return;
-                mobileDeckImportStarted = true;
-                document.removeEventListener('visibilitychange', onVisibilityChange);
-                await autoScanGitHub({ silent:true, deckFileList:pendingMobileDeckManifest, preserveCurrentView:true });
-            }, 15000);
-        };
-        const onVisibilityChange = () => {
-            if(document.visibilityState !== 'visible') {
-                if(mobileDeckImportTimer) clearTimeout(mobileDeckImportTimer);
-                mobileDeckImportTimer = null;
-                return;
-            }
-            schedule();
-        };
-        document.addEventListener('visibilitychange', onVisibilityChange);
-        schedule();
-        return true;
+        console.info('[MK_STABILITY_ISOLATION] mobile standalone deck import disabled');
+        pendingMobileDeckManifest = null;
+        if(mobileDeckImportTimer) {
+            clearTimeout(mobileDeckImportTimer);
+            mobileDeckImportTimer = null;
+        }
+        mobileDeckImportStarted = false;
+        return false;
     }
 
     window.onload = async function() {
@@ -3122,11 +2966,9 @@
         flushBackupToFirebase(true, { keepalive: true });
     }
 
-    window.addEventListener('beforeunload', flushPendingBackupOnExit);
-    window.addEventListener('pagehide', flushPendingBackupOnExit);
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') flushPendingBackupOnExit();
-    });
+    // Stability isolation: avoid lifecycle-time Firebase work while diagnosing iOS resets.
+    // Normal review-triggered scheduleBackup()/manual backup paths remain unchanged.
+    console.info('[MK_STABILITY_ISOLATION] lifecycle Firebase flush disabled');
 
     async function fetchFirebaseList() {
         document.getElementById('fb-auth-section').style.display = 'none';
