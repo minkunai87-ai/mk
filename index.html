@@ -10,6 +10,51 @@
 
 <script>
     (() => {
+        const enabled = new URLSearchParams(location.search).get('mkFreshDiag') === '1';
+        window.__MK_FRESH_DIAG__ = enabled;
+        if(!enabled) return;
+        const originalStorage = window.localStorage;
+        let originalLocalStorageBytes = 0;
+        for(let index = 0; index < originalStorage.length; index++) {
+            const key = originalStorage.key(index) || '';
+            const value = originalStorage.getItem(key) || '';
+            originalLocalStorageBytes += (key.length + value.length) * 2;
+        }
+        const memory = new Map();
+        const volatileStorage = {
+            get length() { return memory.size; },
+            key(index) { return Array.from(memory.keys())[index] ?? null; },
+            getItem(key) { key = String(key); return memory.has(key) ? memory.get(key) : null; },
+            setItem(key, value) { memory.set(String(key), String(value)); },
+            removeItem(key) { memory.delete(String(key)); },
+            clear() { memory.clear(); }
+        };
+        Object.defineProperty(window, 'localStorage', { configurable:true, value:volatileStorage });
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = (input, init = {}) => {
+            const url = String(input && input.url || input || '');
+            const method = String(init.method || input && input.method || 'GET').toUpperCase();
+            if(url.includes('firebaseio.com') && method !== 'GET') {
+                window.__MK_FRESH_DIAG_STATE__.blockedFirebaseWrites++;
+                return Promise.reject(new Error('MK_FRESH_DIAG_FIREBASE_WRITE_BLOCKED'));
+            }
+            return nativeFetch(input, init);
+        };
+        window.__MK_FRESH_DIAG_STATE__ = {
+            enabled:true,
+            originalLocalStorageBytes,
+            localStorageReadsBypassed:true,
+            indexedDbReadsBypassed:true,
+            persistentWritesBlocked:true,
+            cachedDeckUsed:false,
+            deckSource:'github-manifest',
+            blockedFirebaseWrites:0
+        };
+    })();
+</script>
+
+<script>
+    (() => {
         try {
             localStorage.removeItem('mk_last_startup_crash_incident');
             localStorage.removeItem('mk_startup_failure_count');
@@ -2542,6 +2587,48 @@
     let mobileDeckImportStarted = false;
     let pendingMobileDeckManifest = null;
 
+    function getMkFreshDiagStatus() {
+        const stats = getStatsStore();
+        const history = getReviewHistory();
+        const cards = Object.values(library || {}).reduce((sum, deck) => sum + (Array.isArray(deck) ? deck.length : 0), 0);
+        let localStorageBytes = 0;
+        for(let index = 0; index < localStorage.length; index++) {
+            const key = localStorage.key(index) || '';
+            const value = localStorage.getItem(key) || '';
+            localStorageBytes += (key.length + value.length) * 2;
+        }
+        const state = window.__MK_FRESH_DIAG_STATE__ || {};
+        return {
+            freshDiag:!!window.__MK_FRESH_DIAG__,
+            statsCount:Object.keys(stats || {}).length,
+            historyCount:Object.values(history || {}).reduce((sum, items) => sum + (Array.isArray(items) ? items.length : 0), 0),
+            loadedCards:cards,
+            deckSource:window.__mkStartupDeckSource || '',
+            cachedDeckUsed:window.__mkStartupDeckSource === 'indexeddb',
+            localStorageBytes:window.__MK_FRESH_DIAG__ ? Number(state.originalLocalStorageBytes) || 0 : localStorageBytes,
+            indexedDbCachedDeckUsed:window.__mkStartupDeckSource === 'indexeddb',
+            domNodes:document.getElementsByTagName('*').length,
+            images:document.images.length,
+            ioImages:document.querySelectorAll('img.mk-io-image').length,
+            persistentWritesBlocked:!!state.persistentWritesBlocked,
+            blockedFirebaseWrites:Number(state.blockedFirebaseWrites) || 0
+        };
+    }
+    window.getMkFreshDiagStatus = getMkFreshDiagStatus;
+
+    function showMkFreshDiagBadge() {
+        if(!window.__MK_FRESH_DIAG__) return;
+        let badge = document.getElementById('mk-fresh-diag-badge');
+        if(!badge) {
+            badge = document.createElement('div');
+            badge.id = 'mk-fresh-diag-badge';
+            badge.textContent = 'MK FRESH DIAG';
+            badge.style.cssText = 'position:fixed;top:env(safe-area-inset-top,0);right:4px;z-index:30000;padding:3px 6px;border-radius:4px;background:#7c2d12;color:#fff;font:700 10px system-ui;pointer-events:none';
+            document.body.appendChild(badge);
+        }
+        console.info('MK_FRESH_DIAG', getMkFreshDiagStatus());
+    }
+
     function markUserUiInteraction() {
         if(startupRestoreCompleted) userInteractionRevision++;
         return userInteractionRevision;
@@ -2599,6 +2686,7 @@
         markMkStartupPhase('LOCAL_STATS_READY');
         const hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
         const deckSource = hasCachedLibrary ? 'indexeddb' : 'github';
+        window.__mkStartupDeckSource = deckSource;
         if(!hasCachedLibrary) {
             await autoScanGitHub();
         }
@@ -2616,6 +2704,7 @@
             markMkStartupPhase('firstVisiblePaint');
             markMkStartupPhase('FIRST_CARD_VISIBLE');
             writeMkStartupMarker('STARTUP_STABLE', { startupStable:true });
+            showMkFreshDiagBadge();
             if(hasCachedLibrary) scheduleDeckManifestRefreshAfterFirstCardVisible();
         }));
     };
@@ -3367,6 +3456,7 @@
     }
 
     function openStatsDatabase() {
+        if(window.__MK_FRESH_DIAG__) return Promise.reject(new Error('MKFreshDiagIndexedDBDisabled'));
         return new Promise((resolve, reject) => {
             if (!window.indexedDB) return reject(new Error('IndexedDBUnavailable'));
             const request = indexedDB.open(STATS_DB_NAME, STATS_DB_VERSION);
@@ -3381,6 +3471,7 @@
     }
 
     async function readStatsDatabaseValue(key = STATS_DB_PRIMARY_KEY) {
+        if(window.__MK_FRESH_DIAG__) return null;
         const db = await openStatsDatabase();
         try {
             return await new Promise((resolve, reject) => {
@@ -3394,6 +3485,7 @@
     }
 
     async function writeStatsDatabaseValue(key, value) {
+        if(window.__MK_FRESH_DIAG__) return;
         const db = await openStatsDatabase();
         try {
             await new Promise((resolve, reject) => {
@@ -3409,6 +3501,7 @@
     }
 
     async function removeStatsDatabaseValue(key) {
+        if(window.__MK_FRESH_DIAG__) return;
         const db = await openStatsDatabase();
         try {
             await new Promise((resolve, reject) => {
@@ -8548,6 +8641,7 @@
     }
 
     function persistLibraryCacheInBackground(value, manifestVersion = '') {
+        if(window.__MK_FRESH_DIAG__) return;
         if(!value || typeof value !== 'object' || !Object.keys(value).length) return;
         const run = async () => {
             await writeStatsDatabaseValue(LIBRARY_CACHE_DB_KEY, JSON.stringify(value));
