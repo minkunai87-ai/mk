@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.239-test-startup-auto-firebase-sync-fix -->
+<!-- preview: v18.5.240-test-desktop-deck-manifest-sync -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.239 TEST - startup auto Firebase sync fix)</title>
+<title>MK (v18.5.240 TEST - desktop deck manifest sync)</title>
 
 <script>
     (() => {
@@ -654,7 +654,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.239 TEST - startup auto Firebase sync fix)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.240 TEST - desktop deck manifest sync)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -948,7 +948,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.239 TEST - startup auto Firebase sync fix';
+    const APP_VERSION = 'v18.5.240 TEST - desktop deck manifest sync';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -2843,9 +2843,49 @@
                 deckSource = hasCachedLibrary ? 'indexeddb-fallback' : 'github-unavailable';
             }
         } else {
+            // Desktop/non-standalone: check the current manifest before first render.
+            // If the cached publishVersion is stale, import the fresh deck first
+            // instead of showing the old cache and swapping it later.
             hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
             deckSource = hasCachedLibrary ? 'indexeddb' : 'github';
-            if(!hasCachedLibrary) await autoScanGitHub();
+
+            if(hasCachedLibrary) {
+                const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
+                let remoteDeckList = null;
+                let cachedManifestVersion = '';
+                try {
+                    [remoteDeckList, cachedManifestVersion] = await Promise.all([
+                        loadDeckFileList(headers),
+                        readStatsDatabaseValue(LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY)
+                    ]);
+                } catch(error) {
+                    console.warn('[MK_DESKTOP_DECK_SYNC] manifest check failed; keeping cache', error);
+                }
+
+                const remoteVersion = String(remoteDeckList && remoteDeckList.publishVersion || '');
+                const cachedVersion = String(cachedManifestVersion || '');
+
+                if(remoteDeckList && remoteDeckList.files && (!remoteVersion || remoteVersion !== cachedVersion)) {
+                    console.info('[MK_DESKTOP_DECK_SYNC] stale cache detected', {
+                        cachedVersion,
+                        remoteVersion
+                    });
+                    await autoScanGitHub({
+                        deckFileList:remoteDeckList,
+                        preserveCurrentView:false
+                    });
+                    deckSource = 'github-fresh';
+                    hasCachedLibrary = false;
+                } else {
+                    console.info('[MK_DESKTOP_DECK_SYNC] cache current', {
+                        cachedVersion,
+                        remoteVersion
+                    });
+                }
+            } else {
+                await autoScanGitHub();
+                deckSource = 'github-fresh';
+            }
         }
         window.__mkStartupDeckSource = deckSource;
         markMkStartupPhase('DECK_READY', { deckSource });
