@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.256-test-activeblock-scope -->
+<!-- preview: v18.5.257-test-context-cs-mask -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.256 TEST - active-block scope)</title>
+<title>MK (v18.5.257 TEST - context CS mask)</title>
 
 <script>
     (() => {
@@ -319,6 +319,11 @@
     .mk-cs-wrapper { display: inline; scroll-margin-block: 32vh; }
     .mk-cs-mask { color: #ff6b6b !important; font-weight: bold; background: rgba(255,107,107,0.15); padding: 0 4px; border-radius: 4px; }
     .mk-cs-answer { display: none; color: #4dabf7 !important; font-weight: bold; background: #182836; padding: 0 4px; border-radius: 4px; }
+    .mk-cs-wrapper.mk-cs-context .mk-cs-mask {
+        color: #ff6b6b !important;
+        background: rgba(255,107,107,0.15) !important;
+        box-shadow: none !important;
+    }
     /* Current CS question: make the target unmistakable, including inside table cells. */
     .mode-question .mk-cs-wrapper.mk-cs-target .mk-cs-mask {
         color: #fff !important;
@@ -695,7 +700,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.256 TEST - active-block scope)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.257 TEST - context CS mask)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -989,7 +994,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.256 TEST - active-block scope';
+    const APP_VERSION = 'v18.5.257 TEST - context CS mask';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -10418,6 +10423,68 @@ function splitMkMarkdownTableRow(line) {
         return rendered;
     }
 
+function maskMkCSContextMacros(root) {
+        if(!root) return;
+
+        const walker = document.createTreeWalker(
+            root,
+            NodeFilter.SHOW_TEXT,
+            {
+                acceptNode(node) {
+                    const value = String(node.nodeValue || '');
+                    if(!/\{\{cs\d*\s+[\s\S]+?\}\}/i.test(value)) return NodeFilter.FILTER_REJECT;
+                    const parent = node.parentElement;
+                    if(!parent) return NodeFilter.FILTER_REJECT;
+                    if(parent.closest('.mk-cs-wrapper, .cloze-wrapper, script, style, textarea, input')) {
+                        return NodeFilter.FILTER_REJECT;
+                    }
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            }
+        );
+
+        const nodes = [];
+        while(walker.nextNode()) nodes.push(walker.currentNode);
+
+        const pattern = /\{\{cs(\d*)\s+([\s\S]+?)\}\}/gi;
+
+        nodes.forEach(node => {
+            const value = String(node.nodeValue || '');
+            pattern.lastIndex = 0;
+            if(!pattern.test(value)) return;
+            pattern.lastIndex = 0;
+
+            const frag = document.createDocumentFragment();
+            let cursor = 0;
+            let match;
+
+            while((match = pattern.exec(value)) !== null) {
+                if(match.index > cursor) frag.appendChild(document.createTextNode(value.slice(cursor, match.index)));
+
+                const wrapper = document.createElement('span');
+                wrapper.className = 'mk-cs-wrapper mk-cs-context';
+                wrapper.dataset.mkCs = '1';
+                wrapper.dataset.csGroup = match[1] || '';
+
+                const mask = document.createElement('span');
+                mask.className = 'mk-cs-mask';
+                mask.textContent = '[...]';
+
+                const answer = document.createElement('span');
+                answer.className = 'mk-cs-answer';
+                answer.textContent = String(match[2] || '').trim();
+
+                wrapper.appendChild(mask);
+                wrapper.appendChild(answer);
+                frag.appendChild(wrapper);
+                cursor = pattern.lastIndex;
+            }
+
+            if(cursor < value.length) frag.appendChild(document.createTextNode(value.slice(cursor)));
+            node.replaceWith(frag);
+        });
+    }
+
 function tagRenderedMkArrowTarget(root) {
         if(!root) return false;
 
@@ -10504,6 +10571,10 @@ function createDOM(card, isAnswer, trace) {
         // active-block + <b>:-></b> + existing cloze-wrapper.
         // This preserves the one existing blank instead of creating a new one.
         tagRenderedMkArrowTarget(temp);
+
+        // Card identity is decided only by active-block, but sibling/context CS
+        // still needs to render as hidden cloze rather than raw {{cs ...}} text.
+        maskMkCSContextMacros(temp);
 
         // :-> cards own one dedicated blank. Remove accidental duplicate
         // question placeholders if old/rendered markup survived import.
