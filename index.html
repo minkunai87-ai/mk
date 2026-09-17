@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.246-test-cs-isolated-reveal -->
+<!-- preview: v18.5.248-test-unlearned-priority -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.246 TEST - CS isolated reveal)</title>
+<title>MK (v18.5.248 TEST - unlearned priority)</title>
 
 <script>
     (() => {
@@ -683,7 +683,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.246 TEST - CS isolated reveal)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.248 TEST - unlearned priority)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -977,7 +977,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.246 TEST - CS isolated reveal';
+    const APP_VERSION = 'v18.5.248 TEST - unlearned priority';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -11480,13 +11480,51 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         const getStatsMatchForSort = (card) => {
             const cacheKey = String(card && card.id || '');
             if(filterSortStatsMatchCache.has(cacheKey)) return filterSortStatsMatchCache.get(cacheKey);
-            const found = cacheKey && stats && stats[cacheKey]
-                ? { key: cacheKey, stat: stats[cacheKey] }
-                : findStatsForCard(card, stats, cacheKey);
-            const match = found && found.stat ? found : { key: cacheKey, stat: {} };
-            if (found && found.stat) {
-                normalizeReviewStatInPlace(found.stat, found.key);
+
+            // Sorting must not borrow learning state from broad text/hash aliases.
+            // Otherwise a truly-new neighbouring bullet can be classified as learned
+            // because some other card happens to resolve through a legacy fingerprint.
+            const identityKeys = [];
+            const pushIdentity = (value) => {
+                const key = String(value || '').trim();
+                if(key && !identityKeys.includes(key)) identityKeys.push(key);
+            };
+
+            pushIdentity(card && card.id);
+
+            // CS cards are brand-new independent study cards. Parent block stats must
+            // never make a newly-created CS target look learned.
+            if(!isMkCSCardFast(card)) {
+                pushIdentity(card && card.uuid);
+                pushIdentity(card && card.originalUuid);
+                pushIdentity(card && card.statsId);
+                pushIdentity(card && card.blockId);
+                pushIdentity(card && card.idString);
+                if(Array.isArray(card && card.idCandidates)) card.idCandidates.forEach(pushIdentity);
             }
+
+            const candidates = identityKeys
+                .filter(key => stats && stats[key])
+                .map((key, index) => ({
+                    key,
+                    stat: stats[key],
+                    index,
+                    rank: getStatsContinuityRank(stats[key])
+                }));
+
+            candidates.sort((a, b) =>
+                (b.rank.progress - a.rank.progress) ||
+                (b.rank.total - a.rank.total) ||
+                (b.rank.reps - a.rank.reps) ||
+                (b.rank.lastDate - a.rank.lastDate) ||
+                (a.index - b.index)
+            );
+
+            const found = candidates[0] || null;
+            const match = found ? { key: found.key, stat: found.stat } : { key: cacheKey, stat: {} };
+
+            if(found && found.stat) normalizeReviewStatInPlace(found.stat, found.key);
+
             filterSortStatsMatchCache.set(cacheKey, match);
             return match;
         };
@@ -11534,7 +11572,11 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         };
         const originalOrder = new Map();
         originalDeck.forEach((card, idx) => originalOrder.set(String(card.id), idx));
-        const getOriginalOrder = (card) => originalOrder.has(String(card.id)) ? originalOrder.get(String(card.id)) : 999999;
+        const getOriginalOrder = (card) => {
+            const explicitSourceOrder = Number(card && card.sourceOrder);
+            if(Number.isFinite(explicitSourceOrder)) return explicitSourceOrder;
+            return originalOrder.has(String(card && card.id)) ? originalOrder.get(String(card.id)) : 999999;
+        };
         const sortMetaCache = new WeakMap();
         const getSortMeta = (card) => {
             let meta = sortMetaCache.get(card);
@@ -11601,6 +11643,15 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             return 0;
         };
         filtered.sort((a,b) => {
+            if(currentSortMode === 'unlearned') {
+                const aUnlearned = isUnlearned(a);
+                const bUnlearned = isUnlearned(b);
+
+                // Hard partition: every unlearned card must precede every learned card.
+                // Secondary/original sorting is allowed only inside the same partition.
+                if(aUnlearned !== bUnlearned) return aUnlearned ? -1 : 1;
+            }
+
             const primary = currentSortMode === 'original' && currentSecondarySortMode !== 'none'
                 ? 0
                 : compareByMode(a, b, currentSortMode);
@@ -11692,9 +11743,11 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 
     function getOriginalOrderFullDeck() {
         return cloneCardList(originalDeck).sort((a, b) => {
-            const orderA = a && a.sourceOrder !== undefined ? a.sourceOrder : 999999;
-            const orderB = b && b.sourceOrder !== undefined ? b.sourceOrder : 999999;
-            if(orderA !== orderB) return orderA - orderB;
+            const orderA = Number(a && a.sourceOrder);
+            const orderB = Number(b && b.sourceOrder);
+            const safeA = Number.isFinite(orderA) ? orderA : 999999;
+            const safeB = Number.isFinite(orderB) ? orderB : 999999;
+            if(safeA !== safeB) return safeA - safeB;
             return String((a && (a.blockId || a.id)) || '').localeCompare(String((b && (b.blockId || b.id)) || ''));
         });
     }
