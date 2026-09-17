@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.255-test-rendered-arrow-active -->
+<!-- preview: v18.5.256-test-activeblock-scope -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.255 TEST - rendered arrow active)</title>
+<title>MK (v18.5.256 TEST - active-block scope)</title>
 
 <script>
     (() => {
@@ -695,7 +695,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.255 TEST - rendered arrow active)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.256 TEST - active-block scope)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -989,7 +989,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.255 TEST - rendered arrow active';
+    const APP_VERSION = 'v18.5.256 TEST - active-block scope';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -9061,6 +9061,54 @@
         return restoreMkCSMacrosFromRenderedHtml(text);
     }
 
+    function getMkActiveBlockHtml(fullHtml) {
+        const raw = String(fullHtml || '');
+        if(!raw) return '';
+
+        const holder = document.createElement('div');
+        holder.innerHTML = raw;
+
+        const active = holder.querySelector('li.active-block, .active-block');
+        if(!active) return raw;
+
+        return active.innerHTML || active.outerHTML || raw;
+    }
+
+    function replaceMkActiveBlockHtml(fullHtml, replacementInnerHtml) {
+        const raw = String(fullHtml || '');
+        const holder = document.createElement('div');
+        holder.innerHTML = raw;
+
+        const active = holder.querySelector('li.active-block, .active-block');
+        if(!active) return replacementInnerHtml;
+
+        active.innerHTML = String(replacementInnerHtml || '');
+        return holder.innerHTML;
+    }
+
+    function getMkActiveBlockProblemSource(fullHtml, extraHtml = '') {
+        const activeHtml = normalizeMkCSInput(getMkActiveBlockHtml(fullHtml));
+
+        // If sync exported a CS-bearing table separately, only merge that table
+        // into the CURRENT active block source. Never inspect sibling bullets.
+        const activeGroups = collectMkCSGroups(activeHtml);
+        if(activeGroups.length) return activeHtml;
+
+        const tableExtra = extractMkCSTablesFromExtra(extraHtml);
+        if(tableExtra && collectMkCSGroups(tableExtra).length) {
+            return [activeHtml, tableExtra]
+                .filter(value => String(value || '').trim())
+                .join('<br>');
+        }
+
+        return activeHtml;
+    }
+
+    function renderMkCSHierarchyText(fullHtml, activeSource, targetKey) {
+        const renderedActive = renderMkCSCardText(activeSource, targetKey);
+        return replaceMkActiveBlockHtml(fullHtml, renderedActive);
+    }
+
     function extractMkCSTablesFromExtra(extraText) {
         const normalized = normalizeMkCSInput(extraText);
         if(!normalized || !collectMkCSGroups(normalized).length) return '';
@@ -9210,54 +9258,50 @@
                     }
                 }
                 
-                const isDoneCard = /(?:^|>|<br\s*\/?>|\s)✅/.test(mainText) || /^\s*DONE\b/i.test(mainText);
-                const normalizedMainText = normalizeMkCSInput(mainText);
+                const activeBlockHtml = getMkActiveBlockHtml(mainText);
+                const isDoneCard =
+                    /(?:^|>|<br\s*\/?>|\s)✅/.test(activeBlockHtml) ||
+                    /^\s*DONE\b/i.test(activeBlockHtml);
 
-                // One Logseq bullet is one problem boundary. `extra` may contain
-                // nearby bullets such as a separate :-> card. Never merge all of it.
-                // Only extract a CS-bearing table from extra.
-                const csTableExtra = isDoneCard ? '' : extractMkCSTablesFromExtra(extra);
-                const mainGroups = isDoneCard ? [] : collectMkCSGroups(normalizedMainText);
-                const tableGroups = isDoneCard ? [] : collectMkCSGroups(csTableExtra);
+                const activeProblemSource = getMkActiveBlockProblemSource(mainText, extra);
+                const activeCsGroups = isDoneCard ? [] : collectMkCSGroups(activeProblemSource);
+                const activeHasRenderedArrow =
+                    /:->[\u200b\s\S]*?class\s*=\s*(?:"[^"]*\bcloze-wrapper\b[^"]*"|'[^']*\bcloze-wrapper\b[^']*')/i
+                        .test(activeBlockHtml);
 
-                let csSource = normalizedMainText;
-                if(tableGroups.length) {
-                    csSource = [normalizedMainText, csTableExtra]
-                        .filter(value => String(value || '').trim())
-                        .join('<br>');
-                }
+                // IMPORTANT: sibling-blocks are context only. They must never decide
+                // which card type this TSV row becomes.
+                mkCsGroups = activeCsGroups;
 
-                mkCsGroups = isDoneCard ? [] : collectMkCSGroups(csSource);
-                if (mkCsGroups.length) {
-                    q = csSource;
-                    a = csSource;
-                    // Separate bullets/questions must never open together with this CS card.
+                if (activeCsGroups.length) {
+                    // Preserve the entire hierarchy for context, but only transform
+                    // the current active-block into CS targets.
+                    q = mainText;
+                    a = mainText;
                     extra = '';
-                } else if (!isDoneCard && /\{\{c\d+::/.test(mainText)) {
-                    q = mainText.replace(/\{\{c\d+::([\s\S]*?)(?:::[\s\S]*?)?\}\}/g, '<span class="cloze-wrapper"><span class="cloze-q">[...]</span><span class="cloze-a">$1</span></span>');
+                } else if (!isDoneCard && /\{\{c\d+::/.test(activeBlockHtml)) {
+                    const renderedActive = activeBlockHtml.replace(
+                        /\{\{c\d+::([\s\S]*?)(?:::[\s\S]*?)?\}\}/g,
+                        '<span class="cloze-wrapper"><span class="cloze-q">[...]</span><span class="cloze-a">$1</span></span>'
+                    );
+                    q = replaceMkActiveBlockHtml(mainText, renderedActive);
                     a = q;
-                } else if (!isDoneCard && mainText.includes(':->')) {
-                    const alreadyRenderedArrow =
-                        /class\s*=\s*(?:"[^"]*\bactive-block\b[^"]*"|'[^']*\bactive-block\b[^']*')[\s\S]*?:->[​\s\S]*?class\s*=\s*(?:"[^"]*\bcloze-wrapper\b[^"]*"|'[^']*\bcloze-wrapper\b[^']*')/i.test(mainText);
-
-                    if(alreadyRenderedArrow) {
-                        // logseq-mk-sync already produced the answer cloze. Keep it intact;
-                        // createDOM() will tag the active-block wrapper as mk-arrow-card.
+                } else if (!isDoneCard && activeHasRenderedArrow) {
+                    // logseq-mk-sync already produced the :-> cloze in active-block.
+                    q = mainText;
+                    a = mainText;
+                } else if (!isDoneCard && activeBlockHtml.includes(':->')) {
+                    const arrowRendered = renderMkArrowCard(activeBlockHtml);
+                    if(arrowRendered) {
+                        q = replaceMkActiveBlockHtml(mainText, arrowRendered);
+                        a = q;
+                    } else {
                         q = mainText;
                         a = mainText;
-                    } else {
-                        const arrowRendered = renderMkArrowCard(mainText);
-                        if(arrowRendered) {
-                            q = arrowRendered;
-                            a = arrowRendered;
-                        } else {
-                            q = mainText;
-                            a = mainText;
-                        }
                     }
-                } else { 
-                    q = mainText; 
-                    a = mainText; 
+                } else {
+                    q = mainText;
+                    a = mainText;
                 }
             } else {
                 if (fields.length >= 3) { deckNameInRow = normalizeDeckPath(fields[0], deck); q = fields[1]; a = fields.slice(2).join('<br>'); } 
@@ -9274,14 +9318,20 @@
 
             if(isLogseq && mkCsGroups.length) {
                 if (graphName) rememberLogseqGraphName(graphName, 'import');
+
+                // Determine the current active problem source once. Sibling CS macros
+                // remain plain context and are never turned into targets for this row.
+                const activeProblemSource = getMkActiveBlockProblemSource(q, extra);
+
                 mkCsGroups.forEach((group, groupIndex) => {
-                    const rendered = renderMkCSCardText(q, group.key);
+                    const rendered = renderMkCSHierarchyText(q, activeProblemSource, group.key);
                     const cardId = `${finalId}__cs_${group.key}`;
                     const existingCardIndex = targetLib[deckNameInRow].findIndex(c => c.id === cardId);
                     const cardObj = {
                         id:cardId, q:rendered, a:rendered, isLogseq, blockId, breadcrumb, extra, graphName,
                         sourceOrder:sourceOrder + (groupIndex / Math.max(1, mkCsGroups.length)),
-                        deck:deckNameInRow, mkCsTarget:group.key, mkCsGrouped:group.key.startsWith('n')
+                        deck:deckNameInRow, mkCsTarget:group.key, mkCsGrouped:group.key.startsWith('n'),
+                        mkProblemScope:'active-block'
                     };
                     if (existingCardIndex !== -1) targetLib[deckNameInRow].splice(existingCardIndex, 1);
                     targetLib[deckNameInRow].push(cardObj);
