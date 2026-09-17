@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.245-test-cs-bullet-focus -->
+<!-- preview: v18.5.246-test-cs-isolated-reveal -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.245 TEST - CS bullet focus)</title>
+<title>MK (v18.5.246 TEST - CS isolated reveal)</title>
 
 <script>
     (() => {
@@ -325,6 +325,10 @@
     table .mk-cs-wrapper { white-space: nowrap; }
     .mode-answer .mk-cs-wrapper.mk-cs-target .mk-cs-mask { display: none !important; }
     .mode-answer .mk-cs-wrapper.mk-cs-target .mk-cs-answer { display: inline !important; }
+
+    /* CS answer reveal is isolated from ordinary cloze/:-> content. */
+    .mode-question.mk-cs-answer-revealed .mk-cs-wrapper.mk-cs-target .mk-cs-mask { display: none !important; }
+    .mode-question.mk-cs-answer-revealed .mk-cs-wrapper.mk-cs-target .mk-cs-answer { display: inline !important; }
     .text-area.mk-cs-show-other-content .mk-cs-wrapper:not(.mk-cs-target) .mk-cs-mask { display: none !important; }
     .text-area.mk-cs-show-other-content .mk-cs-wrapper:not(.mk-cs-target) .mk-cs-answer { display: inline !important; }
 
@@ -679,7 +683,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.245 TEST - CS bullet focus)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.246 TEST - CS isolated reveal)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -973,7 +977,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.245 TEST - CS bullet focus';
+    const APP_VERSION = 'v18.5.246 TEST - CS isolated reveal';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -2715,11 +2719,10 @@
         // entire ancestor chain that carries hierarchy dimming as fully opaque.
         let cursor = target.parentElement;
         while(cursor) {
-            if(cursor.classList && (
-                cursor.classList.contains('sibling-block') ||
-                cursor.classList.contains('active-block') ||
-                cursor.classList.contains('ls-active')
-            )) cursor.classList.add('mk-cs-focus-chain');
+            if(cursor.classList) cursor.classList.add('mk-cs-focus-chain');
+            if(cursor.style && typeof cursor.style.setProperty === 'function') {
+                cursor.style.setProperty('opacity', '1', 'important');
+            }
             if(cursor === root) break;
             cursor = cursor.parentElement;
         }
@@ -12073,6 +12076,7 @@ function getIOImageGroups() {
         const qSection = document.getElementById('question-section');
         qSection.innerHTML = '';
         qSection.className = 'text-area mode-question';
+        qSection.classList.remove('mk-cs-answer-revealed');
         qSection.appendChild(createDOM(card, false, currentCardPdfTrace));
         if(isCSCard) {
             updateMkCSOtherMasksToggle(qSection, card);
@@ -12174,6 +12178,29 @@ function getIOImageGroups() {
     function revealAnswer() {
         document.getElementById('click-guide').style.display = 'none';
         const qDiv = document.getElementById('question-section');
+        const card = activeDeck && activeDeck[currentIndex] ? activeDeck[currentIndex] : {};
+        const isCSCard = isMkCSCardFast(card);
+
+        // CS cards must reveal ONLY the current CS target/group.
+        // Do not switch the whole question area to mode-answer because that would
+        // also reveal unrelated ordinary cloze / :-> questions shown as hierarchy context.
+        if(isCSCard) {
+            qDiv.classList.add('mk-cs-answer-revealed');
+            applyMkCSHierarchyFocus(qDiv);
+
+            const aDiv = document.getElementById('answer-section');
+            aDiv.style.display = 'none';
+            document.getElementById('divider').style.display = 'none';
+            document.getElementById('grade-area').style.display = 'flex';
+
+            if (window.MathJax && cardNeedsMathJax(card, true)) {
+                MathJax.typesetPromise([qDiv]).catch(function (err) { console.log(err); });
+            }
+
+            persistCurrentViewState(false);
+            return;
+        }
+
         qDiv.classList.remove('mode-question');
         qDiv.classList.add('mode-answer');
         // The zoom mask clone lives under <body>, outside qDiv, so CSS ancestry no
@@ -12181,7 +12208,6 @@ function getIOImageGroups() {
         syncIOZoomMaskOverlayState(qDiv);
 
         const aDiv = document.getElementById('answer-section');
-        const card = activeDeck && activeDeck[currentIndex] ? activeDeck[currentIndex] : {};
         const isIOCard = isMkImageOcclusionCardFast(card);
         if(aDiv.dataset.mkDeferredAnswer === '1') {
             aDiv.dataset.mkDeferredAnswer = '0';
