@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.241-test-general-image-zoom-fix -->
+<!-- preview: v18.5.242-test-cs-sequential-reveal -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.241 TEST - general image zoom fix)</title>
+<title>MK (v18.5.242 TEST - cs sequential reveal)</title>
 
 <script>
     (() => {
@@ -302,6 +302,13 @@
     .mode-question .cloze-q { display: inline !important; }
     .mode-answer .cloze-q { display: none !important; }
     .mode-answer .cloze-a { display: inline !important; }
+
+    /* {{cs ...}}: one card, answers revealed in source order */
+    .mk-cs-item { display: inline; }
+    .mk-cs-mask { color: #ff6b6b !important; font-weight: bold; background: rgba(255,107,107,0.15); padding: 0 4px; border-radius: 4px; }
+    .mk-cs-answer { display: none; color: #4dabf7 !important; font-weight: bold; background: #182836; padding: 0 4px; border-radius: 4px; }
+    .mk-cs-item.mk-cs-revealed .mk-cs-mask { display: none; }
+    .mk-cs-item.mk-cs-revealed .mk-cs-answer { display: inline; }
 
     .mk-io-wrapper {
         position: relative;
@@ -654,7 +661,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.241 TEST - general image zoom fix)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.242 TEST - cs sequential reveal)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -948,7 +955,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.241 TEST - general image zoom fix';
+    const APP_VERSION = 'v18.5.242 TEST - cs sequential reveal';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -8924,8 +8931,16 @@
                 }
                 
                 const isDoneCard = /(?:^|>|<br\s*\/?>|\s)✅/.test(mainText) || /^\s*DONE\b/i.test(mainText);
-                if (!isDoneCard && mainText.includes('{{c')) {
-                    q = mainText.replace(/\{\{c\d+::([\s\S]*?)(?:::[\s\S]*?)?\}\}/g, '<span class="cloze-wrapper"><span class="cloze-q">[...]</span><span class="cloze-a">$1</span></span>');
+                const hasStandardCloze = /\{\{c\d+::[\s\S]*?\}\}/.test(mainText);
+                const hasSequentialCloze = /\{\{cs\s+[\s\S]*?\}\}/i.test(mainText);
+                if (!isDoneCard && (hasStandardCloze || hasSequentialCloze)) {
+                    q = mainText;
+                    if (hasStandardCloze) {
+                        q = q.replace(/\{\{c\d+::([\s\S]*?)(?:::[\s\S]*?)?\}\}/g, '<span class="cloze-wrapper"><span class="cloze-q">[...]</span><span class="cloze-a">$1</span></span>');
+                    }
+                    if (hasSequentialCloze) {
+                        q = q.replace(/\{\{cs\s+([\s\S]*?)\}\}/gi, '<span class="mk-cs-item"><span class="mk-cs-mask">[...]</span><span class="mk-cs-answer">$1</span></span>');
+                    }
                     a = q;
                 } else { 
                     q = mainText; 
@@ -11443,7 +11458,27 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 
     function isAnswerCurrentlyRevealed() {
         const answer = document.getElementById('answer-section');
-        return !!(answer && answer.style.display !== 'none');
+        const gradeArea = document.getElementById('grade-area');
+        return !!((answer && answer.style.display !== 'none') || (gradeArea && gradeArea.style.display === 'flex'));
+    }
+
+    function restoreRevealedAnswerState() {
+        const qDiv = document.getElementById('question-section');
+        const csItems = qDiv ? Array.from(qDiv.querySelectorAll('.mk-cs-item')) : [];
+        if(csItems.length) {
+            csItems.forEach(item => item.classList.add('mk-cs-revealed'));
+            const clickGuide = document.getElementById('click-guide');
+            if(clickGuide) {
+                clickGuide.style.display = 'none';
+                clickGuide.textContent = '👇 터치하여 정답 확인';
+            }
+            qDiv.classList.remove('mode-question');
+            qDiv.classList.add('mode-answer');
+            const gradeArea = document.getElementById('grade-area');
+            if(gradeArea) gradeArea.style.display = 'flex';
+            return;
+        }
+        revealAnswer();
     }
 
     function getOriginalOrderContextLabel(state = null) {
@@ -11506,7 +11541,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         updateOriginalOrderContextButton();
         updateFilterStatusUI();
         showCard();
-        if(originalOrderContext.answerRevealed) revealAnswer();
+        if(originalOrderContext.answerRevealed) restoreRevealedAnswerState();
         showToast('원래순 전체보기로 이동했습니다', 'success');
     }
 
@@ -11534,7 +11569,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         updateFilterStatusUI();
         saveCurrentProgress();
         showCard();
-        if(snapshot.answerRevealed) revealAnswer();
+        if(snapshot.answerRevealed) restoreRevealedAnswerState();
         showToast('이전 목록으로 돌아왔습니다', 'success');
     }
     function setFilterMode(mode) {
@@ -11866,7 +11901,9 @@ function getIOImageGroups() {
 
         aSection.style.display = 'none';
         document.getElementById('divider').style.display = 'none';
-        document.getElementById('click-guide').style.display = 'block';
+        const clickGuide = document.getElementById('click-guide');
+        clickGuide.style.display = 'block';
+        clickGuide.textContent = qSection.querySelector('.mk-cs-item') ? '👇 첫 빈칸 확인' : '👇 터치하여 정답 확인';
         document.getElementById('nav-area').style.display = 'flex';
         document.getElementById('grade-area').style.display = 'none';
         scrollContainer.scrollTop = 0;
@@ -11930,10 +11967,29 @@ function getIOImageGroups() {
     }
 
     function revealAnswer() {
-        document.getElementById('click-guide').style.display = 'none';
         const qDiv = document.getElementById('question-section');
-        qDiv.classList.remove('mode-question');
-        qDiv.classList.add('mode-answer');
+        const csItems = Array.from(qDiv.querySelectorAll('.mk-cs-item'));
+        if(csItems.length) {
+            const nextItem = csItems.find(item => !item.classList.contains('mk-cs-revealed'));
+            if(nextItem) nextItem.classList.add('mk-cs-revealed');
+            const remaining = csItems.filter(item => !item.classList.contains('mk-cs-revealed')).length;
+            const clickGuide = document.getElementById('click-guide');
+            if(remaining > 0) {
+                clickGuide.style.display = 'block';
+                clickGuide.textContent = `👇 다음 빈칸 확인 (${csItems.length - remaining}/${csItems.length})`;
+                document.getElementById('grade-area').style.display = 'none';
+                scrollElementToProblemPosition(nextItem, { alignRatio: 0.38, behavior: 'smooth' });
+                return;
+            }
+            clickGuide.style.display = 'none';
+            clickGuide.textContent = '👇 터치하여 정답 확인';
+            qDiv.classList.remove('mode-question');
+            qDiv.classList.add('mode-answer');
+        } else {
+            document.getElementById('click-guide').style.display = 'none';
+            qDiv.classList.remove('mode-question');
+            qDiv.classList.add('mode-answer');
+        }
         // The zoom mask clone lives under <body>, outside qDiv, so CSS ancestry no
         // longer changes automatically. Mirror answer state immediately.
         syncIOZoomMaskOverlayState(qDiv);
