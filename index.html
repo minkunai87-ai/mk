@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.266-test-raw-fetch-pdfhelper-anchor -->
+<!-- preview: v18.5.267-test-startup-429-pdfhelper-resilient -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.266 TEST - Raw fetch + PDFHelper anchor)</title>
+<title>MK (v18.5.267 TEST - startup 429 + PDFHelper resilient)</title>
 
 <script>
     (() => {
@@ -599,13 +599,6 @@
 .mk-pdf-annotation-icon[href^="mkpdf://"] {
   cursor: pointer;
   touch-action: manipulation;
-  text-decoration: none !important;
-}
-.mk-pdf-annotation-icon > svg {
-  display: block !important;
-  width: 16px !important;
-  height: 16px !important;
-  pointer-events: none;
 }
 .mk-pdf-image-annotation .mk-pdf-annotation-content {
   pointer-events: auto;
@@ -713,7 +706,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.266 TEST - Raw fetch + PDFHelper anchor)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.267 TEST - startup 429 + PDFHelper resilient)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1007,7 +1000,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.266 TEST - Raw fetch + PDFHelper anchor';
+    const APP_VERSION = 'v18.5.267 TEST - startup 429 + PDFHelper resilient';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -1224,6 +1217,7 @@
     const LIBRARY_CACHE_DB_KEY = 'mk_library_cache_v1';
     const LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY = 'mk_library_cache_manifest_version_v1';
     const LIBRARY_CACHE_PARSER_VERSION_DB_KEY = 'mk_library_cache_parser_version_v1';
+    const PDF_ANNOTATION_INDEX_DB_KEY = 'mk_pdf_annotation_index_v1';
     const LIBRARY_CACHE_PARSER_VERSION = 'cs-activeblock-table-layout-v6';
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
     const REVIEW_HISTORY_EVENTS_DB_KEY_PREFIX = 'mk_review_history_events_v1::';
@@ -3013,10 +3007,8 @@
             }
             if(remoteDeckList && remoteDeckList.files) {
                 const imported = await autoScanGitHub({ deckFileList:remoteDeckList, skipLibraryCacheWrite:true });
-                if(imported) {
-                    deckSource = 'github-fresh';
-                } else {
-                    // Any network/import failure, including HTTP 429, keeps the last complete cache.
+                if(imported) deckSource = 'github-fresh';
+                else {
                     hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
                     deckSource = hasCachedLibrary ? 'indexeddb-fallback' : 'github-unavailable';
                 }
@@ -6918,61 +6910,51 @@
         }
     }
 
-    const MK_GITHUB_RATE_LIMIT_UNTIL_KEY = 'mk_github_rate_limit_until_v1';
+    let mkGithubRateLimitUntil = 0;
 
-    function getMkGithubRateLimitUntil() {
-        try { return Number(sessionStorage.getItem(MK_GITHUB_RATE_LIMIT_UNTIL_KEY)) || 0; }
-        catch(error) { return 0; }
-    }
-
-    function getMkRetryAfterMs(response, fallbackMs = 5 * 60 * 1000) {
+    function getMkRetryAfterMs(response, fallbackMs = 60 * 1000) {
         const raw = response && response.headers ? response.headers.get('Retry-After') : '';
         if(raw) {
             const seconds = Number(raw);
-            if(Number.isFinite(seconds) && seconds > 0) return Math.min(15 * 60 * 1000, Math.max(30 * 1000, seconds * 1000));
+            if(Number.isFinite(seconds) && seconds > 0) return Math.min(10 * 60 * 1000, Math.max(15 * 1000, seconds * 1000));
             const retryDate = Date.parse(raw);
-            if(Number.isFinite(retryDate)) return Math.min(15 * 60 * 1000, Math.max(30 * 1000, retryDate - Date.now()));
+            if(Number.isFinite(retryDate)) return Math.min(10 * 60 * 1000, Math.max(15 * 1000, retryDate - Date.now()));
         }
         return fallbackMs;
     }
 
     function markMkGithubRateLimited(response = null) {
-        const until = Date.now() + getMkRetryAfterMs(response);
-        try { sessionStorage.setItem(MK_GITHUB_RATE_LIMIT_UNTIL_KEY, String(until)); } catch(error) {}
-        return until;
+        mkGithubRateLimitUntil = Date.now() + getMkRetryAfterMs(response);
+        return mkGithubRateLimitUntil;
     }
 
     function makeMkGithubRateLimitError(message = 'github/pages rate limited', response = null) {
         const error = new Error(message);
         error.status = 429;
         error.rateLimited = true;
-        error.retryAfterMs = response ? getMkRetryAfterMs(response) : Math.max(0, getMkGithubRateLimitUntil() - Date.now());
+        error.retryAfterMs = response ? getMkRetryAfterMs(response) : Math.max(0, mkGithubRateLimitUntil - Date.now());
         return error;
     }
 
     function isMkGithubRateLimited() {
-        return getMkGithubRateLimitUntil() > Date.now();
-    }
-
-    function getMkRawRepoUrl(pathname, version = '') {
-        const encodedPath = String(pathname || '').split('/').filter(Boolean).map(part => encodeURIComponent(part)).join('/');
-        const url = new URL(`https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/${encodedPath}`);
-        if(version) url.searchParams.set('v', version);
-        return url.href;
+        return mkGithubRateLimitUntil > Date.now();
     }
 
     function getManifestDeckFile(name, publishVersion = '') {
         const normalizedName = String(name || '').trim();
         if (!normalizedName || !normalizedName.endsWith('.txt') || normalizedName.includes('..') || /^[\\/]/.test(normalizedName)) return null;
+        const encodedPath = normalizedName.split('/').map(part => encodeURIComponent(part)).join('/');
+        const downloadUrl = new URL(encodedPath, document.baseURI);
+        if (publishVersion) downloadUrl.searchParams.set('v', publishVersion);
         return {
             name: normalizedName.split('/').pop(),
-            download_url: getMkRawRepoUrl(normalizedName, publishVersion),
+            download_url: downloadUrl.href,
             fromManifest: true
         };
     }
 
     async function loadDeckManifest(fetchImpl = fetch) {
-        const manifestUrl = getMkRawRepoUrl('decks-manifest.json');
+        const manifestUrl = new URL('decks-manifest.json', document.baseURI).href;
         const manifestRes = await fetchImpl(manifestUrl, { cache: 'no-store' });
         if (manifestRes.status === 429) {
             markMkGithubRateLimited(manifestRes);
@@ -7003,13 +6985,9 @@
                     source:'manifest-rate-limit',
                     listResponse:null,
                     rateLimited:true,
-                    retryAfterMs:Number(manifestError.retryAfterMs) || Math.max(0, getMkGithubRateLimitUntil() - Date.now())
+                    retryAfterMs:Number(manifestError.retryAfterMs) || 0
                 };
             }
-        }
-
-        if(isMkGithubRateLimited()) {
-            return { files:null, source:'github-cooldown', listResponse:null, rateLimited:true, retryAfterMs:Math.max(0, getMkGithubRateLimitUntil() - Date.now()) };
         }
 
         const listUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/`;
@@ -7025,28 +7003,77 @@
     }
 
     let pdfAnnotationIndexLoadPromise = null;
-    function loadPdfAnnotationSourceIndex(fetchImpl = fetch) {
-        if(pdfAnnotationIndexLoadPromise) return pdfAnnotationIndexLoadPromise;
-        pdfAnnotationIndexLoadPromise = (async () => {
+    let pdfAnnotationIndexRetryTimer = null;
+    let pdfAnnotationIndexRetryCount = 0;
+
+    function applyPdfAnnotationPayload(payload, source = 'network') {
+        if (!payload || ![1, 2].includes(payload.schemaVersion) || !payload.annotations) return false;
+        pdfAnnotationSourceIndex = new Map(Object.entries(payload.annotations).map(([uuid, data]) => [uuid.toLowerCase(), data]));
+        pdfAnnotationResolveCache.clear();
+        console.log('[PDF-BLOCKREF] source index loaded:', source, pdfAnnotationSourceIndex.size);
+        observeDynamicPdfAnnotations();
+        redecorateCurrentPdfAnnotations();
+        return true;
+    }
+
+    async function loadCachedPdfAnnotationSourceIndex() {
         try {
-            const url = getMkRawRepoUrl('pdf-annotations.json', APP_VERSION);
-            const response = await fetchImpl(url, { cache: 'no-cache' });
-            if (!response.ok) throw new Error(`PDF annotation index status ${response.status}`);
-            const payload = await response.json();
-            if (!payload || ![1, 2].includes(payload.schemaVersion) || !payload.annotations) throw new Error('invalid PDF annotation index');
-            pdfAnnotationSourceIndex = new Map(Object.entries(payload.annotations).map(([uuid, data]) => [uuid.toLowerCase(), data]));
-            pdfAnnotationResolveCache.clear();
-            console.log('[PDF-BLOCKREF] source index loaded:', pdfAnnotationSourceIndex.size);
-            observeDynamicPdfAnnotations();
-            decorateDynamicPdfAnnotationSubtree(document.getElementById('question-section'));
-            decorateDynamicPdfAnnotationSubtree(document.getElementById('answer-section'));
-            return true;
+            const raw = await readStatsDatabaseValue(PDF_ANNOTATION_INDEX_DB_KEY);
+            if(!raw) return false;
+            const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            return applyPdfAnnotationPayload(payload, 'indexeddb');
         } catch(error) {
-            pdfAnnotationSourceIndex = new Map();
-            pdfAnnotationResolveCache.clear();
-            console.warn('[PDF-BLOCKREF] source index unavailable:', error);
+            console.warn('[PDF-BLOCKREF] cached source index unavailable:', error);
             return false;
         }
+    }
+
+    function schedulePdfAnnotationIndexRetry(fetchImpl = fetch) {
+        if(pdfAnnotationIndexRetryTimer) return;
+        const delays = [5000, 15000, 30000, 60000];
+        const delay = delays[Math.min(pdfAnnotationIndexRetryCount, delays.length - 1)];
+        pdfAnnotationIndexRetryCount += 1;
+        pdfAnnotationIndexRetryTimer = setTimeout(() => {
+            pdfAnnotationIndexRetryTimer = null;
+            loadPdfAnnotationSourceIndex(fetchImpl, { skipCache:true }).catch(() => {});
+        }, delay);
+    }
+
+    function loadPdfAnnotationSourceIndex(fetchImpl = fetch, options = {}) {
+        if(pdfAnnotationIndexLoadPromise) return pdfAnnotationIndexLoadPromise;
+        pdfAnnotationIndexLoadPromise = (async () => {
+            let cacheLoaded = false;
+            if(!options.skipCache) cacheLoaded = await loadCachedPdfAnnotationSourceIndex();
+
+            try {
+                const url = new URL('pdf-annotations.json', document.baseURI);
+                url.searchParams.set('v', APP_VERSION);
+                const response = await fetchImpl(url.href, { cache: 'no-cache' });
+                if (!response.ok) throw new Error(`PDF annotation index status ${response.status}`);
+                const payload = await response.json();
+                if(!applyPdfAnnotationPayload(payload, 'network')) throw new Error('invalid PDF annotation index');
+                try { await writeStatsDatabaseValue(PDF_ANNOTATION_INDEX_DB_KEY, JSON.stringify(payload)); } catch(error) {
+                    console.warn('[PDF-BLOCKREF] source index cache write failed:', error);
+                }
+                pdfAnnotationIndexRetryCount = 0;
+                return true;
+            } catch(error) {
+                console.warn('[PDF-BLOCKREF] source index network unavailable:', error);
+                // Never wipe an already loaded cached index just because this network request failed.
+                if(pdfAnnotationSourceIndex && pdfAnnotationSourceIndex.size) {
+                    schedulePdfAnnotationIndexRetry(fetchImpl);
+                    redecorateCurrentPdfAnnotations();
+                    return true;
+                }
+                if(cacheLoaded) {
+                    schedulePdfAnnotationIndexRetry(fetchImpl);
+                    return true;
+                }
+                schedulePdfAnnotationIndexRetry(fetchImpl);
+                return false;
+            } finally {
+                pdfAnnotationIndexLoadPromise = null;
+            }
         })();
         return pdfAnnotationIndexLoadPromise;
     }
@@ -7066,15 +7093,13 @@
             
             if(!deckFileList.files) {
                 if(!silent) document.getElementById('loading').style.display = 'none';
+                const hasLocalDeck = !!(library && Object.keys(library).length);
                 if(deckFileList.rateLimited || (res && res.status === 429)) {
-                    const hasLocalDeck = !!(library && Object.keys(library).length);
-                    if(!silent) showToast(
-                        hasLocalDeck ? "GitHub 요청 제한 중 · 저장된 덱으로 계속합니다." : "GitHub 요청 제한 중 · 잠시 후 다시 시도해주세요.",
-                        hasLocalDeck ? "normal" : "error"
-                    );
+                    console.warn('[MK_GITHUB_429] startup/network request rate-limited; keeping local deck', deckFileList);
+                    if(!hasLocalDeck && !silent) showToast("GitHub 요청 제한 중 · 잠시 후 다시 시도해주세요.", "error");
                     return false;
                 }
-                if (res && res.status === 403) {
+                if (res && res.status === 403 && !hasLocalDeck && !silent) {
                     showToast("깃허브 접속 차단됨. 토큰을 확인하세요!", "error");
                 }
                 return false;
@@ -7094,7 +7119,7 @@
                         const textRes = await fetch(file.download_url, { cache: 'no-store' });
                         if (textRes.status === 429) {
                             markMkGithubRateLimited(textRes);
-                            throw makeMkGithubRateLimitError(`deck download failed: 429`, textRes);
+                            throw makeMkGithubRateLimitError('deck download failed: 429', textRes);
                         }
                         if (!textRes.ok) {
                             const error = new Error(`deck download failed: ${textRes.status}`);
@@ -7121,12 +7146,10 @@
 
             if(deckImportFailed) {
                 if(!silent) document.getElementById('loading').style.display = 'none';
-                if(rateLimited && !silent) {
+                if(rateLimited) {
+                    console.warn('[MK_GITHUB_429] deck import stopped; existing local cache retained');
                     const hasLocalDeck = !!(library && Object.keys(library).length);
-                    showToast(
-                        hasLocalDeck ? "GitHub 요청 제한 중 · 저장된 덱으로 계속합니다." : "GitHub 요청 제한 중 · 잠시 후 다시 시도해주세요.",
-                        hasLocalDeck ? "normal" : "error"
-                    );
+                    if(!hasLocalDeck && !silent) showToast("GitHub 요청 제한 중 · 잠시 후 다시 시도해주세요.", "error");
                 }
                 return false;
             }
@@ -10175,41 +10198,35 @@ function preserveCardContentLineBreaks(root) {
 
     function bindPdfAnnotationIconAction(icon, annotationData) {
         const deepLink = buildPdfHelperDeepLink(annotationData);
-        if(!deepLink || !icon) return false;
+        if(!deepLink) return;
         icon.setAttribute('href', deepLink);
         icon.setAttribute('role', 'link');
-        icon.setAttribute('aria-label', 'PDFHelper로 열기');
-        icon.dataset.annotation = JSON.stringify(annotationData);
-        // Keep this as a real anchor navigation. iOS standalone is much more
-        // reliable for custom schemes when the user's tap lands on the href itself.
+        icon.setAttribute('tabindex', '0');
         icon.addEventListener('click', event => {
+            event.preventDefault();
             event.stopPropagation();
-            if(typeof window.__mkPdfNavigationTestHook === 'function') {
-                event.preventDefault();
-                window.__mkPdfNavigationTestHook(deepLink, annotationData);
-            }
+            openPdfAnnotationOnIOS(annotationData);
         });
-        return true;
+        icon.addEventListener('keydown', event => {
+            if(event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            event.stopPropagation();
+            openPdfAnnotationOnIOS(annotationData);
+        });
     }
 
     function createPdfAnnotationSvg(annotationData) {
-        const deepLink = buildPdfHelperDeepLink(annotationData);
-        if(!deepLink) return null;
-
-        const icon = document.createElement('a');
-        icon.setAttribute('class', 'mk-pdf-annotation-icon');
-        icon.setAttribute('href', deepLink);
-
         const svgNamespace = 'http://www.w3.org/2000/svg';
-        const svg = document.createElementNS(svgNamespace, 'svg');
-        svg.setAttribute('viewBox', '0 0 24 24');
-        svg.setAttribute('width', '16');
-        svg.setAttribute('height', '16');
-        svg.setAttribute('fill', 'none');
-        svg.setAttribute('stroke', 'currentColor');
-        svg.setAttribute('aria-hidden', 'true');
-        svg.innerHTML = '<path d="M6 2.5h8l4 4V21H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 2.5V7h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>';
-        icon.appendChild(svg);
+        const icon = document.createElementNS(svgNamespace, 'svg');
+        icon.setAttribute('class', 'mk-pdf-annotation-icon');
+        icon.setAttribute('viewBox', '0 0 24 24');
+        icon.setAttribute('width', '16');
+        icon.setAttribute('height', '16');
+        icon.setAttribute('fill', 'none');
+        icon.setAttribute('stroke', 'currentColor');
+        icon.setAttribute('aria-hidden', 'true');
+        icon.dataset.annotation = JSON.stringify(annotationData);
+        icon.innerHTML = '<path d="M6 2.5h8l4 4V21H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 2.5V7h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>';
         bindPdfAnnotationIconAction(icon, annotationData);
         return icon;
     }
@@ -10411,9 +10428,19 @@ function preserveCardContentLineBreaks(root) {
     }
 
     function applyPdfAnnotationUi(region, annotationData, contentElement = null) {
-        if(!region || !annotationData || region.dataset.mkPdfAnnotationDecorated === '1') {
-            recordPdfDiagnosticStep('apply-skipped', { hasRegion: !!region, hasAnnotationData: !!annotationData, alreadyDecorated: region?.dataset?.mkPdfAnnotationDecorated === '1', sourceUuid: annotationData?.sourceUuid || null });
+        if(!region || !annotationData) {
+            recordPdfDiagnosticStep('apply-skipped', { hasRegion: !!region, hasAnnotationData: !!annotationData, sourceUuid: annotationData?.sourceUuid || null });
             return false;
+        }
+        const existingIcon = region.querySelector(':scope > .mk-pdf-annotation-icon');
+        if(region.dataset.mkPdfAnnotationDecorated === '1' && existingIcon) {
+            recordPdfDiagnosticStep('apply-skipped', { hasRegion:true, hasAnnotationData:true, alreadyDecorated:true, sourceUuid: annotationData?.sourceUuid || null });
+            return false;
+        }
+        // A previous render may leave the decorated marker while the generated icon was removed.
+        // Treat that state as stale and rebuild the icon.
+        if(region.dataset.mkPdfAnnotationDecorated === '1' && !existingIcon) {
+            region.removeAttribute('data-mk-pdf-annotation-decorated');
         }
         region.dataset.mkPdfAnnotationDecorated = '1';
         region.dataset.mkPdfAnnotationSourceUuid = annotationData.sourceUuid || annotationData.annotationId || '';
@@ -10431,7 +10458,6 @@ function preserveCardContentLineBreaks(root) {
             bindPdfAnnotationRegionAction(region, annotationData);
         }
         const icon = createPdfAnnotationSvg(annotationData);
-        if(!icon) return false;
         if(contentElement && contentElement.parentNode === region) region.insertBefore(icon, contentElement);
         else region.insertBefore(icon, region.firstChild);
         recordPdfDiagnosticStep('apply-complete', { sourceUuid: annotationData.sourceUuid || null, iconInserted: icon.parentNode === region, handlerBound: region.dataset.mkPdfRegionBound === '1', imageInteractionIsolated:!!imageContent, outerHTML: region.outerHTML });
@@ -10528,7 +10554,8 @@ function preserveCardContentLineBreaks(root) {
 
         const candidates = [...(root.matches?.(PDF_ANNOTATION_IDENTITY_SELECTOR) ? [root] : []), ...root.querySelectorAll(PDF_ANNOTATION_IDENTITY_SELECTOR)];
         candidates.forEach(element => {
-            if(element.closest('[data-mk-pdf-annotation-decorated="1"]')) return;
+            const decoratedAncestor = element.closest('[data-mk-pdf-annotation-decorated="1"]');
+            if(decoratedAncestor && decoratedAncestor.querySelector(':scope > .mk-pdf-annotation-icon')) return;
             const rawHref = element.getAttribute('href') || element.getAttribute('onclick') || element.getAttribute('src') || null;
             const annotationData = resolvePdfAnnotation(element, rawHref);
             if(!annotationData) return;
