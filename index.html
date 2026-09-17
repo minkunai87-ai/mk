@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.263-test-cs-table-layout -->
+<!-- preview: v18.5.264-test-pdfhelper-icon-restore -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.263 TEST - CS table layout)</title>
+<title>MK (v18.5.264 TEST - PDFHelper icon restore)</title>
 
 <script>
     (() => {
@@ -706,7 +706,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.263 TEST - CS table layout)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.264 TEST - PDFHelper icon restore)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1000,7 +1000,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.263 TEST - CS table layout';
+    const APP_VERSION = 'v18.5.264 TEST - PDFHelper icon restore';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -3090,7 +3090,13 @@
             // PDFHelper metadata must be available before annotation icons can build mkpdf:// links.
             // Load once after first paint so startup/card rendering stays non-blocking.
             loadPdfAnnotationSourceIndex(fetch).then(ok => {
-                if(ok) console.info('[MK_PDFHELPER] annotation index ready');
+                if(!ok) return;
+                console.info('[MK_PDFHELPER] annotation index ready');
+
+                // The first card can render before the PDF annotation index is ready.
+                // Retry decoration against the live card once metadata becomes available
+                // so mkpdf:// PDFHelper icons/links are restored without a card change.
+                redecorateCurrentPdfAnnotations();
             }).catch(error => console.warn('[MK_PDFHELPER] annotation index load failed', error));
 
             if(hasCachedLibrary && !mobileStandaloneFreshDeck) scheduleDeckManifestRefreshAfterFirstCardVisible();
@@ -10426,6 +10432,14 @@ function preserveCardContentLineBreaks(root) {
                 applyPdfAnnotationUi(region, annotationData);
             }
         });
+    }
+
+    function redecorateCurrentPdfAnnotations() {
+        const card = activeDeck && activeDeck[currentIndex] ? activeDeck[currentIndex] : {};
+        const qSection = document.getElementById('question-section');
+        const aSection = document.getElementById('answer-section');
+        if(qSection) decoratePdfAnnotations(qSection, card);
+        if(aSection) decoratePdfAnnotations(aSection, card);
     }
 
     function decorateDynamicPdfAnnotationSubtree(root) {
