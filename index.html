@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.242-test-cs-sequential-reveal -->
+<!-- preview: v18.5.242-test-cs-per-card-grouped -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.242 TEST - cs sequential reveal)</title>
+<title>MK (v18.5.242 TEST - CS per-card grouped)</title>
 
 <script>
     (() => {
@@ -303,12 +303,14 @@
     .mode-answer .cloze-q { display: none !important; }
     .mode-answer .cloze-a { display: inline !important; }
 
-    /* {{cs ...}}: one card, answers revealed in source order */
-    .mk-cs-item { display: inline; }
+    /* CS: each target/group is one MK card; all blanks stay masked by default. */
+    .mk-cs-wrapper { display: inline; }
     .mk-cs-mask { color: #ff6b6b !important; font-weight: bold; background: rgba(255,107,107,0.15); padding: 0 4px; border-radius: 4px; }
     .mk-cs-answer { display: none; color: #4dabf7 !important; font-weight: bold; background: #182836; padding: 0 4px; border-radius: 4px; }
-    .mk-cs-item.mk-cs-revealed .mk-cs-mask { display: none; }
-    .mk-cs-item.mk-cs-revealed .mk-cs-answer { display: inline; }
+    .mode-answer .mk-cs-wrapper.mk-cs-target .mk-cs-mask { display: none !important; }
+    .mode-answer .mk-cs-wrapper.mk-cs-target .mk-cs-answer { display: inline !important; }
+    .text-area.mk-cs-show-other-content .mk-cs-wrapper:not(.mk-cs-target) .mk-cs-mask { display: none !important; }
+    .text-area.mk-cs-show-other-content .mk-cs-wrapper:not(.mk-cs-target) .mk-cs-answer { display: inline !important; }
 
     .mk-io-wrapper {
         position: relative;
@@ -661,7 +663,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.242 TEST - cs sequential reveal)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.242 TEST - CS per-card grouped)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -955,7 +957,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.242 TEST - cs sequential reveal';
+    const APP_VERSION = 'v18.5.242 TEST - CS per-card grouped';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -1514,7 +1516,8 @@
         const rawUuid = explicitUuid || card.blockId || card.uuid || card.id || '';
         return String(rawUuid).trim()
             .replace(/__io_\d+$/i, '')
-            .replace(/__image_occlusion_\d+$/i, '');
+            .replace(/__image_occlusion_\d+$/i, '')
+            .replace(/__cs_(?:n\d+|u\d+)$/i, '');
     }
 
     document.addEventListener('paste', (event) => {
@@ -8892,6 +8895,42 @@
         }));
     }
 
+    function collectMkCSGroups(text) {
+        const groups = [];
+        const seen = new Set();
+        const pattern = /\{\{cs(\d*)\s+([\s\S]*?)\}\}/gi;
+        let occurrenceIndex = 0;
+        let match;
+        while((match = pattern.exec(String(text || ''))) !== null) {
+            const number = String(match[1] || '');
+            const key = number ? `n${number}` : `u${occurrenceIndex}`;
+            occurrenceIndex += 1;
+            if(seen.has(key)) continue;
+            seen.add(key);
+            groups.push({ key, number, sourceIndex:occurrenceIndex - 1 });
+        }
+        return groups;
+    }
+
+    function renderMkCSCardText(text, targetKey) {
+        const pattern = /\{\{cs(\d*)\s+([\s\S]*?)\}\}/gi;
+        let occurrenceIndex = 0;
+        return String(text || '').replace(pattern, (full, number, answer) => {
+            const normalizedNumber = String(number || '');
+            const key = normalizedNumber ? `n${normalizedNumber}` : `u${occurrenceIndex}`;
+            occurrenceIndex += 1;
+            const targetClass = key === targetKey ? ' mk-cs-target' : '';
+            return `<span class="mk-cs-wrapper${targetClass}" data-mk-cs="1" data-mk-cs-group="${key}"><span class="mk-cs-mask">[...]</span><span class="mk-cs-answer">${answer}</span></span>`;
+        });
+    }
+
+    function isMkCSCardFast(card) {
+        if(!card) return false;
+        if(card.mkCsTarget) return true;
+        const q = String(card.q || '');
+        return q.includes('data-mk-cs="1"') || q.includes("data-mk-cs='1'");
+    }
+
     function processAnkiText(text, filename, stats, targetLib) {
         let rowOrder = 0;
         let deck = normalizeDeckPath(filename.replace('.txt', ''));
@@ -8899,7 +8938,7 @@
             if (!fields || fields.length === 0 || fields[0].startsWith('#')) continue;
             let deckNameInRow = null; let q = "", a = ""; let extra = "";
             let idString = ""; let blockId = ""; let breadcrumb = ""; let isLogseq = false;
-            let graphName = "";
+            let graphName = ""; let mkCsGroups = [];
 
             const rowDeckName = normalizeDeckPath(fields[0], deck);
 
@@ -8931,16 +8970,13 @@
                 }
                 
                 const isDoneCard = /(?:^|>|<br\s*\/?>|\s)✅/.test(mainText) || /^\s*DONE\b/i.test(mainText);
-                const hasStandardCloze = /\{\{c\d+::[\s\S]*?\}\}/.test(mainText);
-                const hasSequentialCloze = /\{\{cs\s+[\s\S]*?\}\}/i.test(mainText);
-                if (!isDoneCard && (hasStandardCloze || hasSequentialCloze)) {
+                mkCsGroups = isDoneCard ? [] : collectMkCSGroups(mainText);
+                if (mkCsGroups.length) {
+                    // Defer CS rendering until the per-target card IDs are created below.
                     q = mainText;
-                    if (hasStandardCloze) {
-                        q = q.replace(/\{\{c\d+::([\s\S]*?)(?:::[\s\S]*?)?\}\}/g, '<span class="cloze-wrapper"><span class="cloze-q">[...]</span><span class="cloze-a">$1</span></span>');
-                    }
-                    if (hasSequentialCloze) {
-                        q = q.replace(/\{\{cs\s+([\s\S]*?)\}\}/gi, '<span class="mk-cs-item"><span class="mk-cs-mask">[...]</span><span class="mk-cs-answer">$1</span></span>');
-                    }
+                    a = mainText;
+                } else if (!isDoneCard && /\{\{c\d+::/.test(mainText)) {
+                    q = mainText.replace(/\{\{c\d+::([\s\S]*?)(?:::[\s\S]*?)?\}\}/g, '<span class="cloze-wrapper"><span class="cloze-q">[...]</span><span class="cloze-a">$1</span></span>');
                     a = q;
                 } else { 
                     q = mainText; 
@@ -8958,6 +8994,23 @@
             const sourceOrder = rowOrder++;
             
             if(!targetLib[deckNameInRow]) targetLib[deckNameInRow] = [];
+
+            if(isLogseq && mkCsGroups.length) {
+                if (graphName) rememberLogseqGraphName(graphName, 'import');
+                mkCsGroups.forEach((group, groupIndex) => {
+                    const rendered = renderMkCSCardText(q, group.key);
+                    const cardId = `${finalId}__cs_${group.key}`;
+                    const existingCardIndex = targetLib[deckNameInRow].findIndex(c => c.id === cardId);
+                    const cardObj = {
+                        id:cardId, q:rendered, a:rendered, isLogseq, blockId, breadcrumb, extra, graphName,
+                        sourceOrder:sourceOrder + (groupIndex / Math.max(1, mkCsGroups.length)),
+                        deck:deckNameInRow, mkCsTarget:group.key, mkCsGrouped:group.key.startsWith('n')
+                    };
+                    if (existingCardIndex !== -1) targetLib[deckNameInRow].splice(existingCardIndex, 1);
+                    targetLib[deckNameInRow].push(cardObj);
+                });
+                continue;
+            }
             
             const splitContents = splitMkIOCardContent(q, a);
             if (graphName) rememberLogseqGraphName(graphName, 'import');
@@ -10113,6 +10166,33 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         button.setAttribute('aria-pressed', String(isActive));
         button.title = isActive ? '다른 가림 숨기기' : '다른 가림 보기';
         button.setAttribute('aria-label', button.title);
+    }
+
+    function updateMkCSOtherMasksToggle(root, card) {
+        if(!root || !isMkCSCardFast(card)) return;
+        const wrappers = Array.from(root.querySelectorAll('.mk-cs-wrapper'));
+        const targetCount = wrappers.filter(wrapper => wrapper.classList.contains('mk-cs-target')).length;
+        const hasOtherMasks = wrappers.length > targetCount;
+        if(!hasOtherMasks) return;
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'mk-io-other-masks-toggle mk-cs-other-masks-toggle';
+        button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+        button.title = '다른 가림 보기';
+        button.setAttribute('aria-label', button.title);
+        button.setAttribute('aria-pressed', 'false');
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            root.classList.toggle('mk-cs-show-other-content');
+            const isActive = root.classList.contains('mk-cs-show-other-content');
+            button.classList.toggle('active', isActive);
+            button.setAttribute('aria-pressed', String(isActive));
+            button.title = isActive ? '다른 가림 숨기기' : '다른 가림 보기';
+            button.setAttribute('aria-label', button.title);
+        });
+        document.body.appendChild(button);
     }
 
     const mkIOElementsParseCache = new Map();
@@ -11458,27 +11538,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 
     function isAnswerCurrentlyRevealed() {
         const answer = document.getElementById('answer-section');
-        const gradeArea = document.getElementById('grade-area');
-        return !!((answer && answer.style.display !== 'none') || (gradeArea && gradeArea.style.display === 'flex'));
-    }
-
-    function restoreRevealedAnswerState() {
-        const qDiv = document.getElementById('question-section');
-        const csItems = qDiv ? Array.from(qDiv.querySelectorAll('.mk-cs-item')) : [];
-        if(csItems.length) {
-            csItems.forEach(item => item.classList.add('mk-cs-revealed'));
-            const clickGuide = document.getElementById('click-guide');
-            if(clickGuide) {
-                clickGuide.style.display = 'none';
-                clickGuide.textContent = '👇 터치하여 정답 확인';
-            }
-            qDiv.classList.remove('mode-question');
-            qDiv.classList.add('mode-answer');
-            const gradeArea = document.getElementById('grade-area');
-            if(gradeArea) gradeArea.style.display = 'flex';
-            return;
-        }
-        revealAnswer();
+        return !!(answer && answer.style.display !== 'none');
     }
 
     function getOriginalOrderContextLabel(state = null) {
@@ -11541,7 +11601,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         updateOriginalOrderContextButton();
         updateFilterStatusUI();
         showCard();
-        if(originalOrderContext.answerRevealed) restoreRevealedAnswerState();
+        if(originalOrderContext.answerRevealed) revealAnswer();
         showToast('원래순 전체보기로 이동했습니다', 'success');
     }
 
@@ -11569,7 +11629,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
         updateFilterStatusUI();
         saveCurrentProgress();
         showCard();
-        if(snapshot.answerRevealed) restoreRevealedAnswerState();
+        if(snapshot.answerRevealed) revealAnswer();
         showToast('이전 목록으로 돌아왔습니다', 'success');
     }
     function setFilterMode(mode) {
@@ -11845,6 +11905,7 @@ function getIOImageGroups() {
         if(currentIndex >= activeDeck.length) currentIndex = 0;
         const card = activeDeck[currentIndex];
         const isIOCard = isMkImageOcclusionCardFast(card);
+        const isCSCard = isMkCSCardFast(card);
         const stats = getStatsForCard(card);
         const isPdfDiagnosticCard = String(card.id || '') === PDF_DIAGNOSTIC_CARD_ID;
         if(isPdfDiagnosticCard) pdfDiagnosticSteps = [{ time: new Date().toISOString(), step: 'show-card-start', cardId: card.id }];
@@ -11879,6 +11940,7 @@ function getIOImageGroups() {
         qSection.innerHTML = '';
         qSection.className = 'text-area mode-question';
         qSection.appendChild(createDOM(card, false, currentCardPdfTrace));
+        if(isCSCard) updateMkCSOtherMasksToggle(qSection, card);
         if(retainedIOImage) {
             const pendingImage = qSection.querySelector('img.mk-io-image');
             if(pendingImage) {
@@ -11901,9 +11963,7 @@ function getIOImageGroups() {
 
         aSection.style.display = 'none';
         document.getElementById('divider').style.display = 'none';
-        const clickGuide = document.getElementById('click-guide');
-        clickGuide.style.display = 'block';
-        clickGuide.textContent = qSection.querySelector('.mk-cs-item') ? '👇 첫 빈칸 확인' : '👇 터치하여 정답 확인';
+        document.getElementById('click-guide').style.display = 'block';
         document.getElementById('nav-area').style.display = 'flex';
         document.getElementById('grade-area').style.display = 'none';
         scrollContainer.scrollTop = 0;
@@ -11967,29 +12027,10 @@ function getIOImageGroups() {
     }
 
     function revealAnswer() {
+        document.getElementById('click-guide').style.display = 'none';
         const qDiv = document.getElementById('question-section');
-        const csItems = Array.from(qDiv.querySelectorAll('.mk-cs-item'));
-        if(csItems.length) {
-            const nextItem = csItems.find(item => !item.classList.contains('mk-cs-revealed'));
-            if(nextItem) nextItem.classList.add('mk-cs-revealed');
-            const remaining = csItems.filter(item => !item.classList.contains('mk-cs-revealed')).length;
-            const clickGuide = document.getElementById('click-guide');
-            if(remaining > 0) {
-                clickGuide.style.display = 'block';
-                clickGuide.textContent = `👇 다음 빈칸 확인 (${csItems.length - remaining}/${csItems.length})`;
-                document.getElementById('grade-area').style.display = 'none';
-                scrollElementToProblemPosition(nextItem, { alignRatio: 0.38, behavior: 'smooth' });
-                return;
-            }
-            clickGuide.style.display = 'none';
-            clickGuide.textContent = '👇 터치하여 정답 확인';
-            qDiv.classList.remove('mode-question');
-            qDiv.classList.add('mode-answer');
-        } else {
-            document.getElementById('click-guide').style.display = 'none';
-            qDiv.classList.remove('mode-question');
-            qDiv.classList.add('mode-answer');
-        }
+        qDiv.classList.remove('mode-question');
+        qDiv.classList.add('mode-answer');
         // The zoom mask clone lives under <body>, outside qDiv, so CSS ancestry no
         // longer changes automatically. Mirror answer state immediately.
         syncIOZoomMaskOverlayState(qDiv);
