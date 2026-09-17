@@ -304,9 +304,19 @@
     .mode-answer .cloze-a { display: inline !important; }
 
     /* CS: each target/group is one MK card; all blanks stay masked by default. */
-    .mk-cs-wrapper { display: inline; }
+    .mk-cs-wrapper { display: inline; scroll-margin-block: 32vh; }
     .mk-cs-mask { color: #ff6b6b !important; font-weight: bold; background: rgba(255,107,107,0.15); padding: 0 4px; border-radius: 4px; }
     .mk-cs-answer { display: none; color: #4dabf7 !important; font-weight: bold; background: #182836; padding: 0 4px; border-radius: 4px; }
+    /* Current CS question: make the target unmistakable, including inside table cells. */
+    .mode-question .mk-cs-wrapper.mk-cs-target .mk-cs-mask {
+        color: #fff !important;
+        background: #d94848 !important;
+        outline: 3px solid rgba(255,255,255,0.92);
+        outline-offset: 3px;
+        box-shadow: 0 0 0 6px rgba(217,72,72,0.28), 0 0 18px rgba(255,107,107,0.72);
+        border-radius: 5px;
+    }
+    table .mk-cs-wrapper { white-space: nowrap; }
     .mode-answer .mk-cs-wrapper.mk-cs-target .mk-cs-mask { display: none !important; }
     .mode-answer .mk-cs-wrapper.mk-cs-target .mk-cs-answer { display: inline !important; }
     .text-area.mk-cs-show-other-content .mk-cs-wrapper:not(.mk-cs-target) .mk-cs-mask { display: none !important; }
@@ -2692,6 +2702,9 @@
 
         const currentIOMask = findVisibleProblemElement('#question-section .mk-io-target-mask, #answer-section .mk-io-target-mask');
         if (scrollElementToProblemPosition(currentIOMask, { alignRatio: 0.35 })) return;
+
+        const currentCSTarget = findVisibleProblemElement('#question-section .mk-cs-wrapper.mk-cs-target .mk-cs-mask, #answer-section .mk-cs-wrapper.mk-cs-target .mk-cs-answer');
+        if (scrollElementToProblemPosition(currentCSTarget, { alignRatio: 0.38 })) return;
 
         const currentCloze = findVisibleProblemElement('#question-section .cloze-q, #answer-section .cloze-a, .cloze-q');
         if (scrollElementToProblemPosition(currentCloze, { alignRatio: 0.38 })) return;
@@ -8895,13 +8908,19 @@
         }));
     }
 
+    function normalizeMkCSMacroSyntax(text) {
+        return String(text || '')
+            .replace(/(?:&#123;|&#x7b;|&lbrace;)/gi, '{')
+            .replace(/(?:&#125;|&#x7d;|&rbrace;)/gi, '}');
+    }
+
     function collectMkCSGroups(text) {
         const groups = [];
         const seen = new Set();
         const pattern = /\{\{cs(\d*)\s+([\s\S]*?)\}\}/gi;
         let occurrenceIndex = 0;
         let match;
-        while((match = pattern.exec(String(text || ''))) !== null) {
+        while((match = pattern.exec(normalizeMkCSMacroSyntax(text))) !== null) {
             const number = String(match[1] || '');
             const key = number ? `n${number}` : `u${occurrenceIndex}`;
             occurrenceIndex += 1;
@@ -8915,7 +8934,7 @@
     function renderMkCSCardText(text, targetKey) {
         const pattern = /\{\{cs(\d*)\s+([\s\S]*?)\}\}/gi;
         let occurrenceIndex = 0;
-        return String(text || '').replace(pattern, (full, number, answer) => {
+        return normalizeMkCSMacroSyntax(text).replace(pattern, (full, number, answer) => {
             const normalizedNumber = String(number || '');
             const key = normalizedNumber ? `n${normalizedNumber}` : `u${occurrenceIndex}`;
             occurrenceIndex += 1;
@@ -11940,7 +11959,16 @@ function getIOImageGroups() {
         qSection.innerHTML = '';
         qSection.className = 'text-area mode-question';
         qSection.appendChild(createDOM(card, false, currentCardPdfTrace));
-        if(isCSCard) updateMkCSOtherMasksToggle(qSection, card);
+        if(isCSCard) {
+            updateMkCSOtherMasksToggle(qSection, card);
+            // Focus the current CS problem after layout settles. For cs1/cs2 groups,
+            // every member is highlighted and the first member is brought into view.
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                if(!qSection.isConnected || activeDeck[currentIndex] !== card) return;
+                const target = qSection.querySelector('.mk-cs-wrapper.mk-cs-target .mk-cs-mask');
+                if(target) scrollElementToProblemPosition(target, { alignRatio:0.38, behavior:'auto' });
+            }));
+        }
         if(retainedIOImage) {
             const pendingImage = qSection.querySelector('img.mk-io-image');
             if(pendingImage) {
