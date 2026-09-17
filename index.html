@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.260-test-cs-mask-state -->
+<!-- preview: v18.5.261-test-cs-table-single-source -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.260 TEST - CS mask state)</title>
+<title>MK (v18.5.261 TEST - CS table single source)</title>
 
 <script>
     (() => {
@@ -702,7 +702,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.260 TEST - CS mask state)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.261 TEST - CS table single source)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -996,7 +996,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.260 TEST - CS mask state';
+    const APP_VERSION = 'v18.5.261 TEST - CS table single source';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -1213,7 +1213,7 @@
     const LIBRARY_CACHE_DB_KEY = 'mk_library_cache_v1';
     const LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY = 'mk_library_cache_manifest_version_v1';
     const LIBRARY_CACHE_PARSER_VERSION_DB_KEY = 'mk_library_cache_parser_version_v1';
-    const LIBRARY_CACHE_PARSER_VERSION = 'cs-mask-state-v3';
+    const LIBRARY_CACHE_PARSER_VERSION = 'cs-table-single-source-v4';
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
     const REVIEW_HISTORY_EVENTS_DB_KEY_PREFIX = 'mk_review_history_events_v1::';
     const REVIEW_HISTORY_TOMBSTONE_DB_KEY_PREFIX = 'mk_review_history_tombstone_v1::';
@@ -9106,15 +9106,36 @@
             });
         });
 
-        // If sync attached a CS table separately, expose it as a synthetic problem
-        // only when it is not already present in any hierarchy block.
-        const tableExtra = extractMkCSTablesFromExtra(extraHtml);
-        if(tableExtra && collectMkCSGroups(tableExtra).length) {
-            const normalizedTable = normalizeMkCSInput(tableExtra);
-            const alreadyPresent = problems.some(problem =>
-                problem.html.includes(normalizedTable) || normalizedTable.includes(problem.html)
-            );
-            if(!alreadyPresent) {
+        // Prefer a CS-bearing table already present in the exported hierarchy.
+        // Only fall back to extra/raw Markdown when the hierarchy itself has no such table.
+        const fullHolder = document.createElement('div');
+        fullHolder.innerHTML = raw;
+        const renderedTables = Array.from(fullHolder.querySelectorAll('table'));
+        const renderedCsTable = renderedTables.find(table =>
+            collectMkCSGroups(normalizeMkCSInput(table.outerHTML)).length > 0 ||
+            table.querySelector('.rs-cs[data-answer], .mk-cs-wrapper')
+        );
+
+        if(renderedCsTable) {
+            const normalizedTable = normalizeMkCSInput(renderedCsTable.outerHTML);
+            const groups = collectMkCSGroups(normalizedTable);
+            if(groups.length) {
+                problems.push({
+                    blockIndex: problems.length,
+                    className: 'mk-rendered-table-problem',
+                    isActive: false,
+                    html: normalizedTable,
+                    groups,
+                    hasArrow: false,
+                    hasCloze: false,
+                    syntheticTable: true,
+                    renderedTable: true
+                });
+            }
+        } else {
+            const tableExtra = extractMkCSTablesFromExtra(extraHtml);
+            if(tableExtra && collectMkCSGroups(tableExtra).length) {
+                const normalizedTable = normalizeMkCSInput(tableExtra);
                 problems.push({
                     blockIndex: problems.length,
                     className: 'mk-extra-table-problem',
@@ -9131,6 +9152,79 @@
         return problems;
     }
 
+    function normalizeMkTableComparableText(value) {
+        const holder = document.createElement('div');
+        holder.innerHTML = String(value || '');
+        return String(holder.textContent || '')
+            .replace(/\{\{cs\d*\s+([\s\S]+?)\}\}/gi, '$1')
+            .replace(/\[\.\.\.\]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function findMkRenderedTableForSource(fullHtml, sourceHtml) {
+        const holder = document.createElement('div');
+        holder.innerHTML = String(fullHtml || '');
+        const tables = Array.from(holder.querySelectorAll('table'));
+        if(!tables.length) return null;
+
+        const sourceComparable = normalizeMkTableComparableText(sourceHtml);
+        if(!sourceComparable) return tables.length === 1 ? tables[0] : null;
+
+        let best = null;
+        let bestScore = -1;
+        tables.forEach(table => {
+            const tableComparable = normalizeMkTableComparableText(table.outerHTML);
+            if(!tableComparable) return;
+
+            let score = 0;
+            const sourceTokens = sourceComparable.split(' ').filter(Boolean);
+            sourceTokens.forEach(token => {
+                if(tableComparable.includes(token)) score += Math.min(token.length, 12);
+            });
+
+            if(score > bestScore) {
+                bestScore = score;
+                best = table;
+            }
+        });
+
+        return best;
+    }
+
+    function renderMkCSIntoRenderedTable(fullHtml, sourceHtml, targetKey) {
+        const holder = document.createElement('div');
+        holder.innerHTML = String(fullHtml || '');
+
+        const renderedTable = findMkRenderedTableForSource(fullHtml, sourceHtml);
+        if(!renderedTable) return '';
+
+        const allTables = Array.from(holder.querySelectorAll('table'));
+        const tableIndex = allTables.findIndex(table =>
+            normalizeMkTableComparableText(table.outerHTML) ===
+            normalizeMkTableComparableText(renderedTable.outerHTML)
+        );
+        const targetTable = tableIndex >= 0 ? allTables[tableIndex] : null;
+        if(!targetTable) return '';
+
+        // The rendered table may no longer contain raw {{cs}} syntax. Rebuild only
+        // the text cells from the CS-bearing source, then convert that source to
+        // proper HTML table if necessary.
+        let renderedSource = renderMkCSCardText(sourceHtml, targetKey);
+        renderedSource = renderMkMarkdownPipeTables(renderedSource);
+
+        const sourceHolder = document.createElement('div');
+        sourceHolder.innerHTML = renderedSource;
+        const sourceTable = sourceHolder.querySelector('table');
+
+        if(sourceTable) {
+            targetTable.replaceWith(sourceTable);
+            return holder.innerHTML;
+        }
+
+        return '';
+    }
+
     function renderMkCSHierarchyProblem(fullHtml, problemIndex, sourceHtml, targetKey) {
         const raw = String(fullHtml || '');
         const holder = document.createElement('div');
@@ -9140,9 +9234,32 @@
         const node = nodes[problemIndex];
 
         if(node) {
+            const containsTableSource =
+                /<table\b/i.test(sourceHtml) ||
+                /\|/.test(String(sourceHtml || ''));
+
+            if(containsTableSource) {
+                const tableRendered = renderMkCSIntoRenderedTable(raw, sourceHtml, targetKey);
+                if(tableRendered) {
+                    const tableHolder = document.createElement('div');
+                    tableHolder.innerHTML = tableRendered;
+                    const tableNodes = Array.from(
+                        tableHolder.querySelectorAll('li.children.sibling-block, li.children.active-block')
+                    );
+                    tableNodes.forEach((item, index) => {
+                        item.classList.remove('active-block');
+                        item.classList.add('sibling-block');
+                        if(index === problemIndex) {
+                            item.classList.remove('sibling-block');
+                            item.classList.add('active-block');
+                        }
+                    });
+                    return tableHolder.innerHTML;
+                }
+            }
+
             node.innerHTML = renderMkCSCardText(sourceHtml, targetKey);
 
-            // The problem-owning block becomes the visual active block for this generated card.
             nodes.forEach((item, index) => {
                 item.classList.remove('active-block');
                 item.classList.add('sibling-block');
@@ -9155,8 +9272,11 @@
             return holder.innerHTML;
         }
 
-        // Synthetic table fallback.
-        return `${raw}<br>${renderMkCSCardText(sourceHtml, targetKey)}`;
+        // Synthetic table fallback: do NOT append raw Markdown as a second copy.
+        // Render it to one HTML table and append that one table only.
+        let rendered = renderMkCSCardText(sourceHtml, targetKey);
+        rendered = renderMkMarkdownPipeTables(rendered);
+        return `${raw}<br>${rendered}`;
     }
 
     function getMkActiveBlockHtml(fullHtml) {
@@ -10710,6 +10830,23 @@ function createDOM(card, isAnswer, trace) {
         // normal MK CS wrappers.
         if(!rawIsIO) txt = renderMkMarkdownPipeTables(txt);
         const temp = document.createElement('div'); temp.innerHTML = txt;
+
+        // If this card already has an HTML table, remove a duplicated raw pipe-table
+        // text fragment that may have been carried along by sync/export.
+        if(temp.querySelector('table')) {
+            const walker = document.createTreeWalker(temp, NodeFilter.SHOW_TEXT);
+            const candidates = [];
+            while(walker.nextNode()) {
+                const value = String(walker.currentNode.nodeValue || '');
+                if(value.includes('|') && /(?:\|---|---\|)/.test(value)) {
+                    candidates.push(walker.currentNode);
+                }
+            }
+            candidates.forEach(node => {
+                const parent = node.parentElement;
+                if(parent && !parent.closest('table')) node.remove();
+            });
+        }
 
         // Recognize the actual logseq-mk-sync representation first:
         // active-block + <b>:-></b> + existing cloze-wrapper.
