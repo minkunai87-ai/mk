@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.244-test-cs-table-source -->
+<!-- preview: v18.5.245-test-cs-bullet-focus -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.244 TEST - CS table source)</title>
+<title>MK (v18.5.245 TEST - CS bullet focus)</title>
 
 <script>
     (() => {
@@ -318,7 +318,10 @@
     /* CS cards: within the same hierarchy level, only the block that owns
        the current target stays full-opacity. */
     .mk-cs-same-level-dim { opacity: 0.55 !important; }
-    .mk-cs-same-level-focus { opacity: 1 !important; }
+    .mk-cs-same-level-focus,
+    .mk-cs-focus-chain,
+    .mk-cs-focus-chain.sibling-block,
+    .sibling-block.mk-cs-focus-chain { opacity: 1 !important; }
     table .mk-cs-wrapper { white-space: nowrap; }
     .mode-answer .mk-cs-wrapper.mk-cs-target .mk-cs-mask { display: none !important; }
     .mode-answer .mk-cs-wrapper.mk-cs-target .mk-cs-answer { display: inline !important; }
@@ -676,7 +679,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.244 TEST - CS table source)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.245 TEST - CS bullet focus)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -970,7 +973,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.244 TEST - CS table source';
+    const APP_VERSION = 'v18.5.245 TEST - CS bullet focus';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -2700,36 +2703,43 @@
 
     function applyMkCSHierarchyFocus(root) {
         if(!root) return;
-        root.querySelectorAll('.mk-cs-same-level-dim, .mk-cs-same-level-focus').forEach(el => {
-            el.classList.remove('mk-cs-same-level-dim', 'mk-cs-same-level-focus');
+
+        root.querySelectorAll('.mk-cs-same-level-dim, .mk-cs-same-level-focus, .mk-cs-focus-chain').forEach(el => {
+            el.classList.remove('mk-cs-same-level-dim', 'mk-cs-same-level-focus', 'mk-cs-focus-chain');
         });
 
         const target = root.querySelector('.mk-cs-wrapper.mk-cs-target');
         if(!target) return;
 
-        // Logseq hierarchy is represented as sibling <li> items. The active source
-        // block may still point at the original block, so use the CS target's own li.
+        // A child cannot cancel opacity inherited from a dimmed parent. Mark the
+        // entire ancestor chain that carries hierarchy dimming as fully opaque.
+        let cursor = target.parentElement;
+        while(cursor) {
+            if(cursor.classList && (
+                cursor.classList.contains('sibling-block') ||
+                cursor.classList.contains('active-block') ||
+                cursor.classList.contains('ls-active')
+            )) cursor.classList.add('mk-cs-focus-chain');
+            if(cursor === root) break;
+            cursor = cursor.parentElement;
+        }
+
         const targetLi = target.closest('li');
         if(!targetLi || !targetLi.parentElement) {
-            const fallback = target.closest('.sibling-block, .active-block, .ls-active');
-            if(fallback) fallback.classList.add('mk-cs-same-level-focus');
+            const fallback = target.closest('.sibling-block, .active-block, .ls-active') || target.parentElement;
+            if(fallback) fallback.classList.add('mk-cs-same-level-focus', 'mk-cs-focus-chain');
             return;
         }
 
+        targetLi.classList.add('mk-cs-same-level-focus', 'mk-cs-focus-chain');
         const level = targetLi.parentElement;
-        const siblingLis = Array.from(level.children).filter(el => el.tagName === 'LI');
-        if(!siblingLis.length) return;
-
-        siblingLis.forEach(li => {
-            // Dim only the row/body at this hierarchy level, not the nested child list.
-            const body = Array.from(li.children).find(el => el.tagName !== 'UL' && el.tagName !== 'OL');
-            const paintTarget = body || li;
-
+        Array.from(level.children).filter(el => el.tagName === 'LI').forEach(li => {
             if(li === targetLi) {
-                paintTarget.classList.add('mk-cs-same-level-focus');
-                paintTarget.classList.remove('sibling-block');
+                li.classList.add('mk-cs-same-level-focus', 'mk-cs-focus-chain');
+                const body = Array.from(li.children).find(el => el.tagName !== 'UL' && el.tagName !== 'OL');
+                if(body) body.classList.add('mk-cs-same-level-focus', 'mk-cs-focus-chain');
             } else {
-                paintTarget.classList.add('mk-cs-same-level-dim');
+                li.classList.add('mk-cs-same-level-dim');
             }
         });
     }
@@ -8973,6 +8983,35 @@
         return restoreMkCSMacrosFromRenderedHtml(text);
     }
 
+    function extractMkCSTablesFromExtra(extraText) {
+        const normalized = normalizeMkCSInput(extraText);
+        if(!normalized || !collectMkCSGroups(normalized).length) return '';
+
+        const fragments = [];
+        const holder = document.createElement('div');
+        holder.innerHTML = normalized;
+        holder.querySelectorAll('table').forEach(table => {
+            if(collectMkCSGroups(table.innerHTML).length) fragments.push(table.outerHTML);
+        });
+
+        // Fallback for an unrendered Markdown pipe table.
+        if(!fragments.length) {
+            const lines = normalized.split(/\r?\n|<br\s*\/?>/i);
+            let buffer = [];
+            const flush = () => {
+                if(buffer.length && collectMkCSGroups(buffer.join('\n')).length) fragments.push(buffer.join('<br>'));
+                buffer = [];
+            };
+            lines.forEach(line => {
+                const value = String(line || '');
+                if(/\|/.test(value)) buffer.push(value);
+                else flush();
+            });
+            flush();
+        }
+        return fragments.join('<br>');
+    }
+
     function collectMkCSGroups(text) {
         const groups = [];
         const seen = new Set();
@@ -9049,18 +9088,27 @@
                 
                 const isDoneCard = /(?:^|>|<br\s*\/?>|\s)✅/.test(mainText) || /^\s*DONE\b/i.test(mainText);
                 const normalizedMainText = normalizeMkCSInput(mainText);
-                const normalizedExtra = normalizeMkCSInput(extra);
-                const extraHasCS = !isDoneCard && collectMkCSGroups(normalizedExtra).length > 0;
-                const csSource = extraHasCS
-                    ? [normalizedMainText, normalizedExtra].filter(value => String(value || '').trim()).join('<br>')
-                    : normalizedMainText;
+
+                // One Logseq bullet is one problem boundary. `extra` may contain
+                // nearby bullets such as a separate :-> card. Never merge all of it.
+                // Only extract a CS-bearing table from extra.
+                const csTableExtra = isDoneCard ? '' : extractMkCSTablesFromExtra(extra);
+                const mainGroups = isDoneCard ? [] : collectMkCSGroups(normalizedMainText);
+                const tableGroups = isDoneCard ? [] : collectMkCSGroups(csTableExtra);
+
+                let csSource = normalizedMainText;
+                if(tableGroups.length) {
+                    csSource = [normalizedMainText, csTableExtra]
+                        .filter(value => String(value || '').trim())
+                        .join('<br>');
+                }
+
                 mkCsGroups = isDoneCard ? [] : collectMkCSGroups(csSource);
                 if (mkCsGroups.length) {
-                    // CS can live in the main block OR in rendered child/table HTML stored in extra.
-                    // Keep that entire source visible so table-cell questions are not dropped.
                     q = csSource;
                     a = csSource;
-                    if(extraHasCS) extra = '';
+                    // Separate bullets/questions must never open together with this CS card.
+                    extra = '';
                 } else if (!isDoneCard && /\{\{c\d+::/.test(mainText)) {
                     q = mainText.replace(/\{\{c\d+::([\s\S]*?)(?:::[\s\S]*?)?\}\}/g, '<span class="cloze-wrapper"><span class="cloze-q">[...]</span><span class="cloze-a">$1</span></span>');
                     a = q;
