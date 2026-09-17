@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.264-test-pdfhelper-icon-restore -->
+<!-- preview: v18.5.265-test-github-429-safe -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.264 TEST - PDFHelper icon restore)</title>
+<title>MK (v18.5.265 TEST - GitHub 429 safe)</title>
 
 <script>
     (() => {
@@ -706,7 +706,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.264 TEST - PDFHelper icon restore)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.265 TEST - GitHub 429 safe)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1000,7 +1000,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.264 TEST - PDFHelper icon restore';
+    const APP_VERSION = 'v18.5.265 TEST - GitHub 429 safe';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -3005,8 +3005,14 @@
                 console.warn('[MK_DECK_SINGLE_SOURCE] manifest/list fetch failed', error);
             }
             if(remoteDeckList && remoteDeckList.files) {
-                await autoScanGitHub({ deckFileList:remoteDeckList, skipLibraryCacheWrite:true });
-                deckSource = 'github-fresh';
+                const imported = await autoScanGitHub({ deckFileList:remoteDeckList, skipLibraryCacheWrite:true });
+                if(imported) {
+                    deckSource = 'github-fresh';
+                } else {
+                    // Any network/import failure, including HTTP 429, keeps the last complete cache.
+                    hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
+                    deckSource = hasCachedLibrary ? 'indexeddb-fallback' : 'github-unavailable';
+                }
             } else {
                 // Network fallback only: use the last complete cache, with no background replacement.
                 hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
@@ -3048,12 +3054,17 @@
                         requiredParserVersion: LIBRARY_CACHE_PARSER_VERSION,
                         reason: parserStale ? 'parser-version' : 'manifest-version'
                     });
-                    await autoScanGitHub({
+                    const imported = await autoScanGitHub({
                         deckFileList:remoteDeckList,
                         preserveCurrentView:false
                     });
-                    deckSource = parserStale ? 'github-fresh-parser-rebuild' : 'github-fresh';
-                    hasCachedLibrary = false;
+                    if(imported) {
+                        deckSource = parserStale ? 'github-fresh-parser-rebuild' : 'github-fresh';
+                        hasCachedLibrary = false;
+                    } else {
+                        deckSource = 'indexeddb-fallback';
+                        hasCachedLibrary = true;
+                    }
                 } else {
                     console.info('[MK_DESKTOP_DECK_SYNC] cache current', {
                         cachedVersion,
@@ -3062,8 +3073,8 @@
                     });
                 }
             } else {
-                await autoScanGitHub();
-                deckSource = 'github-fresh';
+                const imported = await autoScanGitHub();
+                deckSource = imported ? 'github-fresh' : 'github-unavailable';
             }
         }
         window.__mkStartupDeckSource = deckSource;
@@ -6900,6 +6911,42 @@
         }
     }
 
+    const MK_GITHUB_RATE_LIMIT_UNTIL_KEY = 'mk_github_rate_limit_until_v1';
+
+    function getMkGithubRateLimitUntil() {
+        try { return Number(sessionStorage.getItem(MK_GITHUB_RATE_LIMIT_UNTIL_KEY)) || 0; }
+        catch(error) { return 0; }
+    }
+
+    function getMkRetryAfterMs(response, fallbackMs = 5 * 60 * 1000) {
+        const raw = response && response.headers ? response.headers.get('Retry-After') : '';
+        if(raw) {
+            const seconds = Number(raw);
+            if(Number.isFinite(seconds) && seconds > 0) return Math.min(15 * 60 * 1000, Math.max(30 * 1000, seconds * 1000));
+            const retryDate = Date.parse(raw);
+            if(Number.isFinite(retryDate)) return Math.min(15 * 60 * 1000, Math.max(30 * 1000, retryDate - Date.now()));
+        }
+        return fallbackMs;
+    }
+
+    function markMkGithubRateLimited(response = null) {
+        const until = Date.now() + getMkRetryAfterMs(response);
+        try { sessionStorage.setItem(MK_GITHUB_RATE_LIMIT_UNTIL_KEY, String(until)); } catch(error) {}
+        return until;
+    }
+
+    function makeMkGithubRateLimitError(message = 'github/pages rate limited', response = null) {
+        const error = new Error(message);
+        error.status = 429;
+        error.rateLimited = true;
+        error.retryAfterMs = response ? getMkRetryAfterMs(response) : Math.max(0, getMkGithubRateLimitUntil() - Date.now());
+        return error;
+    }
+
+    function isMkGithubRateLimited() {
+        return getMkGithubRateLimitUntil() > Date.now();
+    }
+
     function getManifestDeckFile(name, publishVersion = '') {
         const normalizedName = String(name || '').trim();
         if (!normalizedName || !normalizedName.endsWith('.txt') || normalizedName.includes('..') || /^[\\/]/.test(normalizedName)) return null;
@@ -6914,9 +6961,18 @@
     }
 
     async function loadDeckManifest(fetchImpl = fetch) {
+        if(isMkGithubRateLimited()) throw makeMkGithubRateLimitError('manifest skipped during GitHub cooldown');
         const manifestUrl = new URL('decks-manifest.json', document.baseURI).href;
         const manifestRes = await fetchImpl(manifestUrl, { cache: 'no-store' });
-        if (!manifestRes.ok) throw new Error(`manifest status ${manifestRes.status}`);
+        if (manifestRes.status === 429) {
+            markMkGithubRateLimited(manifestRes);
+            throw makeMkGithubRateLimitError('manifest status 429', manifestRes);
+        }
+        if (!manifestRes.ok) {
+            const error = new Error(`manifest status ${manifestRes.status}`);
+            error.status = manifestRes.status;
+            throw error;
+        }
         const manifest = await manifestRes.json();
         const isLegacyManifest = manifest && manifest.version === 1;
         const isVersionedManifest = manifest && manifest.schemaVersion === 1 && typeof manifest.version === 'string' && manifest.version;
@@ -6930,10 +6986,28 @@
     async function loadDeckFileList(headers, fetchImpl = fetch) {
         try {
             return await loadDeckManifest(fetchImpl);
-        } catch (manifestError) {}
+        } catch (manifestError) {
+            if(manifestError && (manifestError.rateLimited || Number(manifestError.status) === 429)) {
+                return {
+                    files:null,
+                    source:'manifest-rate-limit',
+                    listResponse:null,
+                    rateLimited:true,
+                    retryAfterMs:Number(manifestError.retryAfterMs) || Math.max(0, getMkGithubRateLimitUntil() - Date.now())
+                };
+            }
+        }
+
+        if(isMkGithubRateLimited()) {
+            return { files:null, source:'github-cooldown', listResponse:null, rateLimited:true, retryAfterMs:Math.max(0, getMkGithubRateLimitUntil() - Date.now()) };
+        }
 
         const listUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/`;
         const listResponse = await fetchImpl(listUrl, { headers });
+        if (listResponse.status === 429) {
+            markMkGithubRateLimited(listResponse);
+            return { files:null, source:'github-api-rate-limit', listResponse, rateLimited:true, retryAfterMs:getMkRetryAfterMs(listResponse) };
+        }
         if (!listResponse.ok) return { files: null, source: 'github-api', listResponse };
         const data = await listResponse.json();
         if (!Array.isArray(data)) return { files: null, source: 'github-api', listResponse };
@@ -6973,6 +7047,7 @@
         const preserveCurrentView = !!(options && options.preserveCurrentView);
         const skipLibraryCacheWrite = !!(options && options.skipLibraryCacheWrite);
         let deckImported = false;
+        let rateLimited = false;
         if(!silent) document.getElementById('loading').style.display = 'block';
         const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
         
@@ -6981,11 +7056,19 @@
             const res = deckFileList.listResponse;
             
             if(!deckFileList.files) {
-                if(!silent) document.getElementById('loading').style.display = 'none'; 
-                if (res && (res.status === 403 || res.status === 429)) {
-                    showToast("깃허브 접속 차단됨 (1시간). 토큰을 입력하세요!", "error");
+                if(!silent) document.getElementById('loading').style.display = 'none';
+                if(deckFileList.rateLimited || (res && res.status === 429)) {
+                    const hasLocalDeck = !!(library && Object.keys(library).length);
+                    if(!silent) showToast(
+                        hasLocalDeck ? "GitHub 요청 제한 중 · 저장된 덱으로 계속합니다." : "GitHub 요청 제한 중 · 잠시 후 다시 시도해주세요.",
+                        hasLocalDeck ? "normal" : "error"
+                    );
+                    return false;
                 }
-                return; 
+                if (res && res.status === 403) {
+                    showToast("깃허브 접속 차단됨. 토큰을 확인하세요!", "error");
+                }
+                return false;
             }
             
             const files = deckFileList.files;
@@ -6999,8 +7082,17 @@
                 let text = null;
                 try {
                     if(file.fromManifest) {
+                        if(isMkGithubRateLimited()) throw makeMkGithubRateLimitError('deck fetch skipped during GitHub cooldown');
                         const textRes = await fetch(file.download_url, { cache: 'no-store' });
-                        if (!textRes.ok) throw new Error(`deck download failed: ${textRes.status}`);
+                        if (textRes.status === 429) {
+                            markMkGithubRateLimited(textRes);
+                            throw makeMkGithubRateLimitError(`deck download failed: 429`, textRes);
+                        }
+                        if (!textRes.ok) {
+                            const error = new Error(`deck download failed: ${textRes.status}`);
+                            error.status = textRes.status;
+                            throw error;
+                        }
                         text = await textRes.text();
                     } else if(ghRepoToken) {
                         const fileRes = await fetch(file.url, { headers }); const fileJson = await fileRes.json();
@@ -7011,14 +7103,23 @@
                     processAnkiText(text, file.name, savedStats, newLibrary);
                 } catch(err) {
                     deckImportFailed = true;
-                    console.error("File skip:", file.name);
-                    showToast(`덱 다운로드 실패: ${file.name}`, "error");
+                    rateLimited = !!(err && (err.rateLimited || Number(err.status) === 429));
+                    console.error("File skip:", file.name, err);
+                    if(rateLimited) break;
+                    if(!silent) showToast(`덱 다운로드 실패: ${file.name}`, "error");
                 }
                 finally { text = null; }
             }
 
             if(deckImportFailed) {
                 if(!silent) document.getElementById('loading').style.display = 'none';
+                if(rateLimited && !silent) {
+                    const hasLocalDeck = !!(library && Object.keys(library).length);
+                    showToast(
+                        hasLocalDeck ? "GitHub 요청 제한 중 · 저장된 덱으로 계속합니다." : "GitHub 요청 제한 중 · 잠시 후 다시 시도해주세요.",
+                        hasLocalDeck ? "normal" : "error"
+                    );
+                }
                 return false;
             }
             
