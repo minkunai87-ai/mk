@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.270-filter-parity-rate-limit-guard -->
+<!-- preview: v18.5.271-filter-parity-persistent-rate-limit-guard -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.270 FILTER PARITY + RATE LIMIT GUARD)</title>
+<title>MK (v18.5.271 FILTER PARITY + PERSISTENT RATE LIMIT GUARD)</title>
 
 <script>
     (() => {
@@ -713,7 +713,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.270 FILTER PARITY + RATE LIMIT GUARD)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.271 FILTER PARITY + PERSISTENT RATE LIMIT GUARD)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1007,7 +1007,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.270 FILTER PARITY + RATE LIMIT GUARD';
+    const APP_VERSION = 'v18.5.271 FILTER PARITY + PERSISTENT RATE LIMIT GUARD';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -1407,6 +1407,21 @@
     }
 
     window.dumpMkFilterResetTrace = () => parseJSONSafe(localStorage.getItem(FILTER_RESET_TRACE_KEY), []);
+    window.getMkFilterParityStatus = () => ({
+        appVersion:APP_VERSION,
+        platform:detectPlatform(),
+        mobileStandalone:isMkMobileStandalone(),
+        deckSource:String(window.__mkStartupDeckSource || ''),
+        deck:String(currentDeckName || ''),
+        originalCount:Array.isArray(originalDeck) ? originalDeck.length : -1,
+        activeCount:Array.isArray(activeDeck) ? activeDeck.length : -1,
+        filter:getFilterStateForStorage(),
+        search:getCurrentFilterSearchQuery(),
+        sort:currentSortMode,
+        secondarySort:currentSecondarySortMode,
+        rateLimitUntil:mkGithubRateLimitUntil || 0,
+        rateLimited:isMkGithubRateLimited()
+    });
 
     let ghRepoToken = localStorage.getItem('gh_repo_token') || '';
     let backupTimer = null;
@@ -3043,7 +3058,7 @@
                     const manifestStale = !hasCachedLibrary || !remoteVersion || remoteVersion !== cachedVersion;
 
                     if(manifestStale || parserStale) {
-                        const imported = await autoScanGitHub({ deckFileList:remoteDeckList, silent:true });
+                        const imported = await autoScanGitHub({ deckFileList:remoteDeckList, silent:true, awaitLibraryCacheWrite:true });
                         if(imported) {
                             deckSource = parserStale ? 'github-fresh-mobile-parser-rebuild' : 'github-fresh-mobile';
                             hasCachedLibrary = false;
@@ -3064,7 +3079,7 @@
                 deckSource = isMkGithubRateLimited() ? 'indexeddb-mobile-rate-limit' : 'indexeddb-mobile-cooldown';
             } else if(!isMkGithubRateLimited()) {
                 // No cache exists, so one network import is still required to make the app usable.
-                const imported = await autoScanGitHub({ silent:true });
+                const imported = await autoScanGitHub({ silent:true, awaitLibraryCacheWrite:true });
                 deckSource = imported ? 'github-fresh-mobile' : 'github-unavailable';
             } else {
                 deckSource = 'github-rate-limited-no-cache';
@@ -3153,17 +3168,8 @@
             writeMkStartupMarker('STARTUP_STABLE', { startupStable:true });
             showMkFreshDiagBadge();
 
-            // PDFHelper metadata must be available before annotation icons can build mkpdf:// links.
-            // Load once after first paint so startup/card rendering stays non-blocking.
-            loadPdfAnnotationSourceIndex(fetch).then(ok => {
-                if(!ok) return;
-                console.info('[MK_PDFHELPER] annotation index ready');
-
-                // The first card can render before the PDF annotation index is ready.
-                // Retry decoration against the live card once metadata becomes available
-                // so mkpdf:// PDFHelper icons/links are restored without a card change.
-                redecorateCurrentPdfAnnotations();
-            }).catch(error => console.warn('[MK_PDFHELPER] annotation index load failed', error));
+            // PDFHelper startup request is started only once above. Re-running it here
+            // caused duplicate GitHub/Pages traffic after the first paint, especially on iOS PWA.
 
             if(hasCachedLibrary && !mobileStandaloneFreshDeck) scheduleDeckManifestRefreshAfterFirstCardVisible();
         }));
@@ -6966,9 +6972,17 @@
         }
     }
 
-    let mkGithubRateLimitUntil = 0;
+    const MK_GITHUB_RATE_LIMIT_UNTIL_KEY = 'mk_github_rate_limit_until_v1';
+    let mkGithubRateLimitUntil = (() => {
+        try {
+            const stored = Number(localStorage.getItem(MK_GITHUB_RATE_LIMIT_UNTIL_KEY)) || 0;
+            if(stored > Date.now()) return stored;
+            localStorage.removeItem(MK_GITHUB_RATE_LIMIT_UNTIL_KEY);
+        } catch(error) {}
+        return 0;
+    })();
 
-    function getMkRetryAfterMs(response, fallbackMs = 60 * 1000) {
+    function getMkRetryAfterMs(response, fallbackMs = 15 * 60 * 1000) {
         const raw = response && response.headers ? response.headers.get('Retry-After') : '';
         if(raw) {
             const seconds = Number(raw);
@@ -6980,8 +6994,23 @@
     }
 
     function markMkGithubRateLimited(response = null) {
-        mkGithubRateLimitUntil = Date.now() + getMkRetryAfterMs(response);
+        const nextUntil = Date.now() + getMkRetryAfterMs(response);
+        mkGithubRateLimitUntil = Math.max(mkGithubRateLimitUntil, nextUntil);
+        try { localStorage.setItem(MK_GITHUB_RATE_LIMIT_UNTIL_KEY, String(mkGithubRateLimitUntil)); } catch(error) {}
         return mkGithubRateLimitUntil;
+    }
+
+    function clearMkGithubRateLimit() {
+        mkGithubRateLimitUntil = 0;
+        try { localStorage.removeItem(MK_GITHUB_RATE_LIMIT_UNTIL_KEY); } catch(error) {}
+    }
+
+    function isMkRateLimitPayload(value) {
+        const text = String(value || '').trim().toLowerCase();
+        return text === 'rate limit exceeded' ||
+            text.startsWith('rate limit exceeded') ||
+            text.includes('api rate limit exceeded') ||
+            text.includes('secondary rate limit');
     }
 
     function makeMkGithubRateLimitError(message = 'github/pages rate limited', response = null) {
@@ -7010,18 +7039,30 @@
     }
 
     async function loadDeckManifest(fetchImpl = fetch) {
+        if(isMkGithubRateLimited()) throw makeMkGithubRateLimitError('manifest skipped during persisted cooldown');
         const manifestUrl = new URL('decks-manifest.json', document.baseURI).href;
-        const manifestRes = await fetchImpl(manifestUrl, { cache: 'no-store' });
-        if (manifestRes.status === 429) {
+        const manifestRes = await fetchImpl(manifestUrl, { cache: 'no-cache' });
+        if (manifestRes.status === 429 || manifestRes.status === 403) {
             markMkGithubRateLimited(manifestRes);
-            throw makeMkGithubRateLimitError('manifest status 429', manifestRes);
+            throw makeMkGithubRateLimitError(`manifest status ${manifestRes.status}`, manifestRes);
         }
         if (!manifestRes.ok) {
             const error = new Error(`manifest status ${manifestRes.status}`);
             error.status = manifestRes.status;
             throw error;
         }
-        const manifest = await manifestRes.json();
+        const manifestText = await manifestRes.text();
+        if(isMkRateLimitPayload(manifestText)) {
+            markMkGithubRateLimited(manifestRes);
+            throw makeMkGithubRateLimitError('manifest payload rate limited', manifestRes);
+        }
+        let manifest;
+        try { manifest = JSON.parse(manifestText); }
+        catch(error) {
+            error.status = manifestRes.status;
+            throw error;
+        }
+        clearMkGithubRateLimit();
         const isLegacyManifest = manifest && manifest.version === 1;
         const isVersionedManifest = manifest && manifest.schemaVersion === 1 && typeof manifest.version === 'string' && manifest.version;
         if ((!isLegacyManifest && !isVersionedManifest) || !Array.isArray(manifest.files) || manifest.files.length === 0) throw new Error('invalid deck manifest');
@@ -7032,6 +7073,9 @@
     }
 
     async function loadDeckFileList(headers, fetchImpl = fetch) {
+        if(isMkGithubRateLimited()) {
+            return { files:null, source:'persisted-rate-limit', listResponse:null, rateLimited:true, retryAfterMs:Math.max(0, mkGithubRateLimitUntil - Date.now()) };
+        }
         try {
             return await loadDeckManifest(fetchImpl);
         } catch (manifestError) {
@@ -7048,7 +7092,8 @@
 
         const listUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/`;
         const listResponse = await fetchImpl(listUrl, { headers });
-        if (listResponse.status === 429) {
+        const apiRemaining = Number(listResponse.headers && listResponse.headers.get('X-RateLimit-Remaining'));
+        if (listResponse.status === 429 || (listResponse.status === 403 && apiRemaining === 0)) {
             markMkGithubRateLimited(listResponse);
             return { files:null, source:'github-api-rate-limit', listResponse, rateLimited:true, retryAfterMs:getMkRetryAfterMs(listResponse) };
         }
@@ -7085,8 +7130,8 @@
     }
 
     function schedulePdfAnnotationIndexRetry(fetchImpl = fetch) {
-        if(pdfAnnotationIndexRetryTimer) return;
-        const delays = [5000, 15000, 30000, 60000];
+        if(pdfAnnotationIndexRetryTimer || isMkGithubRateLimited() || isMkMobileStandalone()) return;
+        const delays = [15000, 60000, 180000];
         const delay = delays[Math.min(pdfAnnotationIndexRetryCount, delays.length - 1)];
         pdfAnnotationIndexRetryCount += 1;
         pdfAnnotationIndexRetryTimer = setTimeout(() => {
@@ -7101,6 +7146,11 @@
             let cacheLoaded = false;
             if(!options.skipCache) cacheLoaded = await loadCachedPdfAnnotationSourceIndex();
 
+            // Mobile PWA should not re-fetch this large helper index on every launch.
+            // Cached metadata is sufficient; refresh on the next desktop/non-standalone session.
+            if(cacheLoaded && isMkMobileStandalone() && !options.forceNetwork) return true;
+            if(isMkGithubRateLimited() && !options.forceNetwork) return cacheLoaded;
+
             try {
                 let payload = null;
                 let source = '';
@@ -7110,8 +7160,17 @@
                     const url = new URL('pdf-annotations.json', document.baseURI);
                     url.searchParams.set('v', APP_VERSION);
                     const response = await fetchImpl(url.href, { cache: 'no-cache' });
+                    if(response.status === 429) {
+                        markMkGithubRateLimited(response);
+                        throw makeMkGithubRateLimitError('PDF annotation index status 429', response);
+                    }
                     if(response.ok) {
-                        payload = await response.json();
+                        const body = await response.text();
+                        if(isMkRateLimitPayload(body)) {
+                            markMkGithubRateLimited(response);
+                            throw makeMkGithubRateLimitError('PDF annotation payload rate limited', response);
+                        }
+                        payload = JSON.parse(body);
                         source = 'pages';
                     } else {
                         const error = new Error(`PDF annotation index status ${response.status}`);
@@ -7120,6 +7179,7 @@
                     }
                 } catch(pagesError) {
                     console.warn('[PDF-BLOCKREF] Pages index unavailable:', pagesError);
+                    if(pagesError && (pagesError.rateLimited || Number(pagesError.status) === 429) || isMkGithubRateLimited()) throw pagesError;
 
                     // 2. GitHub Contents API. This is the important fallback when
                     // Pages is rate-limited and the repository/raw file is private.
@@ -7201,6 +7261,7 @@
         const silent = !!(options && options.silent);
         const preserveCurrentView = !!(options && options.preserveCurrentView);
         const skipLibraryCacheWrite = !!(options && options.skipLibraryCacheWrite);
+        const awaitLibraryCacheWrite = !!(options && options.awaitLibraryCacheWrite);
         let deckImported = false;
         let rateLimited = false;
         if(!silent) document.getElementById('loading').style.display = 'block';
@@ -7246,6 +7307,10 @@
                             throw error;
                         }
                         text = await textRes.text();
+                        if(isMkRateLimitPayload(text)) {
+                            markMkGithubRateLimited(textRes);
+                            throw makeMkGithubRateLimitError('deck download payload rate limited', textRes);
+                        }
                     } else if(ghRepoToken) {
                         const fileRes = await fetch(file.url, { headers }); const fileJson = await fileRes.json();
                         if(fileJson.content) text = decodeURIComponent(escape(window.atob(fileJson.content.replace(/\n/g, ''))));
@@ -7331,7 +7396,12 @@
 
     library = newLibrary;
     if(!skipLibraryCacheWrite) {
-        persistLibraryCacheInBackground(newLibrary, deckFileList.publishVersion);
+        if(awaitLibraryCacheWrite) {
+            try { await persistLibraryCacheNow(newLibrary, deckFileList.publishVersion); }
+            catch(error) { console.warn('[MK_LIBRARY_CACHE_WRITE_FAILED]', error); }
+        } else {
+            persistLibraryCacheInBackground(newLibrary, deckFileList.publishVersion);
+        }
     } else {
         console.info('[MK_DECK_SINGLE_SOURCE] library cache write skipped for this mobile session');
     }
@@ -9841,15 +9911,17 @@
         }
     }
 
+    async function persistLibraryCacheNow(value, manifestVersion = '') {
+        if(window.__MK_FRESH_DIAG__) return false;
+        if(!value || typeof value !== 'object' || !Object.keys(value).length) return false;
+        await writeStatsDatabaseValue(LIBRARY_CACHE_DB_KEY, JSON.stringify(value));
+        if(manifestVersion) await writeStatsDatabaseValue(LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY, manifestVersion);
+        await writeStatsDatabaseValue(LIBRARY_CACHE_PARSER_VERSION_DB_KEY, LIBRARY_CACHE_PARSER_VERSION);
+        return true;
+    }
+
     function persistLibraryCacheInBackground(value, manifestVersion = '') {
-        if(window.__MK_FRESH_DIAG__) return;
-        if(!value || typeof value !== 'object' || !Object.keys(value).length) return;
-        const run = async () => {
-            await writeStatsDatabaseValue(LIBRARY_CACHE_DB_KEY, JSON.stringify(value));
-            if(manifestVersion) await writeStatsDatabaseValue(LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY, manifestVersion);
-            await writeStatsDatabaseValue(LIBRARY_CACHE_PARSER_VERSION_DB_KEY, LIBRARY_CACHE_PARSER_VERSION);
-        };
-        const guardedRun = () => run()
+        const guardedRun = () => persistLibraryCacheNow(value, manifestVersion)
             .catch(error => console.warn('[MK_LIBRARY_CACHE_WRITE_FAILED]', error));
         if(typeof requestIdleCallback === 'function') requestIdleCallback(guardedRun, {timeout:1500});
         else setTimeout(guardedRun, 0);
