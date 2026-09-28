@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.275-atomic-deck-cache -->
+<!-- preview: v18.5.276-pages-traffic-minimized -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1007,7 +1007,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.275 ATOMIC DECK CACHE';
+    const APP_VERSION = 'v18.5.276 PAGES-TRAFFIC MINIMIZED';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -3000,7 +3000,7 @@
         const statsInitPromise = initializeStatsStore();
         await statsInitPromise;
         markMkStartupPhase('LOCAL_STATS_READY');
-        const pdfAnnotationStartupPromise = loadPdfAnnotationSourceIndex(fetch).catch(error => { console.warn('[MK_PDFHELPER] early index load failed', error); return false; });
+        const pdfAnnotationStartupPromise = Promise.resolve(false); // PDF index loads once after first visible paint.
         const mobileStandaloneFreshDeck = isMkMobileStandalone();
         let hasCachedLibrary = false;
         let deckSource = 'github';
@@ -7016,7 +7016,9 @@
         const normalizedName = String(name || '').trim();
         if (!normalizedName || !normalizedName.endsWith('.txt') || normalizedName.includes('..') || /^[\\/]/.test(normalizedName)) return null;
         const encodedPath = normalizedName.split('/').map(part => encodeURIComponent(part)).join('/');
-        const downloadUrl = new URL(encodedPath, document.baseURI);
+        // Deck payloads come from raw GitHub, never GitHub Pages. This keeps a mobile
+        // refresh from turning one page navigation into dozens of Pages requests.
+        const downloadUrl = new URL(`https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/${encodedPath}`);
         if (publishVersion) downloadUrl.searchParams.set('v', publishVersion);
         return {
             name: normalizedName.split('/').pop(),
@@ -7025,9 +7027,23 @@
         };
     }
 
+    window.getMkDeckNetworkStatus = function() {
+        return {
+            appVersion:APP_VERSION,
+            pageOrigin:location.origin,
+            deckOrigin:'https://raw.githubusercontent.com',
+            pageDataFetchesDisabled:true,
+            rateLimited:isMkGithubRateLimited(),
+            rateLimitUntil:mkGithubRateLimitUntil || 0
+        };
+    };
+
     async function loadDeckManifest(fetchImpl = fetch) {
         if(isMkGithubRateLimited()) throw makeMkGithubRateLimitError('manifest skipped during persisted rate-limit cooldown');
-        const manifestUrl = new URL('decks-manifest.json', document.baseURI).href;
+        // mk-sync publishes this file into the repository. Fetch it from raw GitHub
+        // so GitHub Pages only serves the app shell itself.
+        const manifestBucket = Math.floor(Date.now() / (5 * 60 * 1000));
+        const manifestUrl = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/decks-manifest.json?mk=${manifestBucket}`;
         const manifestRes = await fetchImpl(manifestUrl, { cache: 'no-store' });
         if (manifestRes.status === 429) {
             markMkGithubRateLimited(manifestRes);
@@ -7096,14 +7112,10 @@
     }
 
     function schedulePdfAnnotationIndexRetry(fetchImpl = fetch) {
-        if(pdfAnnotationIndexRetryTimer) return;
-        const delays = [5000, 15000, 30000, 60000];
-        const delay = delays[Math.min(pdfAnnotationIndexRetryCount, delays.length - 1)];
-        pdfAnnotationIndexRetryCount += 1;
-        pdfAnnotationIndexRetryTimer = setTimeout(() => {
-            pdfAnnotationIndexRetryTimer = null;
-            loadPdfAnnotationSourceIndex(fetchImpl, { skipCache:true }).catch(() => {});
-        }, delay);
+        // Do not create 5s/15s/30s/60s retry storms on mobile. A cached index remains
+        // usable; the next normal app session gets one fresh raw request after first paint.
+        console.info('[MK_PDFHELPER] automatic network retry disabled');
+        return false;
     }
 
     function loadPdfAnnotationSourceIndex(fetchImpl = fetch, options = {}) {
@@ -7116,69 +7128,22 @@
                 let payload = null;
                 let source = '';
 
-                // 1. Normal Pages path.
+                // One raw request only. Never hit GitHub Pages or the GitHub Contents API
+                // for PDF metadata during startup.
                 try {
-                    const url = new URL('pdf-annotations.json', document.baseURI);
-                    url.searchParams.set('v', APP_VERSION);
-                    const response = await fetchImpl(url.href, { cache: 'no-cache' });
-                    if(response.ok) {
-                        payload = await response.json();
-                        source = 'pages';
-                    } else {
-                        const error = new Error(`PDF annotation index status ${response.status}`);
+                    const pdfBucket = Math.floor(Date.now() / (5 * 60 * 1000));
+                    const rawUrl = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/pdf-annotations.json?mk=${pdfBucket}`;
+                    const response = await fetchImpl(rawUrl, { cache:'no-store' });
+                    if(!response.ok) {
+                        const error = new Error(`PDF annotation raw status ${response.status}`);
                         error.status = response.status;
                         throw error;
                     }
-                } catch(pagesError) {
-                    console.warn('[PDF-BLOCKREF] Pages index unavailable:', pagesError);
-
-                    // 2. GitHub Contents API. This is the important fallback when
-                    // Pages is rate-limited and the repository/raw file is private.
-                    if(ghRepoToken) {
-                        try {
-                            const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/pdf-annotations.json?ref=main`;
-                            const apiResponse = await fetchImpl(apiUrl, {
-                                headers: {
-                                    'Authorization': `token ${ghRepoToken}`,
-                                    'Accept': 'application/vnd.github+json'
-                                },
-                                cache: 'no-store'
-                            });
-                            if(!apiResponse.ok) {
-                                const error = new Error(`PDF annotation GitHub API status ${apiResponse.status}`);
-                                error.status = apiResponse.status;
-                                throw error;
-                            }
-                            const apiPayload = await apiResponse.json();
-                            if(!apiPayload || !apiPayload.content) throw new Error('PDF annotation GitHub API content missing');
-                            const base64 = String(apiPayload.content).replace(/\s/g, '');
-                            const binary = atob(base64);
-                            const bytes = Uint8Array.from(binary, ch => ch.charCodeAt(0));
-                            payload = JSON.parse(new TextDecoder('utf-8').decode(bytes));
-                            source = 'github-api';
-                        } catch(apiError) {
-                            console.warn('[PDF-BLOCKREF] GitHub API index unavailable:', apiError);
-                        }
-                    }
-
-                    // 3. Public raw fallback.
-                    if(!payload) {
-                        try {
-                            const rawUrl = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/pdf-annotations.json?v=${encodeURIComponent(APP_VERSION)}`;
-                            const rawResponse = await fetchImpl(rawUrl, { cache:'no-cache' });
-                            if(!rawResponse.ok) {
-                                const error = new Error(`PDF annotation raw status ${rawResponse.status}`);
-                                error.status = rawResponse.status;
-                                throw error;
-                            }
-                            payload = await rawResponse.json();
-                            source = 'raw';
-                        } catch(rawError) {
-                            console.warn('[PDF-BLOCKREF] raw index unavailable:', rawError);
-                        }
-                    }
-
-                    if(!payload) throw pagesError;
+                    payload = await response.json();
+                    source = 'raw';
+                } catch(rawError) {
+                    console.warn('[PDF-BLOCKREF] raw index unavailable:', rawError);
+                    if(!payload) throw rawError;
                 }
 
                 if(!applyPdfAnnotationPayload(payload, source || 'network')) throw new Error('invalid PDF annotation index');
