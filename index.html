@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.276-pages-traffic-minimized -->
+<!-- preview: v18.5.277-pwa-fresh-deck-sync -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.274 MOBILE LATEST + RATE LIMIT SAFE)</title>
+<title>MK (v18.5.277 PWA FRESH DECK SYNC)</title>
 
 <script>
     (() => {
@@ -713,7 +713,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.274 MOBILE LATEST + RATE LIMIT SAFE)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.277 PWA FRESH DECK SYNC)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1007,7 +1007,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.276 PAGES-TRAFFIC MINIMIZED';
+    const APP_VERSION = 'v18.5.277 PWA FRESH DECK SYNC';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -3005,11 +3005,13 @@
         let hasCachedLibrary = false;
         let deckSource = 'github';
         if(mobileStandaloneFreshDeck) {
-            // Mobile PWA: use the last complete cache unless a small manifest check says
-            // mk-sync published a newer deck. This avoids redownloading every deck file on
-            // every launch while still replacing stale mobile data with the latest publish.
-            const MOBILE_MANIFEST_CHECK_AT_KEY = 'mk_mobile_manifest_checked_at_v275';
-            const MOBILE_MANIFEST_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+            // Mobile PWA freshness rule:
+            // - Check the small mk-sync manifest once on every cold start.
+            // - The manifest and deck payloads come from raw.githubusercontent.com, not Pages.
+            // - If the publishVersion is unchanged, download zero deck txt files.
+            // - If it changed, replace the library only after a complete atomic import succeeds.
+            // This keeps Home Screen PWA data in parity with Safari without request fan-out.
+            const MOBILE_MANIFEST_LAST_CHECK_KEY = 'mk_mobile_manifest_last_check_v277';
             let cachedManifestVersion = '';
             let cachedParserVersion = '';
             try {
@@ -3023,57 +3025,55 @@
 
             const cachedVersion = String(cachedManifestVersion || '');
             const parserCurrent = String(cachedParserVersion || '') === LIBRARY_CACHE_PARSER_VERSION;
-            const lastCheckedAt = Number(localStorage.getItem(MOBILE_MANIFEST_CHECK_AT_KEY)) || 0;
-            // Respect the retry interval even when the previous refresh failed.
-            // This prevents rapid PWA relaunches from hammering GitHub while throttled.
-            let manifestCheckDue = !lastCheckedAt || (Date.now() - lastCheckedAt >= MOBILE_MANIFEST_CHECK_INTERVAL_MS);
             let remoteDeckList = null;
 
-            if(!manifestCheckDue) {
-                hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
-                if(hasCachedLibrary) {
-                    deckSource = 'indexeddb-mobile-current';
-                } else {
-                    // Metadata without a cache body is unusable; force exactly one manifest check.
-                    manifestCheckDue = true;
-                }
+            try {
+                // One lightweight raw-GitHub request per PWA start. Persisted 429 cooldown
+                // inside loadDeckManifest() prevents reload loops from hammering the host.
+                remoteDeckList = await loadDeckManifest(fetch);
+                try { localStorage.setItem(MOBILE_MANIFEST_LAST_CHECK_KEY, String(Date.now())); } catch(error) {}
+            } catch(error) {
+                console.warn('[MK_MOBILE_DECK_SYNC] manifest check failed; keeping last complete cache', error);
             }
 
-            if(manifestCheckDue) {
-                try {
-                    // Record the attempt first so reload loops cannot hammer GitHub Pages.
-                    localStorage.setItem(MOBILE_MANIFEST_CHECK_AT_KEY, String(Date.now()));
-                    remoteDeckList = await loadDeckManifest(fetch);
-                } catch(error) {
-                    console.warn('[MK_MOBILE_DECK_SYNC] manifest check failed; keeping last cache', error);
-                }
+            if(remoteDeckList && remoteDeckList.files) {
+                const remoteVersion = String(remoteDeckList.publishVersion || '');
+                const needsFreshImport = !cachedVersion || !parserCurrent || !remoteVersion || remoteVersion !== cachedVersion;
 
-                if(remoteDeckList && remoteDeckList.files) {
-                    const remoteVersion = String(remoteDeckList.publishVersion || '');
-                    const needsFreshImport = !cachedVersion || !parserCurrent || !remoteVersion || remoteVersion !== cachedVersion;
-                    if(needsFreshImport) {
-                        // Important: do not load the stale library first. Build only the latest
-                        // mk-sync output, then autoScanGitHub persists that successful library.
-                        const imported = await autoScanGitHub({ deckFileList:remoteDeckList, silent:true, awaitLibraryCacheWrite:true });
-                        if(imported) {
-                            deckSource = parserCurrent ? 'github-fresh-mobile' : 'github-fresh-mobile-parser-rebuild';
-                            hasCachedLibrary = false;
-                        } else {
-                            hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
-                            deckSource = hasCachedLibrary ? 'indexeddb-mobile-fallback' : 'github-unavailable';
-                        }
+                if(needsFreshImport) {
+                    // Do not load the stale library first. autoScanGitHub builds a separate
+                    // newLibrary and v275+ atomic cache code activates it only after every
+                    // manifest file was downloaded and parsed successfully.
+                    const imported = await autoScanGitHub({
+                        deckFileList:remoteDeckList,
+                        silent:true,
+                        awaitLibraryCacheWrite:true
+                    });
+                    if(imported) {
+                        deckSource = parserCurrent ? 'github-fresh-mobile' : 'github-fresh-mobile-parser-rebuild';
+                        hasCachedLibrary = false;
                     } else {
                         hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
-                        if(hasCachedLibrary) deckSource = 'indexeddb-mobile-current';
-                        else {
-                            const imported = await autoScanGitHub({ deckFileList:remoteDeckList, silent:true, awaitLibraryCacheWrite:true });
-                            deckSource = imported ? 'github-fresh-mobile-cache-rebuild' : 'github-unavailable';
-                        }
+                        deckSource = hasCachedLibrary ? 'indexeddb-mobile-fallback' : 'github-unavailable';
                     }
                 } else {
                     hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
-                    deckSource = hasCachedLibrary ? 'indexeddb-mobile-fallback' : 'github-unavailable';
+                    if(hasCachedLibrary) {
+                        deckSource = 'indexeddb-mobile-current';
+                    } else {
+                        // Metadata can outlive an evicted cache body. Rebuild once from the
+                        // already-fetched manifest instead of issuing another manifest request.
+                        const imported = await autoScanGitHub({
+                            deckFileList:remoteDeckList,
+                            silent:true,
+                            awaitLibraryCacheWrite:true
+                        });
+                        deckSource = imported ? 'github-fresh-mobile-cache-rebuild' : 'github-unavailable';
+                    }
                 }
+            } else {
+                hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
+                deckSource = hasCachedLibrary ? 'indexeddb-mobile-fallback' : 'github-unavailable';
             }
         } else {
             // Desktop/non-standalone: check the current manifest before first render.
@@ -6972,7 +6972,7 @@
         }
     }
 
-    const MK_GITHUB_RATE_LIMIT_UNTIL_KEY = 'mk_github_rate_limit_until_v275';
+    const MK_GITHUB_RATE_LIMIT_UNTIL_KEY = 'mk_github_raw_rate_limit_until_v1';
     let mkGithubRateLimitUntil = (() => {
         try { return Math.max(0, Number(localStorage.getItem(MK_GITHUB_RATE_LIMIT_UNTIL_KEY)) || 0); }
         catch(error) { return 0; }
