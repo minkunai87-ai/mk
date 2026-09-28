@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.274-mobile-latest-rate-limit-safe -->
+<!-- preview: v18.5.275-atomic-deck-cache -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1007,7 +1007,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.274 MOBILE LATEST + RATE LIMIT SAFE';
+    const APP_VERSION = 'v18.5.275 ATOMIC DECK CACHE';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -1224,8 +1224,10 @@
     const LIBRARY_CACHE_DB_KEY = 'mk_library_cache_v1';
     const LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY = 'mk_library_cache_manifest_version_v1';
     const LIBRARY_CACHE_PARSER_VERSION_DB_KEY = 'mk_library_cache_parser_version_v1';
+    const LIBRARY_CACHE_ACTIVE_POINTER_DB_KEY = 'mk_library_cache_active_v2';
+    const LIBRARY_CACHE_VERSIONED_PREFIX = 'mk_library_cache_v2:';
     const PDF_ANNOTATION_INDEX_DB_KEY = 'mk_pdf_annotation_index_v1';
-    const LIBRARY_CACHE_PARSER_VERSION = 'cs-activeblock-table-layout-v6';
+    const LIBRARY_CACHE_PARSER_VERSION = 'cs-activeblock-table-layout-v7-atomic-cache';
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
     const REVIEW_HISTORY_EVENTS_DB_KEY_PREFIX = 'mk_review_history_events_v1::';
     const REVIEW_HISTORY_TOMBSTONE_DB_KEY_PREFIX = 'mk_review_history_tombstone_v1::';
@@ -3006,14 +3008,14 @@
             // Mobile PWA: use the last complete cache unless a small manifest check says
             // mk-sync published a newer deck. This avoids redownloading every deck file on
             // every launch while still replacing stale mobile data with the latest publish.
-            const MOBILE_MANIFEST_CHECK_AT_KEY = 'mk_mobile_manifest_checked_at_v274';
+            const MOBILE_MANIFEST_CHECK_AT_KEY = 'mk_mobile_manifest_checked_at_v275';
             const MOBILE_MANIFEST_CHECK_INTERVAL_MS = 5 * 60 * 1000;
             let cachedManifestVersion = '';
             let cachedParserVersion = '';
             try {
                 [cachedManifestVersion, cachedParserVersion] = await Promise.all([
-                    readStatsDatabaseValue(LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY),
-                    readStatsDatabaseValue(LIBRARY_CACHE_PARSER_VERSION_DB_KEY)
+                    readCachedLibraryManifestVersion(),
+                    readCachedLibraryParserVersion()
                 ]);
             } catch(error) {
                 console.warn('[MK_MOBILE_DECK_SYNC] cache metadata read failed', error);
@@ -3022,7 +3024,9 @@
             const cachedVersion = String(cachedManifestVersion || '');
             const parserCurrent = String(cachedParserVersion || '') === LIBRARY_CACHE_PARSER_VERSION;
             const lastCheckedAt = Number(localStorage.getItem(MOBILE_MANIFEST_CHECK_AT_KEY)) || 0;
-            let manifestCheckDue = !cachedVersion || !parserCurrent || (Date.now() - lastCheckedAt >= MOBILE_MANIFEST_CHECK_INTERVAL_MS);
+            // Respect the retry interval even when the previous refresh failed.
+            // This prevents rapid PWA relaunches from hammering GitHub while throttled.
+            let manifestCheckDue = !lastCheckedAt || (Date.now() - lastCheckedAt >= MOBILE_MANIFEST_CHECK_INTERVAL_MS);
             let remoteDeckList = null;
 
             if(!manifestCheckDue) {
@@ -3050,7 +3054,7 @@
                     if(needsFreshImport) {
                         // Important: do not load the stale library first. Build only the latest
                         // mk-sync output, then autoScanGitHub persists that successful library.
-                        const imported = await autoScanGitHub({ deckFileList:remoteDeckList, silent:true });
+                        const imported = await autoScanGitHub({ deckFileList:remoteDeckList, silent:true, awaitLibraryCacheWrite:true });
                         if(imported) {
                             deckSource = parserCurrent ? 'github-fresh-mobile' : 'github-fresh-mobile-parser-rebuild';
                             hasCachedLibrary = false;
@@ -3062,7 +3066,7 @@
                         hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
                         if(hasCachedLibrary) deckSource = 'indexeddb-mobile-current';
                         else {
-                            const imported = await autoScanGitHub({ deckFileList:remoteDeckList, silent:true });
+                            const imported = await autoScanGitHub({ deckFileList:remoteDeckList, silent:true, awaitLibraryCacheWrite:true });
                             deckSource = imported ? 'github-fresh-mobile-cache-rebuild' : 'github-unavailable';
                         }
                     }
@@ -3086,8 +3090,8 @@
                 try {
                     [remoteDeckList, cachedManifestVersion, cachedParserVersion] = await Promise.all([
                         loadDeckFileList(headers),
-                        readStatsDatabaseValue(LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY),
-                        readStatsDatabaseValue(LIBRARY_CACHE_PARSER_VERSION_DB_KEY)
+                        readCachedLibraryManifestVersion(),
+                        readCachedLibraryParserVersion()
                     ]);
                 } catch(error) {
                     console.warn('[MK_DESKTOP_DECK_SYNC] manifest/parser check failed; keeping cache', error);
@@ -6968,9 +6972,13 @@
         }
     }
 
-    let mkGithubRateLimitUntil = 0;
+    const MK_GITHUB_RATE_LIMIT_UNTIL_KEY = 'mk_github_rate_limit_until_v275';
+    let mkGithubRateLimitUntil = (() => {
+        try { return Math.max(0, Number(localStorage.getItem(MK_GITHUB_RATE_LIMIT_UNTIL_KEY)) || 0); }
+        catch(error) { return 0; }
+    })();
 
-    function getMkRetryAfterMs(response, fallbackMs = 60 * 1000) {
+    function getMkRetryAfterMs(response, fallbackMs = 5 * 60 * 1000) {
         const raw = response && response.headers ? response.headers.get('Retry-After') : '';
         if(raw) {
             const seconds = Number(raw);
@@ -6983,6 +6991,7 @@
 
     function markMkGithubRateLimited(response = null) {
         mkGithubRateLimitUntil = Date.now() + getMkRetryAfterMs(response);
+        try { localStorage.setItem(MK_GITHUB_RATE_LIMIT_UNTIL_KEY, String(mkGithubRateLimitUntil)); } catch(error) {}
         return mkGithubRateLimitUntil;
     }
 
@@ -6995,7 +7004,12 @@
     }
 
     function isMkGithubRateLimited() {
-        return mkGithubRateLimitUntil > Date.now();
+        if(mkGithubRateLimitUntil > Date.now()) return true;
+        if(mkGithubRateLimitUntil) {
+            mkGithubRateLimitUntil = 0;
+            try { localStorage.removeItem(MK_GITHUB_RATE_LIMIT_UNTIL_KEY); } catch(error) {}
+        }
+        return false;
     }
 
     function getManifestDeckFile(name, publishVersion = '') {
@@ -7012,6 +7026,7 @@
     }
 
     async function loadDeckManifest(fetchImpl = fetch) {
+        if(isMkGithubRateLimited()) throw makeMkGithubRateLimitError('manifest skipped during persisted rate-limit cooldown');
         const manifestUrl = new URL('decks-manifest.json', document.baseURI).href;
         const manifestRes = await fetchImpl(manifestUrl, { cache: 'no-store' });
         if (manifestRes.status === 429) {
@@ -7197,6 +7212,7 @@
         const silent = !!(options && options.silent);
         const preserveCurrentView = !!(options && options.preserveCurrentView);
         const skipLibraryCacheWrite = !!(options && options.skipLibraryCacheWrite);
+        const awaitLibraryCacheWrite = !!(options && options.awaitLibraryCacheWrite);
         let deckImported = false;
         let rateLimited = false;
         if(!silent) document.getElementById('loading').style.display = 'block';
@@ -7325,11 +7341,21 @@
         newLibrary[deckName].sort((a, b) => (a.sourceOrder ?? 999999) - (b.sourceOrder ?? 999999));
     });
 
+    // All manifest files must succeed before the new publish can become active.
     library = newLibrary;
     if(!skipLibraryCacheWrite) {
-        persistLibraryCacheInBackground(newLibrary, deckFileList.publishVersion);
+        if(awaitLibraryCacheWrite) {
+            try {
+                await persistLibraryCacheAtomic(newLibrary, deckFileList.publishVersion);
+            } catch(error) {
+                console.warn('[MK_LIBRARY_ATOMIC_COMMIT_FAILED] keeping previous persisted cache', error);
+                return false;
+            }
+        } else {
+            persistLibraryCacheInBackground(newLibrary, deckFileList.publishVersion);
+        }
     } else {
-        console.info('[MK_DECK_SINGLE_SOURCE] library cache write skipped for this mobile session');
+        console.info('[MK_DECK_SINGLE_SOURCE] library cache write skipped for this session');
     }
     learningStatsLibraryRevision++;
     learningStatsCardIndexCache = null;
@@ -9793,8 +9819,51 @@
         }
     }
 
+    async function readLibraryCachePointer() {
+        try {
+            const raw = await readStatsDatabaseValue(LIBRARY_CACHE_ACTIVE_POINTER_DB_KEY);
+            const pointer = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if(!pointer || pointer.schemaVersion !== 2) return null;
+            const cacheKey = String(pointer.cacheKey || '');
+            if(!cacheKey.startsWith(LIBRARY_CACHE_VERSIONED_PREFIX)) return null;
+            return {
+                schemaVersion:2,
+                cacheKey,
+                manifestVersion:String(pointer.manifestVersion || ''),
+                parserVersion:String(pointer.parserVersion || ''),
+                deckCount:Number(pointer.deckCount) || 0,
+                cardCount:Number(pointer.cardCount) || 0,
+                createdAt:Number(pointer.createdAt) || 0
+            };
+        } catch(error) {
+            console.warn('[MK_LIBRARY_CACHE_POINTER_READ_FAILED]', error);
+            return null;
+        }
+    }
+
     async function loadCachedLibraryFromIndexedDB() {
         try {
+            // v2 is pointer-based: the complete body is written first and the tiny
+            // active pointer is switched only after that succeeds. Partial publishes
+            // can therefore never become the startup cache.
+            const pointer = await readLibraryCachePointer();
+            if(pointer) {
+                const raw = await readStatsDatabaseValue(pointer.cacheKey);
+                if(raw) {
+                    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                    if(parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length) {
+                        library = normalizeLibraryDeckPaths(parsed);
+                        learningStatsLibraryRevision++;
+                        learningStatsCardIndexCache = null;
+                        learningStatsModelCache = null;
+                        window.__mkLibraryCacheMeta = pointer;
+                        return true;
+                    }
+                }
+                console.warn('[MK_LIBRARY_CACHE_POINTER_BODY_MISSING]', pointer);
+            }
+
+            // Legacy v1 is fallback only until the first successful v275 refresh.
             const raw = await readStatsDatabaseValue(LIBRARY_CACHE_DB_KEY);
             if(!raw) return false;
             const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
@@ -9803,6 +9872,11 @@
             learningStatsLibraryRevision++;
             learningStatsCardIndexCache = null;
             learningStatsModelCache = null;
+            window.__mkLibraryCacheMeta = {
+                schemaVersion:1,
+                manifestVersion:String(await readStatsDatabaseValue(LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY) || ''),
+                parserVersion:String(await readStatsDatabaseValue(LIBRARY_CACHE_PARSER_VERSION_DB_KEY) || '')
+            };
             return true;
         } catch(error) {
             console.warn('[MK_LIBRARY_CACHE_LOAD_FAILED]', error);
@@ -9811,7 +9885,16 @@
     }
 
     async function readCachedLibraryManifestVersion() {
+        const pointer = await readLibraryCachePointer();
+        if(pointer) return pointer.manifestVersion;
         const value = await readStatsDatabaseValue(LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY);
+        return typeof value === 'string' ? value.trim() : '';
+    }
+
+    async function readCachedLibraryParserVersion() {
+        const pointer = await readLibraryCachePointer();
+        if(pointer) return pointer.parserVersion;
+        const value = await readStatsDatabaseValue(LIBRARY_CACHE_PARSER_VERSION_DB_KEY);
         return typeof value === 'string' ? value.trim() : '';
     }
 
@@ -9837,15 +9920,52 @@
         }
     }
 
+    async function persistLibraryCacheAtomic(value, manifestVersion = '') {
+        if(window.__MK_FRESH_DIAG__) return false;
+        if(!value || typeof value !== 'object' || !Object.keys(value).length) return false;
+
+        const previousPointer = await readLibraryCachePointer();
+        const safeVersion = String(manifestVersion || 'no-version').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+        const safeParser = String(LIBRARY_CACHE_PARSER_VERSION).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+        const cacheKey = `${LIBRARY_CACHE_VERSIONED_PREFIX}${safeVersion}:${safeParser}`;
+        const serialized = JSON.stringify(value);
+        const deckCount = Object.keys(value).length;
+        const cardCount = Object.values(value).reduce((sum, cards) => sum + (Array.isArray(cards) ? cards.length : 0), 0);
+
+        // Stage complete new body first. Failure here leaves the old pointer untouched.
+        await writeStatsDatabaseValue(cacheKey, serialized);
+        const pointer = {
+            schemaVersion:2,
+            cacheKey,
+            manifestVersion:String(manifestVersion || ''),
+            parserVersion:LIBRARY_CACHE_PARSER_VERSION,
+            deckCount,
+            cardCount,
+            createdAt:Date.now()
+        };
+        // Commit = one tiny pointer write after the whole body is durable.
+        await writeStatsDatabaseValue(LIBRARY_CACHE_ACTIVE_POINTER_DB_KEY, JSON.stringify(pointer));
+        window.__mkLibraryCacheMeta = pointer;
+        console.info('[MK_LIBRARY_ATOMIC_COMMIT_OK]', pointer);
+
+        if(previousPointer && previousPointer.cacheKey && previousPointer.cacheKey !== cacheKey) {
+            setTimeout(() => removeStatsDatabaseValue(previousPointer.cacheKey)
+                .catch(error => console.warn('[MK_LIBRARY_OLD_CACHE_CLEANUP_FAILED]', error)), 0);
+        }
+        // Once v2 is committed, legacy v1 cache must not linger as a stale fallback
+        // or consume iOS storage. Learning Stats/Stats use different keys and are untouched.
+        setTimeout(() => Promise.all([
+            removeStatsDatabaseValue(LIBRARY_CACHE_DB_KEY),
+            removeStatsDatabaseValue(LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY),
+            removeStatsDatabaseValue(LIBRARY_CACHE_PARSER_VERSION_DB_KEY)
+        ]).catch(error => console.warn('[MK_LIBRARY_LEGACY_CACHE_CLEANUP_FAILED]', error)), 0);
+        return true;
+    }
+
     function persistLibraryCacheInBackground(value, manifestVersion = '') {
         if(window.__MK_FRESH_DIAG__) return;
         if(!value || typeof value !== 'object' || !Object.keys(value).length) return;
-        const run = async () => {
-            await writeStatsDatabaseValue(LIBRARY_CACHE_DB_KEY, JSON.stringify(value));
-            if(manifestVersion) await writeStatsDatabaseValue(LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY, manifestVersion);
-            await writeStatsDatabaseValue(LIBRARY_CACHE_PARSER_VERSION_DB_KEY, LIBRARY_CACHE_PARSER_VERSION);
-        };
-        const guardedRun = () => run()
+        const guardedRun = () => persistLibraryCacheAtomic(value, manifestVersion)
             .catch(error => console.warn('[MK_LIBRARY_CACHE_WRITE_FAILED]', error));
         if(typeof requestIdleCallback === 'function') requestIdleCallback(guardedRun, {timeout:1500});
         else setTimeout(guardedRun, 0);
