@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.278-pwa-cache-reset-pages-min -->
+<!-- preview: v18.5.279-pwa-fresh-commit-fix -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.278 PWA CACHE RESET + PAGES MIN)</title>
+<title>MK (v18.5.279 PWA FRESH COMMIT FIX)</title>
 
 <script>
     (() => {
@@ -713,7 +713,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.278 PWA CACHE RESET + PAGES MIN)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.279 PWA FRESH COMMIT FIX)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1007,7 +1007,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.278 PWA CACHE RESET + PAGES MIN';
+    const APP_VERSION = 'v18.5.279 PWA FRESH COMMIT FIX';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -1227,7 +1227,7 @@
     const LIBRARY_CACHE_ACTIVE_POINTER_DB_KEY = 'mk_library_cache_active_v2';
     const LIBRARY_CACHE_VERSIONED_PREFIX = 'mk_library_cache_v2:';
     const PDF_ANNOTATION_INDEX_DB_KEY = 'mk_pdf_annotation_index_v1';
-    const LIBRARY_CACHE_PARSER_VERSION = 'cs-activeblock-table-layout-v8-pwa-cache-reset';
+    const LIBRARY_CACHE_PARSER_VERSION = 'cs-activeblock-table-layout-v9-pwa-inplace-cache';
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
     const REVIEW_HISTORY_EVENTS_DB_KEY_PREFIX = 'mk_review_history_events_v1::';
     const REVIEW_HISTORY_TOMBSTONE_DB_KEY_PREFIX = 'mk_review_history_tombstone_v1::';
@@ -3059,9 +3059,17 @@
                         awaitLibraryCacheWrite:true
                     });
                     if(imported) {
-                        try { localStorage.setItem(PWA_DECK_VERIFIED_APP_VERSION_KEY, APP_VERSION); } catch(error) {}
-                        pwaDeckVerifiedForThisApp = true;
-                        deckSource = parserCurrent ? 'github-fresh-mobile' : 'github-fresh-mobile-parser-rebuild';
+                        const cacheCommitted = window.__mkLastLibraryCacheCommitOk === true;
+                        try {
+                            if(cacheCommitted) localStorage.setItem(PWA_DECK_VERIFIED_APP_VERSION_KEY, APP_VERSION);
+                            else localStorage.removeItem(PWA_DECK_VERIFIED_APP_VERSION_KEY);
+                        } catch(error) {}
+                        pwaDeckVerifiedForThisApp = cacheCommitted;
+                        deckSource = cacheCommitted
+                            ? (parserCurrent ? 'github-fresh-mobile' : 'github-fresh-mobile-parser-rebuild')
+                            : 'github-fresh-mobile-memory-only';
+                        // Fresh import already replaced `library`. Do not reload the stale
+                        // IndexedDB body merely because persistence failed.
                         hasCachedLibrary = false;
                     } else {
                         hasCachedLibrary = await loadCachedLibraryFromIndexedDB();
@@ -7191,6 +7199,7 @@
         const awaitLibraryCacheWrite = !!(options && options.awaitLibraryCacheWrite);
         let deckImported = false;
         let rateLimited = false;
+        window.__mkLastLibraryCacheCommitOk = null;
         if(!silent) document.getElementById('loading').style.display = 'block';
         const headers = ghRepoToken ? { 'Authorization': `token ${ghRepoToken}` } : {};
         
@@ -7322,10 +7331,17 @@
     if(!skipLibraryCacheWrite) {
         if(awaitLibraryCacheWrite) {
             try {
-                await persistLibraryCacheAtomic(newLibrary, deckFileList.publishVersion);
+                const committed = await persistLibraryCacheAtomic(newLibrary, deckFileList.publishVersion);
+                window.__mkLastLibraryCacheCommitOk = committed === true;
+                if(!committed) {
+                    console.warn('[MK_LIBRARY_CACHE_COMMIT_SKIPPED] fresh library remains active in memory');
+                }
             } catch(error) {
-                console.warn('[MK_LIBRARY_ATOMIC_COMMIT_FAILED] keeping previous persisted cache', error);
-                return false;
+                // Critical PWA rule: persistence failure must NEVER replace a freshly
+                // downloaded complete library with the stale cache. Keep the fresh
+                // in-memory library active and retry persistence on the next cold start.
+                window.__mkLastLibraryCacheCommitOk = false;
+                console.warn('[MK_LIBRARY_CACHE_COMMIT_FAILED_FRESH_LIBRARY_KEPT]', error);
             }
         } else {
             persistLibraryCacheInBackground(newLibrary, deckFileList.publishVersion);
@@ -9901,15 +9917,11 @@
         if(!value || typeof value !== 'object' || !Object.keys(value).length) return false;
 
         const previousPointer = await readLibraryCachePointer();
-        const safeVersion = String(manifestVersion || 'no-version').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
-        const safeParser = String(LIBRARY_CACHE_PARSER_VERSION).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
-        const cacheKey = `${LIBRARY_CACHE_VERSIONED_PREFIX}${safeVersion}:${safeParser}`;
-        const serialized = JSON.stringify(value);
+        // One stable body key prevents iOS PWA from temporarily storing two complete
+        // deck libraries at once. IndexedDB updates this key transactionally.
+        const cacheKey = `${LIBRARY_CACHE_VERSIONED_PREFIX}current`;
         const deckCount = Object.keys(value).length;
         const cardCount = Object.values(value).reduce((sum, cards) => sum + (Array.isArray(cards) ? cards.length : 0), 0);
-
-        // Stage complete new body first. Failure here leaves the old pointer untouched.
-        await writeStatsDatabaseValue(cacheKey, serialized);
         const pointer = {
             schemaVersion:2,
             cacheKey,
@@ -9919,22 +9931,42 @@
             cardCount,
             createdAt:Date.now()
         };
-        // Commit = one tiny pointer write after the whole body is durable.
-        await writeStatsDatabaseValue(LIBRARY_CACHE_ACTIVE_POINTER_DB_KEY, JSON.stringify(pointer));
-        window.__mkLibraryCacheMeta = pointer;
-        console.info('[MK_LIBRARY_ATOMIC_COMMIT_OK]', pointer);
 
+        // The old deck cache is disposable (Stats/History/Learning Stats use separate
+        // keys). Free it before the first v279 write so an iPhone does not need room
+        // for both the old and new full libraries at the same time.
         if(previousPointer && previousPointer.cacheKey && previousPointer.cacheKey !== cacheKey) {
-            setTimeout(() => removeStatsDatabaseValue(previousPointer.cacheKey)
-                .catch(error => console.warn('[MK_LIBRARY_OLD_CACHE_CLEANUP_FAILED]', error)), 0);
+            try { await removeStatsDatabaseValue(previousPointer.cacheKey); }
+            catch(error) { console.warn('[MK_LIBRARY_OLD_BODY_PREWRITE_CLEANUP_FAILED]', error); }
         }
-        // Once v2 is committed, legacy v1 cache must not linger as a stale fallback
-        // or consume iOS storage. Learning Stats/Stats use different keys and are untouched.
+        try { await removeStatsDatabaseValue(LIBRARY_CACHE_DB_KEY); }
+        catch(error) { console.warn('[MK_LIBRARY_LEGACY_BODY_PREWRITE_CLEANUP_FAILED]', error); }
+
+        const db = await openStatsDatabase();
+        try {
+            await new Promise((resolve, reject) => {
+                const transaction = db.transaction(STATS_DB_STORE, 'readwrite');
+                const store = transaction.objectStore(STATS_DB_STORE);
+                // Store the object directly. Avoid JSON.stringify() creating another
+                // giant in-memory copy on iOS. Body + pointer commit in one transaction.
+                store.put(value, cacheKey);
+                store.put(JSON.stringify(pointer), LIBRARY_CACHE_ACTIVE_POINTER_DB_KEY);
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => reject(transaction.error || new Error('LibraryCacheIndexedDBWriteFailed'));
+                transaction.onabort = () => reject(transaction.error || new Error('LibraryCacheIndexedDBWriteAborted'));
+            });
+        } finally {
+            db.close();
+        }
+
+        window.__mkLibraryCacheMeta = pointer;
+        console.info('[MK_LIBRARY_INPLACE_COMMIT_OK]', pointer);
+
+        // Old metadata is no longer authoritative once the v2 pointer exists.
         setTimeout(() => Promise.all([
-            removeStatsDatabaseValue(LIBRARY_CACHE_DB_KEY),
             removeStatsDatabaseValue(LIBRARY_CACHE_MANIFEST_VERSION_DB_KEY),
             removeStatsDatabaseValue(LIBRARY_CACHE_PARSER_VERSION_DB_KEY)
-        ]).catch(error => console.warn('[MK_LIBRARY_LEGACY_CACHE_CLEANUP_FAILED]', error)), 0);
+        ]).catch(error => console.warn('[MK_LIBRARY_LEGACY_META_CLEANUP_FAILED]', error)), 0);
         return true;
     }
 
