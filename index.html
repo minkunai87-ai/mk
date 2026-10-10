@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.285 TABLE FLOW RESET -->
+<!-- preview: v18.5.286 HIERARCHY TABLE PARSER -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.285 TABLE FLOW RESET)</title>
+<title>MK (v18.5.286 HIERARCHY TABLE PARSER)</title>
 
 <script>
     (() => {
@@ -769,7 +769,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.285 TABLE FLOW RESET)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.286 HIERARCHY TABLE PARSER)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1064,7 +1064,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.285 TABLE FLOW RESET';
+    const APP_VERSION = 'v18.5.286 HIERARCHY TABLE PARSER';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -11088,18 +11088,22 @@ function splitMkMarkdownTableRow(line) {
     function renderMkPipeTablesInsideElements(root) {
         if(!root || !root.querySelectorAll) return;
 
-        // sync exports sibling/context tables as raw pipe markdown inside a span.
-        // Render those spans independently so surrounding hierarchy HTML does not
-        // prevent table detection.
-        const candidates = Array.from(root.querySelectorAll('span, div'))
+        // IMPORTANT: Logseq hierarchy HTML is already structured as UL/LI blocks.
+        // Never run the pipe-table parser on a wrapper that contains child bullets.
+        // Rewriting such a wrapper's innerHTML lets the table parser consume closing
+        // LI/UL tags as cell text, which collapses later bullets into the previous
+        // table and makes headings/tables appear side-by-side or in random columns.
+        const candidates = Array.from(root.querySelectorAll('span, div, li'))
             .filter(el => !el.closest('table'))
+            .filter(el => !el.querySelector('ul, ol, li'))
             .filter(el => {
                 const html = String(el.innerHTML || '');
                 return html.includes('|') && /<br\s*\/?>/i.test(html)
                     && /(?:^|<br\s*\/?>)\s*\|?[^<]*\|[^<]*(?:\||$)/i.test(html);
             });
 
-        // Deepest elements first avoids converting a parent twice.
+        // Deepest leaf first. Once a child becomes a table, its parent is skipped,
+        // preserving the original Logseq bullet boundaries exactly.
         candidates.sort((a, b) => {
             const depth = el => {
                 let d = 0, n = el;
@@ -11110,7 +11114,7 @@ function splitMkMarkdownTableRow(line) {
         });
 
         candidates.forEach(el => {
-            if(el.querySelector('table')) return;
+            if(el.querySelector('table, ul, ol, li')) return;
             const before = String(el.innerHTML || '');
             const rendered = renderMkMarkdownPipeTables(before);
             if(rendered !== before && /<table\b/i.test(rendered)) {
@@ -11345,10 +11349,14 @@ function createDOM(card, isAnswer, trace) {
         }
         
         // 2. 본문(Main Text) 조립
-        // Raw Logseq Markdown pipe tables are exported as multiline text. Render them
-        // here so the whole table stays visible while CS targets inside cells remain
-        // normal MK CS wrappers.
-        if(!rawIsIO) txt = renderMkMarkdownPipeTables(txt);
+        // Raw pipe-table conversion must NEVER run across an entire Logseq hierarchy.
+        // A hierarchy string contains UL/LI boundaries between independent bullets;
+        // global conversion can swallow those tags into table cells and destroy the
+        // bullet order. Hierarchical cards are parsed first, then only leaf blocks are
+        // converted by renderMkPipeTablesInsideElements(). Flat/non-hierarchy cards
+        // can still use the fast whole-string conversion path.
+        const hasLogseqHierarchyMarkup = /<(?:ul|ol|li)\b/i.test(txt);
+        if(!rawIsIO && !hasLogseqHierarchyMarkup) txt = renderMkMarkdownPipeTables(txt);
         // Strip layout-only BRs from already-rendered Logseq tables before parsing.
         if(!rawIsIO) {
             txt = txt.replace(/<table\b[\s\S]*?<\/table>/gi, tableHtml =>
