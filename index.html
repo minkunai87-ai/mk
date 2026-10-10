@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.284 TABLE BLOCK LAYOUT -->
+<!-- preview: v18.5.285 TABLE FLOW RESET -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.284 TABLE BLOCK LAYOUT)</title>
+<title>MK (v18.5.285 TABLE FLOW RESET)</title>
 
 <script>
     (() => {
@@ -216,24 +216,41 @@
     .text-area p, .text-area div { margin: 0 !important; padding: 0 !important; }
     
     table { table-layout: auto !important; width: 100% !important; max-width: 100% !important; display: table !important; }
-    /* Logseq hierarchy tables must stay in normal vertical block flow. Some synced
-       hierarchy wrappers can carry layout styles; neutralize them only inside card text. */
+    /* Logseq table flow: synced hierarchy HTML can retain flex/grid/column layout on
+       an ancestor. A block table inside that ancestor becomes a flex/grid item and
+       multiple tables line up horizontally. Only ancestors that actually contain a
+       rendered table receive mk-table-flow-host at render time. */
+    .text-area .mk-table-flow-host,
     .text-area ul.children-list,
     .text-area ul.main-sibling-list,
     .text-area li.children {
         display: block !important;
         width: 100% !important;
         max-width: 100% !important;
+        min-width: 0 !important;
+        float: none !important;
+        clear: both !important;
+        columns: auto !important;
+        column-count: 1 !important;
     }
     .text-area li.children > span,
     .text-area li.children > div {
         display: block !important;
         width: 100% !important;
         max-width: 100% !important;
+        min-width: 0 !important;
     }
-    .text-area table {
+    .text-area table,
+    .text-area table.mk-table-block {
+        display: table !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
         float: none !important;
         clear: both !important;
+        flex: none !important;
+        align-self: stretch !important;
+        grid-column: 1 / -1 !important;
         margin-left: 0 !important;
         margin-right: 0 !important;
     }
@@ -752,7 +769,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.284 TABLE BLOCK LAYOUT)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.285 TABLE FLOW RESET)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1047,7 +1064,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.284 TABLE BLOCK LAYOUT';
+    const APP_VERSION = 'v18.5.285 TABLE FLOW RESET';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -1267,7 +1284,7 @@
     const LIBRARY_CACHE_ACTIVE_POINTER_DB_KEY = 'mk_library_cache_active_v2';
     const LIBRARY_CACHE_VERSIONED_PREFIX = 'mk_library_cache_v2:';
     const PDF_ANNOTATION_INDEX_DB_KEY = 'mk_pdf_annotation_index_v1';
-    const LIBRARY_CACHE_PARSER_VERSION = 'cs-activeblock-table-layout-v9-pwa-inplace-cache';
+    const LIBRARY_CACHE_PARSER_VERSION = 'cs-activeblock-table-layout-v10-table-flow-reset';
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
     const REVIEW_HISTORY_EVENTS_DB_KEY_PREFIX = 'mk_review_history_events_v1::';
     const REVIEW_HISTORY_TOMBSTONE_DB_KEY_PREFIX = 'mk_review_history_tombstone_v1::';
@@ -11045,7 +11062,26 @@ function splitMkMarkdownTableRow(line) {
             // Auto layout lets long question columns take the space they need while
             // short answer/core columns remain compact, matching Logseq more closely.
             table.dataset.mkColumnCount = String(columnCount);
-            table.classList.add('mk-normalized-table');
+            table.classList.add('mk-normalized-table', 'mk-table-block');
+
+            // A table may be nested inside a synced wrapper carrying display:flex/grid,
+            // CSS columns, or float. In that case several independent Logseq tables are
+            // laid out side-by-side even though the table itself is display:table.
+            // Mark only the ancestor chain of rendered tables and neutralize those
+            // layout-only inline styles so each table returns to normal vertical flow.
+            let host = table.parentElement;
+            while(host && host !== root) {
+                if(/^(TD|TH|TR|TBODY|THEAD|TFOOT|COLGROUP|COL)$/i.test(host.tagName || '')) break;
+                if(host.classList) host.classList.add('mk-table-flow-host');
+                if(host.style) {
+                    [
+                        'display', 'flex', 'flex-direction', 'flex-wrap', 'flex-flow',
+                        'grid-template-columns', 'grid-auto-flow', 'grid-template-areas',
+                        'float', 'columns', 'column-count', 'column-width'
+                    ].forEach(property => host.style.removeProperty(property));
+                }
+                host = host.parentElement;
+            }
         });
     }
 
