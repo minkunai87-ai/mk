@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.286 HIERARCHY TABLE PARSER -->
+<!-- preview: v18.5.287 ARROW CONTEXT MASKS -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.286 HIERARCHY TABLE PARSER)</title>
+<title>MK (v18.5.287 ARROW CONTEXT MASKS)</title>
 
 <script>
     (() => {
@@ -356,6 +356,23 @@
     .cloze-q { color: #ff6b6b !important; font-weight: bold; background: rgba(255,107,107,0.15); padding: 0 4px; border-radius: 4px; cursor: pointer; }
     .cloze-a { color: #4dabf7 !important; font-weight: bold; background: #182836; padding: 0 4px; border-radius: 4px; }
     .mk-arrow-card .cloze-q { background: rgba(255,107,107,0.22) !important; box-shadow: 0 0 10px rgba(255,107,107,0.28); }
+    /* :-> context blanks: show every sibling blank, but reveal only the current target. */
+    .mk-arrow-blank { display: inline; scroll-margin-block: 32vh; }
+    .mk-arrow-context .cloze-q {
+        background: rgba(255,107,107,0.15) !important;
+        box-shadow: none !important;
+    }
+    .mode-question .mk-arrow-blank .cloze-q { display: inline !important; }
+    .mode-question .mk-arrow-blank .cloze-a { display: none !important; }
+    .mode-question .mk-arrow-target .cloze-q {
+        color: #fff !important;
+        background: #d94848 !important;
+        box-shadow: 0 0 12px rgba(255,107,107,0.42) !important;
+    }
+    .mode-question.mk-arrow-answer-revealed .mk-arrow-target .cloze-q { display: none !important; }
+    .mode-question.mk-arrow-answer-revealed .mk-arrow-target .cloze-a { display: inline !important; }
+    .text-area.mk-arrow-show-all .mk-arrow-blank .cloze-q { display: none !important; }
+    .text-area.mk-arrow-show-all .mk-arrow-blank .cloze-a { display: inline !important; }
     .mk-arrow-focus-chain,
     .mk-arrow-focus-chain.sibling-block,
     .sibling-block.mk-arrow-focus-chain { opacity: 1 !important; }
@@ -769,7 +786,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.286 HIERARCHY TABLE PARSER)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.287 ARROW CONTEXT MASKS)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1064,7 +1081,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.286 HIERARCHY TABLE PARSER';
+    const APP_VERSION = 'v18.5.287 ARROW CONTEXT MASKS';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -11309,6 +11326,234 @@ function tagRenderedMkArrowTarget(root) {
         return tagged;
     }
 
+function getMkArrowOwnBlockText(block) {
+        if(!block) return '';
+        const clone = block.cloneNode(true);
+        Array.from(clone.children || []).forEach(child => {
+            if(/^(UL|OL)$/i.test(child.tagName || '')) child.remove();
+        });
+        clone.querySelectorAll('.cloze-wrapper, .mk-cs-wrapper, table, img, svg').forEach(node => node.remove());
+        return String(clone.textContent || '')
+            .replace(/:->/g, ' ')
+            .replace(/\[\.\.\.\]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function getMkArrowSiblingSignatureFromRoot(root) {
+        if(!root || !root.querySelector) return '';
+        const activeRaw = root.querySelector('li.active-block, .active-block');
+        const active = activeRaw && (activeRaw.matches && activeRaw.matches('li') ? activeRaw : activeRaw.closest && activeRaw.closest('li'));
+        if(!active || !active.parentElement) return '';
+        return Array.from(active.parentElement.children)
+            .filter(node => node.tagName === 'LI')
+            .map(node => getMkArrowOwnBlockText(node).toLowerCase())
+            .filter(Boolean)
+            .join('\u241f');
+    }
+
+    function getMkArrowSiblingSignatureFromHtml(html) {
+        const holder = document.createElement('div');
+        holder.innerHTML = String(html || '');
+        return getMkArrowSiblingSignatureFromRoot(holder);
+    }
+
+    function getMkArrowActiveLabelFromCard(card) {
+        if(!card) return '';
+        const holder = document.createElement('div');
+        holder.innerHTML = String(card.q || card.a || '');
+        const activeRaw = holder.querySelector('li.active-block, .active-block');
+        const active = activeRaw && (activeRaw.matches && activeRaw.matches('li') ? activeRaw : activeRaw.closest && activeRaw.closest('li'));
+        return getMkArrowOwnBlockText(active || activeRaw || holder).toLowerCase();
+    }
+
+    function extractMkArrowAnswerHtmlFromCard(card) {
+        if(!card) return '';
+        for(const source of [card.q, card.a]) {
+            const holder = document.createElement('div');
+            holder.innerHTML = String(source || '');
+            const active = holder.querySelector('li.active-block, .active-block') || holder;
+            const answerNode = active.querySelector('.mk-arrow-card .cloze-a, .cloze-wrapper .cloze-a');
+            if(answerNode && String(answerNode.innerHTML || answerNode.textContent || '').trim()) {
+                return String(answerNode.innerHTML || answerNode.textContent || '').trim();
+            }
+            const parsed = parseMkArrowCard(active.innerHTML || active.outerHTML || '');
+            if(parsed && parsed.answer) return String(parsed.answer).trim();
+        }
+        return '';
+    }
+
+    function findMkArrowContextSourceCard(currentCard, contextBlock, root) {
+        const label = getMkArrowOwnBlockText(contextBlock).toLowerCase();
+        if(!label || !Array.isArray(originalDeck)) return null;
+        const currentSignature = getMkArrowSiblingSignatureFromRoot(root);
+        const currentOrder = Number(currentCard && currentCard.sourceOrder);
+        const currentId = String(currentCard && currentCard.id || '');
+        const currentBreadcrumb = String(currentCard && currentCard.breadcrumb || '');
+        const currentDeck = String(currentCard && currentCard.deck || currentDeckName || '');
+        let best = null;
+        let bestScore = -Infinity;
+
+        originalDeck.forEach((candidate, index) => {
+            if(!candidate || String(candidate.id || '') === currentId || !isMkArrowCard(candidate)) return;
+            const candidateLabel = getMkArrowActiveLabelFromCard(candidate);
+            if(!candidateLabel || candidateLabel !== label) return;
+            const answerHtml = extractMkArrowAnswerHtmlFromCard(candidate);
+            if(!answerHtml) return;
+
+            const candidateSignature = getMkArrowSiblingSignatureFromHtml(candidate.q || candidate.a || '');
+            const candidateOrder = Number(candidate.sourceOrder);
+            const distance = Number.isFinite(currentOrder) && Number.isFinite(candidateOrder)
+                ? Math.abs(candidateOrder - currentOrder)
+                : Math.abs(index - currentIndex);
+
+            let score = 0;
+            if(currentSignature && candidateSignature === currentSignature) score += 1000;
+            else if(currentSignature && candidateSignature) score -= 100;
+            if(currentBreadcrumb && String(candidate.breadcrumb || '') === currentBreadcrumb) score += 100;
+            if(currentDeck && String(candidate.deck || '') === currentDeck) score += 50;
+            score += Math.max(0, 40 - Math.min(40, distance * 8));
+
+            if(score > bestScore) {
+                bestScore = score;
+                best = { card:candidate, answerHtml, score, distance };
+            }
+        });
+
+        // A bare numeric sibling label can occur many times. Require either an exact
+        // sibling-layout match or a close source-order/breadcrumb match before injecting.
+        if(!best) return null;
+        if(bestScore >= 1000) return best;
+        if(bestScore >= 120 && best.distance <= 4) return best;
+        return null;
+    }
+
+    function getMkArrowOwnClozeWrappers(block) {
+        if(!block || !block.querySelectorAll) return [];
+        return Array.from(block.querySelectorAll('.cloze-wrapper')).filter(wrapper => {
+            const owner = wrapper.closest && wrapper.closest('li');
+            return !owner || owner === block;
+        });
+    }
+
+    function ensureMkArrowContextBlank(block, sourceMatch) {
+        if(!block || !sourceMatch || !sourceMatch.answerHtml) return null;
+        const existing = getMkArrowOwnClozeWrappers(block)[0];
+        if(existing) {
+            existing.classList.add('mk-arrow-blank', 'mk-arrow-context');
+            existing.classList.remove('mk-arrow-target');
+            return existing;
+        }
+
+        const wrapper = document.createElement('span');
+        wrapper.className = 'cloze-wrapper mk-arrow-blank mk-arrow-context';
+        wrapper.dataset.mkArrowContext = '1';
+        wrapper.innerHTML = `<span class="cloze-q">[...]</span><span class="cloze-a">${sourceMatch.answerHtml}</span>`;
+
+        const childList = Array.from(block.children || []).find(child => /^(UL|OL)$/i.test(child.tagName || '')) || null;
+        const body = Array.from(block.children || []).find(child => !/^(UL|OL)$/i.test(child.tagName || '')) || null;
+        const ownText = (() => {
+            const clone = block.cloneNode(true);
+            Array.from(clone.children || []).forEach(child => {
+                if(/^(UL|OL)$/i.test(child.tagName || '')) child.remove();
+            });
+            return String(clone.textContent || '');
+        })();
+        const needsMarker = !ownText.includes(':->');
+        const marker = document.createTextNode(needsMarker ? ' :-> ' : ' ');
+
+        if(body && body !== block) {
+            body.appendChild(marker);
+            body.appendChild(wrapper);
+        } else {
+            block.insertBefore(marker, childList);
+            block.insertBefore(wrapper, childList);
+        }
+        return wrapper;
+    }
+
+    function normalizeMkArrowQuestionState(root, card) {
+        if(!root || !isMkArrowCard(card)) return false;
+        root.classList.remove('mk-arrow-answer-revealed', 'mk-arrow-show-all');
+
+        const target = root.querySelector('.mk-arrow-card');
+        if(target) {
+            target.classList.add('mk-arrow-blank', 'mk-arrow-target');
+            target.classList.remove('mk-arrow-context');
+        }
+
+        const activeRaw = root.querySelector('li.active-block, .active-block');
+        const active = activeRaw && (activeRaw.matches && activeRaw.matches('li') ? activeRaw : activeRaw.closest && activeRaw.closest('li'));
+        const level = active && active.parentElement;
+        if(level) {
+            Array.from(level.children).filter(node => node.tagName === 'LI').forEach(block => {
+                if(block === active) return;
+                const ownWrappers = getMkArrowOwnClozeWrappers(block);
+                const hasArrowMarker = (() => {
+                    const clone = block.cloneNode(true);
+                    Array.from(clone.children || []).forEach(child => {
+                        if(/^(UL|OL)$/i.test(child.tagName || '')) child.remove();
+                    });
+                    return String(clone.textContent || '').includes(':->');
+                })();
+
+                if(ownWrappers.length && hasArrowMarker) {
+                    ownWrappers.forEach(wrapper => {
+                        wrapper.classList.add('mk-arrow-blank', 'mk-arrow-context');
+                        wrapper.classList.remove('mk-arrow-target', 'mk-arrow-card');
+                    });
+                    return;
+                }
+
+                const sourceMatch = findMkArrowContextSourceCard(card, block, root);
+                if(sourceMatch) ensureMkArrowContextBlank(block, sourceMatch);
+            });
+        }
+
+        root.querySelectorAll('.mk-arrow-blank').forEach(wrapper => {
+            const mask = wrapper.querySelector('.cloze-q');
+            const answer = wrapper.querySelector('.cloze-a');
+            if(mask) {
+                mask.textContent = '[...]';
+                mask.style.removeProperty('display');
+                mask.style.removeProperty('visibility');
+                mask.style.removeProperty('opacity');
+            }
+            if(answer) {
+                answer.style.removeProperty('display');
+                answer.style.removeProperty('visibility');
+                answer.style.removeProperty('opacity');
+            }
+        });
+
+        return !!root.querySelector('.mk-arrow-target');
+    }
+
+    function updateMkArrowOtherMasksToggle(root, card) {
+        if(!root || !isMkArrowCard(card)) return;
+        const wrappers = Array.from(root.querySelectorAll('.mk-arrow-blank'));
+        if(wrappers.length < 2) return;
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'mk-io-other-masks-toggle mk-arrow-other-masks-toggle';
+        button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+        button.title = '모든 빈칸 보기';
+        button.setAttribute('aria-label', button.title);
+        button.setAttribute('aria-pressed', 'false');
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            root.classList.toggle('mk-arrow-show-all');
+            const isActive = root.classList.contains('mk-arrow-show-all');
+            button.classList.toggle('active', isActive);
+            button.setAttribute('aria-pressed', String(isActive));
+            button.title = isActive ? '모든 빈칸 숨기기' : '모든 빈칸 보기';
+            button.setAttribute('aria-label', button.title);
+        });
+        document.body.appendChild(button);
+    }
+
 function createDOM(card, isAnswer, trace) {
         let txt = isAnswer ? card.a.trim() : card.q.trim();
         if(txt.startsWith('"') && txt.endsWith('"')) txt = txt.slice(1, -1).replace(/""/g, '"');
@@ -13482,11 +13727,13 @@ function getIOImageGroups() {
                 if(target) scrollElementToProblemPosition(target, { alignRatio:0.38, behavior:'auto' });
             }));
         } else if(isArrowCard) {
+            normalizeMkArrowQuestionState(qSection, card);
+            updateMkArrowOtherMasksToggle(qSection, card);
             applyMkArrowHierarchyFocus(qSection);
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 if(!qSection.isConnected || activeDeck[currentIndex] !== card) return;
                 applyMkArrowHierarchyFocus(qSection);
-                const target = qSection.querySelector('.mk-arrow-card .cloze-q');
+                const target = qSection.querySelector('.mk-arrow-target .cloze-q, .mk-arrow-card .cloze-q');
                 if(target) scrollElementToProblemPosition(target, { alignRatio:0.38, behavior:'auto' });
             }));
         }
@@ -13588,6 +13835,26 @@ function getIOImageGroups() {
             normalizeMkCSQuestionState(qDiv, card);
             qDiv.classList.add('mk-cs-answer-revealed');
             applyMkCSHierarchyFocus(qDiv);
+
+            const aDiv = document.getElementById('answer-section');
+            aDiv.style.display = 'none';
+            document.getElementById('divider').style.display = 'none';
+            document.getElementById('grade-area').style.display = 'flex';
+
+            if (window.MathJax && cardNeedsMathJax(card, true)) {
+                MathJax.typesetPromise([qDiv]).catch(function (err) { console.log(err); });
+            }
+
+            persistCurrentViewState(false);
+            return;
+        }
+
+        // :-> cards keep every sibling blank masked as context and reveal ONLY
+        // the current target. The eye button can independently reveal all blanks.
+        if(isMkArrowCard(card)) {
+            if(!qDiv.querySelector('.mk-arrow-target')) normalizeMkArrowQuestionState(qDiv, card);
+            qDiv.classList.add('mk-arrow-answer-revealed');
+            applyMkArrowHierarchyFocus(qDiv);
 
             const aDiv = document.getElementById('answer-section');
             aDiv.style.display = 'none';
