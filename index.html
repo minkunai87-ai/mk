@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.290 TODAY PLAN FILTER COUNT -->
+<!-- preview: v18.5.291 TODAY PLAN SYNC -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.290 TODAY PLAN FILTER COUNT)</title>
+<title>MK (v18.5.291 TODAY PLAN SYNC)</title>
 
 <script>
     (() => {
@@ -822,7 +822,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.290 TODAY PLAN FILTER COUNT)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.291 TODAY PLAN SYNC)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1180,7 +1180,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.290 TODAY PLAN FILTER COUNT';
+    const APP_VERSION = 'v18.5.291 TODAY PLAN SYNC';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -1858,7 +1858,10 @@
             };
         }).filter(Boolean);
         todayPlanActiveItemId = '';
-        return writeTodayPlanStore({ version:TODAY_PLAN_VERSION, date:today, items:carriedItems });
+        const rolledStore = writeTodayPlanStore({ version:TODAY_PLAN_VERSION, date:today, items:carriedItems });
+        markLocalDataUpdated(Date.now());
+        scheduleBackup('today-plan');
+        return rolledStore;
     }
 
     function getTodayPlanProgress(item) {
@@ -2192,6 +2195,8 @@
         if(existing) store.items = store.items.map(entry => String(entry.id) === existing.id ? item : entry);
         else store.items.push(item);
         store = writeTodayPlanStore(store);
+        markLocalDataUpdated(Date.now());
+        scheduleBackup('today-plan');
         closeTodayPlanEditor();
         renderTodayPlan();
         if(selectedIds.length < targetCount) showToast(`중복 제외 후 가능한 ${selectedIds.length}문제만 계획에 넣었습니다.`);
@@ -2206,6 +2211,8 @@
         store.items = store.items.filter(entry => String(entry.id) !== String(itemId));
         if(todayPlanActiveItemId === String(itemId)) todayPlanActiveItemId = '';
         writeTodayPlanStore(store);
+        markLocalDataUpdated(Date.now());
+        scheduleBackup('today-plan');
         renderTodayPlan();
         updateFilterStatusUI();
         showToast('오늘 계획에서만 삭제했습니다.', 'success');
@@ -3943,7 +3950,7 @@
 
     function scheduleBackup(reason = '') {
         if(reason) setLocalDataDirty(true);
-        if (reason !== 'review') return;
+        if (reason !== 'review' && reason !== 'today-plan') return;
         if (backupTimer) clearTimeout(backupTimer);
         backupTimer = setTimeout(() => {
             backupTimer = null;
@@ -4052,6 +4059,7 @@
             deckViewStates: localStorage.getItem(STORAGE_KEY_DECK_VIEW_STATES),
             reviewHistory: localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY),
             notesByCardUuid: localStorage.getItem(STORAGE_KEY_NOTES) || '{}',
+            todayPlan: localStorage.getItem(TODAY_PLAN_STORAGE_KEY) || JSON.stringify(getEmptyTodayPlanStore()),
             [LEARNING_STATS_STORAGE_KEY]: learningStatsBackup,
             [LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: learningStatsFavoriteDecksBackup,
             learningStatsPresent: true,
@@ -5516,6 +5524,7 @@
         const restoredCoreIntegrity = verifyRestoredCoreBackupIntegrity(raw);
         if(!restoredCoreIntegrity.ok) return { ok:false, reason:restoredCoreIntegrity.reason, statsKeyCount };
         if (hasBackupField(raw, 'notesByCardUuid')) safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(normalized.notesByCardUuid || {}));
+        if (hasBackupField(raw, 'todayPlan')) safeRestoreLocalStorage(TODAY_PLAN_STORAGE_KEY, JSON.stringify(normalized.todayPlan || getEmptyTodayPlanStore()));
         if (hasBackupField(raw, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, raw.progress);
         if (hasBackupField(raw, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, raw.filter);
         if (hasBackupField(raw, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, raw.recentDecks);
@@ -6216,7 +6225,8 @@
             viewState: compactViewState(getBackupViewState(raw || {})),
             stats: getBackupStatsCandidate(raw || {}),
             reviewHistory: parseJSONSafe(raw && raw.reviewHistory, {}),
-            notesByCardUuid: normalizeNotesByCardUuid(raw && raw.notesByCardUuid)
+            notesByCardUuid: normalizeNotesByCardUuid(raw && raw.notesByCardUuid),
+            todayPlan: parseJSONSafe(raw && raw.todayPlan, null)
         };
     }
 
@@ -6268,6 +6278,14 @@
         }
         if(nextHistory && Object.keys(nextHistory).length) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(nextHistory));
         if(hasBackupField(raw, 'notesByCardUuid')) { const nextNotes = shouldMerge ? mergeNotesByUpdatedAt(getNotesByCardUuid(), incomingNotes) : incomingNotes; safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(nextNotes)); }
+        if(hasBackupField(raw, 'todayPlan')) {
+            const incomingTodayPlan = payload.todayPlan || parseJSONSafe(raw.todayPlan, null);
+            if(incomingTodayPlan && typeof incomingTodayPlan === 'object' && Array.isArray(incomingTodayPlan.items)) {
+                safeRestoreLocalStorage(TODAY_PLAN_STORAGE_KEY, JSON.stringify(incomingTodayPlan));
+                todayPlanActiveItemId = '';
+                updateTodayPlanMenuBadge(incomingTodayPlan);
+            }
+        }
         if(nextStats && Object.keys(nextStats).length) {
             const statsResult = await restoreStatsWithFallback(JSON.stringify(nextStats), {
                 baselineStatsKeyCount: options.baselineStatsKeyCount,
@@ -6826,6 +6844,10 @@
             const incomingHistory = normalized.reviewHistory || {};
             if (incomingHistory && Object.keys(incomingHistory).length) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(incomingHistory));
             if (hasBackupField(payload, 'notesByCardUuid')) safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(normalized.notesByCardUuid || {}));
+            if (hasBackupField(payload, 'todayPlan')) {
+                safeRestoreLocalStorage(TODAY_PLAN_STORAGE_KEY, JSON.stringify(normalized.todayPlan || getEmptyTodayPlanStore()));
+                todayPlanActiveItemId = '';
+            }
             if (hasBackupField(payload, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, payload.progress);
             if (hasBackupField(payload, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, payload.filter);
             if (hasBackupField(payload, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, payload.recentDecks);
