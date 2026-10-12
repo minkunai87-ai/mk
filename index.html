@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.288 TODAY PLAN -->
+<!-- preview: v18.5.290 TODAY PLAN FILTER COUNT -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.288 TODAY PLAN)</title>
+<title>MK (v18.5.290 TODAY PLAN FILTER COUNT)</title>
 
 <script>
     (() => {
@@ -760,6 +760,8 @@
     .today-plan-field { margin-bottom:11px; }
     .today-plan-field label { display:block; margin-bottom:6px; color:var(--text-sub); font-size:0.8rem; font-weight:800; }
     .today-plan-select, .today-plan-number { width:100%; min-height:42px; border:1px solid var(--border); border-radius:9px; background:var(--input-bg); color:var(--text); padding:9px 10px; font-size:0.9rem; }
+    .today-plan-availability { margin:-1px 0 11px; padding:9px 11px; border:1px solid var(--border); border-radius:9px; background:#252525; color:var(--text-sub); font-size:0.82rem; line-height:1.4; }
+    .today-plan-availability strong { color:var(--primary); }
     .today-plan-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
     .today-plan-empty { padding:22px 8px; text-align:center; color:var(--text-sub); border:1px dashed var(--border); border-radius:12px; }
     .today-plan-menu-btn { position:relative; }
@@ -820,7 +822,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.288 TODAY PLAN)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.290 TODAY PLAN FILTER COUNT)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -860,16 +862,17 @@
                     </div>
                     <div class="today-plan-field">
                         <label for="today-plan-sub-deck">하위덱 / 범위</label>
-                        <select id="today-plan-sub-deck" class="today-plan-select"></select>
+                        <select id="today-plan-sub-deck" class="today-plan-select" onchange="updateTodayPlanAvailableCount()"></select>
                     </div>
                 </div>
                 <div class="today-plan-form-grid">
                     <div class="today-plan-field">
                         <label for="today-plan-filter">필터</label>
-                        <select id="today-plan-filter" class="today-plan-select">
+                        <select id="today-plan-filter" class="today-plan-select" onchange="updateTodayPlanAvailableCount()">
                             <option value="default">📋 전체</option>
                             <option value="due">🎯 오늘 복습</option>
                             <option value="essential">오늘 필수</option>
+                            <option value="new">오늘 새로</option>
                             <option value="mem">🧠 암기</option>
                             <option value="cmp">🆚 비교</option>
                             <option value="fav">⭐ 중요</option>
@@ -891,6 +894,7 @@
                         </select>
                     </div>
                 </div>
+                <div id="today-plan-availability" class="today-plan-availability">필터 적용 총 문제: -</div>
                 <div class="today-plan-field">
                     <label for="today-plan-target">오늘 풀 문제 수</label>
                     <input id="today-plan-target" class="today-plan-number" type="number" min="1" step="1" value="30">
@@ -1176,7 +1180,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.288 TODAY PLAN';
+    const APP_VERSION = 'v18.5.290 TODAY PLAN FILTER COUNT';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -1884,16 +1888,42 @@
     function getTodayPlanDeckOptions(parentDeck) {
         const parent = normalizeDeckPath(parentDeck);
         if(!parent) return [];
-        const keys = Object.keys(library || {}).map(normalizeDeckPath).filter(path => path === parent || path.startsWith(parent + '__')).sort((a,b) => a.localeCompare(b, 'ko'));
+        const libraryKeys = Object.keys(library || {}).map(normalizeDeckPath).filter(Boolean);
+        const sourceKeys = libraryKeys.filter(path => path === parent || path.startsWith(parent + '__'));
+        const pathSet = new Set([parent]);
+        sourceKeys.forEach(path => {
+            const segments = path.split('__');
+            for(let depth = 1; depth <= segments.length; depth++) {
+                const candidate = segments.slice(0, depth).join('__');
+                if(candidate === parent || candidate.startsWith(parent + '__')) pathSet.add(candidate);
+            }
+        });
+        const paths = Array.from(pathSet).sort((a,b) => {
+            const depthDiff = a.split('__').length - b.split('__').length;
+            if(depthDiff) return depthDiff;
+            return a.localeCompare(b, 'ko');
+        });
         const options = [];
-        const hasParentChildren = keys.some(path => path.startsWith(parent + '__'));
-        if(hasParentChildren) options.push({ value:`group|${parent}`, label:'📂 전체 (하위덱 포함)' });
-        if(Array.isArray(library[parent]) && library[parent].length) options.push({ value:`deck|${parent}`, label:hasParentChildren ? '📄 상위덱 직접 카드만' : '📄 전체' });
-        keys.filter(path => path !== parent).forEach(path => {
-            const relative = path.slice(parent.length + 2).replace(/__/g, ' > ');
-            const hasChildren = keys.some(other => other.startsWith(path + '__'));
-            if(hasChildren) options.push({ value:`group|${path}`, label:`📂 ${relative} 전체` });
-            if(Array.isArray(library[path]) && library[path].length) options.push({ value:`deck|${path}`, label:`📄 ${relative}${hasChildren ? ' · 직접 카드' : ''}` });
+        paths.forEach(path => {
+            const hasChildren = sourceKeys.some(other => other.startsWith(path + '__'));
+            const hasDirectCards = Array.isArray(library[path]) && library[path].length;
+            const relative = path === parent ? '' : path.slice(parent.length + 2).replace(/__/g, ' > ');
+            const depth = Math.max(0, path.split('__').length - parent.split('__').length);
+            const indent = depth ? `${'　'.repeat(Math.max(0, depth - 1))}↳ ` : '';
+            if(hasChildren) {
+                options.push({
+                    value:`group|${path}`,
+                    label:path === parent ? '📂 전체 (하위덱 포함)' : `${indent}📂 ${relative} 전체`
+                });
+            }
+            if(hasDirectCards) {
+                options.push({
+                    value:`deck|${path}`,
+                    label:path === parent
+                        ? (hasChildren ? '📄 상위덱 직접 카드만' : '📄 전체')
+                        : `${indent}📄 ${relative}${hasChildren ? ' · 직접 카드' : ''}`
+                });
+            }
         });
         return options;
     }
@@ -1914,6 +1944,7 @@
         const options = getTodayPlanDeckOptions(parentSelect.value);
         subSelect.innerHTML = options.map(option => `<option value="${escapeTodayPlanHtml(option.value)}">${escapeTodayPlanHtml(option.label)}</option>`).join('');
         if(selectedValue && options.some(option => option.value === selectedValue)) subSelect.value = selectedValue;
+        updateTodayPlanAvailableCount();
     }
 
     function getTodayPlanSourceCards(deckPath, deckMode) {
@@ -1972,6 +2003,8 @@
         const mode = String(config.filterMode || 'default');
         if(mode === 'essential') {
             cards = buildTodayEssentialCandidates({ cards, query:'', filterModes:[] }).candidates;
+        } else if(mode === 'new') {
+            cards = buildTodayNewCandidates({ cards, query:'', filterModes:[] }).candidates;
         } else if(mode !== 'default') {
             const today = new Date();
             today.setHours(0,0,0,0);
@@ -1991,6 +2024,37 @@
             (Array.isArray(item.cardIds) ? item.cardIds : []).forEach(id => reserved.add(String(id)));
         });
         return reserved;
+    }
+
+    async function updateTodayPlanAvailableCount() {
+        const output = document.getElementById('today-plan-availability');
+        if(!output) return;
+        const form = document.getElementById('today-plan-form');
+        if(form && !form.classList.contains('open')) return;
+        const deckSelection = String((document.getElementById('today-plan-sub-deck') || {}).value || '');
+        const separator = deckSelection.indexOf('|');
+        const deckMode = separator >= 0 ? deckSelection.slice(0, separator) : 'deck';
+        const deckPath = normalizeDeckPath(separator >= 0 ? deckSelection.slice(separator + 1) : deckSelection);
+        const filterMode = String((document.getElementById('today-plan-filter') || {}).value || 'default');
+        if(!deckPath) { output.textContent = '필터 적용 총 문제: -'; return; }
+        if(filterMode === 'new' && !(todayNewBaselineIds instanceof Set)) {
+            output.textContent = '오늘 새로 문제 수 계산 중…';
+            const requestedDeckSelection = deckSelection;
+            await loadTodayNewBaselineSnapshot();
+            if(String((document.getElementById('today-plan-filter') || {}).value || '') !== 'new') return;
+            if(String((document.getElementById('today-plan-sub-deck') || {}).value || '') !== requestedDeckSelection) { updateTodayPlanAvailableCount(); return; }
+        }
+        const store = ensureTodayPlanCurrentDay();
+        const editId = String((document.getElementById('today-plan-edit-id') || {}).value || '');
+        const seed = `${store.date}:count:${deckPath}:${filterMode}`;
+        const candidates = getTodayPlanCandidates({ deckPath, deckMode, filterMode, sortMode:'original' }, seed);
+        const reserved = getTodayPlanReservedIds(store, editId);
+        const availableCount = candidates.reduce((count, card) => count + (reserved.has(String(card && card.id || '')) ? 0 : 1), 0);
+        if(availableCount === candidates.length) {
+            output.innerHTML = `필터 적용 총 문제 <strong>${candidates.length}개</strong>`;
+        } else {
+            output.innerHTML = `필터 적용 총 문제 <strong>${candidates.length}개</strong> · 다른 오늘 계획과 중복 제외 후 <strong>${availableCount}개</strong>`;
+        }
     }
 
     function renderTodayPlan() {
@@ -2014,7 +2078,7 @@
         list.innerHTML = store.items.map(item => {
             const p = getTodayPlanProgress(item);
             const percent = p.total ? Math.round((p.done / p.total) * 100) : 0;
-            const filterLabel = item.filterMode === 'essential' ? '오늘 필수' : (modeNames[item.filterMode] || item.filterMode);
+            const filterLabel = item.filterMode === 'essential' ? '오늘 필수' : (item.filterMode === 'new' ? '오늘 새로' : (modeNames[item.filterMode] || item.filterMode));
             const sortLabel = modeNames[item.sortMode] || item.sortMode;
             const modeLabel = item.deckMode === 'group' ? '상위/그룹 전체' : '하위/단일덱';
             const doneClass = p.remain === 0 ? ' done' : '';
@@ -2072,6 +2136,7 @@
             document.getElementById('today-plan-target').value = '30';
         }
         form.classList.add('open');
+        updateTodayPlanAvailableCount();
         form.scrollIntoView({ block:'nearest', behavior:'smooth' });
     }
 
@@ -2086,7 +2151,7 @@
         openTodayPlanEditor(itemId);
     }
 
-    function saveTodayPlanEditor() {
+    async function saveTodayPlanEditor() {
         const editId = String((document.getElementById('today-plan-edit-id') || {}).value || '');
         const deckSelection = String((document.getElementById('today-plan-sub-deck') || {}).value || '');
         const separator = deckSelection.indexOf('|');
@@ -2096,6 +2161,7 @@
         const sortMode = String((document.getElementById('today-plan-sort') || {}).value || 'original');
         const targetCount = Math.max(1, parseInt((document.getElementById('today-plan-target') || {}).value, 10) || 1);
         if(!deckPath) { showToast('덱을 선택해주세요.', 'error'); return; }
+        if(filterMode === 'new' && !(todayNewBaselineIds instanceof Set)) await loadTodayNewBaselineSnapshot();
         let store = ensureTodayPlanCurrentDay();
         const existing = editId ? store.items.find(item => String(item.id) === editId) : null;
         const reserved = getTodayPlanReservedIds(store, editId);
