@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.293 TODAY PLAN FILTER MATCH -->
+<!-- preview: v18.5.294 EXTRA BLOCK FIX -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.293 TODAY PLAN FILTER MATCH)</title>
+<title>MK (v18.5.294 EXTRA BLOCK FIX)</title>
 
 <script>
     (() => {
@@ -330,7 +330,11 @@
     .mk-extra-content { display: none !important; }
 
     .mode-answer .mk-extra-node,
-    .mode-answer .mk-extra-content {
+    .mode-answer .mk-extra-content,
+    .mode-question.mk-arrow-answer-revealed .mk-extra-node,
+    .mode-question.mk-arrow-answer-revealed .mk-extra-content,
+    .mode-question.mk-cs-answer-revealed .mk-extra-node,
+    .mode-question.mk-cs-answer-revealed .mk-extra-content {
         display: block !important; 
         margin-top: 10px; 
         padding: 12px; 
@@ -822,7 +826,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.293 TODAY PLAN FILTER MATCH)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.294 EXTRA BLOCK FIX)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1180,7 +1184,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.293 TODAY PLAN FILTER MATCH';
+    const APP_VERSION = 'v18.5.294 EXTRA BLOCK FIX';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -10085,6 +10089,102 @@
         return restoreMkCSMacrosFromRenderedHtml(text);
     }
 
+    function removeMkExtraDirectiveMarkersFromRoot(root) {
+        if(!root) return;
+        const pattern = /#\s*\+\s*(?:BEGIN|END)_EXTRA\b/gi;
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while(walker.nextNode()) nodes.push(walker.currentNode);
+        nodes.forEach(node => {
+            node.nodeValue = String(node.nodeValue || '').replace(pattern, '');
+        });
+    }
+
+    function cleanupMkExtraDirectiveArtifacts(root) {
+        if(!root || !root.querySelectorAll) return;
+        const removable = Array.from(root.querySelectorAll('span, p, div, li, ul, ol')).reverse();
+        removable.forEach(node => {
+            const text = String(node.textContent || '').replace(/\u200b/g, '').trim();
+            const hasMeaningfulElement = !!node.querySelector('img, table, svg, video, audio, iframe, canvas, input, button, a[href], .mk-io-wrapper, .block-ref');
+            const hasListItem = /^(UL|OL)$/i.test(node.tagName || '') && Array.from(node.children || []).some(child => child.tagName === 'LI');
+            if(!text && !hasMeaningfulElement && !hasListItem) node.remove();
+        });
+    }
+
+    function extractMkInlineExtraBlocks(root) {
+        if(!root) return '';
+        const beginPattern = /#\s*\+\s*BEGIN_EXTRA\b/i;
+        const endPattern = /#\s*\+\s*END_EXTRA\b/i;
+        const extras = [];
+
+        const collectTextNodes = () => {
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+            const nodes = [];
+            while(walker.nextNode()) nodes.push(walker.currentNode);
+            return nodes;
+        };
+
+        for(let guard = 0; guard < 32; guard++) {
+            const nodes = collectTextNodes();
+            let begin = null;
+            let beginNodeIndex = -1;
+            for(let i = 0; i < nodes.length; i++) {
+                const match = beginPattern.exec(String(nodes[i].nodeValue || ''));
+                if(match) { begin = { node:nodes[i], match }; beginNodeIndex = i; break; }
+            }
+            if(!begin) break;
+
+            let end = null;
+            for(let i = beginNodeIndex; i < nodes.length; i++) {
+                const value = String(nodes[i].nodeValue || '');
+                const startOffset = i === beginNodeIndex ? begin.match.index + begin.match[0].length : 0;
+                const match = endPattern.exec(value.slice(startOffset));
+                if(match) {
+                    end = { node:nodes[i], index:startOffset + match.index, length:match[0].length };
+                    break;
+                }
+            }
+
+            const range = document.createRange();
+            range.setStart(begin.node, begin.match.index);
+            if(end) range.setEnd(end.node, end.index + end.length);
+            else range.setEnd(root, root.childNodes.length);
+
+            const fragment = range.cloneContents();
+            range.deleteContents();
+
+            const extraHolder = document.createElement('div');
+            extraHolder.appendChild(fragment);
+            removeMkExtraDirectiveMarkersFromRoot(extraHolder);
+            cleanupMkExtraDirectiveArtifacts(extraHolder);
+            const extraHtml = extraHolder.innerHTML.trim();
+            if(extraHtml) extras.push(extraHtml);
+
+            cleanupMkExtraDirectiveArtifacts(root);
+        }
+
+        // Do not let an unmatched directive leak into the visible question.
+        removeMkExtraDirectiveMarkersFromRoot(root);
+        cleanupMkExtraDirectiveArtifacts(root);
+        return extras.join('<br>');
+    }
+
+    function splitMkInlineExtraFromHtml(value) {
+        const holder = document.createElement('div');
+        holder.innerHTML = String(value || '');
+        const extraHtml = extractMkInlineExtraBlocks(holder);
+        return { mainHtml:holder.innerHTML, extraHtml };
+    }
+
+    function normalizeMkExtraDirectivePayload(value) {
+        if(value === null || value === undefined || value === '') return '';
+        const holder = document.createElement('div');
+        holder.innerHTML = String(value);
+        removeMkExtraDirectiveMarkersFromRoot(holder);
+        cleanupMkExtraDirectiveArtifacts(holder);
+        return holder.innerHTML.trim();
+    }
+
     function getMkHierarchyProblemBlocks(fullHtml, extraHtml = '') {
         const raw = String(fullHtml || '');
         const holder = document.createElement('div');
@@ -10382,7 +10482,18 @@
                 breadcrumb = fields[5] ? fields[5] : "";
                 graphName = normalizeDetectedGraphName(fields[6] || "") || extractLogseqGraphNameFromText([mainText, extra, breadcrumb].join(" "));
                 mainText = sanitizeLogseqSystemJunk(mainText);
-                extra = sanitizeLogseqSystemJunk(extra);
+                extra = normalizeMkExtraDirectivePayload(sanitizeLogseqSystemJunk(extra));
+
+                // BEGIN_EXTRA/END_EXTRA is metadata for the answer explanation, not
+                // part of the problem hierarchy. Remove it before :-> / CS detection
+                // so referenced extra blocks can never become stray masked questions.
+                const inlineExtraSplit = splitMkInlineExtraFromHtml(mainText);
+                mainText = inlineExtraSplit.mainHtml;
+                if(inlineExtraSplit.extraHtml) {
+                    extra = [extra, inlineExtraSplit.extraHtml]
+                        .filter(value => value && String(value).trim())
+                        .join('<br>');
+                }
 
                 if (
                     (!deckNameInRow || deckNameInRow === deck) &&
@@ -12182,10 +12293,6 @@ function createDOM(card, isAnswer, trace) {
             txt = txt.replace(/onclick="window\.open\('([^']+)'\)"/g, 'onclick="window.location.href=\'$1\'; return false;"');
         }
         let inlineExtraText = '';
-        if(!rawIsIO) {
-            txt = txt.replace(/#\+BEGIN_EXTRA([\s\S]*?)#\+END_EXTRA/gi, (match, body) => { inlineExtraText += body; return ''; });
-            txt = txt.replace(/#\+BEGIN_EXTRA([\s\S]*)$/gi, (match, body) => { inlineExtraText += body; return ''; });
-        }
 
         const wrap = document.createElement('div');
         
@@ -12229,6 +12336,15 @@ function createDOM(card, isAnswer, trace) {
             );
         }
         const temp = document.createElement('div'); temp.innerHTML = txt;
+
+        // Extract EXTRA using the parsed DOM rather than a raw HTML regex. This keeps
+        // Logseq list structure balanced even when BEGIN/END live in separate bullets
+        // or the marker text is HTML-escaped/wrapped. It also removes EXTRA before
+        // sibling :-> / CS context masking runs.
+        if(!rawIsIO) {
+            inlineExtraText = extractMkInlineExtraBlocks(temp);
+            txt = temp.innerHTML;
+        }
 
         // Convert sibling/context raw pipe tables after hierarchy HTML has been parsed.
         renderMkPipeTablesInsideElements(temp);
@@ -12280,11 +12396,13 @@ function createDOM(card, isAnswer, trace) {
         // 3. 추가 해설(Extra) 조립
         const isIoCard = !!temp.querySelector('.mk-io-wrapper[data-mk-io="1"]') || txt.includes('data-mk-io="1"');
 
-        const combinedExtraText = [card.extra, inlineExtraText]
+        const storedExtraText = normalizeMkExtraDirectivePayload(card.extra);
+        const combinedExtraText = [storedExtraText, inlineExtraText]
             .filter(v => v && String(v).trim() !== '')
             .join('<br>');
+        const usesInlineAnswerReveal = isMkArrowCard(card) || isMkCSCardFast(card);
 
-        if ((isAnswer || isIoCard) && combinedExtraText.trim() !== '') {
+        if ((isAnswer || isIoCard || usesInlineAnswerReveal) && combinedExtraText.trim() !== '') {
             let extraText = combinedExtraText;
             if(extraText.startsWith('"') && extraText.endsWith('"')) extraText = extraText.slice(1, -1).replace(/""/g, '"');
             
