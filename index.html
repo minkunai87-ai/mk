@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.296 EXTRA FULL REVEAL -->
+<!-- preview: v18.5.298 EXTRA ORPHAN REVEAL -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.296 EXTRA FULL REVEAL)</title>
+<title>MK (v18.5.298 EXTRA ORPHAN REVEAL)</title>
 
 <script>
     (() => {
@@ -852,7 +852,7 @@
             
             <button class="btn-refresh" onclick="location.reload()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.296 EXTRA FULL REVEAL)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.298 EXTRA ORPHAN REVEAL)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1210,7 +1210,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.296 EXTRA FULL REVEAL';
+    const APP_VERSION = 'v18.5.298 EXTRA ORPHAN REVEAL';
     const IO_RASTER_MAX_WIDTH = 700;
     const MK_STABILITY_ISOLATION = true;
     console.info('[MK_STABILITY_ISOLATION] enabled');
@@ -1430,7 +1430,7 @@
     const LIBRARY_CACHE_ACTIVE_POINTER_DB_KEY = 'mk_library_cache_active_v2';
     const LIBRARY_CACHE_VERSIONED_PREFIX = 'mk_library_cache_v2:';
     const PDF_ANNOTATION_INDEX_DB_KEY = 'mk_pdf_annotation_index_v1';
-    const LIBRARY_CACHE_PARSER_VERSION = 'cs-activeblock-table-layout-v11-extra-answer-reveal';
+    const LIBRARY_CACHE_PARSER_VERSION = 'cs-activeblock-table-layout-v13-extra-orphan-runtime';
     const STORAGE_KEY_REVIEW_HISTORY = 'anki_final_review_history_v1';
     const REVIEW_HISTORY_EVENTS_DB_KEY_PREFIX = 'mk_review_history_events_v1::';
     const REVIEW_HISTORY_TOMBSTONE_DB_KEY_PREFIX = 'mk_review_history_tombstone_v1::';
@@ -10137,6 +10137,30 @@
         });
     }
 
+    function getMkExtraStructuralOwner(beginNode, endNode) {
+        if(!beginNode || !beginNode.parentElement) return null;
+        let candidate = beginNode.parentElement.closest('li');
+        for(let depth = 0; candidate && depth < 5; depth++) {
+            // BEGIN/END can be child metadata of the block that is actually meant to
+            // be answer-only. Only claim an ancestor when the END marker is inside it.
+            if((!endNode || candidate.contains(endNode))) {
+                const own = candidate.cloneNode(true);
+                // Inspect only the block's own payload, not its nested children. This
+                // avoids accidentally swallowing the parent question (e.g. "15") that
+                // also owns the later 1/2/3/4 sibling problems.
+                own.querySelectorAll('ul, ol').forEach(list => list.remove());
+                removeMkExtraDirectiveMarkersFromRoot(own);
+                cleanupMkExtraDirectiveArtifacts(own);
+                const hasExtraPayload = !!own.querySelector(
+                    '.block-ref, .cloze-wrapper, .mk-cs-wrapper, .mk-io-wrapper, img, table, svg, video, audio, iframe, canvas'
+                );
+                if(hasExtraPayload) return candidate;
+            }
+            candidate = candidate.parentElement && candidate.parentElement.closest('li');
+        }
+        return null;
+    }
+
     function extractMkInlineExtraBlocks(root) {
         if(!root) return '';
         const beginPattern = /#\s*\+\s*BEGIN_EXTRA\b/i;
@@ -10169,6 +10193,23 @@
                     end = { node:nodes[i], index:startOffset + match.index, length:match[0].length };
                     break;
                 }
+            }
+
+            // mk-sync/Logseq can place BEGIN_EXTRA/END_EXTRA as CHILD metadata under
+            // the referenced block. In that shape the visible cloze/block-ref sits in
+            // the parent <li>, *before* BEGIN_EXTRA, so a text Range between the two
+            // directives leaves the red [...] orphan in the question. Capture/remove
+            // that structural owner as part of EXTRA instead.
+            const structuralOwner = getMkExtraStructuralOwner(begin.node, end && end.node);
+            if(structuralOwner) {
+                const extraHolder = structuralOwner.cloneNode(true);
+                removeMkExtraDirectiveMarkersFromRoot(extraHolder);
+                cleanupMkExtraDirectiveArtifacts(extraHolder);
+                const extraHtml = extraHolder.innerHTML.trim();
+                if(extraHtml) extras.push(extraHtml);
+                structuralOwner.remove();
+                cleanupMkExtraDirectiveArtifacts(root);
+                continue;
             }
 
             const range = document.createRange();
@@ -12303,6 +12344,57 @@ function getMkArrowOwnBlockText(block) {
         return wrapper;
     }
 
+    function markMkOrphanExtraSiblingBlocks(root, card) {
+        if(!root || !root.querySelector) return 0;
+        const activeRaw = root.querySelector('li.active-block, .active-block');
+        const active = activeRaw && (activeRaw.matches && activeRaw.matches('li') ? activeRaw : activeRaw.closest && activeRaw.closest('li'));
+        const level = active && active.parentElement;
+        if(!level) return 0;
+
+        const siblings = Array.from(level.children || []).filter(node => node.tagName === 'LI');
+        const directOwnClone = block => {
+            const clone = block.cloneNode(true);
+            Array.from(clone.children || []).forEach(child => {
+                if(/^(UL|OL)$/i.test(child.tagName || '')) child.remove();
+            });
+            return clone;
+        };
+        const isProblemBlock = block => {
+            const own = directOwnClone(block);
+            const ownText = String(own.textContent || '').replace(/\s+/g, ' ').trim();
+            return ownText.includes(':->') || !!own.querySelector('.mk-arrow-card, .mk-arrow-target, .mk-cs-target');
+        };
+
+        const firstProblemIndex = siblings.findIndex(isProblemBlock);
+        if(firstProblemIndex <= 0) return 0;
+
+        let marked = 0;
+        siblings.slice(0, firstProblemIndex).forEach(block => {
+            if(block.classList.contains('mk-extra-node')) return;
+            const own = directOwnClone(block);
+            const ownText = String(own.textContent || '').replace(/\s+/g, ' ').trim();
+            if(ownText.includes(':->')) return;
+
+            // Old cached/parser output can leave the block that OWNS BEGIN_EXTRA as
+            // a normal hierarchy sibling. It appears as the stray red [...] directly
+            // above the numbered :-> choices. It is answer-only content, not a study
+            // sibling, so hide the whole owner until answer reveal.
+            const hasExtraPayload = !!own.querySelector(
+                '.block-ref, .cloze-wrapper, .mk-cs-wrapper, .mk-io-wrapper, img, table, svg'
+            );
+            const looksLikeMaskedExtra = !!own.querySelector('.cloze-q, .mk-cs-mask') || /\[\.\.\.\]/.test(ownText);
+            if(!hasExtraPayload || !looksLikeMaskedExtra) return;
+
+            block.classList.add('mk-extra-node', 'mk-extra-orphan');
+            block.querySelectorAll('.mk-arrow-blank, .mk-arrow-context').forEach(wrapper => {
+                if(wrapper.classList.contains('mk-arrow-target')) return;
+                wrapper.classList.remove('mk-arrow-blank', 'mk-arrow-context');
+            });
+            marked += 1;
+        });
+        return marked;
+    }
+
     function normalizeMkArrowQuestionState(root, card) {
         if(!root || !isMkArrowCard(card)) return false;
         root.classList.remove('mk-arrow-answer-revealed', 'mk-arrow-show-all');
@@ -12341,6 +12433,11 @@ function getMkArrowOwnBlockText(block) {
             });
         }
 
+        // Also catch cards that were cached by an older parser: BEGIN_EXTRA metadata
+        // may already be gone while its parent block/ref survived as a stray [...].
+        // Tag that orphan structurally so question mode hides it and revealAnswer opens it.
+        markMkOrphanExtraSiblingBlocks(root, card);
+
         root.querySelectorAll('.mk-arrow-blank').forEach(wrapper => {
             const mask = wrapper.querySelector('.cloze-q');
             const answer = wrapper.querySelector('.cloze-a');
@@ -12362,7 +12459,7 @@ function getMkArrowOwnBlockText(block) {
 
     function updateMkArrowOtherMasksToggle(root, card) {
         if(!root || !isMkArrowCard(card)) return;
-        const wrappers = Array.from(root.querySelectorAll('.mk-arrow-blank'));
+        const wrappers = Array.from(root.querySelectorAll('.mk-arrow-blank')).filter(wrapper => !wrapper.closest('.mk-extra-node, .mk-extra-content'));
         if(wrappers.length < 2) return;
 
         const button = document.createElement('button');
