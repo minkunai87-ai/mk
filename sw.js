@@ -1,5 +1,5 @@
-const MK_SW_VERSION = 'v18.5.301 PAGES SHELL CACHE';
-const MK_SHELL_CACHE = 'mk-pages-shell-v1';
+const MK_SW_VERSION = 'v18.5.302 MOBILE TABLE WRAP FIX';
+const MK_SHELL_CACHE = 'mk-pages-shell-v2';
 const MK_SHELL_URL = new URL('./index.html', self.registration.scope).href;
 
 async function cacheShellFromNetwork() {
