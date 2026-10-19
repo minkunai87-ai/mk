@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.303 TODAY PLAN REVIEW FLOW FIX -->
+<!-- preview: v18.5.304 FIREBASE HISTORY IDB RESTORE -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.303 TODAY PLAN REVIEW FLOW FIX)</title>
+<title>MK (v18.5.304 FIREBASE HISTORY IDB RESTORE)</title>
 
 <script>
     (() => {
@@ -854,7 +854,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.303 TODAY PLAN REVIEW FLOW FIX)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.304 FIREBASE HISTORY IDB RESTORE)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1212,7 +1212,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.303 TODAY PLAN REVIEW FLOW FIX';
+    const APP_VERSION = 'v18.5.304 FIREBASE HISTORY IDB RESTORE';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -1505,6 +1505,15 @@
     const REVIEW_HISTORY_EVENTS_DB_KEY_PREFIX = 'mk_review_history_events_v1::';
     const REVIEW_HISTORY_TOMBSTONE_DB_KEY_PREFIX = 'mk_review_history_tombstone_v1::';
     const REVIEW_HISTORY_MIGRATION_DB_KEY = 'mk_review_history_migration_v1';
+    // Full Firebase review-history snapshots live in IndexedDB, NOT quota-limited localStorage.
+    // The pre-existing append-only event ledger continues to store new reviews.
+    const REVIEW_HISTORY_SNAPSHOT_DB_KEY = 'mk_review_history_full_snapshot_v2';
+    const REVIEW_HISTORY_SNAPSHOT_STAGING_DB_KEY = 'mk_review_history_full_snapshot_v2__staging';
+    const REVIEW_HISTORY_SNAPSHOT_ROLLBACK_DB_KEY = 'mk_review_history_full_snapshot_v2__before_restore';
+    let reviewHistorySnapshotMemory = null;
+    let reviewHistorySnapshotHydrationPromise = null;
+    let reviewHistorySnapshotPersistQueue = Promise.resolve();
+    let reviewHistorySnapshotPersistenceTimer = null;
     let reviewHistoryLedgerMemory = {};
     let reviewHistoryLedgerReady = false;
     let reviewHistoryEventPersistenceQueue = Promise.resolve();
@@ -4141,6 +4150,9 @@
             if(ok) redecorateCurrentPdfAnnotations();
         });
 
+        // Load any full history snapshot before comparing/applying cloud backups.
+        // This is a single IndexedDB read, not a full ledger scan at startup.
+        await hydrateReviewHistorySnapshotFromIndexedDB();
         // Cross-device startup sync owns startupSyncStarted/startupSyncCompleted.
         // Do not pre-mark it as started, or claimStartupSyncSession() will block
         // the Firebase comparison before the first request is made.
@@ -4307,6 +4319,14 @@
         const localUpdatedAt = getLocalDataUpdatedAt();
         const currentCardUuid = getCurrentCardId();
         await statsPersistenceQueue;
+        await hydrateReviewHistorySnapshotFromIndexedDB();
+        const historyPersistence = await flushReviewHistorySnapshotPersistence();
+        if(historyPersistence && historyPersistence.ok === false) {
+            console.warn('[MK_BACKUP_BLOCKED_REVIEW_HISTORY_PERSISTENCE_FAILED]', historyPersistence);
+            updateCloudIcon('error');
+            return false;
+        }
+        await reviewHistoryEventPersistenceQueue;
         const learningPersistence = await learningStatsPersistenceQueue;
         if(learningPersistence && learningPersistence.ok === false) {
             console.warn('[MK_BACKUP_BLOCKED_LEARNING_STATS_PERSISTENCE_FAILED]', learningPersistence);
@@ -4367,7 +4387,8 @@
             viewState: backupViewState,
             recentDecks: localStorage.getItem(STORAGE_KEY_RECENT_DECKS),
             deckViewStates: localStorage.getItem(STORAGE_KEY_DECK_VIEW_STATES),
-            reviewHistory: localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY),
+            // Include IndexedDB-backed full history, not the empty/old localStorage mirror.
+            reviewHistory: JSON.stringify(getReviewHistory()),
             notesByCardUuid: localStorage.getItem(STORAGE_KEY_NOTES) || '{}',
             todayPlan: localStorage.getItem(TODAY_PLAN_STORAGE_KEY) || JSON.stringify(getEmptyTodayPlanStore()),
             [LEARNING_STATS_STORAGE_KEY]: learningStatsBackup,
@@ -4792,7 +4813,7 @@
         document.getElementById('uuid-apply-actions').style.display = 'flex';
     }
 
-    function applyUuidMigration() {
+    async function applyUuidMigration() {
         const selected = [...document.querySelectorAll('[data-uuid-match]:checked')].map(input => uuidMigrationMatches[Number(input.dataset.uuidMatch)]).filter(Boolean);
         if(!selected.length) {
             document.getElementById('uuid-migration-status').innerText = '선택된 매칭이 없습니다.';
@@ -4800,13 +4821,23 @@
         }
         const stats = cloneStatsObject(getStatsStore());
         const history = getReviewHistory();
-        localStorage.setItem(`uuid_migration_backup_${Date.now()}`, JSON.stringify({ stats, reviewHistory: history }));
+        // The migration rollback copy can exceed localStorage too. Keep it in IndexedDB.
+        const rollbackKey = `uuid_migration_backup_${Date.now()}`;
+        const rollbackValue = JSON.stringify({ stats, reviewHistory: history });
+        try {
+            await writeStatsDatabaseValue(rollbackKey, rollbackValue);
+            if(await readStatsDatabaseValue(rollbackKey) !== rollbackValue) throw new Error('migration_backup_verify_failed');
+        } catch(error) {
+            showToast('UUID 이전 중단: 기존 학습 기록 백업 실패', 'error');
+            console.error('[MK_UUID_MIGRATION_BACKUP_FAILED]', error);
+            return;
+        }
         selected.forEach(match => {
             if(match.stats) stats[match.newCard.id] = { ...(stats[match.newCard.id] || {}), ...match.stats };
             if(match.history) history[match.newCard.id] = Array.isArray(match.history) ? [...match.history] : match.history;
         });
         guardedStatsWrite(JSON.stringify(stats), 'applyUuidMigration');
-        localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(history));
+        writeLocalReviewHistory(history);
         isDataChanged = true;
         scheduleBackup('uuid-migration');
         if(activeDeck[currentIndex]) updateStatsUI(getStats(activeDeck[currentIndex].id));
@@ -5019,6 +5050,136 @@
         } finally {
             db.close();
         }
+    }
+
+    async function hydrateReviewHistorySnapshotFromIndexedDB() {
+        if(reviewHistorySnapshotHydrationPromise) return reviewHistorySnapshotHydrationPromise;
+        reviewHistorySnapshotHydrationPromise = (async () => {
+            try {
+                const stored = await readStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_DB_KEY);
+                if(stored === null || stored === undefined) return {ok:true, found:false};
+                const history = parseJSONSafe(stored, null);
+                if(!history || typeof history !== 'object' || Array.isArray(history)) throw new Error('review_history_snapshot_invalid');
+                // A manual restore can finish while hydration is underway. Never replace
+                // a newly restored snapshot with an older asynchronous read.
+                if(reviewHistorySnapshotMemory === null) reviewHistorySnapshotMemory = history;
+                invalidateReviewHistoryMergedCache();
+                return {ok:true, found:true, count:Object.keys(history).length};
+            } catch(error) {
+                console.error('[MK_REVIEW_HISTORY_SNAPSHOT_HYDRATION_FAILED]', error);
+                return {ok:false, error};
+            }
+        })();
+        return reviewHistorySnapshotHydrationPromise;
+    }
+
+    window.getMkReviewHistoryStorageStatus = async () => {
+        const hydrated = await hydrateReviewHistorySnapshotFromIndexedDB();
+        const raw = await readStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_DB_KEY).catch(() => null);
+        const parsed = parseJSONSafe(raw, {});
+        return {
+            mode:reviewHistorySnapshotMemory !== null ? 'indexeddb-full-history' : 'legacy-localstorage',
+            hydrated:!!(hydrated && hydrated.ok),
+            indexedDbCards:Object.keys(parsed || {}).length,
+            rollbackAvailable:(await readStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_ROLLBACK_DB_KEY).catch(() => null)) !== null,
+            currentCards:Object.keys(getReviewHistory()).length,
+            legacyLocalBytes:(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY) || '').length * 2,
+            snapshotChecksumMatch:raw !== null && getCanonicalBackupFieldChecksum('reviewHistory', raw) === getCanonicalBackupFieldChecksum('reviewHistory', reviewHistorySnapshotMemory)
+        };
+    };
+
+    async function persistReviewHistorySnapshotVerified(value, source = 'restore') {
+        const history = parseJSONSafe(value, null);
+        if(!history || typeof history !== 'object' || Array.isArray(history)) {
+            return {ok:false, reason:'review_history_invalid_payload'};
+        }
+        const raw = JSON.stringify(history);
+        const expected = getCanonicalBackupFieldChecksum('reviewHistory', history);
+        try {
+            // An older queued snapshot must not overwrite a newly restored backup.
+            if(reviewHistorySnapshotPersistenceTimer) {
+                clearTimeout(reviewHistorySnapshotPersistenceTimer);
+                reviewHistorySnapshotPersistenceTimer = null;
+            }
+            const pendingWrite = await reviewHistorySnapshotPersistQueue;
+            if(pendingWrite && pendingWrite.ok === false) {
+                console.warn('[MK_REVIEW_HISTORY_PRIOR_WRITE_FAILED]', pendingWrite);
+            }
+            // Preserve BOTH pre-existing IndexedDB and legacy localStorage history
+            // in an independently verified rollback copy before any replacement.
+            const previousSnapshot = await readStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_DB_KEY);
+            const previousLocal = localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY);
+            if(previousSnapshot !== null || previousLocal !== null) {
+                const rollback = JSON.stringify({ snapshot:previousSnapshot, local:previousLocal, savedAt:Date.now(), source });
+                await writeStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_ROLLBACK_DB_KEY, rollback);
+                if(await readStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_ROLLBACK_DB_KEY) !== rollback) {
+                    return {ok:false, reason:'review_history_rollback_checksum_mismatch'};
+                }
+            }
+            // Stage and verify before touching the active snapshot or old localStorage.
+            await writeStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_STAGING_DB_KEY, raw);
+            const staged = await readStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_STAGING_DB_KEY);
+            if(getCanonicalBackupFieldChecksum('reviewHistory', staged) !== expected) {
+                return {ok:false, reason:'review_history_staging_checksum_mismatch'};
+            }
+            await writeStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_DB_KEY, raw);
+            const saved = await readStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_DB_KEY);
+            if(getCanonicalBackupFieldChecksum('reviewHistory', saved) !== expected) {
+                return {ok:false, reason:'review_history_indexeddb_checksum_mismatch'};
+            }
+            reviewHistorySnapshotMemory = history;
+            reviewHistoryLocalCacheRaw = null;
+            invalidateReviewHistoryMergedCache();
+            // Remove only the verified redundant localStorage copy. Never delete data on
+            // a failed IndexedDB write; leave all event ledger and stats keys intact.
+            try { localStorage.removeItem(STORAGE_KEY_REVIEW_HISTORY); } catch(error) {}
+            try { await removeStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_STAGING_DB_KEY); }
+            catch(error) { console.warn('[MK_REVIEW_HISTORY_STAGING_CLEANUP_SKIPPED]', error); }
+            console.info('[MK_REVIEW_HISTORY_SNAPSHOT_VERIFIED]', {source, cards:Object.keys(history).length, chars:raw.length});
+            return {ok:true, storage:'indexeddb', count:Object.keys(history).length};
+        } catch(error) {
+            console.error('[MK_REVIEW_HISTORY_SNAPSHOT_WRITE_FAILED]', source, error);
+            return {ok:false, reason:'review_history_indexeddb_write_failed', message:String(error && error.message || error)};
+        }
+    }
+
+    function queueReviewHistorySnapshotPersistence(source = 'review-update') {
+        if(reviewHistorySnapshotMemory === null || window.__MK_FRESH_DIAG__) return;
+        if(reviewHistorySnapshotPersistenceTimer) clearTimeout(reviewHistorySnapshotPersistenceTimer);
+        reviewHistorySnapshotPersistenceTimer = setTimeout(() => {
+            reviewHistorySnapshotPersistenceTimer = null;
+            const snapshot = JSON.stringify(reviewHistorySnapshotMemory);
+            reviewHistorySnapshotPersistQueue = reviewHistorySnapshotPersistQueue
+                .catch(() => null)
+                .then(async () => {
+                    await writeStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_DB_KEY, snapshot);
+                    const confirmed = await readStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_DB_KEY);
+                    if(confirmed !== snapshot) throw new Error('review_history_background_write_mismatch');
+                    return {ok:true};
+                })
+                .catch(error => {
+                    console.error('[MK_REVIEW_HISTORY_BACKGROUND_PERSIST_FAILED]', source, error);
+                    return {ok:false, error};
+                });
+        }, 1200);
+    }
+
+    async function flushReviewHistorySnapshotPersistence() {
+        if(reviewHistorySnapshotPersistenceTimer) {
+            clearTimeout(reviewHistorySnapshotPersistenceTimer);
+            reviewHistorySnapshotPersistenceTimer = null;
+            if(reviewHistorySnapshotMemory !== null) {
+                const snapshot = JSON.stringify(reviewHistorySnapshotMemory);
+                reviewHistorySnapshotPersistQueue = reviewHistorySnapshotPersistQueue
+                    .catch(() => null)
+                    .then(async () => {
+                        await writeStatsDatabaseValue(REVIEW_HISTORY_SNAPSHOT_DB_KEY, snapshot);
+                        return {ok:true};
+                    })
+                    .catch(error => ({ok:false, error}));
+            }
+        }
+        return await reviewHistorySnapshotPersistQueue;
     }
 
     function getLearningStatsPlatform() {
@@ -5830,7 +5991,12 @@
         }
 
         const incomingHistory = normalized.reviewHistory || {};
-        if(hasBackupField(raw, 'reviewHistory')) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(incomingHistory));
+        if(hasBackupField(raw, 'reviewHistory')) {
+            // Persist FULL history in IndexedDB. A failed write must stop the restore,
+            // not silently continue to a misleading checksum error.
+            const historyWrite = await persistReviewHistorySnapshotVerified(incomingHistory, source);
+            if(!historyWrite.ok) return {ok:false, reason:historyWrite.reason, message:historyWrite.message, statsKeyCount};
+        }
         const restoredCoreIntegrity = verifyRestoredCoreBackupIntegrity(raw);
         if(!restoredCoreIntegrity.ok) return { ok:false, reason:restoredCoreIntegrity.reason, statsKeyCount };
         if (hasBackupField(raw, 'notesByCardUuid')) safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(normalized.notesByCardUuid || {}));
@@ -6203,7 +6369,7 @@
     function getLocalDataUpdatedAt() {
         const explicitTime = Number(localStorage.getItem(STORAGE_KEY_LOCAL_DATA_UPDATED_AT)) || 0;
         const stats = getStatsStore();
-        const history = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+        const history = getReviewHistory();
         const statsTime = Object.keys(stats || {}).reduce((latest, cardId) => Math.max(latest, getStatLatestTime(stats[cardId], history, cardId)), 0);
         const historyTime = Object.keys(history || {}).reduce((latest, cardId) => Math.max(latest, getHistoryLatestTime(history, cardId)), 0);
         return Math.max(explicitTime, statsTime, historyTime);
@@ -6406,7 +6572,7 @@
 
     function logStudyStateSnapshot(context, payload = {}) {
         const stats = payload.stats || getStatsStore();
-        const reviewHistory = payload.reviewHistory || parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+        const reviewHistory = payload.reviewHistory || getReviewHistory();
         const stat = getCurrentStudyStat(stats) || {};
         console.log('APP_VERSION', APP_VERSION);
         console.log('ENV', getStudyEnvironment());
@@ -6485,7 +6651,7 @@
 
     function loadLocalStudyState() {
         const stats = getStatsStore();
-        const reviewHistory = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+        const reviewHistory = getReviewHistory();
         const viewState = getTrustedStartupViewState();
         const localStatsKeyCount = getStatsKeyCount(stats);
         const hasLocalStats = localStatsKeyCount > 0;
@@ -6576,7 +6742,7 @@
         const incomingHistory = payload.reviewHistory || parseJSONSafe(raw && raw.reviewHistory, {});
         const incomingNotes = payload.notesByCardUuid || normalizeNotesByCardUuid(raw && raw.notesByCardUuid);
         const localStats = getStatsStore();
-        const localHistory = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+        const localHistory = getReviewHistory();
         const shouldMerge = source === 'cloud' || source === 'auto-restore';
         const nextHistory = shouldMerge ? mergeHistoryByCardId(localHistory, incomingHistory) : incomingHistory;
         const nextStats = shouldMerge ? mergeStatsByCardId(localStats, incomingStats, localHistory, incomingHistory) : incomingStats;
@@ -7125,7 +7291,7 @@
         console.warn('[MK_STARTUP_BOOTSTRAP_FORCE_REINSTALL_FAILED]', { reasonCode: forceResult.reason, statsKeyCount: forceResult.statsKeyCount });
         const statsValue = JSON.stringify(stats);
         const localStatsBeforeBootstrap = cloneStatsObject(getCanonicalStatsStore());
-        const localHistoryBeforeBootstrap = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+        const localHistoryBeforeBootstrap = getReviewHistory();
         isBootstrapRestoring = true;
         bootstrapAllowedStatsWriteValue = statsValue;
         restoreStatsWriteGuard = null;
@@ -7152,7 +7318,10 @@
             }
 
             const incomingHistory = normalized.reviewHistory || {};
-            if (incomingHistory && Object.keys(incomingHistory).length) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(incomingHistory));
+            if(hasBackupField(payload, 'reviewHistory')) {
+                const historyWrite = await persistReviewHistorySnapshotVerified(incomingHistory, 'startup-bootstrap-fallback');
+                if(!historyWrite.ok) return {ok:false, reasonCode:historyWrite.reason};
+            }
             if (hasBackupField(payload, 'notesByCardUuid')) safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(normalized.notesByCardUuid || {}));
             if (hasBackupField(payload, 'todayPlan')) {
                 safeRestoreLocalStorage(TODAY_PLAN_STORAGE_KEY, JSON.stringify(normalized.todayPlan || getEmptyTodayPlanStore()));
@@ -7236,7 +7405,7 @@
 
     function getStartupStudyMetrics(state = {}) {
         const stats = state.stats && typeof state.stats === 'object' ? state.stats : {};
-        const reviewHistory = state.reviewHistory && typeof state.reviewHistory === 'object' ? state.reviewHistory : {};
+        const reviewHistory = state.reviewHistory && typeof state.reviewHistory === 'object' ? state.reviewHistory : getReviewHistory();
         let latestAt = Number(state.updatedAt) || 0;
         let historyEventCount = 0;
         let fsrsReps = 0;
@@ -9594,7 +9763,7 @@
     async function collectLearningStatsMigrationEvents(legacyStore, options = {}) {
         const eventMap = new Map();
         learningStatsSnapshotToEvents(legacyStore, 'indexeddb-current-snapshot').forEach(event => mergeLearningStatsEventEvidence(eventMap, event));
-        addReviewHistoryRecoveryEvidence(eventMap, localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), 'indexeddb-current-review-history');
+        addReviewHistoryRecoveryEvidence(eventMap, getReviewHistory(), 'indexeddb-current-review-history');
         addStatsLastDateRecoveryEvidence(eventMap, getStatsStore(), 'indexeddb-current-stats-last-date');
         let historical = [];
         if(options.includeFirebaseHistory !== false) {
@@ -9741,7 +9910,14 @@
         raw = raw || {};
         const integrity = raw.integrity && typeof raw.integrity === 'object' ? raw.integrity : {};
         if(integrity.stats !== undefined && getCanonicalBackupFieldChecksum('stats', getBackupStatsCandidate(raw)) !== getCanonicalBackupFieldChecksum('stats', getStatsStore())) return { ok:false, reason:'restored_stats_checksum_mismatch' };
-        if(integrity.reviewHistory !== undefined && getCanonicalBackupFieldChecksum('reviewHistory', raw.reviewHistory) !== getCanonicalBackupFieldChecksum('reviewHistory', localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY))) return { ok:false, reason:'restored_review_history_checksum_mismatch' };
+        if(integrity.reviewHistory !== undefined) {
+            const restored = reviewHistorySnapshotMemory !== null
+                ? reviewHistorySnapshotMemory
+                : localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY);
+            if(getCanonicalBackupFieldChecksum('reviewHistory', raw.reviewHistory) !== getCanonicalBackupFieldChecksum('reviewHistory', restored)) {
+                return {ok:false, reason:'restored_review_history_checksum_mismatch'};
+            }
+        }
         return { ok:true };
     }
 
@@ -14455,7 +14631,7 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
 
         const getReviewHistoryForSort = () => {
             if(filterSortReviewHistoryVersion !== statsVersion) {
-                filterSortReviewHistoryCache = JSON.parse(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY) || '{}');
+                filterSortReviewHistoryCache = getReviewHistory();
                 filterSortReviewHistoryVersion = statsVersion;
             }
             return filterSortReviewHistoryCache;
@@ -15446,6 +15622,7 @@ function getIOImageGroups() {
     }
 
     function readLocalReviewHistoryCached() {
+        if(reviewHistorySnapshotMemory !== null) return reviewHistorySnapshotMemory;
         const raw = localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY) || '{}';
         if (raw === reviewHistoryLocalCacheRaw) return reviewHistoryLocalCache;
         try { reviewHistoryLocalCache = JSON.parse(raw) || {}; }
@@ -15460,7 +15637,7 @@ function getIOImageGroups() {
     }
 
     function getReviewHistory() {
-        const raw = localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY) || '{}';
+        const raw = reviewHistorySnapshotMemory !== null ? reviewHistorySnapshotMemory : (localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY) || '{}');
         const local = readLocalReviewHistoryCached();
         if (!reviewHistoryLedgerReady) return local;
         if (reviewHistoryMergedCacheRaw === raw && reviewHistoryMergedCacheRevision === reviewHistoryLedgerRevision) {
@@ -15474,6 +15651,12 @@ function getIOImageGroups() {
 
     function writeLocalReviewHistory(history) {
         const next = history && typeof history === 'object' ? history : {};
+        if(reviewHistorySnapshotMemory !== null) {
+            reviewHistorySnapshotMemory = next;
+            invalidateReviewHistoryMergedCache();
+            queueReviewHistorySnapshotPersistence('writeLocalReviewHistory');
+            return next;
+        }
         const raw = JSON.stringify(next);
         localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY, raw);
         reviewHistoryLocalCacheRaw = raw;
@@ -15489,10 +15672,15 @@ function getIOImageGroups() {
         // Mutate only the one card array. Avoid mergeReviewHistoryObjects() across the
         // entire review-history object on every answer.
         local[key] = Array.isArray(items) ? items.slice(0, 300) : [];
-        const raw = JSON.stringify(local);
-        localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY, raw);
-        reviewHistoryLocalCacheRaw = raw;
-        reviewHistoryLocalCache = local;
+        if(reviewHistorySnapshotMemory !== null) {
+            reviewHistorySnapshotMemory = local;
+            queueReviewHistorySnapshotPersistence('review-card');
+        } else {
+            const raw = JSON.stringify(local);
+            localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY, raw);
+            reviewHistoryLocalCacheRaw = raw;
+            reviewHistoryLocalCache = local;
+        }
         invalidateReviewHistoryMergedCache();
         markLocalDataUpdated();
         scheduleBackup('review');
@@ -15682,8 +15870,9 @@ function getIOImageGroups() {
 
     async function initializeReviewHistoryLedgerNow() {
         try {
+            await hydrateReviewHistorySnapshotFromIndexedDB();
             const marker = parseJSONSafe(await readStatsDatabaseValue(REVIEW_HISTORY_MIGRATION_DB_KEY), null);
-            const localHistory = parseJSONSafe(localStorage.getItem(STORAGE_KEY_REVIEW_HISTORY), {});
+            const localHistory = readLocalReviewHistoryCached();
             let state = await readAllReviewHistoryLedgerState();
             let seedHistory = mergeReviewHistoryObjects(buildReviewHistoryFromLedger(state.events, state.tombstones), localHistory);
             if(!marker || marker.version !== 1) {
@@ -15700,7 +15889,18 @@ function getIOImageGroups() {
             invalidateReviewHistoryMergedCache();
             reviewHistoryLedgerReady = true;
             const healed = mergeReviewHistoryObjects(reviewHistoryLedgerMemory, localHistory);
-            localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(healed));
+            if(reviewHistorySnapshotMemory !== null) {
+                // Full history already has a verified IndexedDB home. Keep localStorage free.
+                reviewHistorySnapshotMemory = healed;
+                queueReviewHistorySnapshotPersistence('ledger-heal');
+            } else {
+                try { localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(healed)); }
+                catch(error) {
+                    if(!isQuotaExceededError(error)) throw error;
+                    const migrated = await persistReviewHistorySnapshotVerified(healed, 'ledger-quota-migration');
+                    if(!migrated.ok) throw new Error(migrated.reason);
+                }
+            }
             console.log('[MK_REVIEW_HISTORY_LEDGER_READY]', {cardCount:Object.keys(healed).length, itemCount:Object.values(healed).reduce((sum, items) => sum + (Array.isArray(items)?items.length:0), 0)});
             return {ok:true};
         } catch(error) {
@@ -16221,7 +16421,8 @@ function getIOImageGroups() {
                 reviewHistoryLedgerMemory = buildReviewHistoryFromLedger(state.events, state.tombstones);
                 reviewHistoryLedgerReady = true;
                 const healed = mergeReviewHistoryObjects(reviewHistoryLedgerMemory, merged);
-                localStorage.setItem(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(healed));
+                const historyWrite = await persistReviewHistorySnapshotVerified(healed, 'full-cloud-recovery');
+                if(!historyWrite.ok) throw new Error(historyWrite.reason);
                 reviewHistoryRecoveredCardIds.clear();
                 console.log('[MK_REVIEW_HISTORY_FULL_RECOVERY_COMPLETE]', {backupCount:timestamps.length, scanned, usefulBackups:useful, cardKeys:Object.keys(healed).length, eventCount:events.length});
                 showToast(`과거 히스토리 복구 완료 · 백업 ${scanned}개 확인`);
@@ -16913,8 +17114,46 @@ function getIOImageGroups() {
         saveCurrentProgress();
         showCard();
     }
-    function exportData() { const d = new Date(); const fileName = `mk_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`; const a = document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(localStorage)], {type:'application/json'})); a.download=fileName; a.click(); }
-    function importData(input) { const reader = new FileReader(); reader.onload = e => { const data = JSON.parse(e.target.result); Object.keys(data).forEach(k => localStorage.setItem(k, data[k])); location.reload(); }; reader.readAsText(input.files[0]); }
+    async function exportData() {
+        await hydrateReviewHistorySnapshotFromIndexedDB();
+        await flushReviewHistorySnapshotPersistence();
+        const d = new Date();
+        const fileName = `mk_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`;
+        const data = {...localStorage};
+        // Preserve the existing local backup format with all full history events included.
+        data[STORAGE_KEY_REVIEW_HISTORY] = JSON.stringify(getReviewHistory());
+        const a = document.createElement('a');
+        const url = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+    }
+    async function importData(input) {
+        const file = input && input.files && input.files[0];
+        if(!file) return;
+        try {
+            const data = JSON.parse(await file.text());
+            if(!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid backup file');
+            // Stage the full history in IndexedDB first. Never put it back into
+            // localStorage, where a large backup would exceed the browser quota.
+            if(Object.prototype.hasOwnProperty.call(data, STORAGE_KEY_REVIEW_HISTORY)) {
+                const result = await persistReviewHistorySnapshotVerified(data[STORAGE_KEY_REVIEW_HISTORY], 'local-json-import');
+                if(!result.ok) throw new Error(result.reason || 'history import failed');
+            }
+            for(const [key, value] of Object.entries(data)) {
+                if(key === STORAGE_KEY_REVIEW_HISTORY) continue;
+                const result = safeRestoreLocalStorage(key, value);
+                if(result && !result.ok) throw new Error(`${key}: ${result.message || result.reason || 'storage error'}`);
+            }
+            location.reload();
+        } catch(error) {
+            console.error('[MK_LOCAL_IMPORT_FAILED]', error);
+            showToast(`로컬 백업 복원 실패: ${String(error.message || error).slice(0, 80)}`, 'error');
+        } finally {
+            input.value = '';
+        }
+    }
 </script>
     <script>
     document.addEventListener('click', (e) => {
