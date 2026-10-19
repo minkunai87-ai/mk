@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.304 FIREBASE HISTORY IDB RESTORE -->
+<!-- preview: v18.5.305 TODAY PLAN CLOUD BADGE SYNC -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.304 FIREBASE HISTORY IDB RESTORE)</title>
+<title>MK (v18.5.305 TODAY PLAN CLOUD BADGE SYNC)</title>
 
 <script>
     (() => {
@@ -854,7 +854,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.304 FIREBASE HISTORY IDB RESTORE)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.305 TODAY PLAN CLOUD BADGE SYNC)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1212,7 +1212,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.304 FIREBASE HISTORY IDB RESTORE';
+    const APP_VERSION = 'v18.5.305 TODAY PLAN CLOUD BADGE SYNC';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -2042,6 +2042,45 @@
             return acc;
         }, { done:0, total:0 });
         badge.textContent = progress.total ? `${progress.done}/${progress.total}` : '';
+    }
+
+    // Firebase restores run after the first app render. Always redraw the sidebar
+    // counter from the *persisted* plan (not an old in-memory or modal snapshot).
+    function refreshTodayPlanUiFromStorage(source = 'cloud-restore') {
+        const store = readTodayPlanStoreRaw();
+        updateTodayPlanMenuBadge(store);
+        const modal = document.getElementById('today-plan-modal');
+        if(modal && modal.style.display === 'flex') renderTodayPlan();
+        const progress = (Array.isArray(store.items) ? store.items : []).reduce((acc, item) => {
+            const entry = getTodayPlanProgress(item);
+            acc.done += entry.done;
+            acc.total += entry.total;
+            return acc;
+        }, { done:0, total:0 });
+        console.info('[MK_TODAY_PLAN_CLOUD_UI_REFRESH]', { source, done:progress.done, total:progress.total, planDate:store.date });
+        return progress;
+    }
+
+    // Do not report a successful Firebase import if its today-plan field was
+    // silently rejected by localStorage (for example, QUOTA_EXCEEDED).
+    // Invalid payloads must never erase a previously working local plan.
+    function restoreTodayPlanFromBackup(raw, plan, source = 'cloud-restore') {
+        if(!hasBackupField(raw, 'todayPlan')) return { ok:true, skipped:true };
+        const incoming = parseJSONSafe(plan, null);
+        if(!incoming || typeof incoming !== 'object' || Array.isArray(incoming) ||
+            incoming.version !== TODAY_PLAN_VERSION || !Array.isArray(incoming.items)) {
+            console.warn('[MK_TODAY_PLAN_RESTORE_INVALID]', { source });
+            return { ok:false, reason:'invalid_today_plan_backup' };
+        }
+        const serialized = JSON.stringify(incoming);
+        const result = safeRestoreLocalStorage(TODAY_PLAN_STORAGE_KEY, serialized);
+        if(!result || !result.ok || localStorage.getItem(TODAY_PLAN_STORAGE_KEY) !== serialized) {
+            console.warn('[MK_TODAY_PLAN_RESTORE_FAILED]', { source, result });
+            return { ok:false, reason:'today_plan_storage_write_failed' };
+        }
+        todayPlanActiveItemId = '';
+        refreshTodayPlanUiFromStorage(source);
+        return { ok:true };
     }
 
     function getTodayPlanTopDecks() {
@@ -6000,7 +6039,8 @@
         const restoredCoreIntegrity = verifyRestoredCoreBackupIntegrity(raw);
         if(!restoredCoreIntegrity.ok) return { ok:false, reason:restoredCoreIntegrity.reason, statsKeyCount };
         if (hasBackupField(raw, 'notesByCardUuid')) safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(normalized.notesByCardUuid || {}));
-        if (hasBackupField(raw, 'todayPlan')) safeRestoreLocalStorage(TODAY_PLAN_STORAGE_KEY, JSON.stringify(normalized.todayPlan || getEmptyTodayPlanStore()));
+        const todayPlanRestore = restoreTodayPlanFromBackup(raw, normalized.todayPlan, source);
+        if(!todayPlanRestore.ok) return { ok:false, reason:todayPlanRestore.reason, statsKeyCount };
         if (hasBackupField(raw, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, raw.progress);
         if (hasBackupField(raw, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, raw.filter);
         if (hasBackupField(raw, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, raw.recentDecks);
@@ -6754,14 +6794,8 @@
         }
         if(nextHistory && Object.keys(nextHistory).length) safeRestoreLocalStorage(STORAGE_KEY_REVIEW_HISTORY, JSON.stringify(nextHistory));
         if(hasBackupField(raw, 'notesByCardUuid')) { const nextNotes = shouldMerge ? mergeNotesByUpdatedAt(getNotesByCardUuid(), incomingNotes) : incomingNotes; safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(nextNotes)); }
-        if(hasBackupField(raw, 'todayPlan')) {
-            const incomingTodayPlan = payload.todayPlan || parseJSONSafe(raw.todayPlan, null);
-            if(incomingTodayPlan && typeof incomingTodayPlan === 'object' && Array.isArray(incomingTodayPlan.items)) {
-                safeRestoreLocalStorage(TODAY_PLAN_STORAGE_KEY, JSON.stringify(incomingTodayPlan));
-                todayPlanActiveItemId = '';
-                updateTodayPlanMenuBadge(incomingTodayPlan);
-            }
-        }
+        const todayPlanRestore = restoreTodayPlanFromBackup(raw, payload.todayPlan || raw.todayPlan, source);
+        if(!todayPlanRestore.ok) throw new Error(todayPlanRestore.reason);
         if(nextStats && Object.keys(nextStats).length) {
             const statsResult = await restoreStatsWithFallback(JSON.stringify(nextStats), {
                 baselineStatsKeyCount: options.baselineStatsKeyCount,
@@ -7323,10 +7357,8 @@
                 if(!historyWrite.ok) return {ok:false, reasonCode:historyWrite.reason};
             }
             if (hasBackupField(payload, 'notesByCardUuid')) safeRestoreLocalStorage(STORAGE_KEY_NOTES, JSON.stringify(normalized.notesByCardUuid || {}));
-            if (hasBackupField(payload, 'todayPlan')) {
-                safeRestoreLocalStorage(TODAY_PLAN_STORAGE_KEY, JSON.stringify(normalized.todayPlan || getEmptyTodayPlanStore()));
-                todayPlanActiveItemId = '';
-            }
+            const todayPlanRestore = restoreTodayPlanFromBackup(payload, normalized.todayPlan, 'startup-bootstrap-fallback');
+            if(!todayPlanRestore.ok) return {ok:false, reasonCode:todayPlanRestore.reason};
             if (hasBackupField(payload, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, payload.progress);
             if (hasBackupField(payload, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, payload.filter);
             if (hasBackupField(payload, 'recentDecks')) safeRestoreLocalStorage(STORAGE_KEY_RECENT_DECKS, payload.recentDecks);
@@ -7977,6 +8009,9 @@
                 if (listUI) listUI.innerHTML = `<div style="padding:20px; text-align:center; color:#fa5252;">${errorMessage}</div>`;
                 return false;
             }
+            // Manual and startup automatic imports share this final success path.
+            // initApp already ran, so its one-off badge render is not sufficient.
+            refreshTodayPlanUiFromStorage('firebase-restore-finished');
             const pinnedUpdatedAt = Date.now();
             markLocalDataUpdated(pinnedUpdatedAt);
             if (targetData && targetData.timestamp && statsIntegrity.localStatsKeyCount >= STATS_HEALTHY_MIN_COUNT) {
