@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.305 TODAY PLAN CLOUD BADGE SYNC -->
+<!-- preview: v18.5.306 WINDOWS PDF ANNOTATION VIEWER -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.305 TODAY PLAN CLOUD BADGE SYNC)</title>
+<title>MK (v18.5.306 WINDOWS PDF ANNOTATION VIEWER)</title>
 
 <script>
     (() => {
@@ -701,6 +701,7 @@
   position: relative;
   z-index: 2;
 }
+.mk-pdf-annotation-icon[href="#"],
 .mk-pdf-annotation-icon[href^="mkpdf://"] {
   cursor: pointer;
   touch-action: manipulation;
@@ -854,7 +855,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.305 TODAY PLAN CLOUD BADGE SYNC)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.306 WINDOWS PDF ANNOTATION VIEWER)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1212,7 +1213,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.305 TODAY PLAN CLOUD BADGE SYNC';
+    const APP_VERSION = 'v18.5.306 WINDOWS PDF ANNOTATION VIEWER';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -11950,21 +11951,383 @@ function preserveCardContentLineBreaks(root) {
         return true;
     }
 
+    // Desktop PDF reader: the child window is a lightweight same-origin document.
+    // It deliberately does not bootstrap another MK study session (or Firebase sync).
+    function openMkPdfAnnotationWindow(annotationData) {
+        if(!annotationData || !annotationData.pdfFileName || !Number.isFinite(annotationData.page)) {
+            showToast('PDF 파일명 또는 페이지 정보가 없습니다.', 'error');
+            return false;
+        }
+        const reader = window.open('', '_blank', 'popup=yes,width=1140,height=900,resizable=yes,scrollbars=yes');
+        if(!reader) {
+            showToast('팝업 차단을 해제하면 PDF가 새 창에 열립니다.', 'error');
+            return false;
+        }
+        try {
+            reader.__mkPdfViewerRequest = {
+                pdfFileName:String(annotationData.pdfFileName).replace(/\+/g, ' '),
+                page:Number(annotationData.page),
+                x:Number.isFinite(annotationData.x) ? annotationData.x : null,
+                y:Number.isFinite(annotationData.y) ? annotationData.y : null,
+                width:Number.isFinite(annotationData.width) ? annotationData.width : null,
+                height:Number.isFinite(annotationData.height) ? annotationData.height : null,
+                sourceWidth:Number.isFinite(annotationData.sourceWidth) ? annotationData.sourceWidth : null,
+                sourceHeight:Number.isFinite(annotationData.sourceHeight) ? annotationData.sourceHeight : null
+            };
+            const doc = reader.document;
+            doc.open();
+            doc.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MK PDF Viewer</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#15171a;color:#f2f4f7;font-family:system-ui,'Malgun Gothic',sans-serif}
+body{display:flex;flex-direction:column;overflow:hidden}button,input{font:inherit}button{border:1px solid #454b54;border-radius:8px;background:#323840;color:#f3f6fa;padding:8px 12px;cursor:pointer}button:hover{background:#404853}button:disabled{opacity:.35;cursor:default}
+header{background:#22262d;display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:10px 14px;border-bottom:1px solid #39404a}header strong{font-size:15px}#filename{color:#a7cfff;min-width:100px;max-width:65vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.controls{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:9px 14px;background:#1c2127;border-bottom:1px solid #363d47}#page-input{width:64px;background:#292f36;border:1px solid #59606b;color:white;border-radius:7px;text-align:center;padding:7px}#page-total,#zoom-label{font-size:13px;color:#c9d0d8}
+#status{padding:7px 14px;color:#a9c6e8;font-size:13px;background:#171d24;border-bottom:1px solid #303741;min-height:33px;word-break:keep-all}#status.error{color:#ff9898}#viewer-scroll{flex:1;overflow:auto;position:relative;background:#34383e;text-align:center}#pdf-page{position:relative;display:none;width:max-content;margin:22px auto 45px;line-height:0;box-shadow:0 6px 27px #0007;background:#fff}#pdf-canvas{display:block}#annotation-highlight{position:absolute;display:none;pointer-events:none;border:3px solid #ffb020;background:#ffcd4938;box-shadow:0 0 0 5px #ffb0204d,0 0 14px #ffb020bf;z-index:3;border-radius:4px}
+#native-pdf{display:none;width:100%;height:100%;border:0;background:#fff}#notice{margin:38px auto;max-width:560px;padding:22px 24px;text-align:left;border-radius:14px;background:#20262d;border:1px solid #434a55;line-height:1.75;color:#d2d7df}#notice strong{color:#fff}#notice p{margin:8px 0}#notice small{color:#a2adb9}#file-input{display:none}
+@media(max-width:650px){header{padding:8px}.controls{padding:7px;gap:4px}.controls button{padding:7px}#filename{max-width:85vw}}
+</style></head><body>
+<header><strong>📄 MK PDF</strong><span id="filename"></span><button id="folder-btn" type="button">📁 PDF 폴더 연결</button><button id="file-btn" type="button">PDF 파일 선택</button><input id="file-input" type="file" accept=".pdf,application/pdf"></header>
+<div class="controls"><button id="prev-btn" type="button" disabled>◀ 이전</button><input id="page-input" type="number" min="1" value="1" aria-label="페이지"><span id="page-total">/ -</span><button id="next-btn" type="button" disabled>다음 ▶</button><button id="zoom-out" type="button" disabled>−</button><span id="zoom-label">100%</span><button id="zoom-in" type="button" disabled>+</button><button id="fit-btn" type="button" disabled>너비 맞춤</button><button id="target-btn" type="button" disabled>📍 주석 위치</button></div>
+<div id="status" role="status">원본 PDF를 확인하는 중…</div><main id="viewer-scroll"><div id="notice"></div><div id="pdf-page"><canvas id="pdf-canvas"></canvas><div id="annotation-highlight"></div></div><iframe id="native-pdf" title="PDF 대체 뷰어"></iframe></main>
+</body></html>`);
+            doc.close();
+            const boot = doc.createElement('script');
+            boot.textContent = `(${mkPdfViewerBootstrap.toString()})();`;
+            doc.body.appendChild(boot);
+            reader.focus();
+            return true;
+        } catch(error) {
+            console.error('[MK_PDF_VIEWER] popup creation failed', error);
+            try { reader.close(); } catch(_) {}
+            showToast('PDF 창을 열지 못했습니다.', 'error');
+            return false;
+        }
+    }
+
+    // Runs inside the dedicated child window; this function intentionally has no
+    // dependencies on the MK app runtime, and does not write study data.
+    function mkPdfViewerBootstrap() {
+        'use strict';
+        const request = window.__mkPdfViewerRequest;
+        const byId = id => document.getElementById(id);
+        const status = byId('status');
+        const notice = byId('notice');
+        const stage = byId('pdf-page');
+        const canvas = byId('pdf-canvas');
+        const highlight = byId('annotation-highlight');
+        const scroller = byId('viewer-scroll');
+        const nativeFrame = byId('native-pdf');
+        const originalPage = Math.max(1, Math.trunc(Number(request && request.page) || 1));
+        const fileName = String(request && request.pdfFileName || '');
+        const pdfKey = name => {
+            let value = String(name || '').replace(/\\/g, '/').split('/').pop().replace(/\+/g, ' ');
+            try { value = decodeURIComponent(value); } catch(_) {}
+            return value.normalize('NFC').trim().toLocaleLowerCase();
+        };
+        const expectedName = pdfKey(fileName);
+        let pdfDocument = null;
+        let displayedPage = originalPage;
+        let zoom = 1;
+        let rendering = Promise.resolve();
+        let wantedRender = 0;
+        let pdfBytes = null;
+        let nativeUrl = null;
+        let nativeMode = false;
+        let loading = false;
+        document.title = 'MK PDF · ' + fileName;
+        byId('filename').textContent = fileName;
+        byId('filename').title = fileName;
+        byId('page-input').value = String(originalPage);
+        notice.innerHTML = '<strong>원본 PDF 연결</strong><p>이 PC의 PDF를 처음 사용할 때는 위의 <b>PDF 폴더 연결</b> 또는 <b>PDF 파일 선택</b>을 눌러주세요.</p><small>PDF 파일 자체는 Firebase나 GitHub로 업로드하지 않습니다. 연결 정보는 이 브라우저에만 저장됩니다.</small>';
+        function say(message, error = false) {
+            status.textContent = message;
+            status.classList.toggle('error', !!error);
+        }
+        function toggleUi(ready) {
+            for(const id of ['prev-btn','next-btn','zoom-out','zoom-in','fit-btn','target-btn']) byId(id).disabled = !ready;
+            if(ready && pdfDocument) {
+                byId('prev-btn').disabled = displayedPage <= 1;
+                byId('next-btn').disabled = displayedPage >= pdfDocument.numPages;
+            }
+        }
+        function showNotice(message) {
+            notice.style.display = 'block';
+            if(message) say(message, true);
+        }
+        function handleDbRequest(method, key, value) {
+            if(!('indexedDB' in window)) return Promise.resolve(null);
+            return new Promise((resolve, reject) => {
+                const opener = indexedDB.open('mk_pdf_viewer_sources_v1', 1);
+                opener.onupgradeneeded = () => opener.result.createObjectStore('handles');
+                opener.onerror = () => reject(opener.error);
+                opener.onsuccess = () => {
+                    const db = opener.result;
+                    const tx = db.transaction('handles', method === 'get' ? 'readonly' : 'readwrite');
+                    const req = method === 'get' ? tx.objectStore('handles').get(key) : tx.objectStore('handles').put(value, key);
+                    req.onsuccess = () => resolve(req.result ?? null);
+                    req.onerror = () => reject(req.error);
+                    tx.oncomplete = () => db.close();
+                    tx.onerror = () => db.close();
+                };
+            });
+        }
+        async function permissionGranted(handle) {
+            if(!handle) return false;
+            if(!handle.queryPermission) return true;
+            try { return await handle.queryPermission({mode:'read'}) === 'granted'; }
+            catch(_) { return false; }
+        }
+        async function locateFile(root, name) {
+            const queue = [{dir:root,depth:0}];
+            let seen = 0;
+            const key = pdfKey(name);
+            while(queue.length && seen < 10000) {
+                const {dir,depth} = queue.shift();
+                for await (const entry of dir.values()) {
+                    if(++seen > 10000) break;
+                    if(entry.kind === 'file' && pdfKey(entry.name) === key) return entry;
+                    if(entry.kind === 'directory' && depth < 9 && !/^(?:\.git|node_modules|\.cache)$/i.test(entry.name)) queue.push({dir:entry,depth:depth+1});
+                }
+            }
+            return null;
+        }
+        async function loadPdfLibrary() {
+            if(window.pdfjsLib) return;
+            const urls = [
+                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+                'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js'
+            ];
+            for(const url of urls) {
+                try {
+                    await new Promise((resolve,reject) => {
+                        const script = document.createElement('script');
+                        script.src = url;
+                        const timer = setTimeout(() => {
+                            script.remove();
+                            reject(new Error('PDF.js script load timed out'));
+                        }, 6000);
+                        script.onload = () => { clearTimeout(timer); resolve(); };
+                        script.onerror = () => { clearTimeout(timer); reject(new Error('PDF.js script unavailable')); };
+                        document.head.appendChild(script);
+                    });
+                    if(window.pdfjsLib) {
+                        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                        return;
+                    }
+                } catch(error) { console.warn('[MK_PDF_VIEWER] script load failed', url, error); }
+            }
+            throw new Error('PDF.js 라이브러리를 불러오지 못했습니다.');
+        }
+        function annotationRect(viewport, page) {
+            const x = request.x, y = request.y;
+            if(!Number.isFinite(x) || !Number.isFinite(y)) return null;
+            const sourceW = Number(request.sourceWidth) > 0 ? Number(request.sourceWidth) : Math.abs(page.view[2]-page.view[0]);
+            const sourceH = Number(request.sourceHeight) > 0 ? Number(request.sourceHeight) : Math.abs(page.view[3]-page.view[1]);
+            if(!sourceW || !sourceH) return null;
+            const relative = (Math.abs(x) <= 1 && Math.abs(y) <= 1 && (sourceW > 2 || sourceH > 2));
+            const xRatio = relative ? x : x / sourceW;
+            const yRatio = relative ? y : y / sourceH;
+            const widthRatio = Number.isFinite(request.width) && request.width > 0 ? (relative ? request.width : request.width / sourceW) : 0;
+            const heightRatio = Number.isFinite(request.height) && request.height > 0 ? (relative ? request.height : request.height / sourceH) : 0;
+            const left = Math.max(0, Math.min(viewport.width - 8, xRatio * viewport.width));
+            const top = Math.max(0, Math.min(viewport.height - 8, yRatio * viewport.height));
+            return {left,top,width:Math.max(22,Math.min(viewport.width-left,widthRatio * viewport.width || 30)),height:Math.max(20,Math.min(viewport.height-top,heightRatio * viewport.height || 25))};
+        }
+        function focusAnnotation(rect) {
+            const top = stage.offsetTop + rect.top + rect.height / 2 - scroller.clientHeight * 0.42;
+            const left = stage.offsetLeft + rect.left + rect.width / 2 - scroller.clientWidth / 2;
+            scroller.scrollTo({top:Math.max(0,top),left:Math.max(0,left),behavior:'instant'});
+        }
+        async function renderPage(token, focus = false) {
+            if(!pdfDocument || nativeMode) return;
+            const pageNumber = Math.max(1,Math.min(pdfDocument.numPages,displayedPage));
+            const page = await pdfDocument.getPage(pageNumber);
+            if(token !== wantedRender) return;
+            const viewport = page.getViewport({scale:zoom});
+            const pixelRatio = Math.min(2,window.devicePixelRatio || 1);
+            const context = canvas.getContext('2d', {alpha:false});
+            canvas.width = Math.ceil(viewport.width * pixelRatio);
+            canvas.height = Math.ceil(viewport.height * pixelRatio);
+            canvas.style.width = viewport.width + 'px';
+            canvas.style.height = viewport.height + 'px';
+            stage.style.width = viewport.width + 'px';
+            stage.style.height = viewport.height + 'px';
+            stage.style.display = 'block';
+            context.setTransform(pixelRatio,0,0,pixelRatio,0,0);
+            await page.render({canvasContext:context,viewport}).promise;
+            if(token !== wantedRender) return;
+            highlight.style.display = 'none';
+            let rect = null;
+            if(pageNumber === originalPage) rect = annotationRect(viewport,page);
+            if(rect) {
+                for(const key of ['left','top','width','height']) highlight.style[key] = rect[key] + 'px';
+                highlight.style.display = 'block';
+            }
+            byId('page-input').value = String(displayedPage);
+            byId('page-total').textContent = '/ ' + pdfDocument.numPages;
+            byId('zoom-label').textContent = Math.round(zoom * 100) + '%';
+            toggleUi(true);
+            if(focus && rect) requestAnimationFrame(() => focusAnnotation(rect));
+            else if(focus) scroller.scrollTo({top:0,left:0});
+            say(rect ? '📍 ' + pageNumber + '페이지의 주석 위치를 표시했습니다.' :
+                (pageNumber === originalPage ? '해당 페이지로 이동했습니다. 이 주석에는 위치 좌표가 없어 영역 강조는 생략됩니다.' : pageNumber + '페이지'));
+        }
+        function scheduleRender(focus=false) {
+            const token = ++wantedRender;
+            rendering = rendering.catch(()=>{}).then(()=>renderPage(token,focus)).catch(error => {
+                console.error('[MK_PDF_VIEWER] rendering failed',error);
+                say('PDF 페이지 표시 오류: ' + (error.message || error),true);
+            });
+        }
+        async function activateFile(file) {
+            if(loading) return;
+            loading = true;
+            try {
+                if(pdfKey(file.name) !== expectedName) {
+                    showNotice('파일 이름이 다릅니다. 필요한 파일: ' + fileName + ' / 선택한 파일: ' + file.name);
+                    return;
+                }
+                say('PDF 파일 여는 중…');
+                pdfBytes = new Uint8Array(await file.arrayBuffer());
+                try {
+                    await loadPdfLibrary();
+                    pdfDocument = await pdfjsLib.getDocument({data:pdfBytes.slice()}).promise;
+                } catch(error) {
+                    console.warn('[MK_PDF_VIEWER] fallback to browser PDF viewer',error);
+                    nativeMode = true;
+                    nativeUrl = URL.createObjectURL(new Blob([pdfBytes],{type:'application/pdf'}));
+                    nativeFrame.src = nativeUrl + '#page=' + originalPage;
+                    nativeFrame.style.display = 'block';
+                    stage.style.display = 'none';
+                    notice.style.display = 'none';
+                    say('브라우저 기본 PDF 뷰어로 열었습니다. 이 모드에서는 주석 위치 강조가 지원되지 않습니다.');
+                    return;
+                }
+                nativeMode = false;
+                notice.style.display = 'none';
+                displayedPage = Math.max(1,Math.min(pdfDocument.numPages,originalPage));
+                const first = await pdfDocument.getPage(displayedPage);
+                const base = first.getViewport({scale:1});
+                zoom = Math.max(0.5, Math.min(2.4,(scroller.clientWidth - 64) / base.width));
+                scheduleRender(true);
+            } catch(error) {
+                console.error('[MK_PDF_VIEWER] open file failed',error);
+                showNotice('PDF 열기 실패: ' + (error.message || error));
+            } finally { loading = false; }
+        }
+        async function loadRemembered() {
+            if(!expectedName.endsWith('.pdf')) {showNotice('PDF 파일명이 올바르지 않습니다: ' + fileName); return;}
+            say('이 브라우저에 연결된 PDF 파일을 찾는 중…');
+            try {
+                const savedFile = await handleDbRequest('get','file:'+expectedName);
+                if(savedFile && await permissionGranted(savedFile)) {
+                    await activateFile(await savedFile.getFile());
+                    return;
+                }
+                const savedFolder = await handleDbRequest('get','folder');
+                if(savedFolder && await permissionGranted(savedFolder)) {
+                    const located = await locateFile(savedFolder,fileName);
+                    if(located) {
+                        try { await handleDbRequest('put','file:'+expectedName,located); } catch(_) {}
+                        await activateFile(await located.getFile());
+                        return;
+                    }
+                }
+                say('원본 PDF 파일을 연결해 주세요. PDF는 컴퓨터에서만 읽습니다.');
+            } catch(error) {
+                console.warn('[MK_PDF_VIEWER] saved handle unavailable',error);
+                say('PDF 연결 정보를 가져오지 못했습니다. 폴더 또는 파일을 다시 선택해 주세요.');
+            }
+        }
+        async function chooseFolder() {
+            if(!window.showDirectoryPicker) {say('이 브라우저는 PDF 폴더 연결을 지원하지 않습니다. PDF 파일 선택을 사용하세요.',true);return;}
+            try {
+                const handle = await window.showDirectoryPicker({id:'mk-pdf-folder',mode:'read'});
+                say('선택한 폴더에서 PDF 검색 중…');
+                const found = await locateFile(handle,fileName);
+                if(!found) {say('선택한 폴더에서 ' + fileName + ' 파일을 찾지 못했습니다.',true);return;}
+                try {
+                    await handleDbRequest('put','folder',handle);
+                    await handleDbRequest('put','file:'+expectedName,found);
+                } catch(error) {console.warn('[MK_PDF_VIEWER] handle persistence unavailable',error);}
+                await activateFile(await found.getFile());
+            } catch(error) {
+                if(error && error.name === 'AbortError') return;
+                say('폴더 선택 실패: '+(error.message || error),true);
+            }
+        }
+        async function chooseFile() {
+            if(window.showOpenFilePicker) {
+                try {
+                    const results = await window.showOpenFilePicker({id:'mk-pdf-file',multiple:false,types:[{description:'PDF',accept:{'application/pdf':['.pdf']}}]});
+                    const handle = results[0];
+                    if(!handle) return;
+                    if(pdfKey(handle.name) !== expectedName) {say('이 주석의 원본 파일을 선택해주세요: '+fileName,true);return;}
+                    try {await handleDbRequest('put','file:'+expectedName,handle);} catch(error) {console.warn('[MK_PDF_VIEWER] handle storage failed',error);}
+                    await activateFile(await handle.getFile());
+                } catch(error) {
+                    if(error && error.name === 'AbortError') return;
+                    say('파일 선택 실패: ' + (error.message || error),true);
+                }
+            } else byId('file-input').click();
+        }
+        byId('folder-btn').addEventListener('click', chooseFolder);
+        byId('file-btn').addEventListener('click', chooseFile);
+        byId('file-input').addEventListener('change',event => {
+            const file = event.target.files && event.target.files[0];
+            if(file) activateFile(file);
+            event.target.value = '';
+        });
+        function movePage(delta) {
+            if(!pdfDocument) return;
+            displayedPage = Math.max(1,Math.min(pdfDocument.numPages,displayedPage+delta));
+            scheduleRender(true);
+        }
+        byId('prev-btn').addEventListener('click',()=>movePage(-1));
+        byId('next-btn').addEventListener('click',()=>movePage(1));
+        byId('page-input').addEventListener('change',event => {
+            if(!pdfDocument) return;
+            displayedPage = Math.max(1,Math.min(pdfDocument.numPages,Math.trunc(Number(event.target.value) || 1)));
+            scheduleRender(true);
+        });
+        byId('zoom-out').addEventListener('click',()=>{zoom=Math.max(.3,zoom/1.2);scheduleRender(false);});
+        byId('zoom-in').addEventListener('click',()=>{zoom=Math.min(4,zoom*1.2);scheduleRender(false);});
+        byId('fit-btn').addEventListener('click',async()=>{
+            if(!pdfDocument)return;
+            const p=await pdfDocument.getPage(displayedPage);
+            zoom=Math.max(.4,Math.min(3,(scroller.clientWidth-64)/p.getViewport({scale:1}).width));
+            scheduleRender(false);
+        });
+        byId('target-btn').addEventListener('click',()=>{
+            if(!pdfDocument)return;
+            displayedPage=Math.max(1,Math.min(pdfDocument.numPages,originalPage));
+            scheduleRender(true);
+        });
+        window.addEventListener('beforeunload',()=>{if(nativeUrl) URL.revokeObjectURL(nativeUrl);});
+        loadRemembered();
+    }
+
     function bindPdfAnnotationIconAction(icon, annotationData) {
         const deepLink = buildPdfHelperDeepLink(annotationData);
         if(!deepLink || !icon) return false;
-        icon.setAttribute('href', deepLink);
+        const isWindows = detectPlatform() === 'Windows';
+        icon.setAttribute('href', isWindows ? '#' : deepLink);
         icon.setAttribute('role', 'link');
-        icon.setAttribute('aria-label', 'PDFHelper로 열기');
+        icon.setAttribute('aria-label', isWindows ? 'PDF를 새 창에서 열기' : 'PDFHelper로 열기');
+        icon.setAttribute('title', isWindows ? 'PDF를 새 창에서 열기' : 'PDFHelper로 열기');
         icon.dataset.annotation = JSON.stringify(annotationData);
 
-        // Keep custom-scheme navigation on the actual <a href="mkpdf://..."> tap.
-        // JS is only used by tests; normal iOS/PWA navigation is native.
+        // iPhone and iPad keep their native mkpdf:// navigation unchanged.
         icon.addEventListener('click', event => {
             event.stopPropagation();
             if(typeof window.__mkPdfNavigationTestHook === 'function') {
                 event.preventDefault();
                 window.__mkPdfNavigationTestHook(deepLink, annotationData);
+                return;
+            }
+            if(isWindows) {
+                event.preventDefault();
+                openMkPdfAnnotationWindow(annotationData);
             }
         });
         return true;
@@ -11996,7 +12359,16 @@ function preserveCardContentLineBreaks(root) {
     function bindPdfAnnotationRegionAction(element, annotationData) {
         if(!element || element.dataset.mkPdfRegionBound === '1') return;
         element.dataset.mkPdfRegionBound = '1';
+        const isWindows = detectPlatform() === 'Windows';
         element.addEventListener('click', event => {
+            if(isWindows) {
+                // Respect the dedicated icon and existing image zoom action.
+                if(event.target?.closest?.('.mk-pdf-annotation-icon, img')) return;
+                event.preventDefault();
+                event.stopPropagation();
+                openMkPdfAnnotationWindow(annotationData);
+                return;
+            }
             if(isIOSDevice()) {
                 if(!openPdfAnnotationOnIOS(annotationData)) return;
                 event.preventDefault(); event.stopPropagation();
@@ -12007,7 +12379,7 @@ function preserveCardContentLineBreaks(root) {
             if(!desktopUrl) return;
             window.location.href = desktopUrl;
             event.preventDefault(); event.stopPropagation();
-        });
+        }, isWindows);
     }
 
     const PDF_ANNOTATION_IDENTITY_ATTRIBUTES = [
