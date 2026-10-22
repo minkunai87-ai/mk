@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.306 WINDOWS PDF ANNOTATION VIEWER -->
+<!-- preview: v18.5.308 SIBLING CARD CONTEXT -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.306 WINDOWS PDF ANNOTATION VIEWER)</title>
+<title>MK (v18.5.308 SIBLING CARD CONTEXT)</title>
 
 <script>
     (() => {
@@ -587,7 +587,33 @@
     .mk-io-image-nav:not(:disabled):active { transform: scale(0.94); background: rgba(51,154,240,0.3); }
 
     .mode-question .active-block > ul.children-list { display: none !important; }
+    /* Keep nested Logseq bullets visible when reviewing a :-> card. Question-only:
+       context answers are masked independently, and CS/IO/ordinary cards are unchanged. */
+    .mode-question.mk-arrow-hierarchy-expanded li.active-block > ul.children-list {
+        display: block !important;
+    }
     .mode-answer .active-block > ul.children-list { display: block !important; }
+    /* Logseq #card siblings are context questions, not extra answer blocks.
+       Reveal only the current card's child answers; the eye toggles all answers. */
+    .text-area.mk-card-hierarchy-expanded li.mk-card-context > ul.children-list,
+    .text-area.mk-card-hierarchy-expanded li.mk-card-context > ol.children-list,
+    .text-area.mk-card-hierarchy-expanded.mode-question li.mk-card-current > ul.children-list,
+    .text-area.mk-card-hierarchy-expanded.mode-question li.mk-card-current > ol.children-list {
+        display: none !important;
+    }
+    .text-area.mk-card-hierarchy-expanded.mode-answer li.mk-card-current > ul.children-list,
+    .text-area.mk-card-hierarchy-expanded.mode-answer li.mk-card-current > ol.children-list,
+    .text-area.mk-card-hierarchy-expanded.mk-card-show-all li.mk-card-context > ul.children-list,
+    .text-area.mk-card-hierarchy-expanded.mk-card-show-all li.mk-card-context > ol.children-list,
+    .text-area.mk-card-hierarchy-expanded.mk-card-show-all.mode-question li.mk-card-current > ul.children-list,
+    .text-area.mk-card-hierarchy-expanded.mk-card-show-all.mode-question li.mk-card-current > ol.children-list {
+        display: block !important;
+    }
+    .mk-card-current { opacity:1 !important; }
+    .mk-card-current > .mk-card-question {
+        color:var(--text) !important; font-weight:700;
+    }
+
 
     .divider { display: none; border: 0; border-top: 2px dashed var(--border); margin: 15px 0; position: relative; }
     .divider::after { content: "정답 추가 설명"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--surface); padding: 0 10px; color: var(--text-sub); font-size: 0.8rem; font-weight: bold; }
@@ -855,7 +881,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.306 WINDOWS PDF ANNOTATION VIEWER)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.308 SIBLING CARD CONTEXT)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1213,7 +1239,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.306 WINDOWS PDF ANNOTATION VIEWER';
+    const APP_VERSION = 'v18.5.308 SIBLING CARD CONTEXT';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -3882,6 +3908,9 @@
 
         const currentArrow = findVisibleProblemElement('#question-section .mk-arrow-card .cloze-q, #answer-section .mk-arrow-card .cloze-a');
         if (scrollElementToProblemPosition(currentArrow, { alignRatio: 0.38 })) return;
+
+        const currentOrdinaryCard = findVisibleProblemElement('#question-section li.mk-card-current');
+        if (scrollElementToProblemPosition(currentOrdinaryCard, { alignRatio: 0.36 })) return;
 
         const currentCloze = findVisibleProblemElement('#question-section .cloze-q, #answer-section .cloze-a, .cloze-q');
         if (scrollElementToProblemPosition(currentCloze, { alignRatio: 0.38 })) return;
@@ -11129,6 +11158,51 @@
         return `${parsed.question} :-> ${target}`;
     }
 
+    function renderMkArrowCardPreservingChildren(activeHtml) {
+        // renderMkArrowCard(activeHtml) would consume nested <ul> into the
+        // target's .cloze-a, hiding the entire descendant hierarchy on the
+        // question side. Convert only the current bullet's own answer instead.
+        if(!/<(?:ul|ol)\b/i.test(String(activeHtml || ''))) return renderMkArrowCard(activeHtml);
+        const holder = document.createElement('div');
+        holder.innerHTML = String(activeHtml || '');
+        const firstList = holder.querySelector('ul, ol');
+        const walker = document.createTreeWalker(holder, NodeFilter.SHOW_TEXT);
+        let marker = null;
+        let position = -1;
+        while(walker.nextNode()) {
+            const node = walker.currentNode;
+            const value = String(node.nodeValue || '');
+            const index = value.indexOf(':->');
+            if(index < 0 || node.parentElement?.closest('li')) continue;
+            if(node.parentElement?.closest('.cloze-wrapper, .mk-extra-node, .mk-extra-content, code, pre')) continue;
+            marker = node;
+            position = index;
+            break;
+        }
+        if(!marker) return null;
+        const range = document.createRange();
+        range.setStart(marker, position + 3);
+        if(firstList && (marker.compareDocumentPosition(firstList) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+            range.setEndBefore(firstList);
+        } else {
+            range.setEnd(holder, holder.childNodes.length);
+        }
+        if(!String(range.toString() || '').trim()) return null;
+        const content = range.extractContents();
+        const answer = document.createElement('span');
+        answer.className = 'cloze-a';
+        answer.appendChild(content);
+        const mask = document.createElement('span');
+        mask.className = 'cloze-q';
+        mask.textContent = '[...]';
+        const wrapper = document.createElement('span');
+        wrapper.className = 'cloze-wrapper mk-arrow-card';
+        wrapper.dataset.mkArrow = '1';
+        wrapper.append(mask, answer);
+        range.insertNode(wrapper);
+        return holder.innerHTML;
+    }
+
     function processAnkiText(text, filename, stats, targetLib) {
         let rowOrder = 0;
         let deck = normalizeDeckPath(filename.replace('.txt', ''));
@@ -11224,7 +11298,7 @@
                     q = mainText;
                     a = mainText;
                 } else if (!isDoneCard && activeBlockHtml.includes(':->')) {
-                    const arrowRendered = renderMkArrowCard(activeBlockHtml);
+                    const arrowRendered = renderMkArrowCardPreservingChildren(activeBlockHtml);
                     if(arrowRendered) {
                         q = replaceMkActiveBlockHtml(mainText, arrowRendered);
                         a = q;
@@ -13383,6 +13457,82 @@ function getMkArrowOwnBlockText(block) {
         return revealed;
     }
 
+    // The source tree may contain :-> answers in *descendant* bullets, not just
+    // the active bullet's direct siblings. Keep their hierarchy intact and mask
+    // their answers in place before we expand any question-mode child lists.
+    function maskMkArrowNestedContext(root) {
+        if(!root || !root.querySelectorAll) return 0;
+        const target = root.querySelector('.mk-arrow-target, .mk-arrow-card');
+        let masked = 0;
+        root.querySelectorAll('li').forEach(block => {
+            if(block.closest('.mk-extra-node, .mk-extra-content')) return;
+            const ownWrappers = getMkArrowOwnClozeWrappers(block);
+            // Existing context clozes already have their answer in .cloze-a; do not
+            // reconstruct a second blank (or alter the live study target).
+            if(ownWrappers.length) {
+                const ownMarker = Array.from(block.querySelectorAll('b, strong, span')).some(node =>
+                    node.closest('li') === block && String(node.textContent || '').trim() === ':->'
+                );
+                const directMarker = Array.from(block.childNodes).some(node =>
+                    node.nodeType === Node.TEXT_NODE && String(node.nodeValue || '').includes(':->')
+                );
+                if(ownMarker || directMarker || ownWrappers.some(node => node.classList.contains('mk-arrow-blank'))) {
+                    ownWrappers.forEach(wrapper => {
+                        if(wrapper === target || wrapper.contains(target) || wrapper.classList.contains('mk-arrow-target')) return;
+                        if(!wrapper.querySelector('.cloze-q, .cloze-a')) return;
+                        wrapper.classList.add('mk-arrow-blank', 'mk-arrow-context');
+                        wrapper.classList.remove('mk-arrow-card', 'mk-arrow-target');
+                        masked++;
+                    });
+                }
+                return;
+            }
+
+            // Raw markup can be `위험등급 :-> 1`, or `위험등급 <b>:-></b> 1`.
+            // Use DOM Range instead of slicing innerHTML: that preserves emphasis,
+            // links, table markup and the nested UL/LI tree without broken tags.
+            const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+            let markerNode = null;
+            let markerIndex = -1;
+            while(walker.nextNode()) {
+                const node = walker.currentNode;
+                const index = String(node.nodeValue || '').indexOf(':->');
+                if(index < 0 || node.parentElement?.closest('li') !== block) continue;
+                if(node.parentElement?.closest('.cloze-wrapper, .mk-cs-wrapper, .mk-extra-node, .mk-extra-content, code, pre')) continue;
+                markerNode = node;
+                markerIndex = index;
+                break;
+            }
+            if(!markerNode) return;
+
+            // Child lists are not part of this bullet's answer. End the range
+            // before the first such list instead of swallowing its descendants.
+            const childList = block.querySelector('ul.children-list, ol.children-list, ul, ol');
+            const range = document.createRange();
+            range.setStart(markerNode, markerIndex + 3);
+            if(childList && (markerNode.compareDocumentPosition(childList) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+                range.setEndBefore(childList);
+            } else {
+                range.setEnd(block, block.childNodes.length);
+            }
+            if(!String(range.toString() || '').trim()) return;
+            const answerNodes = range.extractContents();
+            const wrapper = document.createElement('span');
+            wrapper.className = 'cloze-wrapper mk-arrow-blank mk-arrow-context';
+            wrapper.dataset.mkArrowContext = 'nested';
+            const mask = document.createElement('span');
+            mask.className = 'cloze-q';
+            mask.textContent = '[...]';
+            const answer = document.createElement('span');
+            answer.className = 'cloze-a';
+            answer.appendChild(answerNodes);
+            wrapper.append(mask, answer);
+            range.insertNode(wrapper);
+            masked++;
+        });
+        return masked;
+    }
+
     function normalizeMkArrowQuestionState(root, card) {
         if(!root || !isMkArrowCard(card)) return false;
         root.classList.remove('mk-arrow-answer-revealed', 'mk-arrow-show-all');
@@ -13393,9 +13543,17 @@ function getMkArrowOwnBlockText(block) {
             target.classList.remove('mk-arrow-context');
         }
 
-        const activeRaw = root.querySelector('li.active-block, .active-block');
+        // The current source can sit several levels below an active ancestor.
+        // Anchor direct sibling handling to the actual arrow target, not the first
+        // .active-block encountered at the top of the tree.
+        const targetLi = target && target.closest('li');
+        const activeRaw = targetLi || root.querySelector('li.active-block, .active-block');
         const active = activeRaw && (activeRaw.matches && activeRaw.matches('li') ? activeRaw : activeRaw.closest && activeRaw.closest('li'));
         const level = active && active.parentElement;
+        // Mark raw descendant :-> choices before the sibling fallback can add
+        // duplicate blanks. Only arrow cards get their nested lists expanded.
+        maskMkArrowNestedContext(root);
+        root.classList.add('mk-arrow-hierarchy-expanded');
         if(level) {
             Array.from(level.children).filter(node => node.tagName === 'LI').forEach(block => {
                 if(block === active) return;
@@ -15583,6 +15741,166 @@ function getIOImageGroups() {
 
     window.addEventListener('resize', fitDeckPathTitle);
 
+    // Only ordinary Logseq #card-style cards use this contextual sibling view.
+    // :-> / CS / IO card types retain their specialized masks and grading.
+    function getMkOrdinaryCardActiveLi(root) {
+        if(!root || !root.querySelectorAll) return null;
+        const activeLis = Array.from(root.querySelectorAll('li.active-block'));
+        return activeLis.reverse().find(li =>
+            Array.from(li.children).some(child =>
+                /^(UL|OL)$/.test(child.tagName) && child.classList.contains('children-list')
+            )
+        ) || null;
+    }
+
+    function getMkOwnCardQuestionLabel(li) {
+        if(!li) return '';
+        const copy = li.cloneNode(true);
+        Array.from(copy.children).forEach(child => {
+            if(/^(UL|OL)$/.test(child.tagName)) child.remove();
+        });
+        return String(copy.textContent || '').replace(/\s*#card\b/gi, '').replace(/\s+/g, ' ').trim();
+    }
+
+    function getMkOrdinaryCardContextKey(card, holder, activeLi) {
+        if(!activeLi) return '';
+        const ancestorLabels = [];
+        let cursor = activeLi.parentElement && activeLi.parentElement.closest('li');
+        while(cursor) {
+            const label = getMkOwnCardQuestionLabel(cursor);
+            if(label) ancestorLabels.unshift(label);
+            cursor = cursor.parentElement && cursor.parentElement.closest('li');
+        }
+        let parentContext = ancestorLabels.join(' > ');
+        if(!parentContext) {
+            const ancestor = holder.querySelector('.ancestor-wrapper, .ancestor-list');
+            parentContext = ancestor ? String(ancestor.textContent || '').replace(/\s+/g, ' ').trim() : '';
+        }
+        // Never guess sibling relation from the deck alone. Identical names like
+        // '오답' may occur in several chapters; require a concrete hierarchy label.
+        if(!parentContext) return '';
+        const deck = String(card && card.deck || currentDeckName || '');
+        return `${deck}::${parentContext}`;
+    }
+
+    function getMkOrdinaryCardSiblingSource(card) {
+        if(!card || !card.isLogseq || isMkCSCardFast(card) || isMkArrowCard(card) || isMkImageOcclusionCardFast(card)) return null;
+        const holder = document.createElement('div');
+        holder.innerHTML = String(card.q || '');
+        const active = getMkOrdinaryCardActiveLi(holder);
+        if(!active || !getMkOwnCardQuestionLabel(active)) return null;
+        return { card, holder, active, key:getMkOrdinaryCardContextKey(card, holder, active) };
+    }
+
+    function extendMkOrdinaryCardContext(root, currentCard) {
+        const current = getMkOrdinaryCardSiblingSource(currentCard);
+        const active = getMkOrdinaryCardActiveLi(root);
+        if(!current || !active || !active.parentElement) return false;
+        const parent = active.parentElement;
+        const cardLabel = getMkOwnCardQuestionLabel(active).toLowerCase();
+        // Source HTML already carries some siblings on certain sync versions;
+        // only add missing ones, never duplicate existing bullet content.
+        const existingLabels = new Set(Array.from(parent.children)
+            .filter(child => child.tagName === 'LI')
+            .map(child => getMkOwnCardQuestionLabel(child).toLowerCase())
+            .filter(Boolean));
+        const sameLevelCards = [];
+        if(current.key && Array.isArray(originalDeck)) {
+            const pool = originalDeck.filter(other => other && other.isLogseq && String(other.deck) === String(currentCard.deck));
+            const index = pool.findIndex(other => other === currentCard || String(other.id) === String(currentCard.id));
+            if(index >= 0) {
+                // Consecutive sibling cards in the exported source share their parent
+                // hierarchy. Stop at the first different parent, instead of pulling
+                // faraway cards whose parent happens to have the same visible title.
+                for(let indexOffset = -1; indexOffset <= 1; indexOffset += 2) {
+                    for(let step = 1; step <= 20; step++) {
+                        const other = pool[index + indexOffset * step];
+                        if(!other) break;
+                        const source = getMkOrdinaryCardSiblingSource(other);
+                        if(!source || !source.key || source.key !== current.key) break;
+                        sameLevelCards.push(source);
+                    }
+                }
+            }
+        }
+        const currentOrder = Number(currentCard.sourceOrder);
+        const before = sameLevelCards.filter(source => Number(source.card.sourceOrder) < currentOrder)
+            .sort((a,b) => Number(a.card.sourceOrder) - Number(b.card.sourceOrder));
+        const after = sameLevelCards.filter(source => !(Number(source.card.sourceOrder) < currentOrder))
+            .sort((a,b) => Number(a.card.sourceOrder) - Number(b.card.sourceOrder));
+        const appendSource = (source, anchor, insertBefore) => {
+            const label = getMkOwnCardQuestionLabel(source.active).toLowerCase();
+            if(!label) return anchor;
+            if(existingLabels.has(label)) {
+                // Some sync snapshots include the sibling question but omit its
+                // answer children. Reattach only the matching sibling's own answer
+                // subtree so the eye can reveal it without duplicating the question.
+                const existing = Array.from(parent.children).find(el =>
+                    el.tagName === 'LI' && getMkOwnCardQuestionLabel(el).toLowerCase() === label
+                );
+                const hasAnswers = existing && Array.from(existing.children).some(child =>
+                    /^(UL|OL)$/.test(child.tagName) && child.classList.contains('children-list')
+                );
+                if(existing && !hasAnswers) {
+                    const sourceAnswer = Array.from(source.active.children).find(child =>
+                        /^(UL|OL)$/.test(child.tagName) && child.classList.contains('children-list')
+                    );
+                    if(sourceAnswer) existing.appendChild(sourceAnswer.cloneNode(true));
+                }
+                return anchor;
+            }
+            const node = source.active.cloneNode(true);
+            node.classList.remove('active-block', 'ls-active');
+            node.classList.add('sibling-block', 'mk-card-context');
+            node.removeAttribute('id');
+            // Context siblings must not create a second answer target or active card.
+            node.querySelectorAll('.active-block, .ls-active').forEach(el => el.classList.remove('active-block', 'ls-active'));
+            if(insertBefore) parent.insertBefore(node, active);
+            else anchor.after(node);
+            existingLabels.add(label);
+            return node;
+        };
+        before.forEach(source => appendSource(source, active, true));
+        let afterAnchor = active;
+        after.forEach(source => { afterAnchor = appendSource(source, afterAnchor, false); });
+        const siblings = Array.from(parent.children).filter(el => el.tagName === 'LI');
+        let contextCount = 0;
+        siblings.forEach(li => {
+            if(li === active) {
+                li.classList.remove('mk-card-context');
+                li.classList.add('mk-card-current');
+            } else if(Array.from(li.children).some(child =>
+                /^(UL|OL)$/.test(child.tagName) && child.classList.contains('children-list')
+            )) {
+                li.classList.add('mk-card-context');
+                contextCount++;
+            }
+        });
+        if(contextCount < 1) return false;
+        root.classList.add('mk-card-hierarchy-expanded');
+        return true;
+    }
+
+    function updateMkCardSiblingEye(root) {
+        if(!root || !root.classList.contains('mk-card-hierarchy-expanded')) return;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'mk-io-other-masks-toggle mk-card-other-masks-toggle';
+        button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 3.5 6 10 6-3.5 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+        button.title = '모든 카드 정답 보기';
+        button.setAttribute('aria-label', button.title);
+        button.setAttribute('aria-pressed', 'false');
+        button.addEventListener('click', event => {
+            event.preventDefault(); event.stopPropagation();
+            const showAll = root.classList.toggle('mk-card-show-all');
+            button.classList.toggle('active', showAll);
+            button.setAttribute('aria-pressed', String(showAll));
+            button.title = showAll ? '다른 카드 정답 숨기기' : '모든 카드 정답 보기';
+            button.setAttribute('aria-label', button.title);
+        });
+        document.body.appendChild(button);
+    }
+
     function showCard() {
         ioZoomDiagnostics.cardRenders += 1;
         if(mkStartupTiming.firstVisiblePaint === undefined) {
@@ -15648,6 +15966,9 @@ function getIOImageGroups() {
         qSection.className = 'text-area mode-question';
         qSection.classList.remove('mk-cs-answer-revealed');
         qSection.appendChild(createDOM(card, false, currentCardPdfTrace));
+        if(!isCSCard && !isArrowCard && !isIOCard && extendMkOrdinaryCardContext(qSection, card)) {
+            updateMkCardSiblingEye(qSection);
+        }
         if(isCSCard) {
             normalizeMkCSQuestionState(qSection, card);
             updateMkCSOtherMasksToggle(qSection, card);
