@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.312 CARD CONTEXT MATCH FIX -->
+<!-- preview: v18.5.313 CARD MASK DISPLAY FIX -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.312 CARD CONTEXT MATCH FIX)</title>
+<title>MK (v18.5.313 CARD MASK DISPLAY FIX)</title>
 
 <script>
     (() => {
@@ -632,7 +632,41 @@
     .text-area.mk-card-hierarchy-expanded li.mk-card-current { min-height: 0 !important; height: auto !important; }
     .text-area.mk-card-hierarchy-expanded .mk-card-answer-mask > li,
     .text-area.mk-card-hierarchy-expanded .mk-card-answer-real > li { margin: 0 0 3px !important; padding-top: 0 !important; }
-    .mk-card-mask-label { color:#ff6b6b !important; font-weight:700; background:rgba(255,107,107,0.15); padding:0 4px; border-radius:4px; }
+    /* Ordinary #card answers: the generic 'li.children > span' block rule must
+       NOT turn a short [...] into a full-width red background strip. */
+    .text-area.mk-card-hierarchy-expanded .mk-card-answer-mask,
+    .text-area.mk-card-hierarchy-expanded .mk-card-answer-mask > li {
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    .text-area.mk-card-hierarchy-expanded .mk-card-answer-mask > li > .mk-card-mask-label {
+        display: inline-block !important;
+        width: auto !important;
+        max-width: max-content !important;
+        color: #ff6b6b !important;
+        font-weight: 700;
+        background: rgba(255,107,107,0.15) !important;
+        padding: 0 4px;
+        border-radius: 4px;
+    }
+    /* The current #card already carries its own Logseq cloze answer.
+       Reuse it instead of inserting a second synthetic [...] and answer list. */
+    .text-area.mk-card-hierarchy-expanded li.mk-card-current .mk-card-original-answer {
+        display: block !important;
+        background: transparent !important;
+    }
+    .text-area.mk-card-hierarchy-expanded.mk-card-show-all li.mk-card-current .mk-card-original-answer .cloze-q {
+        display: none !important;
+    }
+    .text-area.mk-card-hierarchy-expanded.mk-card-show-all li.mk-card-current .mk-card-original-answer .cloze-a {
+        display: inline !important;
+    }
+    /* Keep sibling real answer trees hidden until the eye is enabled, even when
+       imported Logseq HTML has extra wrappers around nested list elements. */
+    .text-area.mk-card-hierarchy-expanded li.mk-card-context .mk-card-answer-real { display: none !important; }
+    .text-area.mk-card-hierarchy-expanded.mk-card-show-all li.mk-card-context .mk-card-answer-real { display: block !important; }
+    .text-area.mk-card-hierarchy-expanded.mode-question li.mk-card-current .mk-card-answer-real { display: none !important; }
+    .text-area.mk-card-hierarchy-expanded.mode-answer li.mk-card-current .mk-card-answer-real { display: block !important; }
     .mk-card-current { opacity:1 !important; }
     .mk-card-current > .mk-card-question {
         color:var(--text) !important; font-weight:700;
@@ -906,7 +940,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.312 CARD CONTEXT MATCH FIX)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.313 CARD MASK DISPLAY FIX)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1264,7 +1298,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.312 CARD CONTEXT MATCH FIX';
+    const APP_VERSION = 'v18.5.313 CARD MASK DISPLAY FIX';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -15877,8 +15911,18 @@ function getIOImageGroups() {
         if(!li || li.dataset.mkCardAnswerAttached==='1') return false;
         const real = getMkOrdinaryCardRealAnswerList(source);
         const existing = getMkOrdinaryCardOwnList(li);
-        // Do not replace the current question's original answer with a synthetic
-        // placeholder unless a real revealable counterpart is available.
+        // The current ordinary #card usually already has a real cloze-wrapper
+        // (cloze-q + cloze-a) in its active child list. Keep that SINGLE source
+        // list for both question and answer modes. Never add a second blank.
+        if(isCurrent && existing && existing.querySelector('.cloze-q') && existing.querySelector('.cloze-a')) {
+            existing.classList.add('mk-card-original-answer');
+            li.classList.add('mk-card-current');
+            li.classList.remove('mk-card-context');
+            li.dataset.mkCardAnswerAttached='1';
+            return true;
+        }
+        // Only use the synthetic mask/real pair if the original active list
+        // cannot itself support the answer reveal.
         if(isCurrent && !real) return false;
         const mask = document.createElement(existing ? existing.tagName.toLowerCase() : 'ul');
         mask.className = 'children-list mk-card-answer-mask';
@@ -16002,7 +16046,7 @@ function getIOImageGroups() {
         root.dataset.mkCardAnswersMatched=String(matched);
         root.dataset.mkCardAnswersTotal=String(otherCount);
         root.dataset.mkCardAnswersMissing=JSON.stringify(missingLabels);
-        console.info('[MK_CARD_CONTEXT_V312]',{current:currentLabel,siblings:otherCount,matched,missingLabels,candidateCount:candidates.length});
+        console.info('[MK_CARD_CONTEXT_V313]',{current:currentLabel,siblings:otherCount,matched,missingLabels,candidateCount:candidates.length});
         return true;
     }
 
