@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.308 SIBLING CARD CONTEXT -->
+<!-- preview: v18.5.309 CARD ANSWER CONTEXT FIX -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.308 SIBLING CARD CONTEXT)</title>
+<title>MK (v18.5.309 CARD ANSWER CONTEXT FIX)</title>
 
 <script>
     (() => {
@@ -593,22 +593,34 @@
         display: block !important;
     }
     .mode-answer .active-block > ul.children-list { display: block !important; }
-    /* Logseq #card siblings are context questions, not extra answer blocks.
-       Reveal only the current card's child answers; the eye toggles all answers. */
-    .text-area.mk-card-hierarchy-expanded li.mk-card-context > ul.children-list,
-    .text-area.mk-card-hierarchy-expanded li.mk-card-context > ol.children-list,
-    .text-area.mk-card-hierarchy-expanded.mode-question li.mk-card-current > ul.children-list,
-    .text-area.mk-card-hierarchy-expanded.mode-question li.mk-card-current > ol.children-list {
+    /* Ordinary Logseq #card: every sibling has its own answer placeholder.
+       Never reveal sibling answers merely because the CURRENT card was graded. */
+    .text-area.mk-card-hierarchy-expanded li.mk-card-context > .mk-card-answer-real,
+    .text-area.mk-card-hierarchy-expanded.mode-question li.mk-card-current > .mk-card-answer-real {
         display: none !important;
     }
-    .text-area.mk-card-hierarchy-expanded.mode-answer li.mk-card-current > ul.children-list,
-    .text-area.mk-card-hierarchy-expanded.mode-answer li.mk-card-current > ol.children-list,
-    .text-area.mk-card-hierarchy-expanded.mk-card-show-all li.mk-card-context > ul.children-list,
-    .text-area.mk-card-hierarchy-expanded.mk-card-show-all li.mk-card-context > ol.children-list,
-    .text-area.mk-card-hierarchy-expanded.mk-card-show-all.mode-question li.mk-card-current > ul.children-list,
-    .text-area.mk-card-hierarchy-expanded.mk-card-show-all.mode-question li.mk-card-current > ol.children-list {
+    .text-area.mk-card-hierarchy-expanded li.mk-card-context > .mk-card-answer-mask,
+    .text-area.mk-card-hierarchy-expanded.mode-question li.mk-card-current > .mk-card-answer-mask {
         display: block !important;
     }
+    .text-area.mk-card-hierarchy-expanded.mode-answer li.mk-card-current > .mk-card-answer-real,
+    .text-area.mk-card-hierarchy-expanded.mk-card-show-all li.mk-card-context > .mk-card-answer-real,
+    .text-area.mk-card-hierarchy-expanded.mk-card-show-all li.mk-card-current > .mk-card-answer-real {
+        display: block !important;
+    }
+    .text-area.mk-card-hierarchy-expanded.mode-answer li.mk-card-current > .mk-card-answer-mask,
+    .text-area.mk-card-hierarchy-expanded.mk-card-show-all li.mk-card-context > .mk-card-answer-mask,
+    .text-area.mk-card-hierarchy-expanded.mk-card-show-all li.mk-card-current > .mk-card-answer-mask {
+        display: none !important;
+    }
+    /* Some synced answer trees contain cloze pairs. Eye must expose the real
+       answer instead of leaving the question-mode [...] visible. */
+    .text-area.mk-card-show-all .mk-card-answer-real .cloze-q,
+    .text-area.mode-answer .mk-card-current > .mk-card-answer-real .cloze-q { display:none !important; }
+    .text-area.mk-card-show-all .mk-card-answer-real .cloze-a,
+    .text-area.mode-answer .mk-card-current > .mk-card-answer-real .cloze-a { display:inline !important; }
+    .mk-card-answer-mask > li { opacity:0.85 !important; }
+    .mk-card-answer-mask .mk-card-mask-label { color:#ff6b6b !important; font-weight:700; background:rgba(255,107,107,0.15); padding:0 4px; border-radius:4px; }
     .mk-card-current { opacity:1 !important; }
     .mk-card-current > .mk-card-question {
         color:var(--text) !important; font-weight:700;
@@ -881,7 +893,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.308 SIBLING CARD CONTEXT)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.309 CARD ANSWER CONTEXT FIX)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1239,7 +1251,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.308 SIBLING CARD CONTEXT';
+    const APP_VERSION = 'v18.5.309 CARD ANSWER CONTEXT FIX';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -15741,15 +15753,20 @@ function getIOImageGroups() {
 
     window.addEventListener('resize', fitDeckPathTitle);
 
-    // Only ordinary Logseq #card-style cards use this contextual sibling view.
-    // :-> / CS / IO card types retain their specialized masks and grading.
+    // Ordinary Logseq #card sibling view. Each card's question and answer have
+    // to be extracted independently: 'q' often contains only a red [...], while
+    // the actual answer children live in that card's 'a' HTML.
     function getMkOrdinaryCardActiveLi(root) {
         if(!root || !root.querySelectorAll) return null;
         const activeLis = Array.from(root.querySelectorAll('li.active-block'));
-        return activeLis.reverse().find(li =>
-            Array.from(li.children).some(child =>
-                /^(UL|OL)$/.test(child.tagName) && child.classList.contains('children-list')
-            )
+        return activeLis.reverse().find(li => Array.from(li.children).some(child =>
+            /^(UL|OL)$/.test(child.tagName) && child.classList.contains('children-list')
+        )) || activeLis[0] || null;
+    }
+
+    function getMkOrdinaryCardOwnList(li) {
+        return li && Array.from(li.children).find(child =>
+            /^(UL|OL)$/.test(child.tagName) && child.classList.contains('children-list')
         ) || null;
     }
 
@@ -15776,8 +15793,6 @@ function getIOImageGroups() {
             const ancestor = holder.querySelector('.ancestor-wrapper, .ancestor-list');
             parentContext = ancestor ? String(ancestor.textContent || '').replace(/\s+/g, ' ').trim() : '';
         }
-        // Never guess sibling relation from the deck alone. Identical names like
-        // '오답' may occur in several chapters; require a concrete hierarchy label.
         if(!parentContext) return '';
         const deck = String(card && card.deck || currentDeckName || '');
         return `${deck}::${parentContext}`;
@@ -15789,71 +15804,133 @@ function getIOImageGroups() {
         holder.innerHTML = String(card.q || '');
         const active = getMkOrdinaryCardActiveLi(holder);
         if(!active || !getMkOwnCardQuestionLabel(active)) return null;
-        return { card, holder, active, key:getMkOrdinaryCardContextKey(card, holder, active) };
+        const answerHolder = document.createElement('div');
+        answerHolder.innerHTML = String(card.a || '');
+        const questionLabel = getMkOwnCardQuestionLabel(active).toLowerCase();
+        const answerCandidates = Array.from(answerHolder.querySelectorAll('li.active-block'));
+        // Requiring the same question label prevents the answer subtree from a
+        // different hierarchy item being attached to this #card sibling. Older
+        // sync exports can omit 'active-block' from the answer HTML altogether.
+        let answerActive = answerCandidates.find(li => getMkOwnCardQuestionLabel(li).toLowerCase() === questionLabel) || null;
+        if(!answerActive) {
+            answerActive = Array.from(answerHolder.querySelectorAll('li')).find(li =>
+                getMkOwnCardQuestionLabel(li).toLowerCase() === questionLabel && !!getMkOrdinaryCardOwnList(li)
+            ) || null;
+        }
+        return { card, holder, active, answerActive, key:getMkOrdinaryCardContextKey(card, holder, active) };
+    }
+
+    function getMkOrdinaryCardRealAnswerList(source) {
+        if(!source) return null;
+        const answerList = getMkOrdinaryCardOwnList(source.answerActive);
+        const questionList = getMkOrdinaryCardOwnList(source.active);
+        const hasRealAnswer = list => {
+            if(!list) return false;
+            const sample = list.cloneNode(true);
+            sample.querySelectorAll('.cloze-q, .mk-cs-mask').forEach(el => el.remove());
+            const normalized = String(sample.textContent || '').replace(/\[\s*\.\.\.\s*\]/g, '').trim();
+            return !!normalized || !!sample.querySelector('img, table, .cloze-a, .mk-io-wrapper');
+        };
+        // Prefer source.card.a over source.card.q, where the current-card mask
+        // often replaces the real answer. Do not copy a list of only [...].
+        if(hasRealAnswer(answerList)) return answerList.cloneNode(true);
+        if(hasRealAnswer(questionList)) return questionList.cloneNode(true);
+        return null;
+    }
+
+    function decorateMkOrdinaryCardAnswer(li, source) {
+        if(!li || !source || li.dataset.mkCardAnswerAttached === '1') return false;
+        const realList = getMkOrdinaryCardRealAnswerList(source);
+        if(!realList) return false;
+        const questionList = getMkOrdinaryCardOwnList(li);
+        const listTag = (questionList || realList).tagName.toLowerCase();
+        const placeholder = document.createElement(listTag);
+        placeholder.className = 'children-list mk-card-answer-mask';
+        const placeholderRow = document.createElement('li');
+        placeholderRow.className = 'children';
+        const placeholderText = document.createElement('span');
+        placeholderText.className = 'mk-card-mask-label';
+        placeholderText.textContent = '[...]';
+        placeholderRow.appendChild(placeholderText);
+        placeholder.appendChild(placeholderRow);
+        realList.classList.add('children-list', 'mk-card-answer-real');
+        // Strip active-card markers from copied answers, avoiding a second
+        // targeted card or accidental focus jump inside the context answer.
+        realList.querySelectorAll('.active-block, .ls-active').forEach(el =>
+            el.classList.remove('active-block', 'ls-active')
+        );
+        if(questionList) questionList.replaceWith(placeholder);
+        else li.appendChild(placeholder);
+        placeholder.after(realList);
+        li.dataset.mkCardAnswerAttached = '1';
+        return true;
     }
 
     function extendMkOrdinaryCardContext(root, currentCard) {
         const current = getMkOrdinaryCardSiblingSource(currentCard);
         const active = getMkOrdinaryCardActiveLi(root);
-        if(!current || !active || !active.parentElement) return false;
+        if(!current || !current.key || !active || !active.parentElement) return false;
         const parent = active.parentElement;
-        const cardLabel = getMkOwnCardQuestionLabel(active).toLowerCase();
-        // Source HTML already carries some siblings on certain sync versions;
-        // only add missing ones, never duplicate existing bullet content.
+        const currentLabel = getMkOwnCardQuestionLabel(active).toLowerCase();
+        if(!currentLabel || currentLabel !== getMkOwnCardQuestionLabel(current.active).toLowerCase()) return false;
         const existingLabels = new Set(Array.from(parent.children)
             .filter(child => child.tagName === 'LI')
             .map(child => getMkOwnCardQuestionLabel(child).toLowerCase())
             .filter(Boolean));
         const sameLevelCards = [];
-        if(current.key && Array.isArray(originalDeck)) {
+        let nearbyCards = [];
+        if(Array.isArray(originalDeck)) {
             const pool = originalDeck.filter(other => other && other.isLogseq && String(other.deck) === String(currentCard.deck));
-            const index = pool.findIndex(other => other === currentCard || String(other.id) === String(currentCard.id));
-            if(index >= 0) {
-                // Consecutive sibling cards in the exported source share their parent
-                // hierarchy. Stop at the first different parent, instead of pulling
-                // faraway cards whose parent happens to have the same visible title.
-                for(let indexOffset = -1; indexOffset <= 1; indexOffset += 2) {
+            const currentIndexInPool = pool.findIndex(other => other === currentCard || String(other.id) === String(currentCard.id));
+            if(currentIndexInPool >= 0) {
+                // Only inspect a bounded neighborhood on the recovery path; a
+                // full-deck HTML parse per review would destabilize startup.
+                nearbyCards = pool.slice(Math.max(0, currentIndexInPool - 80), currentIndexInPool + 81);
+                for(const direction of [-1, 1]) {
                     for(let step = 1; step <= 20; step++) {
-                        const other = pool[index + indexOffset * step];
+                        const other = pool[currentIndexInPool + direction * step];
                         if(!other) break;
-                        const source = getMkOrdinaryCardSiblingSource(other);
-                        if(!source || !source.key || source.key !== current.key) break;
-                        sameLevelCards.push(source);
+                        const candidate = getMkOrdinaryCardSiblingSource(other);
+                        if(!candidate || candidate.key !== current.key) break;
+                        sameLevelCards.push(candidate);
                     }
                 }
             }
         }
+        // Cached Logseq trees may already show sibling question labels while
+        // their separately generated #card records are NOT adjacent in the deck.
+        // Recover only exact visible sibling labels from the SAME hierarchy; do
+        // not sweep in every card with a common parent title like "오답".
+        if(sameLevelCards.length < existingLabels.size - 1 && nearbyCards.length) {
+            const knownIds = new Set(sameLevelCards.map(entry => String(entry.card.id || '')));
+            for(const other of nearbyCards) {
+                if(!other || other === currentCard || String(other.id) === String(currentCard.id)) continue;
+                const id = String(other.id || '');
+                if(knownIds.has(id) || !other.isLogseq || String(other.deck) !== String(currentCard.deck)) continue;
+                const source = getMkOrdinaryCardSiblingSource(other);
+                if(!source || source.key !== current.key) continue;
+                const label = getMkOwnCardQuestionLabel(source.active).toLowerCase();
+                if(!existingLabels.has(label) || label === currentLabel) continue;
+                sameLevelCards.push(source);
+                knownIds.add(id);
+            }
+        }
+        if(!sameLevelCards.length) return false;
         const currentOrder = Number(currentCard.sourceOrder);
-        const before = sameLevelCards.filter(source => Number(source.card.sourceOrder) < currentOrder)
+        const before = sameLevelCards.filter(s => Number(s.card.sourceOrder) < currentOrder)
             .sort((a,b) => Number(a.card.sourceOrder) - Number(b.card.sourceOrder));
-        const after = sameLevelCards.filter(source => !(Number(source.card.sourceOrder) < currentOrder))
+        const after = sameLevelCards.filter(s => !(Number(s.card.sourceOrder) < currentOrder))
             .sort((a,b) => Number(a.card.sourceOrder) - Number(b.card.sourceOrder));
+        const targets = new Map([[currentLabel, current]]);
         const appendSource = (source, anchor, insertBefore) => {
             const label = getMkOwnCardQuestionLabel(source.active).toLowerCase();
-            if(!label) return anchor;
-            if(existingLabels.has(label)) {
-                // Some sync snapshots include the sibling question but omit its
-                // answer children. Reattach only the matching sibling's own answer
-                // subtree so the eye can reveal it without duplicating the question.
-                const existing = Array.from(parent.children).find(el =>
-                    el.tagName === 'LI' && getMkOwnCardQuestionLabel(el).toLowerCase() === label
-                );
-                const hasAnswers = existing && Array.from(existing.children).some(child =>
-                    /^(UL|OL)$/.test(child.tagName) && child.classList.contains('children-list')
-                );
-                if(existing && !hasAnswers) {
-                    const sourceAnswer = Array.from(source.active.children).find(child =>
-                        /^(UL|OL)$/.test(child.tagName) && child.classList.contains('children-list')
-                    );
-                    if(sourceAnswer) existing.appendChild(sourceAnswer.cloneNode(true));
-                }
-                return anchor;
-            }
+            if(!label || targets.has(label)) return anchor;
+            targets.set(label, source);
+            if(existingLabels.has(label)) return anchor;
             const node = source.active.cloneNode(true);
             node.classList.remove('active-block', 'ls-active');
-            node.classList.add('sibling-block', 'mk-card-context');
+            node.classList.add('sibling-block');
             node.removeAttribute('id');
-            // Context siblings must not create a second answer target or active card.
             node.querySelectorAll('.active-block, .ls-active').forEach(el => el.classList.remove('active-block', 'ls-active'));
             if(insertBefore) parent.insertBefore(node, active);
             else anchor.after(node);
@@ -15863,18 +15940,20 @@ function getIOImageGroups() {
         before.forEach(source => appendSource(source, active, true));
         let afterAnchor = active;
         after.forEach(source => { afterAnchor = appendSource(source, afterAnchor, false); });
-        const siblings = Array.from(parent.children).filter(el => el.tagName === 'LI');
         let contextCount = 0;
-        siblings.forEach(li => {
+        Array.from(parent.children).forEach(li => {
+            if(li.tagName !== 'LI') return;
+            const label = getMkOwnCardQuestionLabel(li).toLowerCase();
+            const source = targets.get(label);
+            if(!source) return;
             if(li === active) {
                 li.classList.remove('mk-card-context');
                 li.classList.add('mk-card-current');
-            } else if(Array.from(li.children).some(child =>
-                /^(UL|OL)$/.test(child.tagName) && child.classList.contains('children-list')
-            )) {
+            } else {
                 li.classList.add('mk-card-context');
                 contextCount++;
             }
+            decorateMkOrdinaryCardAnswer(li, source);
         });
         if(contextCount < 1) return false;
         root.classList.add('mk-card-hierarchy-expanded');
