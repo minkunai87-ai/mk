@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.311 CARD CONTEXT ANSWER REPAIR -->
+<!-- preview: v18.5.312 CARD CONTEXT MATCH FIX -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.311 CARD CONTEXT ANSWER REPAIR)</title>
+<title>MK (v18.5.312 CARD CONTEXT MATCH FIX)</title>
 
 <script>
     (() => {
@@ -901,11 +901,12 @@
             <button class="btn-sub" id="review-history-full-recovery-btn" onclick="recoverAllReviewHistoryFromFirebase()">🛟 과거 히스토리 전체 복구</button>
             <button class="btn-sub" onclick="openUuidMigrationModal()">🔗 UUID 마이그레이션</button>
             <button class="btn-sub" onclick="copyCurrentPdfDiagnostic()">📋 PDF 진단 복사</button>
+            <button class="btn-sub" onclick="copyMkCardSiblingDiagnostics()">📋 카드 계층 진단 복사</button>
             <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 서버 연결 안정화됨</div>
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.311 CARD CONTEXT ANSWER REPAIR)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.312 CARD CONTEXT MATCH FIX)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1263,7 +1264,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.311 CARD CONTEXT ANSWER REPAIR';
+    const APP_VERSION = 'v18.5.312 CARD CONTEXT MATCH FIX';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -15772,14 +15773,21 @@ function getIOImageGroups() {
 
     function getMkOrdinaryCardActiveLi(root) {
         if(!root || !root.querySelectorAll) return null;
-        const active = Array.from(root.querySelectorAll('li.active-block'));
+        const active = Array.from(root.querySelectorAll('li.active-block, li.ls-active'));
         return active.reverse().find(li => getMkOrdinaryCardOwnList(li)) || active[active.length - 1] || null;
     }
 
     function getMkOrdinaryCardOwnList(li) {
-        return li && Array.from(li.children).find(child =>
-            /^(UL|OL)$/.test(child.tagName) && child.classList.contains('children-list')
-        ) || null;
+        if(!li) return null;
+        const direct = Array.from(li.children).find(child => /^(UL|OL)$/.test(child.tagName));
+        if(direct) return direct;
+        // Some Logseq exports wrap the answer UL in the active block's DIV.
+        for(const child of li.children) {
+            if(!/^(DIV|SECTION)$/.test(child.tagName)) continue;
+            const nested = Array.from(child.children).find(item => /^(UL|OL)$/.test(item.tagName));
+            if(nested) return nested;
+        }
+        return null;
     }
 
     function getMkOwnCardQuestionLabel(li) {
@@ -15791,10 +15799,17 @@ function getIOImageGroups() {
             .replace(/\[\s*\.\.\.\s*\]/g, '').replace(/\s+/g,' ').trim();
     }
 
+    function normalizeMkSiblingCardLabel(value) {
+        return String(value || '').replace(/\s*#card\b/gi,'')
+            .replace(/\[\s*\.\.\.\s*\]/g,'')
+            .replace(/[\u200b\u00a0]/g,' ')
+            .replace(/\s+/g,' ').trim().toLocaleLowerCase('ko');
+    }
+
     function getMkOrdinaryCardSiblingSignature(li) {
         if(!li || !li.parentElement) return '';
         return Array.from(li.parentElement.children).filter(node => node.tagName === 'LI')
-            .map(node => getMkOwnCardQuestionLabel(node).toLowerCase())
+            .map(node => normalizeMkSiblingCardLabel(getMkOwnCardQuestionLabel(node)))
             .filter(Boolean).join('\u241f');
     }
 
@@ -15830,7 +15845,7 @@ function getIOImageGroups() {
         qHolder.innerHTML = String(card.q || '');
         const active = getMkOrdinaryCardActiveLi(qHolder);
         if(!active) { mkSiblingCardSourceCache.set(card,null); return null; }
-        const label = getMkOwnCardQuestionLabel(active).toLowerCase();
+        const label = normalizeMkSiblingCardLabel(getMkOwnCardQuestionLabel(active));
         if(!label) { mkSiblingCardSourceCache.set(card,null); return null; }
         const signature = getMkOrdinaryCardSiblingSignature(active);
         // Prefer a truly expanded answer in a; with the ordinary TSV format
@@ -15841,7 +15856,7 @@ function getIOImageGroups() {
             const holder = document.createElement('div');
             holder.innerHTML = String(sourceHtml);
             const candidate = getMkOrdinaryCardActiveLi(holder);
-            if(!candidate || getMkOwnCardQuestionLabel(candidate).toLowerCase() !== label) continue;
+            if(!candidate || normalizeMkSiblingCardLabel(getMkOwnCardQuestionLabel(candidate)) !== label) continue;
             const list = getMkOrdinaryCardOwnList(candidate);
             if(mkCardAnswerListHasContent(list)) { realList = list.cloneNode(true); break; }
         }
@@ -15887,7 +15902,13 @@ function getIOImageGroups() {
     }
 
     function getMkSiblingCardCandidatePool(card) {
-        const pools = [originalDeck, activeDeck, library && library[card.deck]];
+        const deckName = String(card?.deck || currentDeckName || '');
+        const pools = [originalDeck, activeDeck, library && library[deckName]];
+        if(library && !Array.isArray(library[deckName])) {
+            for(const [key,value] of Object.entries(library)) {
+                if(normalizeDeckPath(key)===normalizeDeckPath(deckName) && Array.isArray(value)) pools.push(value);
+            }
+        }
         const result = [];
         const seen = new Set();
         pools.forEach(pool => {
@@ -15901,69 +15922,87 @@ function getIOImageGroups() {
         return result;
     }
 
+    // Import snapshots do not guarantee that a sibling #card's full tree is
+    // repeated in each card.q. Match each real sibling title to its own record
+    // rather than requiring *identical* sibling-tree signatures in both rows.
     function extendMkOrdinaryCardContext(root, card) {
         if(!root || !card) return false;
         const active = getMkOrdinaryCardActiveLi(root);
         if(!active || !active.parentElement) return false;
-        const nodes = Array.from(active.parentElement.children).filter(node=>node.tagName==='LI');
-        if(nodes.length < 2) return false;
+        const siblings = Array.from(active.parentElement.children).filter(el => el.tagName === 'LI');
+        if(siblings.length < 2) return false;
         const current = getMkOrdinaryCardSiblingSource(card);
-        if(!current || !current.realList || getMkOwnCardQuestionLabel(active).toLowerCase() !== current.label) return false;
-        const signature = getMkOrdinaryCardSiblingSignature(active);
-        if(!signature || signature !== current.signature) return false;
-        const labels = new Set(nodes.map(node => getMkOwnCardQuestionLabel(node).toLowerCase()).filter(Boolean));
-        const wanted = new Set([...labels].filter(label=>label!==current.label));
-        if(!wanted.size) return false;
-        const matches = new Map([[current.label,current]]);
-        const currentOrder = Number(card.sourceOrder);
+        const currentLabel = normalizeMkSiblingCardLabel(getMkOwnCardQuestionLabel(active));
+        if(!current || !current.realList || current.label !== currentLabel) return false;
+        const presentLabels = siblings.map(li=>normalizeMkSiblingCardLabel(getMkOwnCardQuestionLabel(li)));
+        const targetLabels = new Set(presentLabels.filter(label=>label && label!==currentLabel));
+        if(!targetLabels.size) return false;
+        const countByLabel = new Map();
+        presentLabels.forEach(label=>countByLabel.set(label,(countByLabel.get(label)||0)+1));
         const candidates = getMkSiblingCardCandidatePool(card);
-        const scored = [];
+        const sourceOrder=Number(card.sourceOrder);
+        const cardContext = current.key || '';
+        const sourceGroups = new Map();
         for(const other of candidates) {
-            if(other === card || String(other?.id||'')===String(card.id||'')) continue;
-            if(String(other?.deck||'') !== String(card.deck||'')) continue;
-            const candidate = getMkOrdinaryCardSiblingSource(other);
-            if(!candidate || !candidate.realList || !wanted.has(candidate.label)) continue;
-            const signatureMatch = candidate.signature === signature;
-            const keyMatch = !!current.key && candidate.key === current.key;
-            // A nearby exact sibling tree is the strongest evidence that these
-            // distinct card records belong to the same Logseq parent.
-            if(!signatureMatch && !keyMatch) continue;
-            const otherOrder = Number(other.sourceOrder);
-            const distance = Number.isFinite(currentOrder) && Number.isFinite(otherOrder)
-                ? Math.abs(currentOrder-otherOrder) : 9999;
-            const breadcrumbMatch = !!card.breadcrumb && String(card.breadcrumb) === String(other.breadcrumb||'');
-            const score = (signatureMatch?1000:0) + (keyMatch?300:0) + (breadcrumbMatch?80:0) - Math.min(distance,300);
-            scored.push({ candidate, score });
+            if(!other || other===card || String(other.id||'')===String(card.id||'')) continue;
+            if(String(other.deck||'')!==String(card.deck||'')) continue;
+            const otherSource=getMkOrdinaryCardSiblingSource(other);
+            if(!otherSource || !otherSource.realList || !targetLabels.has(otherSource.label)) continue;
+            if(!sourceGroups.has(otherSource.label)) sourceGroups.set(otherSource.label,[]);
+            sourceGroups.get(otherSource.label).push(otherSource);
         }
-        scored.sort((a,b)=>b.score-a.score);
-        for(const item of scored) {
-            if(!matches.has(item.candidate.label)) matches.set(item.candidate.label,item.candidate);
+        const found = new Map([[currentLabel,current]]);
+        const currentSignature = current.signature;
+        const currentBreadcrumb = String(card.breadcrumb || '').trim();
+        const missingLabels=[];
+        for(const label of targetLabels) {
+            const entries = sourceGroups.get(label) || [];
+            if(!entries.length) {missingLabels.push(label);continue;}
+            const ranked = entries.map(source=>{
+                const other=source.card;
+                const candidateOrder=Number(other.sourceOrder);
+                const distance=Number.isFinite(sourceOrder) && Number.isFinite(candidateOrder) ? Math.abs(sourceOrder-candidateOrder) : 999999;
+                const sameParent=!!cardContext && source.key===cardContext;
+                const sameSignature=!!currentSignature && source.signature===currentSignature;
+                const sameBreadcrumb=!!currentBreadcrumb && String(other.breadcrumb||'').trim()===currentBreadcrumb;
+                return {source,distance,sameParent,sameSignature,sameBreadcrumb,
+                    score:(sameParent?8000:0)+(sameSignature?5000:0)+(sameBreadcrumb?3000:0)-Math.min(1000,distance)};
+            }).sort((a,b)=>b.score-a.score);
+            const winner=ranked[0];
+            // If the same label occurs in multiple unrelated locations, require
+            // stronger evidence before showing potentially wrong answer content.
+            if(ranked.length>1 && !winner.sameParent && !winner.sameSignature && !winner.sameBreadcrumb &&
+                (ranked[1].score>=winner.score-3 || winner.distance>40)) {
+                missingLabels.push(label);
+                continue;
+            }
+            found.set(label,winner.source);
         }
-        // Fail closed: missing source data must never reveal an unrelated answer.
+        // Never append another copy of a #card title; work on the existing LI.
         if(!decorateMkOrdinaryCardAnswer(active,current,true)) return false;
-        let otherCount = 0;
-        let availableCount = 0;
-        for(const li of nodes) {
-            if(li===active) continue;
-            const label=getMkOwnCardQuestionLabel(li).toLowerCase();
-            // Only genuine #card siblings: plain explanatory bullets must not
-            // acquire synthetic answer masks. A matching source is stronger
-            // evidence than the original #card tag (which sync may strip).
-            if(!label || !labels.has(label)) continue;
-            const source=matches.get(label);
-            const explicitCardTag = /(?:^|\s)#card\b/i.test(String(li.textContent||''));
-            if(!source && !explicitCardTag) continue;
-            if(nodes.filter(node=>getMkOwnCardQuestionLabel(node).toLowerCase()===label).length!==1) continue;
+        let otherCount=0, matched=0;
+        siblings.forEach((li,i)=>{
+            if(li===active) return;
+            const label=presentLabels[i];
+            if(!label || countByLabel.get(label)!==1) return;
+            const source=found.get(label);
+            const raw = li.cloneNode(true);
+            raw.querySelectorAll('ul,ol').forEach(el=>el.remove());
+            const originalHasCardTag=/(?:^|\s)#card\b/i.test(raw.textContent||'');
+            // A uniform #card group can lose its #card tokens during mk-sync.
+            const uniformGroup=presentLabels.every(x=>x && (x.endsWith(' mem') || x===currentLabel || found.has(x)));
+            if(!source && !originalHasCardTag && !uniformGroup) return;
             if(decorateMkOrdinaryCardAnswer(li,source,false)) {
                 otherCount++;
-                if(source?.realList) availableCount++;
+                if(source?.realList) matched++;
             }
-        }
+        });
         if(!otherCount) return false;
         root.classList.add('mk-card-hierarchy-expanded');
-        root.dataset.mkCardAnswersMatched = String(availableCount);
-        root.dataset.mkCardAnswersTotal = String(otherCount);
-        console.info('[MK_CARD_CONTEXT]',{current:current.label,siblingCount:otherCount,answersFound:availableCount,signature,currentKey:current.key});
+        root.dataset.mkCardAnswersMatched=String(matched);
+        root.dataset.mkCardAnswersTotal=String(otherCount);
+        root.dataset.mkCardAnswersMissing=JSON.stringify(missingLabels);
+        console.info('[MK_CARD_CONTEXT_V312]',{current:currentLabel,siblings:otherCount,matched,missingLabels,candidateCount:candidates.length});
         return true;
     }
 
@@ -15989,25 +16028,43 @@ function getIOImageGroups() {
         document.body.appendChild(button);
     }
 
-    // Debug current #card matching without exposing/replacing learning statistics.
+    // The report intentionally omits full card text / UUID / stats.
     window.__mkDebugCardSiblingContext = () => {
-        const card = activeDeck && activeDeck[currentIndex];
-        const root = document.getElementById('question-section');
-        const active = getMkOrdinaryCardActiveLi(root);
-        const current = getMkOrdinaryCardSiblingSource(card);
-        const candidates = card ? getMkSiblingCardCandidatePool(card) : [];
-        return {
-            version:APP_VERSION, deck:String(card?.deck||''), sourceOrder:card?.sourceOrder,
-            currentLabel:current?.label||null, currentSignature:current?.signature||null,
-            currentKey:current?.key||null, currentHasAnswer:!!current?.realList,
-            visibleLabels:active?.parentElement ? Array.from(active.parentElement.children).filter(n=>n.tagName==='LI').map(n=>getMkOwnCardQuestionLabel(n)) : [],
-            answersMatched:Number(root?.dataset.mkCardAnswersMatched||0),
-            otherCount:Number(root?.dataset.mkCardAnswersTotal||0),
-            candidateTotal:candidates.length,
-            neighbors:candidates.filter(candidate=>candidate!==card).map(candidate=>getMkOrdinaryCardSiblingSource(candidate)).filter(source=>source && current && source.signature===current.signature).slice(0,15)
-                .map(source=>({label:source.label,key:source.key,hasAnswer:!!source.realList,sourceOrder:source.card.sourceOrder}))
-        };
+        const card=activeDeck&&activeDeck[currentIndex];
+        const root=document.getElementById('question-section');
+        const active=getMkOrdinaryCardActiveLi(root);
+        const current=getMkOrdinaryCardSiblingSource(card);
+        const siblingNodes=active?.parentElement ? Array.from(active.parentElement.children).filter(el=>el.tagName==='LI') : [];
+        const candidates=card?getMkSiblingCardCandidatePool(card):[];
+        const labels=siblingNodes.map(li=>getMkOwnCardQuestionLabel(li));
+        const labelCounts=Object.fromEntries(labels.map(label=>[label,0]));
+        let sourceCount=0;
+        const foundLabels={};
+        for(const candidate of candidates) {
+            if(!candidate?.isLogseq) continue;
+            if(String(candidate.deck||'')!==String(card?.deck||'')) continue;
+            const item=getMkOrdinaryCardSiblingSource(candidate);
+            if(!item || !item.realList) continue;
+            sourceCount++;
+            if(labels.some(label=>normalizeMkSiblingCardLabel(label)===item.label)) {
+                foundLabels[item.label]=(foundLabels[item.label]||0)+1;
+            }
+        }
+        return {version:APP_VERSION,enabled:!!root?.classList.contains('mk-card-hierarchy-expanded'),
+            currentLabel:current?.label||null,currentHasAnswer:!!current?.realList,
+            visibleLabels:labels,sourceCount,candidateCount:candidates.length,
+            foundLabels,matched:Number(root?.dataset.mkCardAnswersMatched||0),
+            total:Number(root?.dataset.mkCardAnswersTotal||0),
+            missing:JSON.parse(root?.dataset.mkCardAnswersMissing||'[]'),
+            rootActiveTag:active?.tagName||null,rootList:!!getMkOrdinaryCardOwnList(active),
+            currentSignature:current?.signature||null,currentParentKey:current?.key||null,
+            currentCardDeck:card?.deck||null,isLogseq:!!card?.isLogseq};
     };
+    async function copyMkCardSiblingDiagnostics() {
+        const data=JSON.stringify(window.__mkDebugCardSiblingContext(),null,2);
+        try {await navigator.clipboard.writeText(data);showToast('카드 계층 진단 복사 완료','success');}
+        catch(error) {window.prompt('아래 진단 내용을 복사해 주세요',data);}
+    }
 
     function showCard() {
         ioZoomDiagnostics.cardRenders += 1;
