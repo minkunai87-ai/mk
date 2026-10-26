@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.319 TODAY PLAN MAX -->
+<!-- preview: v18.5.320 REPEAT MANAGER SCREEN -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.319 TODAY PLAN MAX)</title>
+<title>MK (v18.5.320 REPEAT MANAGER SCREEN)</title>
 
 <script>
     (() => {
@@ -888,18 +888,38 @@
     .today-plan-repeat-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; margin:8px 0 12px; }
     .today-plan-repeat-day { background:var(--input-bg); color:var(--text-sub); border:1px solid var(--border); border-radius:8px; padding:10px 0; cursor:pointer; font-weight:700; }
     .today-plan-repeat-day.selected { border-color:var(--primary); background:#182836; color:var(--primary); }
-    .today-plan-repeat-manager { display:none; flex-direction:column; gap:8px; padding:10px; border:1px solid var(--border); border-radius:10px; margin:8px 0; max-height:240px; overflow:auto; }
-    .today-plan-repeat-manager.open { display:flex; }
-    .today-plan-rule { display:flex; align-items:center; gap:6px; justify-content:space-between; border-bottom:1px solid var(--border); padding:6px 0; }
-    .today-plan-rule-info { min-width:0; flex:1; overflow-wrap:anywhere; font-size:0.78rem; }
-    .today-plan-rule-info strong { display:block; font-size:0.85rem; }
-    .today-plan-rule button { padding:7px 8px; border-radius:7px; border:1px solid var(--border); background:var(--input-bg); color:var(--text); cursor:pointer; }
+    /* Repeat rules have a dedicated screen, independent of the Today Plan list. */
+    .today-plan-repeat-overlay { padding:0 12px; }
+    .today-plan-repeat-panel { width:min(100%, 740px); height:min(90dvh, 860px); max-width:none; max-height:none; padding:0; gap:0; overflow:hidden; display:flex; flex-direction:column; }
+    .today-plan-repeat-header { display:flex; align-items:center; gap:12px; padding:18px 20px; border-bottom:1px solid var(--border); flex:0 0 auto; }
+    .today-plan-repeat-back { border:1px solid var(--border); border-radius:9px; background:var(--input-bg); color:var(--text); padding:11px 12px; cursor:pointer; font-size:0.83rem; font-weight:700; white-space:nowrap; }
+    .today-plan-repeat-header h3 { margin:0; font-size:1.1rem; overflow-wrap:anywhere; }
+    .today-plan-repeat-manager { display:flex; flex:1 1 auto; min-height:0; flex-direction:column; gap:12px; padding:18px 20px 28px; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; }
+    .today-plan-rule { display:flex; flex-direction:column; align-items:stretch; gap:11px; border:1px solid var(--border); background:var(--input-bg); border-radius:13px; padding:15px; }
+    .today-plan-rule-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+    .today-plan-rule-info { min-width:0; flex:1; overflow-wrap:anywhere; font-size:0.84rem; line-height:1.45; }
+    .today-plan-rule-info strong { display:block; font-size:1rem; line-height:1.4; }
+    .today-plan-rule-status { flex:0 0 auto; border:1px solid var(--border); border-radius:999px; padding:4px 8px; color:var(--text-sub); font-size:0.73rem; font-weight:700; white-space:nowrap; }
+    .today-plan-rule-status.active { border-color:#2f9e44; color:#69db7c; }
+    .today-plan-rule-chips { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+    .today-plan-rule-chip { display:inline-block; border:1px solid var(--border); border-radius:999px; padding:5px 9px; font-size:0.77rem; color:var(--text-sub); background:var(--surface); overflow-wrap:anywhere; }
+    .today-plan-rule-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+    .today-plan-rule-actions button { min-height:46px; border-radius:9px; border:1px solid var(--border); background:#303030; color:var(--text); padding:9px 5px; cursor:pointer; font-weight:800; font-size:0.88rem; }
+    .today-plan-rule-actions button:active { background:var(--btn-hover); }
+    .today-plan-rule-actions button:first-child { border-color:var(--primary); color:var(--primary); }
     .today-plan-repeat-hidden { display:none; }
 
     @media (max-width:520px) {
         .today-plan-panel { width:96vw; padding:18px 14px; }
         .today-plan-form-grid { grid-template-columns:1fr; gap:0; }
         .today-plan-actions { grid-template-columns:1fr 1fr 1fr; }
+        .today-plan-repeat-overlay { padding:0; }
+        .today-plan-repeat-panel { width:100%; height:100dvh; max-width:none; max-height:none; border:0; border-radius:0; }
+        .today-plan-repeat-header { padding:calc(env(safe-area-inset-top) + 15px) 14px 15px; }
+        .today-plan-repeat-header h3 { font-size:1rem; }
+        .today-plan-repeat-back { padding:10px 9px; }
+        .today-plan-repeat-manager { padding:14px 14px calc(env(safe-area-inset-bottom) + 22px); }
+        .today-plan-rule { padding:13px; }
     }
 
 </style>
@@ -953,7 +973,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.319 TODAY PLAN MAX)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.320 REPEAT MANAGER SCREEN)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -985,7 +1005,6 @@
             <div class="today-plan-list" id="today-plan-list"></div>
             <button class="modal-btn btn-save" style="width:100%;" onclick="openTodayPlanEditor()">+ 오늘 계획 추가</button>
             <button class="btn-sub" style="margin-top:3px;" onclick="toggleTodayPlanRepeatManager()">🔁 반복 계획 관리 <span id="today-plan-repeat-total"></span></button>
-            <div class="today-plan-repeat-manager" id="today-plan-repeat-manager"></div>
             <div class="today-plan-form" id="today-plan-form">
                 <input type="hidden" id="today-plan-edit-id">
                 <div class="today-plan-form-grid">
@@ -1064,6 +1083,16 @@
                     <button class="modal-btn btn-cancel" onclick="closeTodayPlanEditor()">취소</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay today-plan-repeat-overlay" id="today-plan-repeat-modal">
+        <div class="modal-content today-plan-repeat-panel" role="dialog" aria-modal="true" aria-labelledby="today-plan-repeat-title">
+            <div class="today-plan-repeat-header">
+                <button class="today-plan-repeat-back" type="button" onclick="closeTodayPlanRepeatManager()">← 오늘 계획</button>
+                <h3 id="today-plan-repeat-title">🔁 반복 계획 관리 <span id="today-plan-repeat-screen-count"></span></h3>
+            </div>
+            <div class="today-plan-repeat-manager" id="today-plan-repeat-manager"></div>
         </div>
     </div>
 
@@ -1340,7 +1369,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.319 TODAY PLAN MAX';
+    const APP_VERSION = 'v18.5.320 REPEAT MANAGER SCREEN';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -2157,21 +2186,64 @@
     }
 
     function toggleTodayPlanRepeatManager() {
-        const manager = document.getElementById('today-plan-repeat-manager');
-        if(!manager) return;
-        manager.classList.toggle('open');
+        const modal = document.getElementById('today-plan-repeat-modal');
+        if(modal && modal.style.display === 'flex') closeTodayPlanRepeatManager();
+        else openTodayPlanRepeatManager();
+    }
+
+    function openTodayPlanRepeatManager() {
+        const modal = document.getElementById('today-plan-repeat-modal');
+        const todayModal = document.getElementById('today-plan-modal');
+        if(!modal || !todayModal) return;
         renderTodayPlanRepeatManager();
+        todayModal.style.display = 'none';
+        modal.style.display = 'flex';
+        const list = document.getElementById('today-plan-repeat-manager');
+        if(list) list.scrollTop = 0;
+    }
+
+    function closeTodayPlanRepeatManager() {
+        const modal = document.getElementById('today-plan-repeat-modal');
+        const todayModal = document.getElementById('today-plan-modal');
+        if(modal) modal.style.display = 'none';
+        if(todayModal) todayModal.style.display = 'flex';
+        renderTodayPlan();
     }
 
     function renderTodayPlanRepeatManager(store = readTodayPlanStoreRaw()) {
         const manager = document.getElementById('today-plan-repeat-manager');
         const count = document.getElementById('today-plan-repeat-total');
-        if(count) count.textContent = `(${store.repeatRules.length})`;
+        const screenCount = document.getElementById('today-plan-repeat-screen-count');
+        const ruleCount = Array.isArray(store.repeatRules) ? store.repeatRules.length : 0;
+        if(count) count.textContent = `(${ruleCount})`;
+        if(screenCount) screenCount.textContent = `(${ruleCount})`;
         if(!manager) return;
-        manager.innerHTML = store.repeatRules.length ? store.repeatRules.map(rule => {
+        manager.innerHTML = ruleCount ? store.repeatRules.map(rule => {
             const safeId = escapeTodayPlanHtml(rule.id);
-            const active = rule.enabled ? '' : ' · 일시중지';
-            return `<div class="today-plan-rule"><div class="today-plan-rule-info"><strong>${escapeTodayPlanHtml(rule.deckPath.replace(/__/g, ' > '))}</strong>${escapeTodayPlanHtml(getTodayPlanRepeatLabel(rule))} · ${escapeTodayPlanHtml(rule.filterMode === 'essential' ? '오늘 필수' : rule.filterMode === 'new' ? '오늘 새로' : (modeNames[rule.filterMode] || rule.filterMode))} · ${rule.targetMode === 'max' ? 'Max' : `${rule.targetCount}문제`}${active}</div><button onclick="editTodayPlanRepeatRule('${safeId}')" title="수정">✏️</button><button onclick="toggleTodayPlanRepeatRule('${safeId}')" title="일시중지/재개">${rule.enabled ? 'Ⅱ' : '▶'}</button><button onclick="deleteTodayPlanRepeatRule('${safeId}')" title="삭제">🗑</button></div>`;
+            const deck = escapeTodayPlanHtml(rule.deckPath.replace(/__/g, ' > '));
+            const filter = escapeTodayPlanHtml(rule.filterMode === 'essential' ? '오늘 필수' : rule.filterMode === 'new' ? '오늘 새로' : (modeNames[rule.filterMode] || rule.filterMode));
+            const sort = escapeTodayPlanHtml(modeNames[rule.sortMode] || rule.sortMode);
+            const label = escapeTodayPlanHtml(getTodayPlanRepeatLabel(rule));
+            const target = rule.targetMode === 'max' ? 'Max' : `${rule.targetCount}문제`;
+            const carry = rule.targetMode === 'max' ? '미완료 합산' : (rule.carryMode === 'append' ? '미완료 + 신규 추가' : '미완료 포함 개수 유지');
+            return `<div class="today-plan-rule">
+                <div class="today-plan-rule-heading">
+                    <div class="today-plan-rule-info"><strong>${deck}</strong></div>
+                    <span class="today-plan-rule-status${rule.enabled ? ' active' : ''}">${rule.enabled ? '활성' : '일시정지'}</span>
+                </div>
+                <div class="today-plan-rule-chips">
+                    <span class="today-plan-rule-chip">🔁 ${label}</span>
+                    <span class="today-plan-rule-chip">${filter}</span>
+                    <span class="today-plan-rule-chip">${sort}</span>
+                    <span class="today-plan-rule-chip">${target}</span>
+                </div>
+                <div class="today-plan-rule-info">${escapeTodayPlanHtml(carry)}</div>
+                <div class="today-plan-rule-actions">
+                    <button type="button" onclick="editTodayPlanRepeatRule('${safeId}')">✏️ 수정</button>
+                    <button type="button" onclick="toggleTodayPlanRepeatRule('${safeId}')">${rule.enabled ? 'Ⅱ 일시정지' : '▶ 재개'}</button>
+                    <button type="button" onclick="deleteTodayPlanRepeatRule('${safeId}')">🗑 삭제</button>
+                </div>
+            </div>`;
         }).join('') : '<div class="today-plan-empty">저장된 반복 계획이 없습니다.</div>';
     }
 
@@ -2197,6 +2269,7 @@
     }
 
     function editTodayPlanRepeatRule(ruleId) {
+        closeTodayPlanRepeatManager();
         openTodayPlanEditor(`rule:${ruleId}`);
     }
 
