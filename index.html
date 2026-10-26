@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.317 TODAY PLAN NAV FIX -->
+<!-- preview: v18.5.319 TODAY PLAN MAX -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.317 TODAY PLAN NAV FIX)</title>
+<title>MK (v18.5.319 TODAY PLAN MAX)</title>
 
 <script>
     (() => {
@@ -883,6 +883,19 @@
     .today-plan-empty { padding:22px 8px; text-align:center; color:var(--text-sub); border:1px dashed var(--border); border-radius:12px; }
     .today-plan-menu-btn { position:relative; }
     .today-plan-menu-count { float:right; color:var(--primary); }
+    .today-plan-repeat-row { display:flex; gap:10px; align-items:center; justify-content:space-between; margin:8px 0; }
+    .today-plan-repeat-row label { color:var(--text); font-size:0.88rem; font-weight:700; }
+    .today-plan-repeat-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; margin:8px 0 12px; }
+    .today-plan-repeat-day { background:var(--input-bg); color:var(--text-sub); border:1px solid var(--border); border-radius:8px; padding:10px 0; cursor:pointer; font-weight:700; }
+    .today-plan-repeat-day.selected { border-color:var(--primary); background:#182836; color:var(--primary); }
+    .today-plan-repeat-manager { display:none; flex-direction:column; gap:8px; padding:10px; border:1px solid var(--border); border-radius:10px; margin:8px 0; max-height:240px; overflow:auto; }
+    .today-plan-repeat-manager.open { display:flex; }
+    .today-plan-rule { display:flex; align-items:center; gap:6px; justify-content:space-between; border-bottom:1px solid var(--border); padding:6px 0; }
+    .today-plan-rule-info { min-width:0; flex:1; overflow-wrap:anywhere; font-size:0.78rem; }
+    .today-plan-rule-info strong { display:block; font-size:0.85rem; }
+    .today-plan-rule button { padding:7px 8px; border-radius:7px; border:1px solid var(--border); background:var(--input-bg); color:var(--text); cursor:pointer; }
+    .today-plan-repeat-hidden { display:none; }
+
     @media (max-width:520px) {
         .today-plan-panel { width:96vw; padding:18px 14px; }
         .today-plan-form-grid { grid-template-columns:1fr; gap:0; }
@@ -940,7 +953,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.317 TODAY PLAN NAV FIX)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.319 TODAY PLAN MAX)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -971,6 +984,8 @@
             <div class="today-plan-summary" id="today-plan-summary"></div>
             <div class="today-plan-list" id="today-plan-list"></div>
             <button class="modal-btn btn-save" style="width:100%;" onclick="openTodayPlanEditor()">+ 오늘 계획 추가</button>
+            <button class="btn-sub" style="margin-top:3px;" onclick="toggleTodayPlanRepeatManager()">🔁 반복 계획 관리 <span id="today-plan-repeat-total"></span></button>
+            <div class="today-plan-repeat-manager" id="today-plan-repeat-manager"></div>
             <div class="today-plan-form" id="today-plan-form">
                 <input type="hidden" id="today-plan-edit-id">
                 <div class="today-plan-form-grid">
@@ -1014,8 +1029,35 @@
                 </div>
                 <div id="today-plan-availability" class="today-plan-availability">필터 적용 총 문제: -</div>
                 <div class="today-plan-field">
-                    <label for="today-plan-target">오늘 풀 문제 수</label>
-                    <input id="today-plan-target" class="today-plan-number" type="number" min="1" step="1" value="30">
+                    <label for="today-plan-count-mode">오늘 풀 문제 수</label>
+                    <select id="today-plan-count-mode" class="today-plan-select" onchange="updateTodayPlanCountModeUI()">
+                        <option value="fixed">개수 직접 지정</option>
+                        <option value="max">Max · 조건에 맞는 모든 문제</option>
+                    </select>
+                    <div id="today-plan-target-wrap" style="margin-top:8px;">
+                        <input id="today-plan-target" class="today-plan-number" type="number" min="1" step="1" value="30" aria-label="오늘 풀 문제 개수">
+                    </div>
+                    <div id="today-plan-target-max-hint" class="today-plan-repeat-hidden" style="font-size:0.78rem;color:var(--text-sub);margin-top:7px;">매번 해당 덱·필터에 맞는 모든 문제를 선택합니다. 이전 미완료 문제는 중복 없이 유지합니다.</div>
+                </div>
+                <div class="today-plan-field">
+                    <label for="today-plan-repeat-mode">반복 주기</label>
+                    <select id="today-plan-repeat-mode" class="today-plan-select" onchange="updateTodayPlanRepeatEditor()">
+                        <option value="none">반복 안 함</option>
+                        <option value="daily">매일</option>
+                        <option value="weekly">원하는 요일 선택</option>
+                    </select>
+                </div>
+                <div id="today-plan-repeat-weekly" class="today-plan-repeat-hidden">
+                    <label style="display:block;color:var(--text-sub);font-size:0.8rem;margin-bottom:5px;">반복 요일</label>
+                    <div class="today-plan-repeat-days" id="today-plan-repeat-days"></div>
+                </div>
+                <div id="today-plan-repeat-carry-wrap" class="today-plan-field today-plan-repeat-hidden">
+                    <label for="today-plan-repeat-carry">이전 계획에서 못 푼 문제</label>
+                    <select id="today-plan-repeat-carry" class="today-plan-select">
+                        <option value="fill">미완료 포함 목표 개수 유지 (추천)</option>
+                        <option value="append">미완료에 설정 개수만큼 새 문제 추가</option>
+                    </select>
+                    <div style="font-size:0.76rem;color:var(--text-sub);margin-top:6px;">문제가 0개여도 오늘 계획에 표시되며 수정·삭제할 수 있습니다.</div>
                 </div>
                 <div class="modal-btns">
                     <button class="modal-btn btn-save" onclick="saveTodayPlanEditor()">저장</button>
@@ -1298,7 +1340,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.317 TODAY PLAN NAV FIX';
+    const APP_VERSION = 'v18.5.319 TODAY PLAN MAX';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -1990,14 +2032,14 @@
     }
 
     function getEmptyTodayPlanStore(dateKey = getTodayPlanDateKey()) {
-        return { version:TODAY_PLAN_VERSION, date:dateKey, items:[] };
+        return { version:TODAY_PLAN_VERSION, date:dateKey, items:[], repeatRules:[] };
     }
 
     function readTodayPlanStoreRaw() {
         try {
             const parsed = JSON.parse(localStorage.getItem(TODAY_PLAN_STORAGE_KEY) || 'null');
             if(!parsed || parsed.version !== TODAY_PLAN_VERSION || !Array.isArray(parsed.items)) return getEmptyTodayPlanStore();
-            return parsed;
+            return { ...parsed, repeatRules:(Array.isArray(parsed.repeatRules) ? parsed.repeatRules : []).map(normalizeTodayPlanRepeatRule) };
         } catch(error) {
             return getEmptyTodayPlanStore();
         }
@@ -2064,19 +2106,224 @@
             filterMode:String(item.filterMode || 'default'),
             sortMode:String(item.sortMode || 'original'),
             targetCount:cardIds.length,
+            targetMode:item.targetMode === 'max' ? 'max' : 'fixed',
+            requestedTargetCount:Math.max(1, Number(item.requestedTargetCount) || Number(item.targetCount) || 30),
             cardIds,
             cardRefs,
             completedIds,
             createdAt:Number(item.createdAt) || Date.now(),
-            carriedFrom:String(item.carriedFrom || '')
+            carriedFrom:String(item.carriedFrom || ''),
+            repeatRuleId:String(item.repeatRuleId || '')
         };
+    }
+
+    // Recurring plans are templates, not empty daily items. An inactive template must
+    // survive zero matching cards so it can materialize again on a later due day.
+    const TODAY_PLAN_REPEAT_DAY_NAMES = ['일','월','화','수','목','금','토'];
+    let todayPlanRepeatSyncing = false;
+    let todayPlanRepeatNewBaselineAttempted = false;
+    const todayPlanRepeatZeroCache = new Map();
+
+    function normalizeTodayPlanRepeatRule(rule = {}) {
+        const mode = rule.mode === 'weekly' ? 'weekly' : 'daily';
+        const days = [...new Set((Array.isArray(rule.days) ? rule.days : []).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a,b) => a-b);
+        return {
+            id:String(rule.id || `tpr_${Date.now()}_${Math.random().toString(36).slice(2,8)}`),
+            deckPath:normalizeDeckPath(rule.deckPath || ''),
+            deckMode:rule.deckMode === 'group' ? 'group' : 'deck',
+            filterMode:String(rule.filterMode || 'default'),
+            sortMode:String(rule.sortMode || 'original'),
+            targetCount:Math.max(1, Number(rule.targetCount) || 30),
+            targetMode:rule.targetMode === 'max' ? 'max' : 'fixed',
+            mode,
+            days:mode === 'daily' ? [] : days,
+            carryMode:rule.carryMode === 'append' ? 'append' : 'fill',
+            enabled:rule.enabled !== false,
+            lastGeneratedDate:String(rule.lastGeneratedDate || ''),
+            lastSelectedCardId:String(rule.lastSelectedCardId || ''),
+            createdAt:Number(rule.createdAt) || Date.now()
+        };
+    }
+
+    function isTodayPlanRepeatDue(rule) {
+        if(!rule || !rule.enabled) return false;
+        if(rule.mode === 'daily') return true;
+        return Array.isArray(rule.days) && rule.days.includes(getVirtualDate(Date.now()).getDay());
+    }
+
+    function getTodayPlanRepeatLabel(rule) {
+        if(rule.mode === 'daily') return '매일';
+        return (rule.days || []).map(day => TODAY_PLAN_REPEAT_DAY_NAMES[day]).join('·') + '요일';
+    }
+
+    function toggleTodayPlanRepeatManager() {
+        const manager = document.getElementById('today-plan-repeat-manager');
+        if(!manager) return;
+        manager.classList.toggle('open');
+        renderTodayPlanRepeatManager();
+    }
+
+    function renderTodayPlanRepeatManager(store = readTodayPlanStoreRaw()) {
+        const manager = document.getElementById('today-plan-repeat-manager');
+        const count = document.getElementById('today-plan-repeat-total');
+        if(count) count.textContent = `(${store.repeatRules.length})`;
+        if(!manager) return;
+        manager.innerHTML = store.repeatRules.length ? store.repeatRules.map(rule => {
+            const safeId = escapeTodayPlanHtml(rule.id);
+            const active = rule.enabled ? '' : ' · 일시중지';
+            return `<div class="today-plan-rule"><div class="today-plan-rule-info"><strong>${escapeTodayPlanHtml(rule.deckPath.replace(/__/g, ' > '))}</strong>${escapeTodayPlanHtml(getTodayPlanRepeatLabel(rule))} · ${escapeTodayPlanHtml(rule.filterMode === 'essential' ? '오늘 필수' : rule.filterMode === 'new' ? '오늘 새로' : (modeNames[rule.filterMode] || rule.filterMode))} · ${rule.targetMode === 'max' ? 'Max' : `${rule.targetCount}문제`}${active}</div><button onclick="editTodayPlanRepeatRule('${safeId}')" title="수정">✏️</button><button onclick="toggleTodayPlanRepeatRule('${safeId}')" title="일시중지/재개">${rule.enabled ? 'Ⅱ' : '▶'}</button><button onclick="deleteTodayPlanRepeatRule('${safeId}')" title="삭제">🗑</button></div>`;
+        }).join('') : '<div class="today-plan-empty">저장된 반복 계획이 없습니다.</div>';
+    }
+
+    function toggleTodayPlanRepeatRule(ruleId) {
+        const store = readTodayPlanStoreRaw();
+        const rule = store.repeatRules.find(entry => entry.id === ruleId);
+        if(!rule) return;
+        rule.enabled = !rule.enabled;
+        writeTodayPlanStore(store);
+        markLocalDataUpdated(Date.now()); scheduleBackup('today-plan-repeat');
+        renderTodayPlan();
+    }
+
+    function deleteTodayPlanRepeatRule(ruleId) {
+        let store = ensureTodayPlanCurrentDay();
+        if(!store.repeatRules.some(rule => rule.id === ruleId)) return;
+        if(!confirm('반복 설정과 이 반복 계획의 오늘 목록을 삭제할까요? 학습 기록은 유지됩니다.')) return;
+        store.repeatRules = store.repeatRules.filter(rule => rule.id !== ruleId);
+        store.items = store.items.filter(item => item.repeatRuleId !== ruleId);
+        writeTodayPlanStore(store);
+        markLocalDataUpdated(Date.now()); scheduleBackup('today-plan-repeat');
+        renderTodayPlan();
+    }
+
+    function editTodayPlanRepeatRule(ruleId) {
+        openTodayPlanEditor(`rule:${ruleId}`);
+    }
+
+    function renderTodayPlanRepeatDays(selected = []) {
+        const host = document.getElementById('today-plan-repeat-days');
+        if(!host) return;
+        host.innerHTML = [1,2,3,4,5,6,0].map(day => `<button type="button" class="today-plan-repeat-day${selected.includes(day) ? ' selected' : ''}" data-repeat-day="${day}" onclick="this.classList.toggle('selected')">${TODAY_PLAN_REPEAT_DAY_NAMES[day]}</button>`).join('');
+    }
+
+    function updateTodayPlanCountModeUI() {
+        const max = String((document.getElementById('today-plan-count-mode') || {}).value) === 'max';
+        const target = document.getElementById('today-plan-target-wrap');
+        const hint = document.getElementById('today-plan-target-max-hint');
+        if(target) target.style.display = max ? 'none' : '';
+        if(hint) hint.classList.toggle('today-plan-repeat-hidden', !max);
+        updateTodayPlanRepeatEditor();
+    }
+
+    function updateTodayPlanRepeatEditor() {
+        const mode = String((document.getElementById('today-plan-repeat-mode') || {}).value || 'none');
+        const weekly = document.getElementById('today-plan-repeat-weekly');
+        const carry = document.getElementById('today-plan-repeat-carry-wrap');
+        if(weekly) weekly.classList.toggle('today-plan-repeat-hidden', mode !== 'weekly');
+        if(carry) carry.classList.toggle('today-plan-repeat-hidden', mode === 'none' || (document.getElementById('today-plan-count-mode') || {}).value === 'max');
+    }
+
+    // Runs only when Today Plan is opened, not on each card transition.
+    // Zero matches = keep template without creating an empty visible item.
+    function syncTodayPlanRepeatRules(store) {
+        if(todayPlanRepeatSyncing || !store.repeatRules.length || !Object.keys(library || {}).length) return store;
+        todayPlanRepeatSyncing = true;
+        let changed = false;
+        const today = getTodayPlanDateKey();
+        const todayStart = getVirtualDate(Date.now()).getTime();
+        try {
+            for(const rule of store.repeatRules) {
+                if(!isTodayPlanRepeatDue(rule) || rule.lastGeneratedDate === today) continue;
+                if(rule.filterMode === 'new' && !(todayNewBaselineIds instanceof Set) && !todayPlanRepeatNewBaselineAttempted) {
+                    todayPlanRepeatNewBaselineAttempted = true;
+                    loadTodayNewBaselineSnapshot().then(() => {
+                        const modal = document.getElementById('today-plan-modal');
+                        if(modal && modal.style.display === 'flex') renderTodayPlan();
+                    }).catch(error => console.warn('[MK_TODAY_PLAN_REPEAT_BASELINE]', error));
+                    continue;
+                }
+                const zeroCacheKey = [today, learningStatsLibraryRevision, learningStatsStatsRevision,
+                    store.items.length, rule.deckPath, rule.deckMode, rule.filterMode,
+                    rule.sortMode, rule.targetCount, rule.lastSelectedCardId].join('|');
+                if(rule.filterMode !== 'new' && todayPlanRepeatZeroCache.get(rule.id) === zeroCacheKey) continue;
+                const current = store.items.find(item => item.repeatRuleId === rule.id);
+                const progress = current ? getTodayPlanProgress(current) : {done:0,total:0,remain:0};
+                if(current && progress.done > 0 && progress.remain === 0) {
+                    rule.lastGeneratedDate = today;
+                    changed = true;
+                    continue;
+                }
+                const quantity = rule.targetMode === 'max' ? Infinity : (rule.carryMode === 'append'
+                    ? rule.targetCount
+                    : Math.max(0, rule.targetCount - progress.remain));
+                if(quantity === 0) {
+                    rule.lastGeneratedDate = today;
+                    changed = true;
+                    continue;
+                }
+                const reserved = getTodayPlanReservedIds(store, current && current.id || '');
+                const alreadyInItem = new Set(current ? current.cardIds : []);
+                const completedElsewhere = new Set(store.items.flatMap(item => item.completedIds || []));
+                let candidates = getTodayPlanCandidates(rule, `${today}:${rule.id}`);
+                // Do not keep choosing the same first N cards for a recurring
+                // full-deck/original-order plan. Pick up from the previous cursor.
+                if(rule.sortMode === 'original' && !['essential','new','due'].includes(rule.filterMode) && rule.lastSelectedCardId) {
+                    const previousIndex = candidates.findIndex(card => String(card && card.id || '') === rule.lastSelectedCardId);
+                    if(previousIndex >= 0) candidates = candidates.slice(previousIndex + 1).concat(candidates.slice(0, previousIndex + 1));
+                }
+                const selected = [];
+                for(const card of candidates) {
+                    const id = String(card && card.id || '');
+                    if(!id || reserved.has(id) || alreadyInItem.has(id) || completedElsewhere.has(id)) continue;
+                    const stat = getTodayPlanCardStat(card);
+                    if(Number(stat.lastDate) >= todayStart) continue;
+                    selected.push(card);
+                    if(selected.length >= quantity) break;
+                }
+                if(!selected.length) {
+                    // No eligible card: keep the rule active for the next time cards become due.
+                    // A carried unfinished item remains visible even on non-repeat days.
+                    if(rule.filterMode !== 'new') todayPlanRepeatZeroCache.set(rule.id, zeroCacheKey);
+                    continue;
+                }
+                todayPlanRepeatZeroCache.delete(rule.id);
+                const extraIds = selected.map(card => String(card.id));
+                const extraRefs = Object.fromEntries(selected.map(card => [String(card.id), makeTodayPlanCardRef(card)]));
+                if(current) {
+                    const position = store.items.findIndex(item => item.id === current.id);
+                    store.items[position] = normalizeTodayPlanItem({
+                        ...current,
+                        cardIds:current.cardIds.concat(extraIds),
+                        cardRefs:{ ...current.cardRefs, ...extraRefs },
+                        targetCount:current.cardIds.length + extraIds.length
+                    });
+                } else {
+                    store.items.push(normalizeTodayPlanItem({
+                        id:`tp_repeat_${rule.id}_${today}`,
+                        deckPath:rule.deckPath, deckMode:rule.deckMode,
+                        filterMode:rule.filterMode, sortMode:rule.sortMode,
+                        cardIds:extraIds, cardRefs:extraRefs, targetCount:extraIds.length,
+                        completedIds:[], createdAt:Date.now(), repeatRuleId:rule.id
+                    }));
+                }
+                rule.lastGeneratedDate = today;
+                rule.lastSelectedCardId = extraIds[extraIds.length - 1];
+                changed = true;
+            }
+            if(changed) {
+                store = writeTodayPlanStore(store);
+                markLocalDataUpdated(Date.now()); scheduleBackup('today-plan-repeat');
+            }
+            return store;
+        } finally { todayPlanRepeatSyncing = false; }
     }
 
     function writeTodayPlanStore(store) {
         const normalized = {
             version:TODAY_PLAN_VERSION,
             date:String(store && store.date || getTodayPlanDateKey()),
-            items:(Array.isArray(store && store.items) ? store.items : []).map(normalizeTodayPlanItem)
+            items:(Array.isArray(store && store.items) ? store.items : []).map(normalizeTodayPlanItem),
+            repeatRules:(Array.isArray(store && store.repeatRules) ? store.repeatRules : []).map(normalizeTodayPlanRepeatRule)
         };
         localStorage.setItem(TODAY_PLAN_STORAGE_KEY, JSON.stringify(normalized));
         updateTodayPlanMenuBadge(normalized);
@@ -2087,8 +2334,7 @@
         const today = getTodayPlanDateKey();
         let store = readTodayPlanStoreRaw();
         if(store.date === today) {
-            store.items = store.items.map(normalizeTodayPlanItem);
-            return writeTodayPlanStore(store);
+            return store;
         }
         const previousDate = String(store.date || '');
         const carriedItems = store.items.map(normalizeTodayPlanItem).map(item => {
@@ -2106,7 +2352,7 @@
             };
         }).filter(Boolean);
         todayPlanActiveItemId = '';
-        const rolledStore = writeTodayPlanStore({ version:TODAY_PLAN_VERSION, date:today, items:carriedItems });
+        const rolledStore = writeTodayPlanStore({ version:TODAY_PLAN_VERSION, date:today, items:carriedItems, repeatRules:store.repeatRules });
         markLocalDataUpdated(Date.now());
         scheduleBackup('today-plan');
         return rolledStore;
@@ -2123,7 +2369,7 @@
         const badge = document.getElementById('today-plan-menu-count');
         if(!badge) return;
         store = store || readTodayPlanStoreRaw();
-        const progress = (Array.isArray(store.items) ? store.items : []).reduce((acc, item) => {
+        const progress = (Array.isArray(store.items) ? store.items : []).filter(item => !item.repeatRuleId || getTodayPlanProgress(item).remain > 0).reduce((acc, item) => {
             const p = getTodayPlanProgress(item);
             acc.done += p.done;
             acc.total += p.total;
@@ -2301,7 +2547,8 @@
         let store = {
             version:TODAY_PLAN_VERSION,
             date:String(inputStore && inputStore.date || getTodayPlanDateKey()),
-            items:(Array.isArray(inputStore && inputStore.items) ? inputStore.items : []).map(normalizeTodayPlanItem)
+            items:(Array.isArray(inputStore && inputStore.items) ? inputStore.items : []).map(normalizeTodayPlanItem),
+            repeatRules:(Array.isArray(inputStore && inputStore.repeatRules) ? inputStore.repeatRules : []).map(normalizeTodayPlanRepeatRule)
         };
         const report = { changed:false, remapped:0, removedMissing:0, removedItems:0, missingDecks:0 };
         const repairedItems = [];
@@ -2464,7 +2711,8 @@
         }
         let store = ensureTodayPlanCurrentDay();
         store = repairTodayPlanStore(store, { persist:true }).store;
-        const editId = String((document.getElementById('today-plan-edit-id') || {}).value || '');
+        const editRef = String((document.getElementById('today-plan-edit-id') || {}).value || '');
+        const editId = editRef.startsWith('rule:') ? (store.items.find(item => item.repeatRuleId === editRef.slice(5)) || {}).id || '' : editRef;
         const seed = `${store.date}:count:${deckPath}:${filterMode}`;
         const candidates = getTodayPlanCandidates({ deckPath, deckMode, filterMode, sortMode:'original' }, seed);
         const reserved = getTodayPlanReservedIds(store, editId);
@@ -2479,6 +2727,8 @@
     function renderTodayPlan() {
         let store = ensureTodayPlanCurrentDay();
         store = repairTodayPlanStore(store, { persist:true }).store;
+        store = syncTodayPlanRepeatRules(store);
+        renderTodayPlanRepeatManager(store);
         const list = document.getElementById('today-plan-list');
         const summary = document.getElementById('today-plan-summary');
         if(!list || !summary) return;
@@ -2490,32 +2740,53 @@
         }, { done:0, total:0 });
         const remain = Math.max(0, totals.total - totals.done);
         summary.innerHTML = `<span>오늘 전체</span><strong>${totals.done} / ${totals.total}</strong><span>남음 ${remain}</span>`;
-        if(!store.items.length) {
+        // Render a repeat-rule placeholder even if it has 0 cards. This keeps
+        // Edit/Delete accessible without materializing or backing up empty items.
+        const mappedRuleIds = new Set();
+        const visibleEntries = store.items.map(item => {
+            if(item.repeatRuleId) mappedRuleIds.add(item.repeatRuleId);
+            return { item, rule:item.repeatRuleId ? store.repeatRules.find(r => r.id === item.repeatRuleId) : null };
+        });
+        store.repeatRules.forEach(rule => {
+            if(!mappedRuleIds.has(rule.id)) visibleEntries.push({ item:null, rule });
+        });
+        if(!visibleEntries.length) {
             list.innerHTML = '<div class="today-plan-empty">아직 오늘 계획이 없습니다.<br>아래에서 덱·필터·문제 수를 정해보세요.</div>';
             updateTodayPlanMenuBadge(store);
             return;
         }
-        list.innerHTML = store.items.map(item => {
-            const p = getTodayPlanProgress(item);
+        list.innerHTML = visibleEntries.map(({item,rule}) => {
+            const source = rule || item;
+            const p = item ? getTodayPlanProgress(item) : {done:0,total:0,remain:0};
             const percent = p.total ? Math.round((p.done / p.total) * 100) : 0;
-            const filterLabel = item.filterMode === 'essential' ? '오늘 필수' : (item.filterMode === 'new' ? '오늘 새로' : (modeNames[item.filterMode] || item.filterMode));
-            const sortLabel = modeNames[item.sortMode] || item.sortMode;
-            const modeLabel = item.deckMode === 'group' ? '상위/그룹 전체' : '하위/단일덱';
-            const doneClass = p.remain === 0 ? ' done' : '';
-            const carry = item.carriedFrom ? `<span class="today-plan-badge carry">🔁 ${escapeTodayPlanHtml(item.carriedFrom)} 이월</span>` : '';
+            const filterLabel = source.filterMode === 'essential' ? '오늘 필수' : (source.filterMode === 'new' ? '오늘 새로' : (modeNames[source.filterMode] || source.filterMode));
+            const sortLabel = modeNames[source.sortMode] || source.sortMode;
+            const modeLabel = source.deckMode === 'group' ? '상위/그룹 전체' : '하위/단일덱';
+            const doneClass = p.total > 0 && p.remain === 0 ? ' done' : '';
+            const carry = item && item.carriedFrom ? `<span class="today-plan-badge carry">🔁 ${escapeTodayPlanHtml(item.carriedFrom)} 이월</span>` : '';
+            const repeatBadge = rule ? `<span class="today-plan-badge">🔁 ${escapeTodayPlanHtml(getTodayPlanRepeatLabel(rule))}${rule.enabled ? '' : ' · 중지'}</span>` : '';
+            const maxBadge = (rule || item).targetMode === 'max' ? '<span class="today-plan-badge">Max</span>' : '';
+            const disabled = p.remain === 0;
+            const pending = p.total === 0 && !Object.keys(library || {}).length;
+            const label = p.remain ? `▶ 풀기 · ${p.remain}남음` : p.total ? '✅ 완료' : pending ? '문제 확인 중' : '풀 문제 없음';
+            const editRef = rule ? `rule:${rule.id}` : item.id;
+            const editArg = escapeTodayPlanHtml(editRef);
+            // Empty placeholders point to the persisted repeat rule, not a fake item.
+            const deleteFn = rule ? 'deleteTodayPlanRepeatRule' : 'deleteTodayPlanItem';
+            const deleteArg = escapeTodayPlanHtml(rule ? rule.id : item.id);
             return `<div class="today-plan-item${doneClass}">
                 <div class="today-plan-item-top">
                     <div style="min-width:0;">
-                        <div class="today-plan-deck">${escapeTodayPlanHtml(item.deckPath.replace(/__/g, ' > '))}</div>
-                        <div class="today-plan-badges"><span class="today-plan-badge">${escapeTodayPlanHtml(modeLabel)}</span><span class="today-plan-badge">${escapeTodayPlanHtml(filterLabel)}</span><span class="today-plan-badge">${escapeTodayPlanHtml(sortLabel)}</span>${carry}</div>
+                        <div class="today-plan-deck">${escapeTodayPlanHtml(source.deckPath.replace(/__/g, ' > '))}</div>
+                        <div class="today-plan-badges"><span class="today-plan-badge">${escapeTodayPlanHtml(modeLabel)}</span><span class="today-plan-badge">${escapeTodayPlanHtml(filterLabel)}</span><span class="today-plan-badge">${escapeTodayPlanHtml(sortLabel)}</span>${repeatBadge}${maxBadge}${carry}</div>
                     </div>
                     <div class="today-plan-progress-text">${p.done}/${p.total}</div>
                 </div>
                 <div class="today-plan-progress-track"><div class="today-plan-progress-fill" style="width:${percent}%"></div></div>
                 <div class="today-plan-actions">
-                    <button class="today-plan-start" onclick="startTodayPlanItem('${escapeTodayPlanHtml(item.id)}')" ${p.remain ? '' : 'disabled'}>${p.remain ? `▶ 풀기 · ${p.remain}남음` : '✅ 완료'}</button>
-                    <button onclick="editTodayPlanItem('${escapeTodayPlanHtml(item.id)}')">✏️</button>
-                    <button onclick="deleteTodayPlanItem('${escapeTodayPlanHtml(item.id)}')">🗑</button>
+                    <button class="today-plan-start" ${item ? `onclick="startTodayPlanItem('${escapeTodayPlanHtml(item.id)}')"` : ''} ${disabled ? 'disabled' : ''}>${label}</button>
+                    <button onclick="openTodayPlanEditor('${editArg}')">✏️</button>
+                    <button onclick="${deleteFn}('${deleteArg}')">🗑</button>
                 </div>
             </div>`;
         }).join('');
@@ -2542,20 +2813,29 @@
         if(!form || !editInput) return;
         let store = ensureTodayPlanCurrentDay();
         store = repairTodayPlanStore(store, { persist:true }).store;
-        const item = itemId ? store.items.find(entry => String(entry.id) === String(itemId)) : null;
-        editInput.value = item ? item.id : '';
-        const parent = item && item.deckPath ? item.deckPath.split('__')[0] : getTodayPlanTopDecks()[0] || '';
+        const ruleId = String(itemId || '').startsWith('rule:') ? String(itemId).slice(5) : '';
+        const item = !ruleId && itemId ? store.items.find(entry => String(entry.id) === String(itemId)) : null;
+        const repeatRule = ruleId ? store.repeatRules.find(entry => entry.id === ruleId) : (item && store.repeatRules.find(entry => entry.id === item.repeatRuleId));
+        const source = repeatRule || item;
+        editInput.value = repeatRule ? `rule:${repeatRule.id}` : item ? item.id : '';
+        const parent = source && source.deckPath ? source.deckPath.split('__')[0] : getTodayPlanTopDecks()[0] || '';
         populateTodayPlanParentDecks(parent);
-        if(item) {
-            populateTodayPlanSubDecks(`${item.deckMode}|${item.deckPath}`);
-            document.getElementById('today-plan-filter').value = item.filterMode || 'default';
-            document.getElementById('today-plan-sort').value = item.sortMode || 'original';
-            document.getElementById('today-plan-target').value = Math.max(1, Number(item.targetCount) || item.cardIds.length || 1);
+        if(source) {
+            populateTodayPlanSubDecks(`${source.deckMode}|${source.deckPath}`);
+            document.getElementById('today-plan-filter').value = source.filterMode || 'default';
+            document.getElementById('today-plan-sort').value = source.sortMode || 'original';
+            document.getElementById('today-plan-target').value = Math.max(1, Number(source.requestedTargetCount || source.targetCount) || 30);
+            document.getElementById('today-plan-count-mode').value = source.targetMode === 'max' ? 'max' : 'fixed';
         } else {
             document.getElementById('today-plan-filter').value = 'default';
             document.getElementById('today-plan-sort').value = 'original';
             document.getElementById('today-plan-target').value = '30';
+            document.getElementById('today-plan-count-mode').value = 'fixed';
         }
+        document.getElementById('today-plan-repeat-mode').value = repeatRule ? repeatRule.mode : 'none';
+        document.getElementById('today-plan-repeat-carry').value = repeatRule ? repeatRule.carryMode : 'fill';
+        renderTodayPlanRepeatDays(repeatRule ? repeatRule.days : [1,2,3,4,5]);
+        updateTodayPlanCountModeUI();
         form.classList.add('open');
         updateTodayPlanAvailableCount();
         form.scrollIntoView({ block:'nearest', behavior:'smooth' });
@@ -2581,12 +2861,46 @@
         const filterMode = String((document.getElementById('today-plan-filter') || {}).value || 'default');
         const sortMode = String((document.getElementById('today-plan-sort') || {}).value || 'original');
         const targetCount = Math.max(1, parseInt((document.getElementById('today-plan-target') || {}).value, 10) || 1);
+        const targetMode = String((document.getElementById('today-plan-count-mode') || {}).value || 'fixed') === 'max' ? 'max' : 'fixed';
         if(!deckPath) { showToast('덱을 선택해주세요.', 'error'); return; }
         if(filterMode === 'new' && !(todayNewBaselineIds instanceof Set)) await loadTodayNewBaselineSnapshot();
         let store = ensureTodayPlanCurrentDay();
         store = repairTodayPlanStore(store, { persist:true }).store;
-        const existing = editId ? store.items.find(item => String(item.id) === editId) : null;
-        const reserved = getTodayPlanReservedIds(store, editId);
+        const sourceRuleId = editId.startsWith('rule:') ? editId.slice(5) : '';
+        const linkedRule = store.repeatRules.find(rule => rule.id === sourceRuleId) || null;
+        const existing = linkedRule ? (store.items.find(item => item.repeatRuleId === linkedRule.id) || null)
+            : editId ? store.items.find(item => String(item.id) === editId) : null;
+        const previousRule = linkedRule || (existing && store.repeatRules.find(rule => rule.id === existing.repeatRuleId)) || null;
+        const repeatMode = String((document.getElementById('today-plan-repeat-mode') || {}).value || 'none');
+        const repeatDays = [...document.querySelectorAll('#today-plan-repeat-days .selected')].map(button => Number(button.dataset.repeatDay));
+        if(repeatMode === 'weekly' && !repeatDays.length) { showToast('반복할 요일을 하나 이상 선택해주세요.', 'error'); return; }
+        const isRecurring = repeatMode === 'daily' || repeatMode === 'weekly';
+        let repeatRule = null;
+        if(isRecurring) {
+            repeatRule = normalizeTodayPlanRepeatRule({
+                ...(previousRule || {}),
+                id:previousRule ? previousRule.id : `tpr_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+                deckPath, deckMode, filterMode, sortMode, targetCount, targetMode,
+                mode:repeatMode, days:repeatDays,
+                carryMode:String((document.getElementById('today-plan-repeat-carry') || {}).value || 'fill'),
+                // Rule edits can change eligibility today, so a saved edit may rerun.
+                lastGeneratedDate:previousRule && !existing ? '' : (previousRule && previousRule.lastGeneratedDate || ''),
+                lastSelectedCardId:previousRule && previousRule.lastSelectedCardId || ''
+            });
+            store.repeatRules = store.repeatRules.filter(rule => rule.id !== repeatRule.id).concat(repeatRule);
+            todayPlanRepeatZeroCache.delete(repeatRule.id);
+        } else if(previousRule) {
+            store.repeatRules = store.repeatRules.filter(rule => rule.id !== previousRule.id);
+        }
+        if(isRecurring && !isTodayPlanRepeatDue(repeatRule)) {
+            if(existing) store.items = store.items.map(item => item.id === existing.id ? normalizeTodayPlanItem({ ...item, repeatRuleId:repeatRule.id }) : item);
+            writeTodayPlanStore(store);
+            markLocalDataUpdated(Date.now()); scheduleBackup('today-plan-repeat');
+            closeTodayPlanEditor(); renderTodayPlan();
+            showToast('반복 계획을 저장했습니다. 선택한 요일에 문제가 있으면 나타납니다.', 'success');
+            return;
+        }
+        const reserved = getTodayPlanReservedIds(store, existing ? existing.id : '');
         const seed = `${store.date}:${existing ? existing.id : `${deckPath}:${Date.now()}`}`;
         const sourceCards = getTodayPlanSourceCards(deckPath, deckMode);
         const allCandidates = getTodayPlanCandidates({ deckPath, deckMode, filterMode, sortMode }, seed);
@@ -2601,13 +2915,24 @@
                     .concat(candidates.filter(card => !completedSet.has(String(card && card.id || ''))));
             }
         }
-        const selectedCards = candidates.slice(0, targetCount);
+        const selectedCards = targetMode === 'max' ? candidates : candidates.slice(0, targetCount);
         const selectedIds = selectedCards.map(card => String(card && card.id || '')).filter(Boolean);
         if(!selectedIds.length) {
-            if(!sourceCards.length) showToast('선택한 덱에서 문제를 찾지 못했습니다. 덱을 새로고침한 뒤 다시 시도해주세요.', 'error');
-            else if(!allCandidates.length) showToast('선택한 필터에 맞는 문제가 0개입니다.', 'error');
-            else showToast(`조건에 맞는 ${allCandidates.length}개가 모두 다른 미완료 오늘 계획에 들어 있습니다.`, 'error');
-            return;
+            if(isRecurring) {
+                // Do not lose the rule when 0 cards match. The visible 0/0 row is
+                // rendered from the template, which still supports Edit/Delete.
+                if(existing && getTodayPlanProgress(existing).remain === 0) store.items = store.items.filter(item => item.id !== existing.id);
+                writeTodayPlanStore(store);
+                markLocalDataUpdated(Date.now()); scheduleBackup('today-plan-repeat');
+                closeTodayPlanEditor(); renderTodayPlan();
+                showToast('반복 설정 저장 완료 · 지금은 0문제이며 이후 반복일에 다시 확인합니다.', 'success');
+                return;
+            }
+            // Nonrepeating plans can be kept at 0/0 so that they can be edited.
+            if(!sourceCards.length && !Object.keys(library || {}).length) {
+                showToast('덱 데이터가 아직 준비되지 않았습니다. 불러온 뒤 다시 저장해주세요.', 'error');
+                return;
+            }
         }
         const completedIds = existing ? selectedIds.filter(id => existingCompleted.has(id)) : [];
         const cardRefs = Object.fromEntries(selectedCards.map(card => [String(card && card.id || ''), makeTodayPlanCardRef(card)]));
@@ -2615,20 +2940,28 @@
             id:existing ? existing.id : `tp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             deckPath, deckMode, filterMode, sortMode,
             targetCount:selectedIds.length,
+            targetMode, requestedTargetCount:targetCount,
             cardIds:selectedIds,
             cardRefs,
             completedIds,
             createdAt:existing ? existing.createdAt : Date.now(),
-            carriedFrom:existing ? existing.carriedFrom : ''
+            carriedFrom:existing ? existing.carriedFrom : '',
+            repeatRuleId:repeatRule ? repeatRule.id : ''
         });
         if(existing) store.items = store.items.map(entry => String(entry.id) === existing.id ? item : entry);
         else store.items.push(item);
+        if(repeatRule) {
+            repeatRule.lastGeneratedDate = getTodayPlanDateKey();
+            repeatRule.lastSelectedCardId = selectedIds[selectedIds.length - 1];
+            todayPlanRepeatZeroCache.delete(repeatRule.id);
+        }
         store = writeTodayPlanStore(store);
         markLocalDataUpdated(Date.now());
         scheduleBackup('today-plan');
         closeTodayPlanEditor();
         renderTodayPlan();
-        if(selectedIds.length < targetCount) showToast(`중복 제외 후 가능한 ${selectedIds.length}문제만 계획에 넣었습니다.`);
+        if(targetMode === 'max') showToast(`Max 기준 ${selectedIds.length}문제를 계획에 넣었습니다.`, 'success');
+        else if(selectedIds.length < targetCount) showToast(`중복 제외 후 가능한 ${selectedIds.length}문제만 계획에 넣었습니다.`);
         else showToast(existing ? '오늘 계획을 수정했습니다.' : '오늘 계획을 추가했습니다.', 'success');
     }
 
@@ -2636,6 +2969,7 @@
         let store = ensureTodayPlanCurrentDay();
         const item = store.items.find(entry => String(entry.id) === String(itemId));
         if(!item) return;
+        if(item.repeatRuleId) { deleteTodayPlanRepeatRule(item.repeatRuleId); return; }
         if(!confirm('이 오늘 계획을 삭제할까요? 학습 기록과 정답률은 삭제되지 않습니다.')) return;
         store.items = store.items.filter(entry => String(entry.id) !== String(itemId));
         if(todayPlanActiveItemId === String(itemId)) todayPlanActiveItemId = '';
