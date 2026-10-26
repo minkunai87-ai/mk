@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.315 DECK PERFORMANCE FIX -->
+<!-- preview: v18.5.316 UI RESPONSIVENESS FIX -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.315 DECK PERFORMANCE FIX)</title>
+<title>MK (v18.5.316 UI RESPONSIVENESS FIX)</title>
 
 <script>
     (() => {
@@ -940,7 +940,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.315 DECK PERFORMANCE FIX)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.316 UI RESPONSIVENESS FIX)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1298,7 +1298,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.315 DECK PERFORMANCE FIX';
+    const APP_VERSION = 'v18.5.316 UI RESPONSIVENESS FIX';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -6602,7 +6602,11 @@
         return Object.values(stats || {}).filter(stat => stat && stat.fsrs).length;
     }
 
+    const mkStatsLookupKeysCache = new WeakMap();
     function getStatsLookupKeysForCard(card, fallbackId = '') {
+        const signature = card && typeof card === 'object' ? [card.id, card.uuid, card.originalUuid, card.statsId, card.blockId, card.idString, card.q, card.a, card.idCandidates, card.fingerprints, fallbackId] : null;
+        const cached = signature && mkStatsLookupKeysCache.get(card);
+        if(cached && cached.signature.every((value, index) => value === signature[index])) return cached.keys.slice();
         const keys = [];
         const push = (value) => {
             const key = String(value || '').trim();
@@ -6633,7 +6637,8 @@
             }
         }
         push(fallbackId);
-        return keys;
+        if(signature) mkStatsLookupKeysCache.set(card, { signature, keys });
+        return keys.slice();
     }
 
     function getStatsContinuityRank(stat = {}) {
@@ -15343,16 +15348,10 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             }
             return 0;
         };
-        // Deck loaders normally already sort by sourceOrder and filters preserve
-        // that order. Verify the monotonic ordering in O(N) before skipping the
-        // O(N log N) default sort: unusual callers may supply an unordered deck.
         let needsSort = currentSortMode !== 'original' || currentSecondarySortMode !== 'none';
         if(!needsSort) {
             for(let i=1; i<filtered.length; i++) {
-                if(getOriginalOrder(filtered[i-1]) > getOriginalOrder(filtered[i])) {
-                    needsSort = true;
-                    break;
-                }
+                if(getOriginalOrder(filtered[i-1]) > getOriginalOrder(filtered[i])) { needsSort = true; break; }
             }
         }
         if(needsSort) filtered.sort((a,b) => {
@@ -15815,7 +15814,12 @@ function getIOImageGroups() {
     // #card context: the Logseq TSV import keeps q === a for ordinary cards.
     // Sibling replies therefore live in each sibling card's *active* cloze tree,
     // not in an independently rendered answer document. Never clone a whole card.
-    const mkSiblingCardSourceCache = new WeakMap();
+    const mkSiblingCardSourceCache = new Map();
+    function rememberMkSiblingCardSource(card, source) {
+        if(mkSiblingCardSourceCache.has(card)) mkSiblingCardSourceCache.delete(card);
+        mkSiblingCardSourceCache.set(card, source);
+        if(mkSiblingCardSourceCache.size > 128) mkSiblingCardSourceCache.delete(mkSiblingCardSourceCache.keys().next().value);
+    }
 
     function getMkOrdinaryCardActiveLi(root) {
         if(!root || !root.querySelectorAll) return null;
@@ -15890,9 +15894,9 @@ function getIOImageGroups() {
         const qHolder = document.createElement('div');
         qHolder.innerHTML = String(card.q || '');
         const active = getMkOrdinaryCardActiveLi(qHolder);
-        if(!active) { mkSiblingCardSourceCache.set(card,null); return null; }
+        if(!active) { rememberMkSiblingCardSource(card,null); return null; }
         const label = normalizeMkSiblingCardLabel(getMkOwnCardQuestionLabel(active));
-        if(!label) { mkSiblingCardSourceCache.set(card,null); return null; }
+        if(!label) { rememberMkSiblingCardSource(card,null); return null; }
         const signature = getMkOrdinaryCardSiblingSignature(active);
         // Prefer a truly expanded answer in a; with the ordinary TSV format
         // a === q, so the q-side nested cloze-a must be accepted too.
@@ -15908,7 +15912,7 @@ function getIOImageGroups() {
         }
         const record = {card, label, signature,
             key:getMkOrdinaryCardContextKey(card,qHolder,active), realList};
-        mkSiblingCardSourceCache.set(card,record);
+        rememberMkSiblingCardSource(card,record);
         return record;
     }
 
@@ -16027,9 +16031,7 @@ function getIOImageGroups() {
         const sourceOrder=Number(card.sourceOrder);
         const cardContext = current.key || '';
         const sourceGroups = new Map();
-        const currentSignature = current.signature;
-        const currentBreadcrumb = String(card.breadcrumb || '').trim();
-        const addSiblingSource = other => {
+        const addCandidate = other => {
             if(!other || other===card || String(other.id||'')===String(card.id||'')) return;
             if(String(other.deck||'')!==String(card.deck||'')) return;
             const otherSource=getMkOrdinaryCardSiblingSource(other);
@@ -16037,43 +16039,10 @@ function getIOImageGroups() {
             if(!sourceGroups.has(otherSource.label)) sourceGroups.set(otherSource.label,[]);
             sourceGroups.get(otherSource.label).push(otherSource);
         };
-        // Most #card siblings are adjacent in the exported Logseq order. Scan only
-        // nearby records first; parsing every HTML tree in a large parent deck can
-        // block the UI for seconds. The fast path is taken ONLY if each label has
-        // a perfect parent/signature/breadcrumb match with a strictly closer
-        // sourceOrder than any unscanned card could possibly have. Otherwise
-        // fall back to the complete original search without losing any matches.
-        const MK_CARD_NEARBY_ORDER_DISTANCE = 48;
-        const canUseNearby = Number.isFinite(sourceOrder) &&
-            (cardContext || currentSignature || currentBreadcrumb);
-        let scannedNearby = 0;
-        if(canUseNearby) {
-            for(const other of candidates) {
-                if(!other || String(other.deck||'')!==String(card.deck||'')) continue;
-                const otherOrder=Number(other.sourceOrder);
-                if(!Number.isFinite(otherOrder) || Math.abs(sourceOrder-otherOrder)>MK_CARD_NEARBY_ORDER_DISTANCE) continue;
-                scannedNearby++;
-                addSiblingSource(other);
-            }
-        }
-        const nearbyIsComplete = canUseNearby && [...targetLabels].every(label => {
-            const entries = sourceGroups.get(label) || [];
-            return entries.some(source => {
-                const candidateOrder=Number(source.card.sourceOrder);
-                const distance=Math.abs(sourceOrder-candidateOrder);
-                return Number.isFinite(distance) && distance<MK_CARD_NEARBY_ORDER_DISTANCE &&
-                    (!cardContext || source.key===cardContext) &&
-                    (!currentSignature || source.signature===currentSignature) &&
-                    (!currentBreadcrumb || String(source.card.breadcrumb||'').trim()===currentBreadcrumb);
-            });
-        });
-        if(!nearbyIsComplete) {
-            // Rebuild in the original candidate order for exact stable-sort ties.
-            // Nearby sources stay cached in mkSiblingCardSourceCache (WeakMap).
-            sourceGroups.clear();
-            for(const other of candidates) addSiblingSource(other);
-        }
+        const completeContext = () => {
         const found = new Map([[currentLabel,current]]);
+        const currentSignature = current.signature;
+        const currentBreadcrumb = String(card.breadcrumb || '').trim();
         const missingLabels=[];
         for(const label of targetLabels) {
             const entries = sourceGroups.get(label) || [];
@@ -16122,8 +16091,35 @@ function getIOImageGroups() {
         root.dataset.mkCardAnswersMatched=String(matched);
         root.dataset.mkCardAnswersTotal=String(otherCount);
         root.dataset.mkCardAnswersMissing=JSON.stringify(missingLabels);
-        console.info('[MK_CARD_CONTEXT_V315]',{current:currentLabel,siblings:otherCount,matched,missingLabels,candidateCount:candidates.length,nearbyFastPath:nearbyIsComplete,nearbyScanned:scannedNearby});
+        if(window.__MK_CARD_VERBOSE_DEBUG__ === true) console.info('[MK_CARD_CONTEXT_V316]',{current:currentLabel,siblings:otherCount,matched,missingLabels,candidateCount:candidates.length});
         return true;
+        };
+        // Small decks preserve the previous synchronous behavior exactly.
+        if(candidates.length <= 200) {
+            candidates.forEach(addCandidate);
+            return completeContext();
+        }
+        // Large deck: keep the first problem immediately usable; resolve the
+        // contextual sibling answer links in short event-loop slices afterward.
+        const contextRenderToken = mkOrdinaryCardContextRenderToken;
+        let cursor = 0;
+        const scanBatch = () => {
+            if(contextRenderToken !== mkOrdinaryCardContextRenderToken ||
+               !root.isConnected || activeDeck[currentIndex] !== card) return;
+            const deadline = performance.now() + 6;
+            let count = 0;
+            while(cursor < candidates.length && count < 24 && performance.now() < deadline) {
+                addCandidate(candidates[cursor++]);
+                count++;
+            }
+            if(cursor < candidates.length) {
+                setTimeout(scanBatch, 0);
+                return;
+            }
+            if(completeContext()) updateMkCardSiblingEye(root);
+        };
+        setTimeout(scanBatch, 0);
+        return false;
     }
 
     function updateMkCardSiblingEye(root) {
@@ -16186,7 +16182,9 @@ function getIOImageGroups() {
         catch(error) {window.prompt('아래 진단 내용을 복사해 주세요',data);}
     }
 
+    let mkOrdinaryCardContextRenderToken = 0;
     function showCard() {
+        mkOrdinaryCardContextRenderToken++;
         ioZoomDiagnostics.cardRenders += 1;
         if(mkStartupTiming.firstVisiblePaint === undefined) {
             mkStartupTiming.firstRenderCount += 1;
@@ -16241,8 +16239,10 @@ function getIOImageGroups() {
         document.getElementById('card-info').style.display='flex';
         updateStatsUI(stats); updateIconsUI(stats);
         if(!isIOCard) {
-            logDateDomMutation('initial-render');
-            logCurrentCardReviewState('showCard');
+            if(window.__MK_CARD_VERBOSE_DEBUG__ === true) {
+                logDateDomMutation('initial-render');
+                logCurrentCardReviewState('showCard');
+            }
         }
         updateNoteButtonState();
 
@@ -16318,7 +16318,7 @@ function getIOImageGroups() {
             decoratePdfAnnotations(qSection, card, currentCardPdfTrace);
             decoratePdfAnnotations(aSection, card);
             bindImageZoomHandlers(aSection);
-            scheduleDateDomMutationLog('after-final-dom-update');
+            if(window.__MK_CARD_VERBOSE_DEBUG__ === true) scheduleDateDomMutationLog('after-final-dom-update');
         }
 
         if(isPdfDiagnosticCard) {
@@ -17655,33 +17655,26 @@ function getIOImageGroups() {
 
     function getVirtualDate(ts) { const d = new Date(ts); if(d.getHours() < 4) d.setDate(d.getDate()-1); d.setHours(0,0,0,0); return d; }
     
+    // Display-only path. Previously ran repeated legacy-id hashing, full Stats diagnostics,
+    // computed-style/layout reads and multiple console traces for *every* card change.
+    // Detailed troubleshooting remains available through explicit debug helpers.
     function updateStatsUI(s) {
-        const debugCard = activeDeck && activeDeck[currentIndex];
-        const debugStatsStore = getStatsStore();
-        const debugFound = debugCard ? findStatsForCard(debugCard, debugStatsStore, debugCard.id) : { key: null, stat: null };
-        const canonicalStat = debugCard ? getCardStat(debugCard, debugCard.id) : null;
-        s = canonicalStat || normalizeReviewStatForDisplay(s || {}, s && s._statsKey);
-        {
+        s = normalizeReviewStatForDisplay(s || {}, s && s._statsKey);
         const rateBadge = document.getElementById('rate-badge');
         const seenBadge = document.getElementById('date-badge');
         const dueBadge = document.getElementById('due-badge');
-        const htmlBeforeInsert = document.getElementById('card-info') ? document.getElementById('card-info').outerHTML : '';
-        const activeAccuracyCard = activeDeck[currentIndex];
-        const cardIdForAccuracy = (s && s._statsKey) || (activeAccuracyCard && activeAccuracyCard.id);
-        // HOT PATH: surviving aggregate Stats are already the canonical baseline for the badge.
-        // Do not merge/sort every legacy history alias on every card transition. Only fall back
-        // to detailed history for true legacy cards that have no aggregate total at all.
+        const activeCard = activeDeck && activeDeck[currentIndex];
+        const cardIdForAccuracy = (s && s._statsKey) || (activeCard && activeCard.id);
         let accuracy;
         if((Number(s && s.total) || 0) > 0) {
             accuracy = { correct: Number(s.correct) || 0, total: Number(s.total) || 0 };
         } else {
-            const mergedAccuracyHistory = activeAccuracyCard ? getMergedReviewHistoryForCard(activeAccuracyCard, cardIdForAccuracy).items : [];
-            accuracy = getAccuracyStatsFromItems(mergedAccuracyHistory, s || {});
+            const merged = activeCard ? getMergedReviewHistoryForCard(activeCard, cardIdForAccuracy).items : [];
+            accuracy = getAccuracyStatsFromItems(merged, s || {});
         }
-
         rateBadge.onclick = openCurrentCardHistory;
         rateBadge.title = '이 카드 정답률 히스토리 보기';
-        if (!accuracy.total) {
+        if(!accuracy.total) {
             rateBadge.innerText = 'New';
             rateBadge.className = 'rate-badge';
         } else {
@@ -17689,177 +17682,33 @@ function getIOImageGroups() {
             rateBadge.innerText = `${rate}% (${accuracy.total}회)`;
             rateBadge.className = `rate-badge ${rate >= 80 ? 'high' : (rate < 50 ? 'low' : '')}`;
         }
-
-        if (!s.lastDate) {
+        if(!s.lastDate) {
             seenBadge.style.display = 'none';
         } else {
             const seenDiff = Math.floor((getVirtualDate(Date.now()) - getVirtualDate(s.lastDate)) / 86400000);
             seenBadge.style.display = 'inline-block';
-            if (seenDiff === 0) {
-                seenBadge.innerText = '👀 오늘 봄';
-                seenBadge.className = 'date-badge badge-today';
-            } else if (seenDiff === 1) {
-                seenBadge.innerText = '👀 1일 전 봄';
-                seenBadge.className = 'date-badge badge-1d';
-            } else {
-                seenBadge.innerText = `👀 ${seenDiff}일 전 봄`;
-                seenBadge.className = 'date-badge badge-old';
-            }
+            if(seenDiff === 0) { seenBadge.innerText = '👀 오늘 봄'; seenBadge.className = 'date-badge badge-today'; }
+            else if(seenDiff === 1) { seenBadge.innerText = '👀 1일 전 봄'; seenBadge.className = 'date-badge badge-1d'; }
+            else { seenBadge.innerText = `👀 ${seenDiff}일 전 봄`; seenBadge.className = 'date-badge badge-old'; }
         }
-
-        if (!s.dueDate) {
+        if(!s.dueDate) {
             dueBadge.style.display = 'none';
         } else {
-            const today = new Date();
-            today.setHours(0,0,0,0);
+            const today = new Date(); today.setHours(0,0,0,0);
             const dueDiff = Math.ceil((s.dueDate - today.getTime()) / 86400000);
             dueBadge.style.display = 'inline-block';
-            if (dueDiff <= 0) {
+            if(dueDiff <= 0) {
                 dueBadge.innerText = '🎯 오늘 복습 필요';
                 dueBadge.className = 'date-badge badge-1d';
-                dueBadge.style.background = '#491010';
-                dueBadge.style.color = '#ff8787';
-                dueBadge.style.border = '1px solid #ff8787';
+                dueBadge.style.background = '#491010'; dueBadge.style.color = '#ff8787'; dueBadge.style.border = '1px solid #ff8787';
             } else {
                 dueBadge.innerText = `📅 ${dueDiff}일 후 복습 추천`;
                 dueBadge.className = 'date-badge badge-old';
-                dueBadge.style.background = '#182836';
-                dueBadge.style.color = '#74c0fc';
-                dueBadge.style.border = '1px solid #1c7ed6';
+                dueBadge.style.background = '#182836'; dueBadge.style.color = '#74c0fc'; dueBadge.style.border = '1px solid #1c7ed6';
             }
         }
-        const updateDateDiagnosticUI = (phase = 'render') => {
-            const SHOW_DATE_DIAGNOSTIC_UI = false;
-            const diagnostic = document.getElementById('date-diagnostic');
-            if (!diagnostic) return;
-            if (!SHOW_DATE_DIAGNOSTIC_UI) {
-                diagnostic.style.display = 'none';
-                diagnostic.textContent = '';
-                return;
-            }
-            const rawStat = debugFound && debugFound.stat ? debugFound.stat : null;
-            const matchedKey = debugFound && debugFound.key ? debugFound.key : (s && s._statsKey ? s._statsKey : '');
-            const lastStyle = seenBadge ? getComputedStyle(seenBadge) : null;
-            const dueStyle = dueBadge ? getComputedStyle(dueBadge) : null;
-            const lastBadgeVisible = !!(seenBadge && seenBadge.innerText && lastStyle && lastStyle.display !== 'none' && lastStyle.visibility !== 'hidden' && lastStyle.opacity !== '0');
-            const dueBadgeVisible = !!(dueBadge && dueBadge.innerText && dueStyle && dueStyle.display !== 'none' && dueStyle.visibility !== 'hidden' && dueStyle.opacity !== '0');
-            const shouldRenderLastDate = !!(s && s.lastDate);
-            const shouldRenderDueDate = !!(s && s.dueDate);
-            const statsFound = !!rawStat;
-            if (!statsFound) {
-                diagnostic.style.display = 'none';
-                diagnostic.textContent = '';
-                return;
-            }
-            if (lastBadgeVisible && dueBadgeVisible) {
-                diagnostic.style.display = 'none';
-                diagnostic.textContent = '';
-                return;
-            }
-            let renderState = '정상';
-            if (!statsFound) renderState = 'lookup실패';
-            else if (!shouldRenderLastDate || !shouldRenderDueDate) renderState = '조건false';
-            else if (!lastBadgeVisible || !dueBadgeVisible) renderState = '차단';
-            const text = [
-                `[날짜 진단] stats=${statsFound ? '있음' : '없음'}`,
-                `cardId=${debugCard ? String(debugCard.id || '') : ''}`,
-                `key=${matchedKey || '없음'}`,
-                `statsFound=${statsFound}`,
-                `lastDateRaw=${Number(rawStat && rawStat.lastDate) || 0}`,
-                `updatedAtRaw=${Number(rawStat && rawStat.updatedAt) || 0}`,
-                `dueDateRaw=${Number(rawStat && rawStat.dueDate) || 0}`,
-                `lastBadge=${lastBadgeVisible ? '표시' : '숨김'}`,
-                `dueBadge=${dueBadgeVisible ? '표시' : '숨김'}`,
-                `condition=last:${shouldRenderLastDate},due:${shouldRenderDueDate}`,
-                `render=${renderState}`,
-                `phase=${phase}`
-            ].join(' | ');
-            diagnostic.textContent = text;
-            diagnostic.style.display = 'block';
-            console.warn('[MK_DATE_DIAGNOSTIC_UI]', {
-                cardId: debugCard ? String(debugCard.id || '') : '',
-                lookupKey: matchedKey || '',
-                statsFound,
-                lastDateRaw: Number(rawStat && rawStat.lastDate) || 0,
-                updatedAtRaw: Number(rawStat && rawStat.updatedAt) || 0,
-                dueDateRaw: Number(rawStat && rawStat.dueDate) || 0,
-                lastBadgeVisible,
-                dueBadgeVisible,
-                shouldRenderLastDate,
-                shouldRenderDueDate,
-                renderState,
-                phase
-            });
-        };
-        updateDateDiagnosticUI('updateStatsUI');
-        requestAnimationFrame(() => setTimeout(() => updateDateDiagnosticUI('settled'), 0));
-        console.log('[MK_STATS_DATE_DEBUG]', {
-            cardId: debugCard ? String(debugCard.id || '') : '',
-            cardIdentity: debugCard ? {
-                id: debugCard.id || '',
-                blockId: debugCard.blockId || '',
-                idString: debugCard.idString || '',
-                deck: debugCard.deck || currentDeckName || ''
-            } : null,
-            lookupKey: debugCard ? getStatsLookupKeysForCard(debugCard, debugCard.id).slice(0, 12) : [],
-            matchedStatsKey: debugFound && debugFound.key ? debugFound.key : (s && s._statsKey ? s._statsKey : null),
-            statsFound: !!(debugFound && debugFound.stat),
-            statsValue: debugFound && debugFound.stat ? debugFound.stat : null,
-            lastDate: Number(s && s.lastDate) || 0,
-            dueDate: Number(s && s.dueDate) || 0,
-            renderedLastDate: seenBadge ? (seenBadge.style.display === 'none' ? '' : seenBadge.innerText) : '',
-            renderedDueDate: dueBadge ? (dueBadge.style.display === 'none' ? '' : dueBadge.innerText) : ''
-        });
-        console.log('[MK_STATS_DATE_RENDER_TRACE]', {
-            cardId: debugCard ? String(debugCard.id || '') : '',
-            statsKey: debugFound && debugFound.key ? debugFound.key : (s && s._statsKey ? s._statsKey : null),
-            statsFound: !!(debugFound && debugFound.stat),
-            statObject: debugFound && debugFound.stat ? debugFound.stat : null,
-            lastDateRaw: Number(debugFound && debugFound.stat && debugFound.stat.lastDate) || 0,
-            updatedAtRaw: Number(debugFound && debugFound.stat && debugFound.stat.updatedAt) || 0,
-            dueDateRaw: Number(debugFound && debugFound.stat && debugFound.stat.dueDate) || 0,
-            normalizedLastDate: Number(s && s.lastDate) || 0,
-            normalizedDueDate: Number(s && s.dueDate) || 0,
-            shouldRenderLastDate: !!(s && s.lastDate),
-            shouldRenderDueDate: !!(s && s.dueDate),
-            htmlBeforeInsert,
-            htmlAfterInsert: document.getElementById('card-info') ? document.getElementById('card-info').outerHTML : '',
-            lastDateElementExists: !!seenBadge,
-            dueDateElementExists: !!dueBadge,
-            lastDateComputedDisplay: seenBadge ? getComputedStyle(seenBadge).display : null,
-            dueDateComputedDisplay: dueBadge ? getComputedStyle(dueBadge).display : null,
-            lastDateComputedVisibility: seenBadge ? getComputedStyle(seenBadge).visibility : null,
-            dueDateComputedVisibility: dueBadge ? getComputedStyle(dueBadge).visibility : null,
-            lastDateComputedOpacity: seenBadge ? getComputedStyle(seenBadge).opacity : null,
-            dueDateComputedOpacity: dueBadge ? getComputedStyle(dueBadge).opacity : null,
-            lastDateComputedHeight: seenBadge ? getComputedStyle(seenBadge).height : null,
-            dueDateComputedHeight: dueBadge ? getComputedStyle(dueBadge).height : null,
-            lastDateRect: seenBadge ? (() => { const rect = seenBadge.getBoundingClientRect(); return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }; })() : null,
-            dueDateRect: dueBadge ? (() => { const rect = dueBadge.getBoundingClientRect(); return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }; })() : null,
-            platform: navigator.platform || '',
-            userAgent: navigator.userAgent || '',
-            viewport: { width: window.innerWidth, height: window.innerHeight, devicePixelRatio: window.devicePixelRatio || 1 }
-        });
-        }
-        return;
-        const b = document.getElementById('rate-badge');
-        b.onclick = openCurrentCardHistory;
-        const cardId = activeDeck[currentIndex] && activeDeck[currentIndex].id;
-        s = { ...s, ...getAccuracyStats(cardId, s) };
-        b.title = '이 카드 정답률 히스토리 보기';
-        if(!s.total) { b.innerText="New"; b.className="rate-badge"; } else { const r = Math.round((s.correct/s.total)*100); b.innerText=`${r}% (${s.total}회)`; b.className=`rate-badge ${r>=80?'high':(r<50?'low':'')}`; }
-        const db = document.getElementById('date-badge');
-        if(!s.lastDate) db.style.display='none';
-        else {
-            const diff = Math.floor((getVirtualDate(Date.now()) - getVirtualDate(s.lastDate)) / 86400000); db.style.display='inline-block';
-            if (diff === 0) { db.innerText = "✅ 오늘 본 카드"; db.className = 'date-badge badge-today'; } else if (diff === 1) { db.innerText = "⏮️ 1일 전"; db.className = 'date-badge badge-1d'; } else { db.innerText = `📅 ${diff}일 전`; db.className = 'date-badge badge-old'; }
-        }
-        const dueBadge = document.getElementById('due-badge');
-        if(s.dueDate) {
-            const today = new Date(); today.setHours(0,0,0,0); const diff = Math.ceil((s.dueDate - today.getTime()) / 86400000); dueBadge.style.display = 'inline-block';
-            if(diff <= 0) { dueBadge.innerText = "🚨 오늘 복습 필요"; dueBadge.className = 'date-badge badge-1d'; dueBadge.style.background = '#491010'; dueBadge.style.color = '#ff8787'; dueBadge.style.border = '1px solid #ff8787';
-            } else { dueBadge.innerText = `📅 ${diff}일 후 복습 추천`; dueBadge.className = 'date-badge badge-old'; dueBadge.style.background = '#182836'; dueBadge.style.color = '#74c0fc'; dueBadge.style.border = '1px solid #1c7ed6'; }
-        } else { dueBadge.style.display = 'none'; }
+        const diagnostic = document.getElementById('date-diagnostic');
+        if(diagnostic) { diagnostic.style.display = 'none'; diagnostic.textContent = ''; }
     }
 
     function renderDeckTree() {
@@ -17867,10 +17716,16 @@ function getIOImageGroups() {
         const list = document.getElementById('deck-list-ui'); list.innerHTML = '';
         const names = Object.keys(library).sort(); const tree = {};
         names.forEach(path => { const parts = path.split('__'); let cur = tree; parts.forEach((p, i) => { if(!cur[p]) cur[p] = { _path: parts.slice(0, i+1).join('__'), _children: {}, _isLeaf: (i === parts.length-1) }; cur = cur[p]._children; }); });
-        const getGroupCount = path => Object.keys(library).reduce((sum, key) => {
-            if (key === path || key.startsWith(path + '__')) return sum + library[key].length;
-            return sum;
-        }, 0);
+        const groupCounts = new Map();
+        names.forEach(path => {
+            const parts = path.split('__');
+            const count = Array.isArray(library[path]) ? library[path].length : 0;
+            for(let i=1; i<=parts.length; i++) {
+                const parent = parts.slice(0,i).join('__');
+                groupCounts.set(parent, (groupCounts.get(parent) || 0) + count);
+            }
+        });
+        const getGroupCount = path => groupCounts.get(path) || 0;
         function createDOMTree(node, cont) {
             Object.keys(node).sort().forEach(k => {
                 const item = node[k]; const hasChildren = Object.keys(item._children).length > 0; const li = document.createElement('li');
