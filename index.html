@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.314 CARD ANSWER LINEBREAK FIX -->
+<!-- preview: v18.5.315 DECK PERFORMANCE FIX -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.314 CARD ANSWER LINEBREAK FIX)</title>
+<title>MK (v18.5.315 DECK PERFORMANCE FIX)</title>
 
 <script>
     (() => {
@@ -940,7 +940,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.314 CARD ANSWER LINEBREAK FIX)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.315 DECK PERFORMANCE FIX)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1298,7 +1298,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.314 CARD ANSWER LINEBREAK FIX';
+    const APP_VERSION = 'v18.5.315 DECK PERFORMANCE FIX';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -15343,7 +15343,19 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             }
             return 0;
         };
-        filtered.sort((a,b) => {
+        // Deck loaders normally already sort by sourceOrder and filters preserve
+        // that order. Verify the monotonic ordering in O(N) before skipping the
+        // O(N log N) default sort: unusual callers may supply an unordered deck.
+        let needsSort = currentSortMode !== 'original' || currentSecondarySortMode !== 'none';
+        if(!needsSort) {
+            for(let i=1; i<filtered.length; i++) {
+                if(getOriginalOrder(filtered[i-1]) > getOriginalOrder(filtered[i])) {
+                    needsSort = true;
+                    break;
+                }
+            }
+        }
+        if(needsSort) filtered.sort((a,b) => {
             if(currentSortMode === 'unlearned') {
                 const aUnlearned = isUnlearned(a);
                 const bUnlearned = isUnlearned(b);
@@ -16015,17 +16027,53 @@ function getIOImageGroups() {
         const sourceOrder=Number(card.sourceOrder);
         const cardContext = current.key || '';
         const sourceGroups = new Map();
-        for(const other of candidates) {
-            if(!other || other===card || String(other.id||'')===String(card.id||'')) continue;
-            if(String(other.deck||'')!==String(card.deck||'')) continue;
-            const otherSource=getMkOrdinaryCardSiblingSource(other);
-            if(!otherSource || !otherSource.realList || !targetLabels.has(otherSource.label)) continue;
-            if(!sourceGroups.has(otherSource.label)) sourceGroups.set(otherSource.label,[]);
-            sourceGroups.get(otherSource.label).push(otherSource);
-        }
-        const found = new Map([[currentLabel,current]]);
         const currentSignature = current.signature;
         const currentBreadcrumb = String(card.breadcrumb || '').trim();
+        const addSiblingSource = other => {
+            if(!other || other===card || String(other.id||'')===String(card.id||'')) return;
+            if(String(other.deck||'')!==String(card.deck||'')) return;
+            const otherSource=getMkOrdinaryCardSiblingSource(other);
+            if(!otherSource || !otherSource.realList || !targetLabels.has(otherSource.label)) return;
+            if(!sourceGroups.has(otherSource.label)) sourceGroups.set(otherSource.label,[]);
+            sourceGroups.get(otherSource.label).push(otherSource);
+        };
+        // Most #card siblings are adjacent in the exported Logseq order. Scan only
+        // nearby records first; parsing every HTML tree in a large parent deck can
+        // block the UI for seconds. The fast path is taken ONLY if each label has
+        // a perfect parent/signature/breadcrumb match with a strictly closer
+        // sourceOrder than any unscanned card could possibly have. Otherwise
+        // fall back to the complete original search without losing any matches.
+        const MK_CARD_NEARBY_ORDER_DISTANCE = 48;
+        const canUseNearby = Number.isFinite(sourceOrder) &&
+            (cardContext || currentSignature || currentBreadcrumb);
+        let scannedNearby = 0;
+        if(canUseNearby) {
+            for(const other of candidates) {
+                if(!other || String(other.deck||'')!==String(card.deck||'')) continue;
+                const otherOrder=Number(other.sourceOrder);
+                if(!Number.isFinite(otherOrder) || Math.abs(sourceOrder-otherOrder)>MK_CARD_NEARBY_ORDER_DISTANCE) continue;
+                scannedNearby++;
+                addSiblingSource(other);
+            }
+        }
+        const nearbyIsComplete = canUseNearby && [...targetLabels].every(label => {
+            const entries = sourceGroups.get(label) || [];
+            return entries.some(source => {
+                const candidateOrder=Number(source.card.sourceOrder);
+                const distance=Math.abs(sourceOrder-candidateOrder);
+                return Number.isFinite(distance) && distance<MK_CARD_NEARBY_ORDER_DISTANCE &&
+                    (!cardContext || source.key===cardContext) &&
+                    (!currentSignature || source.signature===currentSignature) &&
+                    (!currentBreadcrumb || String(source.card.breadcrumb||'').trim()===currentBreadcrumb);
+            });
+        });
+        if(!nearbyIsComplete) {
+            // Rebuild in the original candidate order for exact stable-sort ties.
+            // Nearby sources stay cached in mkSiblingCardSourceCache (WeakMap).
+            sourceGroups.clear();
+            for(const other of candidates) addSiblingSource(other);
+        }
+        const found = new Map([[currentLabel,current]]);
         const missingLabels=[];
         for(const label of targetLabels) {
             const entries = sourceGroups.get(label) || [];
@@ -16074,7 +16122,7 @@ function getIOImageGroups() {
         root.dataset.mkCardAnswersMatched=String(matched);
         root.dataset.mkCardAnswersTotal=String(otherCount);
         root.dataset.mkCardAnswersMissing=JSON.stringify(missingLabels);
-        console.info('[MK_CARD_CONTEXT_V313]',{current:currentLabel,siblings:otherCount,matched,missingLabels,candidateCount:candidates.length});
+        console.info('[MK_CARD_CONTEXT_V315]',{current:currentLabel,siblings:otherCount,matched,missingLabels,candidateCount:candidates.length,nearbyFastPath:nearbyIsComplete,nearbyScanned:scannedNearby});
         return true;
     }
 
