@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.327 ARROW SOURCE ANSWER FIX -->
+<!-- preview: v18.5.328 MIXED HIERARCHY REVEAL -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.327 ARROW SOURCE ANSWER FIX)</title>
+<title>MK (v18.5.328 MIXED HIERARCHY REVEAL)</title>
 
 <script>
     (() => {
@@ -925,6 +925,53 @@
         .today-plan-rule { padding:13px; }
     }
 
+
+    /* One hierarchy, one shared reveal state for :->, #card and {{cs}}.
+       These rules outrank the old per-type toggles without changing review state. */
+    /* Preserve the app's normal hidden-subtree rule.  ONLY reveal a
+       verified #card mask or its already-masked original cloze tree; blindly
+       expanding every active UL would leak an ordinary card's raw answer. */
+    .text-area.mk-unified-hierarchy.mode-question li.active-block > ul.mk-card-answer-mask,
+    .text-area.mk-unified-hierarchy.mode-question li.active-block > ul.mk-card-original-answer {
+        display: block !important;
+    }
+    /* A #card answer UL is a protected answer region, not a navigation child. */
+    .text-area.mk-unified-hierarchy.mode-question li.active-block > ul.mk-card-answer-real {
+        display: none !important;
+    }
+    .text-area.mk-unified-hierarchy.mk-hierarchy-show-all.mode-question li.active-block > ul.mk-card-answer-real {
+        display: block !important;
+    }
+    .text-area.mk-unified-hierarchy.mk-hierarchy-show-all.mode-question li.active-block > ul.mk-card-answer-mask {
+        display: none !important;
+    }
+    .text-area.mk-unified-hierarchy.mode-answer .mk-unified-cloze-context > .cloze-q {
+        display: inline !important;
+    }
+    .text-area.mk-unified-hierarchy.mode-answer .mk-unified-cloze-context > .cloze-a {
+        display: none !important;
+    }
+    .text-area.mk-unified-hierarchy.mk-hierarchy-show-all .cloze-wrapper:not([data-mk-arrow-answer-unresolved="1"]) > .cloze-q,
+    .text-area.mk-unified-hierarchy.mk-hierarchy-show-all .mk-cs-wrapper > .mk-cs-mask,
+    .text-area.mk-unified-hierarchy.mk-hierarchy-show-all .mk-card-answer-mask {
+        display: none !important;
+    }
+    .text-area.mk-unified-hierarchy.mk-hierarchy-show-all .cloze-wrapper:not([data-mk-arrow-answer-unresolved="1"]) > .cloze-a,
+    .text-area.mk-unified-hierarchy.mk-hierarchy-show-all .mk-cs-wrapper > .mk-cs-answer {
+        display: inline !important;
+    }
+    .text-area.mk-card-hierarchy-expanded.mk-unified-hierarchy.mk-hierarchy-show-all li.mk-card-current > .mk-card-answer-real,
+    .text-area.mk-card-hierarchy-expanded.mk-unified-hierarchy.mk-hierarchy-show-all li.mk-card-context > .mk-card-answer-real,
+    .text-area.mk-unified-hierarchy.mk-hierarchy-show-all .mk-card-answer-real {
+        display: block !important;
+    }
+    /* Do not expose a missing answer or invent a synthetic value. */
+    .text-area.mk-unified-hierarchy.mk-hierarchy-show-all .cloze-wrapper[data-mk-arrow-answer-unresolved="1"] > .cloze-q {
+        display: inline !important;
+    }
+    .text-area.mk-unified-hierarchy.mk-hierarchy-show-all .cloze-wrapper[data-mk-arrow-answer-unresolved="1"] > .cloze-a {
+        display: none !important;
+    }
 </style>
 </head>
 <body>
@@ -976,7 +1023,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.327 ARROW SOURCE ANSWER FIX)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.328 MIXED HIERARCHY REVEAL)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1372,7 +1419,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.327 ARROW SOURCE ANSWER FIX';
+    const APP_VERSION = 'v18.5.328 MIXED HIERARCHY REVEAL';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -14259,7 +14306,10 @@ function getMkArrowOwnBlockText(block) {
             } else {
                 range.setEnd(block, block.childNodes.length);
             }
-            if(!String(range.toString() || '').trim()) return;
+            const answerPreview = range.cloneContents();
+            // An arrow can hide a picture, table or formula with no plain text.
+            if(!String(answerPreview.textContent || '').trim() &&
+                !answerPreview.querySelector('img, svg, table, math, video, audio, canvas')) return;
             const answerNodes = range.extractContents();
             const wrapper = document.createElement('span');
             wrapper.className = 'cloze-wrapper mk-arrow-blank mk-arrow-context';
@@ -14319,14 +14369,14 @@ function getMkArrowOwnBlockText(block) {
                     return;
                 }
 
+                // Only create a context cloze from a VERIFIED source answer.
+                // Raw :-> answers are already masked in place by
+                // maskMkArrowNestedContext(). Inventing a blank for every
+                // sibling made #card, CS and even plain headings display
+                // "unresolved answer" placeholders with no answer behind them.
                 const sourceMatch = findMkArrowContextSourceCard(card, block, root);
-                // The actual hierarchy defines a peer question, whether its
-                // label is ㄱ, 5, '정성배치의 불충분', or a full sentence.  The
-                // source lookup supplies the answer if available; the blank
-                // itself must not depend on successful answer matching.
-                const isHierarchySibling = isMkArrowHierarchySibling(active, block, directSiblings);
-                if(sourceMatch || isHierarchySibling) {
-                    ensureMkArrowContextBlank(block, sourceMatch, { allowUnresolved:isHierarchySibling });
+                if(sourceMatch && sourceMatch.answerHtml) {
+                    ensureMkArrowContextBlank(block, sourceMatch);
                 }
             });
         }
@@ -16810,7 +16860,10 @@ function getIOImageGroups() {
                 setTimeout(scanBatch, 0);
                 return;
             }
-            if(completeContext()) updateMkCardSiblingEye(root);
+            if(completeContext()) {
+                prepareMkUnifiedHierarchy(root, card);
+                updateMkUnifiedHierarchyEye(root, card);
+            }
         };
         setTimeout(scanBatch, 0);
         return false;
@@ -16874,6 +16927,165 @@ function getIOImageGroups() {
         const data=JSON.stringify(window.__mkDebugCardSiblingContext(),null,2);
         try {await navigator.clipboard.writeText(data);showToast('카드 계층 진단 복사 완료','success');}
         catch(error) {window.prompt('아래 진단 내용을 복사해 주세요',data);}
+    }
+
+    // Support ordinary Logseq/Anki {{cN::answer}} blanks in sibling blocks,
+    // not just the currently selected cloze card. Existing wrappers are left
+    // untouched, and optional ::hints are not displayed as answers.
+    function maskMkOrdinaryClozeContextMacros(root) {
+        if(!root) return 0;
+        const pattern = /\{\{c\d+::([\s\S]*?)(?:::[\s\S]*?)?\}\}/gi;
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+            acceptNode(node) {
+                const value = String(node.nodeValue || '');
+                pattern.lastIndex = 0;
+                if(!pattern.test(value)) return NodeFilter.FILTER_REJECT;
+                const parent = node.parentElement;
+                if(!parent || parent.closest('.cloze-wrapper, .mk-cs-wrapper, .mk-extra-node, .mk-extra-content, script, style, textarea, code, pre'))
+                    return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+        const nodes = [];
+        while(walker.nextNode()) nodes.push(walker.currentNode);
+        let count = 0;
+        nodes.forEach(node => {
+            const text = String(node.nodeValue || '');
+            const fragment = document.createDocumentFragment();
+            let from = 0;
+            pattern.lastIndex = 0;
+            let match;
+            while((match = pattern.exec(text)) !== null) {
+                if(match.index > from) fragment.appendChild(document.createTextNode(text.slice(from, match.index)));
+                const wrapper = document.createElement('span');
+                wrapper.className = 'cloze-wrapper mk-unified-source-cloze';
+                const mask = document.createElement('span');
+                mask.className = 'cloze-q';
+                mask.textContent = '[...]';
+                const answer = document.createElement('span');
+                answer.className = 'cloze-a';
+                answer.textContent = match[1];
+                wrapper.append(mask, answer);
+                fragment.appendChild(wrapper);
+                from = pattern.lastIndex;
+                count++;
+            }
+            if(from < text.length) fragment.appendChild(document.createTextNode(text.slice(from)));
+            node.replaceWith(fragment);
+        });
+        return count;
+    }
+
+    // Exported #card siblings sometimes retain only their question title in
+    // the current page. Recover their own answer subtree from a source card,
+    // but ONLY with shared hierarchy evidence (not a matching title alone).
+    function findMkUnifiedCardAnswerSource(card, root, li) {
+        const label = normalizeMkSiblingCardLabel(getMkOwnCardQuestionLabel(li));
+        if(!label) return null;
+        const signature = getMkOrdinaryCardSiblingSignature(li);
+        const scope = getMkOrdinaryCardContextKey(card, root, li);
+        const order = Number(card.sourceOrder);
+        let best = null;
+        let bestScore = -Infinity;
+        getMkSiblingCardCandidatePool(card).forEach(candidate => {
+            if(!candidate || candidate === card || String(candidate.deck || '') !== String(card.deck || '')) return;
+            const distance = Number.isFinite(order) && Number.isFinite(Number(candidate.sourceOrder))
+                ? Math.abs(order - Number(candidate.sourceOrder)) : Infinity;
+            // An answer from another chapter must never be guessed, and parsing
+            // thousands of source cards on every navigation would be slow.
+            if(Number.isFinite(distance) && distance > 12) return;
+            const entry = getMkOrdinaryCardSiblingSource(candidate);
+            if(!entry || !entry.realList || entry.label !== label) return;
+            const sameScope = !!scope && !!entry.key && scope === entry.key;
+            const sameSignature = !!signature && signature === entry.signature;
+            const sameBreadcrumb = !!card.breadcrumb && String(candidate.breadcrumb || '') === String(card.breadcrumb);
+            // Equal names with no strong hierarchy evidence are not enough.
+            if(!sameScope && !sameSignature && !(sameBreadcrumb && distance <= 3)) return;
+            const score = (sameScope ? 10000 : 0) + (sameSignature ? 5000 : 0) +
+                (sameBreadcrumb ? 1000 : 0) - Math.min(1000, distance);
+            if(score > bestScore) { bestScore = score; best = entry; }
+        });
+        return best;
+    }
+
+    // The question page is one Logseq source hierarchy, regardless of which
+    // card type is currently graded. Process original answer nodes in-place;
+    // never infer an answer from a sibling's label, number, or indentation.
+    function prepareMkUnifiedHierarchy(root, card) {
+        if(!root || !card || !card.isLogseq || isMkImageOcclusionCardFast(card)) return;
+        root.classList.add('mk-unified-hierarchy');
+        if(String(card.q || '').includes('{{c')) maskMkOrdinaryClozeContextMacros(root);
+        // Arrow card normalization has already processed its nested sources;
+        // run the same pass here only for CS / #card / ordinary targets.
+        if(!isMkArrowCard(card) &&
+            (String(card.q || '').includes(':->') || root.querySelector('.mk-arrow-blank, .mk-arrow-card'))) {
+            maskMkArrowNestedContext(root);
+        }
+        // Ordinary card answers may be raw descendant lists instead of cloze
+        // spans. Keep the original list as the real answer and mask a clone.
+        // Only explicit #card blocks are converted; unrelated nested outlines
+        // (headings, notes, explanations) remain untouched.
+        root.querySelectorAll('li').forEach(li => {
+            if(li.closest('.mk-extra-node, .mk-extra-content')) return;
+            if(li.dataset.mkCardAnswerAttached === '1') return;
+            const own = li.cloneNode(true);
+            own.querySelectorAll('ul, ol').forEach(list => list.remove());
+            if(!/(?:^|\s)#card\b/i.test(String(own.textContent || ''))) return;
+            const existing = getMkOrdinaryCardOwnList(li);
+            const source = existing && mkCardAnswerListHasContent(existing)
+                ? {realList:existing.cloneNode(true)}
+                : findMkUnifiedCardAnswerSource(card, root, li);
+            if(!source || !source.realList) return; // No verified answer; no fake blank.
+            const currentOwner = getMkOrdinaryCardActiveLi(root);
+            const isCurrent = !isMkArrowCard(card) && !isMkCSCardFast(card) &&
+                (li === currentOwner || li.classList.contains('mk-card-current'));
+            decorateMkOrdinaryCardAnswer(li, source, isCurrent);
+        });
+        if(root.querySelector('.mk-card-current, .mk-card-context')) {
+            root.classList.add('mk-card-hierarchy-expanded');
+        }
+        // Mark only ordinary clozes belonging to OTHER bullets as context;
+        // mode-answer must never accidentally reveal them alongside the target.
+        const arrow = root.querySelector('.mk-arrow-target, .mk-arrow-card');
+        const cs = root.querySelector('.mk-cs-wrapper.mk-cs-target');
+        const activeLi = (isMkArrowCard(card) ? arrow?.closest('li') :
+            isMkCSCardFast(card) ? cs?.closest('li') :
+            getMkOrdinaryCardActiveLi(root));
+        root.querySelectorAll('.cloze-wrapper').forEach(wrapper => {
+            if(wrapper.closest('.mk-extra-node, .mk-extra-content, .mk-card-answer-real')) return;
+            if(wrapper.classList.contains('mk-arrow-target')) return;
+            if(wrapper.closest('li.mk-card-current')) return;
+            const owner = wrapper.closest('li');
+            if(owner && activeLi && owner !== activeLi) wrapper.classList.add('mk-unified-cloze-context');
+        });
+    }
+
+    function updateMkUnifiedHierarchyEye(root, card) {
+        if(!root || !card || !card.isLogseq || isMkImageOcclusionCardFast(card)) return;
+        const existing = document.querySelector('.mk-unified-hierarchy-eye');
+        if(existing) existing.remove();
+        const inBody = node => !node.closest('.mk-extra-node, .mk-extra-content, .ls-header, .mk-card-answer-mask, .mk-card-answer-real');
+        const blanks = Array.from(root.querySelectorAll('.cloze-wrapper, .mk-cs-wrapper'))
+            .filter(node => inBody(node) && node.querySelector('.cloze-q, .mk-cs-mask'));
+        const cardBlanks = Array.from(root.querySelectorAll('li.mk-card-current, li.mk-card-context'))
+            .filter(li => !!li.querySelector('.mk-card-answer-mask') && !li.closest('.mk-card-answer-real'));
+        if(blanks.length + cardBlanks.length < 2) return;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'mk-io-other-masks-toggle mk-unified-hierarchy-eye';
+        button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+        button.title = '현재 페이지 모든 정답 보기';
+        button.setAttribute('aria-label', button.title);
+        button.setAttribute('aria-pressed', 'false');
+        button.addEventListener('click', event => {
+            event.preventDefault(); event.stopPropagation();
+            const showAll = root.classList.toggle('mk-hierarchy-show-all');
+            button.classList.toggle('active', showAll);
+            button.setAttribute('aria-pressed', String(showAll));
+            button.title = showAll ? '현재 페이지 정답 가리기' : '현재 페이지 모든 정답 보기';
+            button.setAttribute('aria-label', button.title);
+        });
+        document.body.appendChild(button);
     }
 
     let mkOrdinaryCardContextRenderToken = 0;
@@ -16947,12 +17159,12 @@ function getIOImageGroups() {
         qSection.classList.remove('mk-cs-answer-revealed');
         qSection.appendChild(createDOM(card, false, currentCardPdfTrace));
         mkCardRenderPhases.questionMs = Math.round(performance.now() - mkCardRenderStartedAt);
-        if(!isCSCard && !isArrowCard && !isIOCard && extendMkOrdinaryCardContext(qSection, card)) {
-            updateMkCardSiblingEye(qSection);
+        if(!isCSCard && !isArrowCard && !isIOCard) {
+            extendMkOrdinaryCardContext(qSection, card);
         }
         if(isCSCard) {
             normalizeMkCSQuestionState(qSection, card);
-            updateMkCSOtherMasksToggle(qSection, card);
+            // A single unified eye button is installed after all formats are prepared.
             applyMkCSHierarchyFocus(qSection);
             // Focus the current CS problem after layout settles. For cs1/cs2 groups,
             // every member is highlighted and the first member is brought into view.
@@ -16965,7 +17177,7 @@ function getIOImageGroups() {
             }));
         } else if(isArrowCard) {
             normalizeMkArrowQuestionState(qSection, card);
-            updateMkArrowOtherMasksToggle(qSection, card);
+            // The same eye also controls CS and #card answers in this hierarchy.
             applyMkArrowHierarchyFocus(qSection);
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 if(!qSection.isConnected || activeDeck[currentIndex] !== card) return;
@@ -16973,6 +17185,10 @@ function getIOImageGroups() {
                 const target = qSection.querySelector('.mk-arrow-target .cloze-q, .mk-arrow-card .cloze-q');
                 if(target) scrollElementToProblemPosition(target, { alignRatio:0.38, behavior:'auto' });
             }));
+        }
+        if(!isIOCard) {
+            prepareMkUnifiedHierarchy(qSection, card);
+            updateMkUnifiedHierarchyEye(qSection, card);
         }
         mkCardRenderPhases.contextMs = Math.round(performance.now() - mkCardRenderStartedAt - mkCardRenderPhases.questionMs);
         if(retainedIOImage) {
