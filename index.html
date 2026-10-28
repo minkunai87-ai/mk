@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.328 MIXED HIERARCHY REVEAL -->
+<!-- preview: v18.5.329 SOURCE HIERARCHY RESTORE -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.328 MIXED HIERARCHY REVEAL)</title>
+<title>MK (v18.5.329 SOURCE HIERARCHY RESTORE)</title>
 
 <script>
     (() => {
@@ -1023,7 +1023,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.328 MIXED HIERARCHY REVEAL)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.329 SOURCE HIERARCHY RESTORE)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1419,7 +1419,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.328 MIXED HIERARCHY REVEAL';
+    const APP_VERSION = 'v18.5.329 SOURCE HIERARCHY RESTORE';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -14024,6 +14024,156 @@ function getMkArrowOwnBlockText(block) {
         });
     }
 
+    // Rebuild missing :-> siblings from VERIFIED neighboring source cards.
+    // Logseq export often leaves only the active row as `:-> answer`; the other
+    // bullets are plain titles in the current card's HTML. Thus toggling the
+    // eye or masking the raw current DOM alone can never reveal those answers.
+    // Use the source card's OWN arrow answer, matched to this hierarchy and
+    // exact sibling title. No answer is synthesized from plain title text.
+    const mkArrowVerifiedSourceCache = new WeakMap();
+    function getMkArrowVerifiedSource(candidate) {
+        if(!candidate) return null;
+        const cached = mkArrowVerifiedSourceCache.get(candidate);
+        if(cached && cached.q === candidate.q && cached.a === candidate.a) return cached.value;
+        let value = null;
+        const raw = String(candidate.q || candidate.a || '');
+        if(/:-\s*(?:>|&gt;|&#62;|&#x0*3e;)|data-mk-arrow\s*=/i.test(raw)) {
+            const holder = document.createElement('div');
+            holder.innerHTML = raw;
+            const owner = getMkArrowTargetOwnerLi(holder);
+            if(owner) {
+                const answerHtml = extractMkArrowAnswerHtmlFromCard(candidate);
+                const label = getMkArrowOwnBlockText(owner).toLowerCase();
+                const level = owner.parentElement;
+                const siblings = level && Array.from(level.children).filter(n => n.tagName === 'LI');
+                const scope = getMkArrowParentScopeKey(owner);
+                if(label && answerHtml) {
+                    value = {
+                        card:candidate, answerHtml, label, scope,
+                        signature:getMkArrowSiblingSignatureFromRoot(holder),
+                        position:siblings ? siblings.indexOf(owner) : -1,
+                        siblingCount:siblings ? siblings.length : 0,
+                        siblingLabels:siblings ? siblings.map(n => getMkArrowOwnBlockText(n).toLowerCase()).filter(Boolean) : []
+                    };
+                }
+            }
+        }
+        mkArrowVerifiedSourceCache.set(candidate, {q:candidate.q,a:candidate.a,value});
+        return value;
+    }
+
+    function getMkArrowNearbySources(card) {
+        const deck = Array.isArray(originalDeck) ? originalDeck : [];
+        if(deck.length < 2) return [];
+        const id = String(card.id || '');
+        const order = Number(card.sourceOrder);
+        let at = deck.findIndex(c => c === card || (id && String(c && c.id || '') === id));
+        if(at < 0 && Number.isFinite(order)) {
+            let distance = Infinity;
+            deck.forEach((candidate, index) => {
+                if(!candidate || String(candidate.deck || '') !== String(card.deck || '')) return;
+                const nextOrder = Number(candidate.sourceOrder);
+                if(!Number.isFinite(nextOrder)) return;
+                const delta = Math.abs(nextOrder - order);
+                if(delta < distance) { distance = delta; at = index; }
+            });
+        }
+        if(at < 0) return [];
+        const found = [];
+        const deckName = String(card.deck || '');
+        // A bounded neighborhood keeps heavy HTML parsing from multiplying by
+        // the entire (sometimes thousands-of-cards) deck on every Next click.
+        for(let step = 1; step <= 64; step++) {
+            for(const index of [at - step, at + step]) {
+                if(index < 0 || index >= deck.length) continue;
+                const candidate = deck[index];
+                if(!candidate || candidate === card) continue;
+                if(deckName && candidate.deck && String(candidate.deck) !== deckName) continue;
+                const nextOrder = Number(candidate.sourceOrder);
+                if(Number.isFinite(order) && Number.isFinite(nextOrder) && Math.abs(nextOrder - order) > 45) continue;
+                const verified = getMkArrowVerifiedSource(candidate);
+                if(verified) found.push({ ...verified, indexDistance:step,
+                    orderDistance:Number.isFinite(order) && Number.isFinite(nextOrder) ? Math.abs(nextOrder - order) : step });
+            }
+        }
+        return found;
+    }
+
+    function restoreMkArrowSiblingAnswersFromSources(root, card) {
+        if(!root || !card || !card.isLogseq || !Array.isArray(originalDeck)) return 0;
+        const blocks = Array.from(root.querySelectorAll('li')).filter(li => {
+            if(li.closest('.mk-extra-node, .mk-extra-content, .mk-card-answer-mask, .mk-card-answer-real')) return false;
+            if(getMkArrowOwnClozeWrappers(li).length) return false;
+            const own = li.cloneNode(true);
+            own.querySelectorAll('ul, ol').forEach(node => node.remove());
+            if(String(own.textContent || '').includes(':->')) return false; // raw marker handled in place
+            return !!getMkArrowOwnBlockText(li);
+        });
+        if(!blocks.length) return 0;
+        const sources = getMkArrowNearbySources(card);
+        if(!sources.length) return 0;
+        const byLabel = new Map();
+        sources.forEach(source => {
+            if(!byLabel.has(source.label)) byLabel.set(source.label, []);
+            byLabel.get(source.label).push(source);
+        });
+        let restored = 0;
+        blocks.forEach(block => {
+            const label = getMkArrowOwnBlockText(block).toLowerCase();
+            const possibilities = byLabel.get(label) || [];
+            if(!possibilities.length) return;
+            const scope = getMkArrowParentScopeKey(block);
+            const level = block.parentElement;
+            const siblings = level && Array.from(level.children).filter(n => n.tagName === 'LI');
+            const position = siblings ? siblings.indexOf(block) : -1;
+            const signature = siblings ? siblings.map(n => getMkArrowOwnBlockText(n).toLowerCase())
+                .filter(Boolean).join('\u241f') : '';
+            const matching = possibilities.map(source => {
+                const exactScope = !!scope && scope !== '|' && !!source.scope && scope === source.scope;
+                const exactSignature = !!signature && signature === source.signature;
+                const samePosition = position >= 0 && position === source.position &&
+                    !!siblings && siblings.length === source.siblingCount;
+                const sameBreadcrumb = !!card.breadcrumb && !!source.card.breadcrumb &&
+                    String(card.breadcrumb) === String(source.card.breadcrumb);
+                const duplicateHere = siblings && siblings.filter(n =>
+                    getMkArrowOwnBlockText(n).toLowerCase() === label).length > 1;
+                const duplicateSource = (source.siblingLabels || []).filter(n => n === label).length > 1;
+                // Repeated labels need their exact ordinal to avoid attaching the
+                // first '해설' or '1' answer to all identically named bullets.
+                if((duplicateHere || duplicateSource) &&
+                    (!samePosition || !siblings || siblings.length !== source.siblingCount)) return null;
+                // Reject a conflicting parent even if option labels and layout
+                // happen to be identical (common with 1/2/3 or ㄱ/ㄴ/ㄷ).
+                if(scope && scope !== '|' && source.scope && source.scope !== '|' && scope !== source.scope) return null;
+                const common = (source.siblingLabels || []).filter(text =>
+                    siblings && siblings.some(n => getMkArrowOwnBlockText(n).toLowerCase() === text)).length;
+                const overlap = common / Math.max(1, Math.min(
+                    (source.siblingLabels || []).length, siblings ? siblings.length : 0));
+                const scopeParts = String(scope || '').split('|');
+                const strongScope = !!scopeParts[1] || String(scopeParts[0] || '').length >= 12;
+                // A hierarchy may acquire extra explanation bullets or different
+                // wrappers in independently exported source rows. Trust a strong
+                // shared parent + overlapping list, even with different lengths.
+                const compatibleOutline = strongScope && sameBreadcrumb &&
+                    source.orderDistance <= 16 && overlap >= 0.65;
+                const trusted = (exactScope && source.orderDistance <= 45 &&
+                    (exactSignature || samePosition || compatibleOutline)) ||
+                    ((!scope || scope === '|') && exactSignature && samePosition &&
+                    sameBreadcrumb && source.orderDistance <= 8);
+                if(!trusted) return null;
+                return {source, score:(exactScope ? 10000 : 0) + (exactSignature ? 5000 : 0) +
+                    (samePosition ? 1000 : 0) + (sameBreadcrumb ? 100 : 0) - source.orderDistance};
+            }).filter(Boolean).sort((a,b) => b.score-a.score);
+            if(!matching.length) return;
+            // Two different answers with indistinguishable source evidence are
+            // ambiguous; leave the text intact rather than display a wrong one.
+            if(matching.length > 1 && matching[0].score === matching[1].score &&
+                matching[0].source.answerHtml !== matching[1].source.answerHtml) return;
+            if(ensureMkArrowContextBlank(block, matching[0].source)) restored++;
+        });
+        return restored;
+    }
+
     // The Logseq HIERARCHY, not the display label, determines which other
     // questions share the visible :-> cloze context.  Earlier versions only
     // recognized ㄱ/ㄴ/ㄷ or 1/2/3-style choices, so named or sentence-style
@@ -14347,6 +14497,8 @@ function getMkArrowOwnBlockText(block) {
         // Mark raw descendant :-> choices before the sibling fallback can add
         // duplicate blanks. Only arrow cards get their nested lists expanded.
         maskMkArrowNestedContext(root);
+        // Shared source reconstruction runs once later in
+        // prepareMkUnifiedHierarchy(), for arrow/CS/#card alike.
         root.classList.add('mk-arrow-hierarchy-expanded');
         if(level) {
             const directSiblings = Array.from(level.children).filter(node => node.tagName === 'LI');
@@ -14369,15 +14521,11 @@ function getMkArrowOwnBlockText(block) {
                     return;
                 }
 
-                // Only create a context cloze from a VERIFIED source answer.
-                // Raw :-> answers are already masked in place by
-                // maskMkArrowNestedContext(). Inventing a blank for every
-                // sibling made #card, CS and even plain headings display
-                // "unresolved answer" placeholders with no answer behind them.
-                const sourceMatch = findMkArrowContextSourceCard(card, block, root);
-                if(sourceMatch && sourceMatch.answerHtml) {
-                    ensureMkArrowContextBlank(block, sourceMatch);
-                }
+                // The bounded source reconstruction above already handled
+                // all VERIFIED sibling answers. Do not fall back to the old
+                // global by-label scan here: it parsed thousands of cards and
+                // could attach the answer of an unrelated page with the same
+                // 1/2/3 or ㄱ/ㄴ/ㄷ labels. Unverified siblings remain text.
             });
         }
 
@@ -17021,6 +17169,9 @@ function getIOImageGroups() {
             (String(card.q || '').includes(':->') || root.querySelector('.mk-arrow-blank, .mk-arrow-card'))) {
             maskMkArrowNestedContext(root);
         }
+        // Restore independently exported :-> answers even when the focused
+        // study card is CS, #card or an ordinary cloze.
+        restoreMkArrowSiblingAnswersFromSources(root, card);
         // Ordinary card answers may be raw descendant lists instead of cloze
         // spans. Keep the original list as the real answer and mask a clone.
         // Only explicit #card blocks are converted; unrelated nested outlines
