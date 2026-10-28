@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.329 SOURCE HIERARCHY RESTORE -->
+<!-- preview: v18.5.330 HIERARCHY SIBLING MATCH -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.329 SOURCE HIERARCHY RESTORE)</title>
+<title>MK (v18.5.330 HIERARCHY SIBLING MATCH)</title>
 
 <script>
     (() => {
@@ -1023,7 +1023,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.329 SOURCE HIERARCHY RESTORE)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.330 HIERARCHY SIBLING MATCH)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1419,7 +1419,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.329 SOURCE HIERARCHY RESTORE';
+    const APP_VERSION = 'v18.5.330 HIERARCHY SIBLING MATCH';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -13743,6 +13743,18 @@ function getMkArrowOwnBlockText(block) {
         // while the real focused :-> belongs to a deeper, untagged LI.
         // Find the marker in the LI's OWN content (excluding nested sublists).
         // This is essential for pairing 5/6/7/8/9 or ㄱ/ㄴ/ㄷ/ㄹ source cards.
+        // Prefer the actively exported Logseq problem over other raw :->
+        // siblings. Their own raw markers may still be in the hierarchy, and
+        // choosing the last raw marker makes an entire 1/2/3/4 snapshot look
+        // as though it belongs to question 4 regardless of the active card.
+        const activeCandidates = Array.from(root.querySelectorAll('li.active-block'));
+        for(let i = activeCandidates.length - 1; i >= 0; i--) {
+            const li = activeCandidates[i];
+            const own = li.cloneNode(true);
+            own.querySelectorAll('ul, ol').forEach(list => list.remove());
+            if(String(own.textContent || '').includes(':->') ||
+                !!getMkArrowOwnClozeWrappers(li).length) return li;
+        }
         const sourceLis = root.querySelectorAll('li');
         for(let i = sourceLis.length - 1; i >= 0; i--) {
             const li = sourceLis[i];
@@ -13918,6 +13930,18 @@ function getMkArrowOwnBlockText(block) {
         clone.querySelectorAll('img, svg').forEach(node => node.remove());
         const ownText = String(clone.textContent || '').replace(/\s+/g, ' ').trim();
         return `${ownText.slice(0, 320)}|${images}`;
+    }
+
+    // A parent image is shared by the same Logseq question even when card
+    // exports differ in child count or parent text decoration. Its *filename*
+    // is a strong scope anchor, but never enough by itself across a deck.
+    function getMkArrowScopeParts(scope) {
+        const key = String(scope || '');
+        const separator = key.indexOf('|');
+        return {
+            text:(separator >= 0 ? key.slice(0, separator) : key).replace(/\s+/g, ' ').trim().toLowerCase(),
+            images:separator >= 0 ? key.slice(separator + 1) : ''
+        };
     }
 
     // A small, strictly-scoped fallback for separately exported arrow siblings.
@@ -14130,6 +14154,14 @@ function getMkArrowOwnBlockText(block) {
                 .filter(Boolean).join('\u241f') : '';
             const matching = possibilities.map(source => {
                 const exactScope = !!scope && scope !== '|' && !!source.scope && scope === source.scope;
+                const hereScope = getMkArrowScopeParts(scope);
+                const sourceScope = getMkArrowScopeParts(source.scope);
+                // Some exports repeat the same picture but change the parent's
+                // rendered text. Shared image + matching context may recover a
+                // source, but a different *nonempty* parent title is a veto.
+                const sameParentImage = !!hereScope.images && !!sourceScope.images &&
+                    hereScope.images === sourceScope.images &&
+                    (!hereScope.text || !sourceScope.text || hereScope.text === sourceScope.text);
                 const exactSignature = !!signature && signature === source.signature;
                 const samePosition = position >= 0 && position === source.position &&
                     !!siblings && siblings.length === source.siblingCount;
@@ -14144,7 +14176,10 @@ function getMkArrowOwnBlockText(block) {
                     (!samePosition || !siblings || siblings.length !== source.siblingCount)) return null;
                 // Reject a conflicting parent even if option labels and layout
                 // happen to be identical (common with 1/2/3 or ㄱ/ㄴ/ㄷ).
-                if(scope && scope !== '|' && source.scope && source.scope !== '|' && scope !== source.scope) return null;
+                // The only allowed variation is a matching parent image with
+                // compatible title; different question images are never paired.
+                if(scope && scope !== '|' && source.scope && source.scope !== '|' &&
+                    !exactScope && !sameParentImage) return null;
                 const common = (source.siblingLabels || []).filter(text =>
                     siblings && siblings.some(n => getMkArrowOwnBlockText(n).toLowerCase() === text)).length;
                 const overlap = common / Math.max(1, Math.min(
@@ -14156,13 +14191,25 @@ function getMkArrowOwnBlockText(block) {
                 // shared parent + overlapping list, even with different lengths.
                 const compatibleOutline = strongScope && sameBreadcrumb &&
                     source.orderDistance <= 16 && overlap >= 0.65;
-                const trusted = (exactScope && source.orderDistance <= 45 &&
-                    (exactSignature || samePosition || compatibleOutline)) ||
+                const uniqueLabel = !duplicateHere && !duplicateSource;
+                // A reliable *same parent* with an exact sibling label is more
+                // authoritative than a snapshot's number of siblings.  The old
+                // `exactSignature || samePosition || overlap >= .65` requirement
+                // made a different choice disappear in every other source row.
+                // Only allow this relaxed rule when a parent scope is strong,
+                // the cards are nearby and in the exact same breadcrumb.
+                const trusted = (exactScope && strongScope && uniqueLabel &&
+                        source.orderDistance <= (sameBreadcrumb ? 20 : 4)) ||
+                    (sameParentImage && uniqueLabel && sameBreadcrumb &&
+                        source.orderDistance <= 12 && overlap >= 0.5) ||
+                    (exactScope && source.orderDistance <= 45 &&
+                        (exactSignature || samePosition || compatibleOutline)) ||
                     ((!scope || scope === '|') && exactSignature && samePosition &&
-                    sameBreadcrumb && source.orderDistance <= 8);
+                        sameBreadcrumb && source.orderDistance <= 8);
                 if(!trusted) return null;
-                return {source, score:(exactScope ? 10000 : 0) + (exactSignature ? 5000 : 0) +
-                    (samePosition ? 1000 : 0) + (sameBreadcrumb ? 100 : 0) - source.orderDistance};
+                return {source, score:(exactScope ? 10000 : sameParentImage ? 8000 : 0) +
+                    (exactSignature ? 5000 : 0) + (samePosition ? 1000 : 0) +
+                    (sameBreadcrumb ? 100 : 0) - source.orderDistance};
             }).filter(Boolean).sort((a,b) => b.score-a.score);
             if(!matching.length) return;
             // Two different answers with indistinguishable source evidence are
@@ -14171,6 +14218,14 @@ function getMkArrowOwnBlockText(block) {
                 matching[0].source.answerHtml !== matching[1].source.answerHtml) return;
             if(ensureMkArrowContextBlank(block, matching[0].source)) restored++;
         });
+        if(window.__MK_ARROW_SIBLING_DEBUG__ === true) {
+            const stillPlain = blocks.filter(block => !getMkArrowOwnClozeWrappers(block).length)
+                .map(block => getMkArrowOwnBlockText(block)).filter(Boolean);
+            console.info('[MK_ARROW_SIBLING_RESTORE]', {
+                cardId:String(card.id || ''), sourceMatches:sources.length,
+                restored, unmatched:stillPlain.slice(0, 30)
+            });
+        }
         return restored;
     }
 
