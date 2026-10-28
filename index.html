@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.323 ARROW CONTEXT FIX -->
+<!-- preview: v18.5.324 ARROW SIBLING RESTORE -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.323 ARROW CONTEXT FIX)</title>
+<title>MK (v18.5.324 ARROW SIBLING RESTORE)</title>
 
 <script>
     (() => {
@@ -973,7 +973,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.323 ARROW CONTEXT FIX)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.324 ARROW SIBLING RESTORE)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1369,7 +1369,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.323 ARROW CONTEXT FIX';
+    const APP_VERSION = 'v18.5.324 ARROW SIBLING RESTORE';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -13751,15 +13751,27 @@ function getMkArrowOwnBlockText(block) {
             record.first === cards[0] && record.last === cards[cards.length - 1]) return record.byLabel;
 
         const byLabel = new Map();
+        const indexById = new Map();
         cards.forEach((candidate, index) => {
-            if(!candidate || !isMkArrowCard(candidate)) return;
+            if(!candidate) return;
+            const id = String(candidate.id || '');
+            if(id) indexById.set(id, index);
+            // A sibling's Logseq export can contain a valid :-> cloze even if the
+            // fast card-type detector selected a different active ancestor. Do not
+            // silently omit it from the source index. The resolver still requires
+            // the same sibling/parent context before copying an answer.
+            const q = String(candidate.q || '');
+            const a = String(candidate.a || '');
+            const hasMarker = /:-\s*(?:>|&gt;|&#62;|&#x0*3e;)|data-mk-arrow\s*=/i.test(q) ||
+                /:-\s*(?:>|&gt;|&#62;|&#x0*3e;)|data-mk-arrow\s*=/i.test(a);
+            if(!hasMarker) return;
             const label = getMkArrowActiveLabelFromCard(candidate);
             if(!label) return;
             if(!byLabel.has(label)) byLabel.set(label, []);
             byLabel.get(label).push({ card:candidate, index });
         });
         mkArrowSourceIndexCache.set(cards, {
-            byLabel, length:cards.length, libraryRevision:learningStatsLibraryRevision,
+            byLabel, indexById, length:cards.length, libraryRevision:learningStatsLibraryRevision,
             first:cards[0], last:cards[cards.length - 1]
         });
         return byLabel;
@@ -13769,12 +13781,88 @@ function getMkArrowOwnBlockText(block) {
         const previous = mkArrowSourceDetailCache.get(card);
         if(previous && previous.q === card.q && previous.a === card.a) return previous;
         const answerHtml = extractMkArrowAnswerHtmlFromCard(card);
+        let signature = '';
+        let parentScopeKey = '';
+        if(answerHtml) {
+            const holder = document.createElement('div');
+            holder.innerHTML = String(card.q || card.a || '');
+            signature = getMkArrowSiblingSignatureFromRoot(holder);
+            parentScopeKey = getMkArrowParentScopeKey(getMkArrowTargetOwnerLi(holder));
+        }
         const detail = {
-            q:card.q, a:card.a, answerHtml,
-            signature:answerHtml ? getMkArrowSiblingSignatureFromHtml(card.q || card.a || '') : ''
+            q:card.q, a:card.a, answerHtml, signature, parentScopeKey
         };
         mkArrowSourceDetailCache.set(card, detail);
         return detail;
+    }
+
+    // Identify the shared Logseq parent of choices such as ㄱ/ㄴ/ㄷ/ㄹ. Its image
+    // and own text are stable even though each exported card focuses a different
+    // choice. Never use a label (e.g. ㄴ) alone to connect answers across questions.
+    function getMkArrowParentScopeKey(ownerLi) {
+        const parentLi = ownerLi && ownerLi.parentElement && ownerLi.parentElement.closest('li');
+        if(!parentLi) return '';
+        const clone = parentLi.cloneNode(true);
+        clone.querySelectorAll('ul, ol').forEach(node => node.remove());
+        const images = Array.from(clone.querySelectorAll('img'))
+            .map(node => {
+                // createDOM() rewrites relative source URLs to GitHub absolute
+                // URLs, while cached source cards retain relative filenames.
+                const src = String(node.getAttribute('src') || '');
+                const filename = src.split(/[?#]/)[0].split('/').pop() || '';
+                try { return decodeURIComponent(filename).normalize('NFC'); }
+                catch(_) { return filename; }
+            }).filter(Boolean).join('|');
+        clone.querySelectorAll('img, svg').forEach(node => node.remove());
+        const ownText = String(clone.textContent || '').replace(/\s+/g, ' ').trim();
+        return `${ownText.slice(0, 320)}|${images}`;
+    }
+
+    // A small, strictly-scoped fallback for separately exported arrow siblings.
+    // The source-label index can miss a choice whose active-block marker was
+    // wrapped differently. Use the choice's POSITION and SAME parent tree as
+    // stronger evidence, never a bare ㄱ/ㄴ/ㄷ/ㄹ label or an unrelated deck card.
+    function findNearbyMkArrowSiblingSource(currentCard, contextBlock, root, currentSignature) {
+        const deck = Array.isArray(originalDeck) ? originalDeck : [];
+        if(!deck.length || !currentSignature) return null;
+        const active = getMkArrowTargetOwnerLi(root);
+        if(!active || !active.parentElement || contextBlock.parentElement !== active.parentElement) return null;
+        const siblings = Array.from(active.parentElement.children).filter(node => node.tagName === 'LI');
+        const targetPosition = siblings.indexOf(contextBlock);
+        if(targetPosition < 0) return null;
+        const sourceScope = getMkArrowParentScopeKey(active);
+        if(!sourceScope || sourceScope === '|') return null;
+        const record = mkArrowSourceIndexCache.get(deck);
+        const currentId = String(currentCard && currentCard.id || '');
+        const currentAt = record && record.indexById ? record.indexById.get(currentId) : deck.findIndex(item => String(item && item.id || '') === currentId);
+        if(!Number.isInteger(currentAt) || currentAt < 0) return null;
+        const sourceDeck = String(currentCard.deck || currentDeckName || '');
+        const sourceBreadcrumb = String(currentCard.breadcrumb || '');
+        let best = null;
+        for(let distance=1; distance<=16; distance++) {
+            for(const index of [currentAt - distance, currentAt + distance]) {
+                const candidate = deck[index];
+                if(!candidate || String(candidate.id || '') === currentId) continue;
+                if(sourceDeck && candidate.deck && String(candidate.deck) !== sourceDeck) continue;
+                if(sourceBreadcrumb && candidate.breadcrumb && String(candidate.breadcrumb) !== sourceBreadcrumb) continue;
+                const raw = String(candidate.q || candidate.a || '');
+                if(!/:-\s*(?:>|&gt;|&#62;|&#x0*3e;)|data-mk-arrow\s*=/i.test(raw)) continue;
+                const holder = document.createElement('div');
+                holder.innerHTML = raw;
+                const owner = getMkArrowTargetOwnerLi(holder);
+                if(!owner || !owner.parentElement) continue;
+                const candidateSiblings = Array.from(owner.parentElement.children).filter(node => node.tagName === 'LI');
+                if(candidateSiblings.indexOf(owner) !== targetPosition) continue;
+                if(getMkArrowSiblingSignatureFromRoot(holder) !== currentSignature) continue;
+                if(getMkArrowParentScopeKey(owner) !== sourceScope) continue;
+                const detail = getMkArrowCachedSourceDetail(candidate);
+                if(!detail.answerHtml) continue;
+                best = {card:candidate, answerHtml:detail.answerHtml, score:1000, distance, fallback:true};
+                break;
+            }
+            if(best) break;
+        }
+        return best;
     }
 
     function findMkArrowContextSourceCard(currentCard, contextBlock, root) {
@@ -13786,6 +13874,7 @@ function getMkArrowOwnBlockText(block) {
             mkArrowRootSignatureCache.set(root, currentSignature);
         }
         const candidateEntries = getMkArrowContextSourceIndex(originalDeck).get(label) || [];
+        const currentScopeKey = getMkArrowParentScopeKey(getMkArrowTargetOwnerLi(root));
         const currentOrder = Number(currentCard && currentCard.sourceOrder);
         const currentId = String(currentCard && currentCard.id || '');
         const currentBreadcrumb = String(currentCard && currentCard.breadcrumb || '');
@@ -13795,8 +13884,11 @@ function getMkArrowOwnBlockText(block) {
 
         candidateEntries.forEach(({ card:candidate, index }) => {
             if(String(candidate.id || '') === currentId) return;
-            const { answerHtml, signature:candidateSignature } = getMkArrowCachedSourceDetail(candidate);
+            const { answerHtml, signature:candidateSignature, parentScopeKey:candidateScopeKey } = getMkArrowCachedSourceDetail(candidate);
             if(!answerHtml) return;
+            // A four-choice ㄱ/ㄴ/ㄷ/ㄹ layout occurs in many unrelated cards.
+            // A matching list alone is not sufficient evidence for an answer.
+            if(currentScopeKey && candidateScopeKey && currentScopeKey !== candidateScopeKey) return;
             const candidateOrder = Number(candidate.sourceOrder);
             const distance = Number.isFinite(currentOrder) && Number.isFinite(candidateOrder)
                 ? Math.abs(candidateOrder - currentOrder)
@@ -13817,10 +13909,9 @@ function getMkArrowOwnBlockText(block) {
 
         // A bare numeric sibling label can occur many times. Require either an exact
         // sibling-layout match or a close source-order/breadcrumb match before injecting.
-        if(!best) return null;
-        if(bestScore >= 1000) return best;
-        if(bestScore >= 120 && best.distance <= 4) return best;
-        return null;
+        if(best && bestScore >= 1000) return best;
+        if(best && bestScore >= 120 && best.distance <= 4) return best;
+        return findNearbyMkArrowSiblingSource(currentCard, contextBlock, root, currentSignature);
     }
 
     function getMkArrowOwnClozeWrappers(block) {
