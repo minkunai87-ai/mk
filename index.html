@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.325 ARROW ALL BLANKS FIX -->
+<!-- preview: v18.5.326 HIERARCHY CONTEXT FIX -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.325 ARROW ALL BLANKS FIX)</title>
+<title>MK (v18.5.326 HIERARCHY CONTEXT FIX)</title>
 
 <script>
     (() => {
@@ -973,7 +973,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.325 ARROW ALL BLANKS FIX)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.326 HIERARCHY CONTEXT FIX)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1369,7 +1369,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.325 ARROW ALL BLANKS FIX';
+    const APP_VERSION = 'v18.5.326 HIERARCHY CONTEXT FIX';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -13934,27 +13934,35 @@ function getMkArrowOwnBlockText(block) {
         });
     }
 
-    // A Logseq export stores only the focused :-> answer in the current card.
-    // The remaining entries of a numbered / ㄱㄴㄷㄹ choice group can be plain labels.
-    // They are still independent arrow problems: never make their MASK depend on
-    // finding another card's answer. Answer retrieval is kept separate and safe.
-    function getMkArrowChoiceLabelKind(value) {
-        const label = String(value || '').replace(/\s+/g, ' ').trim();
-        if(/^\d{1,3}(?:[.)．])?$/.test(label)) return 'number';
-        if(/^[ㄱ-ㅎ](?:[.)．])?$/.test(label)) return 'jamo';
-        if(/^[①-⑳㉑-㉟㊱-㊿]$/.test(label)) return 'circled';
-        if(/^[A-Za-z](?:[.)．])?$/.test(label)) return 'latin';
-        return '';
-    }
-
-    function isMkArrowChoiceSibling(activeBlock, siblingBlock, siblingBlocks) {
+    // The Logseq HIERARCHY, not the display label, determines which other
+    // questions share the visible :-> cloze context.  Earlier versions only
+    // recognized ㄱ/ㄴ/ㄷ or 1/2/3-style choices, so named or sentence-style
+    // question siblings vanished.  Never infer membership from a regex on labels.
+    //
+    // A sibling without an explicit arrow marker may still be a separate :->
+    // source card.  A same-level leaf that owns its own text is a structural
+    // peer; don't turn section headings containing child lists or EXTRA payload
+    // into questions.  Actual source-card matches are checked by the caller
+    // before this conservative fallback.
+    function isMkArrowHierarchySibling(activeBlock, siblingBlock, siblingBlocks) {
         if(!activeBlock || !siblingBlock || !Array.isArray(siblingBlocks)) return false;
-        // Only siblings of the exact focused arrow, never headings/ancestors.
-        if(activeBlock.parentElement !== siblingBlock.parentElement) return false;
-        const activeKind = getMkArrowChoiceLabelKind(getMkArrowOwnBlockText(activeBlock));
-        if(!activeKind || getMkArrowChoiceLabelKind(getMkArrowOwnBlockText(siblingBlock)) !== activeKind) return false;
-        return siblingBlocks.reduce((count, item) =>
-            count + (getMkArrowChoiceLabelKind(getMkArrowOwnBlockText(item)) === activeKind ? 1 : 0), 0) >= 2;
+        if(activeBlock === siblingBlock || activeBlock.parentElement !== siblingBlock.parentElement) return false;
+        if(siblingBlock.closest('.mk-extra-node, .mk-extra-content')) return false;
+        if(siblingBlock.classList.contains('mk-extra-orphan')) return false;
+        // A heading may wrap its child UL in a DIV: exclude any nested list,
+        // not just a direct child list.  Verified source cards are handled above.
+        if(siblingBlock.querySelector('ul, ol')) return false;
+
+        const own = siblingBlock.cloneNode(true);
+        own.querySelectorAll('ul, ol').forEach(list => list.remove());
+        // Another type of explicitly marked card is not an arrow question.
+        if(own.querySelector('.mk-cs-wrapper, .mk-io-wrapper, .mk-card-answer-real, .mk-card-answer-mask')) return false;
+        const ownText = String(own.textContent || '').replace(/\s+/g, ' ').trim();
+        if(!ownText || /^\[\[.*\]\]$/.test(ownText)) return false;
+        if(/^(?:BEGIN_EXTRA|END_EXTRA)\b/.test(ownText)) return false;
+        // Avoid treating image-only explanatory siblings as blank questions.
+        if(!ownText.replace(/:-\s*>/g, '').trim()) return false;
+        return siblingBlocks.some(node => node !== activeBlock && node === siblingBlock);
     }
 
     function ensureMkArrowContextBlank(block, sourceMatch, options = {}) {
@@ -14269,12 +14277,13 @@ function getMkArrowOwnBlockText(block) {
                 }
 
                 const sourceMatch = findMkArrowContextSourceCard(card, block, root);
-                // E.g. the source hierarchy contains 5 / 6 / 7 / 8 / 9 but
-                // only the focused 6 exports a :-> answer. Show ALL five masks
-                // even when the per-card answer lookup cannot resolve 5/7/8/9.
-                const isChoiceSibling = isMkArrowChoiceSibling(active, block, directSiblings);
-                if(sourceMatch || isChoiceSibling) {
-                    ensureMkArrowContextBlank(block, sourceMatch, { allowUnresolved:isChoiceSibling });
+                // The actual hierarchy defines a peer question, whether its
+                // label is ㄱ, 5, '정성배치의 불충분', or a full sentence.  The
+                // source lookup supplies the answer if available; the blank
+                // itself must not depend on successful answer matching.
+                const isHierarchySibling = isMkArrowHierarchySibling(active, block, directSiblings);
+                if(sourceMatch || isHierarchySibling) {
+                    ensureMkArrowContextBlank(block, sourceMatch, { allowUnresolved:isHierarchySibling });
                 }
             });
         }
