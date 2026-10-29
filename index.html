@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.332 TODAY PLAN DECK GROUPS -->
+<!-- preview: v18.5.333 TODAY PLAN TREE STATUS -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.332 TODAY PLAN DECK GROUPS)</title>
+<title>MK (v18.5.333 TODAY PLAN TREE STATUS)</title>
 
 <script>
     (() => {
@@ -911,8 +911,41 @@
     .today-plan-rule-actions button:active { background:var(--btn-hover); }
     .today-plan-rule-actions button:first-child { border-color:var(--primary); color:var(--primary); }
     .today-plan-repeat-hidden { display:none; }
+    /* v18.5.333: single-choice, nested deck tree and exact-match plan counts. */
+    .today-plan-picker-help { color:var(--text-sub); font-weight:500; font-size:0.74rem; margin-left:5px; }
+    .today-plan-deck-tree { padding:7px 5px; max-height:min(43dvh,340px); overflow:auto; border:1px solid #404951; border-radius:10px; background:#20252a; overscroll-behavior:contain; }
+    .today-plan-deck-tree .tp-tree-children { border-left:1px solid #3b4857; margin-left:14px; padding-left:8px; }
+    .tp-tree-folder { min-width:0; }
+    .tp-tree-folder-row { display:flex; align-items:center; gap:3px; min-width:0; padding:2px 1px; }
+    .tp-tree-toggle, .tp-tree-choice { border:0; background:transparent; color:var(--text); font:inherit; text-align:left; cursor:pointer; }
+    .tp-tree-toggle { display:flex; gap:8px; align-items:center; width:100%; min-width:0; min-height:35px; padding:5px 6px; border-radius:7px; font-weight:800; font-size:0.84rem; }
+    .tp-tree-toggle:active, .tp-tree-toggle:hover, .tp-tree-choice:hover { background:rgba(116,192,252,.09); }
+    .tp-tree-chevron { display:inline-block; flex:0 0 13px; font-size:0.74rem; color:#a9b9c9; }
+    .tp-tree-folder-icon { flex:0 0 auto; }
+    .tp-tree-name { flex:1; min-width:0; overflow-wrap:anywhere; }
+    .tp-tree-choice { display:flex; align-items:center; gap:7px; width:100%; min-height:34px; border-radius:7px; padding:6px 8px; font-size:0.82rem; }
+    .tp-tree-choice[aria-checked="true"] { background:#1b5a9b; color:#fff; }
+    .tp-tree-choice:focus-visible, .tp-tree-toggle:focus-visible { outline:2px solid #74c0fc; outline-offset:-2px; }
+    .tp-tree-radio { display:flex; flex:0 0 14px; align-items:center; justify-content:center; border:1.5px solid #91a3b8; width:14px; height:14px; border-radius:50%; }
+    .tp-tree-choice[aria-checked="true"] .tp-tree-radio { border-color:#fff; background:#fff; box-shadow:inset 0 0 0 3px #1b5a9b; }
+    .tp-tree-registration { display:flex; flex:0 0 auto; gap:3px; flex-wrap:wrap; justify-content:flex-end; }
+    .tp-tree-count { font-size:0.66rem; font-weight:800; white-space:nowrap; padding:3px 5px; border-radius:5px; border:1px solid #426c97; color:#9bcfff; background:#18334c; }
+    .tp-tree-count.repeat { border-color:#397352; color:#9ce9b5; background:#19382a; }
+    .tp-tree-choice[aria-checked="true"] .tp-tree-count { background:rgba(0,0,0,.18); color:#fff; border-color:rgba(255,255,255,.35); }
+    .today-plan-selected-details { display:block; border:1px solid #34495a; background:#1e2a35; border-radius:9px; margin-top:8px; padding:10px; font-size:0.78rem; }
+    .tp-tree-selection-name { color:#dceefa; font-weight:800; overflow-wrap:anywhere; }
+    .tp-tree-empty-note { color:var(--text-sub); margin-top:5px; }
+    .tp-tree-existing-title { margin-top:9px; color:#a9c8e3; font-weight:800; }
+    .tp-tree-existing-row { margin-top:6px; padding:7px 8px; border:1px solid #3e5060; border-radius:7px; background:#222e3b; line-height:1.55; overflow-wrap:anywhere; }
+    .tp-tree-existing-row strong { color:#fff; font-weight:800; }
+    @media (max-width:520px) {
+        .today-plan-deck-tree { max-height:35dvh; }
+        .tp-tree-toggle { font-size:0.81rem; }
+        .tp-tree-choice { font-size:0.78rem; gap:5px; }
+        .tp-tree-count { font-size:0.62rem; }
+    }
 
-    /* v18.5.332: Today Plan is organized by top-level deck, not by creation order.
+    /* Today Plan is organized by top-level deck, not by creation order.
        Grouping and collapse state are presentation-only; stored plans remain unchanged. */
     .today-plan-summary { display:block; padding:13px 15px; background:#252b32; }
     .today-plan-summary-header { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; }
@@ -1059,7 +1092,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.332 TODAY PLAN DECK GROUPS)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.333 TODAY PLAN TREE STATUS)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1093,15 +1126,12 @@
             <button class="btn-sub" style="margin-top:3px;" onclick="toggleTodayPlanRepeatManager()">🔁 반복 계획 관리 <span id="today-plan-repeat-total"></span></button>
             <div class="today-plan-form" id="today-plan-form">
                 <input type="hidden" id="today-plan-edit-id">
-                <div class="today-plan-form-grid">
-                    <div class="today-plan-field">
-                        <label for="today-plan-parent-deck">상위덱</label>
-                        <select id="today-plan-parent-deck" class="today-plan-select" onchange="populateTodayPlanSubDecks()"></select>
-                    </div>
-                    <div class="today-plan-field">
-                        <label for="today-plan-sub-deck">하위덱 / 범위</label>
-                        <select id="today-plan-sub-deck" class="today-plan-select" onchange="updateTodayPlanAvailableCount()"></select>
-                    </div>
+                <div class="today-plan-field today-plan-picker-field">
+                    <label id="today-plan-tree-label">덱 / 범위 <span class="today-plan-picker-help">한 개 선택 · 폴더를 펼쳐 전체 또는 하위덱 선택</span></label>
+                    <select id="today-plan-parent-deck" hidden aria-hidden="true" tabindex="-1"></select>
+                    <select id="today-plan-sub-deck" hidden aria-hidden="true" tabindex="-1"></select>
+                    <div id="today-plan-deck-tree" class="today-plan-deck-tree" role="group" aria-labelledby="today-plan-tree-label"></div>
+                    <div id="today-plan-selected-details" class="today-plan-selected-details" aria-live="polite"></div>
                 </div>
                 <div class="today-plan-form-grid">
                     <div class="today-plan-field">
@@ -1455,7 +1485,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.332 TODAY PLAN DECK GROUPS';
+    const APP_VERSION = 'v18.5.333 TODAY PLAN TREE STATUS';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -2680,17 +2710,34 @@
                 if(candidate === parent || candidate.startsWith(parent + '__')) pathSet.add(candidate);
             }
         });
-        const paths = Array.from(pathSet).sort((a,b) => {
-            const depthDiff = a.split('__').length - b.split('__').length;
-            if(depthDiff) return depthDiff;
-            return a.localeCompare(b, 'ko');
+
+        const allPaths = Array.from(pathSet);
+        const childMap = new Map();
+        const addChild = (parentPath, childPath) => {
+            if(!childMap.has(parentPath)) childMap.set(parentPath, []);
+            childMap.get(parentPath).push(childPath);
+        };
+        allPaths.forEach(path => {
+            if(path === parent) return;
+            const segments = path.split('__');
+            const parentPath = segments.slice(0, -1).join('__');
+            if(parentPath) addChild(parentPath, path);
         });
+        const collator = new Intl.Collator('ko', { numeric:true, sensitivity:'base' });
+        childMap.forEach(children => {
+            children.sort((a,b) => {
+                const aName = a.split('__').slice(-1)[0] || '';
+                const bName = b.split('__').slice(-1)[0] || '';
+                return collator.compare(aName, bName);
+            });
+        });
+
         const options = [];
-        paths.forEach(path => {
-            const hasChildren = sourceKeys.some(other => other.startsWith(path + '__'));
+        const pushPathOptions = path => {
+            const depth = Math.max(0, path.split('__').length - parent.split('__').length);
+            const hasChildren = (childMap.get(path) || []).length > 0;
             const hasDirectCards = Array.isArray(library[path]) && library[path].length;
             const relative = path === parent ? '' : path.slice(parent.length + 2).replace(/__/g, ' > ');
-            const depth = Math.max(0, path.split('__').length - parent.split('__').length);
             const indent = depth ? `${'　'.repeat(Math.max(0, depth - 1))}↳ ` : '';
             if(hasChildren) {
                 options.push({
@@ -2702,30 +2749,173 @@
                 options.push({
                     value:`deck|${path}`,
                     label:path === parent
-                        ? (hasChildren ? '📄 상위덱 직접 카드만' : '📄 전체')
+                        ? (hasChildren ? '📄 전체 (직접 카드만)' : '📄 전체')
                         : `${indent}📄 ${relative}${hasChildren ? ' · 직접 카드' : ''}`
                 });
             }
-        });
+            (childMap.get(path) || []).forEach(pushPathOptions);
+        };
+
+        pushPathOptions(parent);
         return options;
     }
 
+    // The tree selects exactly ONE target. Folder rows only expand/collapse;
+    // the folder's first child, "전체", includes its entire subtree.
+    // Existing item/rule IDs are untouched: multiple differently configured
+    // recurring rules on the same path remain distinct.
+    const todayPlanTreeExpansion = new Map();
+    function buildTodayPlanDeckTree() {
+        const nodes = new Map();
+        Object.entries(library || {}).forEach(([rawPath, cards]) => {
+            const path = normalizeDeckPath(rawPath);
+            if(!path) return;
+            const parts = path.split('__');
+            parts.forEach((name, i) => {
+                const key = parts.slice(0, i + 1).join('__');
+                if(!nodes.has(key)) nodes.set(key, { path:key, name, children:[], direct:false });
+                if(i === parts.length - 1 && Array.isArray(cards) && cards.length) nodes.get(key).direct = true;
+            });
+        });
+        const roots = [];
+        nodes.forEach(node => {
+            const parent = node.path.split('__').slice(0, -1).join('__');
+            if(parent && nodes.has(parent)) nodes.get(parent).children.push(node);
+            else roots.push(node);
+        });
+        const compare = (a,b) => {
+            const aLatin = /^[A-Za-z0-9]/.test(a.name);
+            const bLatin = /^[A-Za-z0-9]/.test(b.name);
+            if(aLatin !== bLatin) return aLatin ? -1 : 1;
+            return todayPlanDeckCollator.compare(a.name,b.name);
+        };
+        roots.sort(compare);
+        nodes.forEach(node => node.children.sort(compare));
+        return {roots,nodes};
+    }
+
+    function getTodayPlanTreeRegistrations(store = readTodayPlanStoreRaw()) {
+        const map = new Map();
+        const entryFor = source => {
+            const key = `${source.deckMode === 'group' ? 'group' : 'deck'}|${normalizeDeckPath(source.deckPath || '')}`;
+            if(!map.has(key)) map.set(key,{today:[], repeat:[]});
+            return map.get(key);
+        };
+        (store.items || []).forEach(item => { if(item && item.deckPath) entryFor(item).today.push(item); });
+        (store.repeatRules || []).forEach(rule => { if(rule && rule.deckPath) entryFor(rule).repeat.push(rule); });
+        return map;
+    }
+
+    function getTodayPlanTreeBadges(value, registrations) {
+        const entry = registrations.get(value);
+        if(!entry) return '';
+        return `<span class="tp-tree-registration">${entry.today.length ? `<span class="tp-tree-count">오늘 ${entry.today.length}</span>` : ''}${entry.repeat.length ? `<span class="tp-tree-count repeat">반복 ${entry.repeat.length}</span>` : ''}</span>`;
+    }
+
+    function renderTodayPlanDeckTree(selectedValue = '') {
+        const container = document.getElementById('today-plan-deck-tree');
+        const hiddenSelect = document.getElementById('today-plan-sub-deck');
+        if(!container || !hiddenSelect) return;
+        const model = buildTodayPlanDeckTree();
+        const registrations = getTodayPlanTreeRegistrations();
+        const selected = String(selectedValue || hiddenSelect.value || '');
+        if(selected && selected.includes('|')) {
+            const path = selected.slice(selected.indexOf('|') + 1);
+            const parts = path.split('__');
+            for(let i=1;i<=parts.length;i++) {
+                const ancestor = parts.slice(0,i).join('__');
+                if(!todayPlanTreeExpansion.has(ancestor)) todayPlanTreeExpansion.set(ancestor,true);
+            }
+        }
+        function selectRow(value,label) {
+            return `<button type="button" class="tp-tree-choice" data-tp-tree-select="${escapeTodayPlanHtml(value)}" role="radio" aria-checked="${selected === value ? 'true' : 'false'}"><span class="tp-tree-radio" aria-hidden="true"></span><span class="tp-tree-name">${escapeTodayPlanHtml(label)}</span>${getTodayPlanTreeBadges(value,registrations)}</button>`;
+        }
+        function renderNode(node,depth=0) {
+            if(!node.children.length) return node.direct ? selectRow(`deck|${node.path}`,`📄 ${node.name}`) : '';
+            const expanded = todayPlanTreeExpansion.has(node.path) ? todayPlanTreeExpansion.get(node.path) : (depth === 0 && model.roots[0] === node);
+            const children = node.children.map(child => renderNode(child,depth+1)).join('');
+            // Preserve the exact range of legacy direct-card plans when editing them.
+            const legacySelected = node.direct && selected === `deck|${node.path}` ? selectRow(`deck|${node.path}`,'📄 이전 계획의 선택 범위') : '';
+            return `<div class="tp-tree-folder" data-tp-folder="${escapeTodayPlanHtml(node.path)}">
+                <div class="tp-tree-folder-row"><button type="button" class="tp-tree-toggle" data-tp-tree-expand="${escapeTodayPlanHtml(node.path)}" aria-expanded="${expanded ? 'true':'false'}"><span class="tp-tree-chevron" aria-hidden="true">${expanded ? '▾':'▸'}</span><span class="tp-tree-folder-icon" aria-hidden="true">📁</span><span class="tp-tree-name">${escapeTodayPlanHtml(node.name)}</span></button></div>
+                <div class="tp-tree-children" ${expanded ? '' : 'hidden'}>${selectRow(`group|${node.path}`,'▤ 전체')}${legacySelected}${children}</div>
+            </div>`;
+        }
+        container.innerHTML = model.roots.map(node => {
+            if(node.children.length) return renderNode(node,0);
+            // A top-level leaf is still a root folder, with a single "전체" choice.
+            const expanded = todayPlanTreeExpansion.has(node.path) ? todayPlanTreeExpansion.get(node.path) : model.roots[0] === node;
+            return `<div class="tp-tree-folder" data-tp-folder="${escapeTodayPlanHtml(node.path)}"><div class="tp-tree-folder-row"><button type="button" class="tp-tree-toggle" data-tp-tree-expand="${escapeTodayPlanHtml(node.path)}" aria-expanded="${expanded ? 'true':'false'}"><span class="tp-tree-chevron" aria-hidden="true">${expanded ? '▾':'▸'}</span><span class="tp-tree-folder-icon">📁</span><span class="tp-tree-name">${escapeTodayPlanHtml(node.name)}</span></button></div><div class="tp-tree-children" ${expanded ? '' : 'hidden'}>${selectRow(`deck|${node.path}`,'▤ 전체')}</div></div>`;
+        }).join('') || '<div class="today-plan-empty">선택 가능한 덱이 없습니다.</div>';
+        if(!container.dataset.tpTreeBound) {
+            container.dataset.tpTreeBound='1';
+            container.addEventListener('click', event => {
+                const control = event.target.closest('button[data-tp-tree-expand],button[data-tp-tree-select]');
+                if(!control || !container.contains(control)) return;
+                if(control.hasAttribute('data-tp-tree-expand')) {
+                    const path = control.getAttribute('data-tp-tree-expand');
+                    const next = control.getAttribute('aria-expanded') !== 'true';
+                    todayPlanTreeExpansion.set(path,next);
+                    control.setAttribute('aria-expanded',String(next));
+                    const children = control.closest('.tp-tree-folder').querySelector(':scope > .tp-tree-children');
+                    if(children) children.hidden = !next;
+                    const chev=control.querySelector('.tp-tree-chevron');
+                    if(chev) chev.textContent = next ? '▾' : '▸';
+                    return;
+                }
+                const value = control.getAttribute('data-tp-tree-select');
+                if(![...hiddenSelect.options].some(option => option.value === value)) return;
+                hiddenSelect.value=value;
+                container.querySelectorAll('button[data-tp-tree-select]').forEach(button => button.setAttribute('aria-checked',String(button === control)));
+                updateTodayPlanTreeSelectedDetails(value);
+                updateTodayPlanAvailableCount();
+            });
+        }
+        updateTodayPlanTreeSelectedDetails(selected);
+    }
+
+    function updateTodayPlanTreeSelectedDetails(selectedValue) {
+        const host=document.getElementById('today-plan-selected-details');
+        if(!host) return;
+        const value=String(selectedValue || '');
+        const idx=value.indexOf('|');
+        if(idx<0) { host.innerHTML='<span class="tp-tree-empty-note">덱을 하나 선택해주세요.</span>'; return; }
+        const path=normalizeDeckPath(value.slice(idx+1));
+        const nodeName=path.replace(/__/g,' > ');
+        const entry=getTodayPlanTreeRegistrations().get(value) || { today:[],repeat:[] };
+        const filterName = mode => mode === 'essential' ? '오늘 필수' : mode === 'new' ? '오늘 새로' : (modeNames[mode] || mode || '전체');
+        const sortName = mode => modeNames[mode] || mode || '원래순';
+        const countName = cfg => cfg.targetMode === 'max' ? 'Max' : `${Math.max(1,Number(cfg.requestedTargetCount || cfg.targetCount) || 30)}개`;
+        const todayHtml=entry.today.map(item=>`<div class="tp-tree-existing-row"><strong>오늘 계획</strong> · ${escapeTodayPlanHtml(filterName(item.filterMode))} · ${escapeTodayPlanHtml(sortName(item.sortMode))} · ${escapeTodayPlanHtml(countName(item))}${item.repeatRuleId ? ' · 반복에서 생성' : ''}</div>`).join('');
+        const repeatHtml=entry.repeat.map(rule=>`<div class="tp-tree-existing-row"><strong>반복 계획</strong> · ${escapeTodayPlanHtml(getTodayPlanRepeatLabel(rule))} · ${escapeTodayPlanHtml(filterName(rule.filterMode))} · ${escapeTodayPlanHtml(sortName(rule.sortMode))} · ${escapeTodayPlanHtml(countName(rule))}${rule.enabled ? '' : ' · 일시정지'}</div>`).join('');
+        host.innerHTML=`<div class="tp-tree-selection-name">선택: ${escapeTodayPlanHtml(nodeName)}${value.startsWith('group|') ? ' > 전체' : ''}</div>${todayHtml || repeatHtml ? `<div class="tp-tree-existing-title">이미 등록된 계획 · 오늘 ${entry.today.length} / 반복 ${entry.repeat.length}</div>${todayHtml}${repeatHtml}` : '<div class="tp-tree-empty-note">이 범위에 등록된 계획이 없습니다.</div>'}`;
+    }
+
     function populateTodayPlanParentDecks(selectedParent = '') {
-        const select = document.getElementById('today-plan-parent-deck');
-        if(!select) return;
+        const parentSelect = document.getElementById('today-plan-parent-deck');
+        if(!parentSelect) return;
         const parents = getTodayPlanTopDecks();
-        select.innerHTML = parents.map(path => `<option value="${escapeTodayPlanHtml(path)}">${escapeTodayPlanHtml(path)}</option>`).join('');
-        if(selectedParent && parents.includes(selectedParent)) select.value = selectedParent;
+        parentSelect.innerHTML=parents.map(path => `<option value="${escapeTodayPlanHtml(path)}">${escapeTodayPlanHtml(path)}</option>`).join('');
+        if(selectedParent && parents.includes(selectedParent)) parentSelect.value=selectedParent;
         populateTodayPlanSubDecks();
     }
 
     function populateTodayPlanSubDecks(selectedValue = '') {
-        const parentSelect = document.getElementById('today-plan-parent-deck');
-        const subSelect = document.getElementById('today-plan-sub-deck');
-        if(!parentSelect || !subSelect) return;
-        const options = getTodayPlanDeckOptions(parentSelect.value);
-        subSelect.innerHTML = options.map(option => `<option value="${escapeTodayPlanHtml(option.value)}">${escapeTodayPlanHtml(option.label)}</option>`).join('');
-        if(selectedValue && options.some(option => option.value === selectedValue)) subSelect.value = selectedValue;
+        const subSelect=document.getElementById('today-plan-sub-deck');
+        if(!subSelect) return;
+        const model=buildTodayPlanDeckTree();
+        const choices=[];
+        const visit=node=>{
+            if(node.children.length) choices.push({value:`group|${node.path}`,label:`${node.path.replace(/__/g,' > ')} > 전체`});
+            if(node.direct) choices.push({value:`deck|${node.path}`,label:node.path.replace(/__/g,' > ')});
+            node.children.forEach(visit);
+        };
+        model.roots.forEach(visit);
+        const previous=String(subSelect.value || '');
+        subSelect.innerHTML=choices.map(choice=>`<option value="${escapeTodayPlanHtml(choice.value)}">${escapeTodayPlanHtml(choice.label)}</option>`).join('');
+        const requested=String(selectedValue || previous || '');
+        if(requested && choices.some(choice=>choice.value===requested)) subSelect.value=requested;
+        renderTodayPlanDeckTree(subSelect.value);
         updateTodayPlanAvailableCount();
     }
 
