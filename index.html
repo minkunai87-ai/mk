@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.330 HIERARCHY SIBLING MATCH -->
+<!-- preview: v18.5.331 REPEAT SYNC GUARD -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.330 HIERARCHY SIBLING MATCH)</title>
+<title>MK (v18.5.331 REPEAT SYNC GUARD)</title>
 
 <script>
     (() => {
@@ -1023,7 +1023,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.330 HIERARCHY SIBLING MATCH)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.331 REPEAT SYNC GUARD)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1419,7 +1419,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.330 HIERARCHY SIBLING MATCH';
+    const APP_VERSION = 'v18.5.331 REPEAT SYNC GUARD';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -1739,7 +1739,9 @@
     const STORAGE_KEY_LOGSEQ_GRAPH_NAME = 'mk_logseq_graph_name';
     const STORAGE_KEY_NOTES = 'mk_notes_by_card_uuid_v1';
     const TODAY_PLAN_STORAGE_KEY = 'mk_today_plan_v1';
+    const TODAY_PLAN_REPEAT_GUARD_STORAGE_KEY = 'mk_today_plan_repeat_guard_v1';
     const TODAY_PLAN_VERSION = 1;
+    let todayPlanRepeatRestoreNeedsUpload = false;
     let todayPlanActiveItemId = '';
     // Reference identity: stays valid through the plan session even after the last item is marked done.
     let mkTodayPlanNavigationDeck = null;
@@ -2111,17 +2113,22 @@
     }
 
     function getEmptyTodayPlanStore(dateKey = getTodayPlanDateKey()) {
-        return { version:TODAY_PLAN_VERSION, date:dateKey, items:[], repeatRules:[] };
+        return { version:TODAY_PLAN_VERSION, date:dateKey, items:[], repeatRules:[], deletedRepeatRules:{} };
+    }
+
+    // The independent repeat-rule mirror survives a whole-plan Firebase restore from
+    // an older device that has zero rules. Only explicit, timestamped deletions remove rules.
+    function getTodayPlanRepeatGuard() {
+        const guard = parseJSONSafe(localStorage.getItem(TODAY_PLAN_REPEAT_GUARD_STORAGE_KEY), null);
+        return guard && guard.version === TODAY_PLAN_VERSION && Array.isArray(guard.repeatRules)
+            ? guard : { version:TODAY_PLAN_VERSION, repeatRules:[], deletedRepeatRules:{} };
     }
 
     function readTodayPlanStoreRaw() {
-        try {
-            const parsed = JSON.parse(localStorage.getItem(TODAY_PLAN_STORAGE_KEY) || 'null');
-            if(!parsed || parsed.version !== TODAY_PLAN_VERSION || !Array.isArray(parsed.items)) return getEmptyTodayPlanStore();
-            return { ...parsed, repeatRules:(Array.isArray(parsed.repeatRules) ? parsed.repeatRules : []).map(normalizeTodayPlanRepeatRule) };
-        } catch(error) {
-            return getEmptyTodayPlanStore();
-        }
+        const parsed = parseJSONSafe(localStorage.getItem(TODAY_PLAN_STORAGE_KEY), null);
+        const base = parsed && parsed.version === TODAY_PLAN_VERSION && Array.isArray(parsed.items)
+            ? parsed : getEmptyTodayPlanStore();
+        return mergeTodayPlanRepeatData(base, getTodayPlanRepeatGuard());
     }
 
     function getTodayPlanCardBaseId(cardId) {
@@ -2220,8 +2227,64 @@
             enabled:rule.enabled !== false,
             lastGeneratedDate:String(rule.lastGeneratedDate || ''),
             lastSelectedCardId:String(rule.lastSelectedCardId || ''),
-            createdAt:Number(rule.createdAt) || Date.now()
+            createdAt:Number(rule.createdAt) || Date.now(),
+            updatedAt:Number(rule.updatedAt) || Number(rule.createdAt) || 0
         };
+    }
+
+    function normalizeTodayPlanRepeatDeletions(value) {
+        if(!value || typeof value !== 'object' || Array.isArray(value)) return {};
+        const result = {};
+        Object.entries(value).forEach(([id, stamp]) => {
+            const time = Number(stamp);
+            if(id && Number.isFinite(time) && time > 0) result[id] = time;
+        });
+        return result;
+    }
+
+    // Per-rule last-write-wins with explicit deletion tombstones. A missing or empty
+    // snapshot is NEVER interpreted as a command to delete rules on another device.
+    function mergeTodayPlanRepeatData(base = {}, incoming = {}) {
+        const result = { ...base };
+        const localRules = Array.isArray(base.repeatRules) ? base.repeatRules : [];
+        const remoteRules = Array.isArray(incoming.repeatRules) ? incoming.repeatRules : [];
+        const deleted = normalizeTodayPlanRepeatDeletions(base.deletedRepeatRules);
+        Object.entries(normalizeTodayPlanRepeatDeletions(incoming.deletedRepeatRules)).forEach(([id, stamp]) => {
+            deleted[id] = Math.max(Number(deleted[id]) || 0, stamp);
+        });
+        const byId = new Map();
+        for(const raw of localRules.concat(remoteRules)) {
+            if(!raw || !raw.id) continue;
+            const rule = normalizeTodayPlanRepeatRule(raw);
+            const prior = byId.get(rule.id);
+            // On equal timestamps, prefer the first (local) value.
+            if(!prior || rule.updatedAt > prior.updatedAt) byId.set(rule.id, rule);
+        }
+        result.repeatRules = [...byId.values()].filter(rule =>
+            (Number(deleted[rule.id]) || 0) < (Number(rule.updatedAt) || 0)
+            || !(rule.id in deleted) && !(Number(rule.updatedAt) || 0)
+        );
+        result.deletedRepeatRules = deleted;
+        return result;
+    }
+
+    function markTodayPlanRepeatDeleted(store, ruleId) {
+        if(!ruleId) return;
+        const previous = normalizeTodayPlanRepeatDeletions(store.deletedRepeatRules);
+        const rule = (store.repeatRules || []).find(entry => entry.id === ruleId);
+        previous[ruleId] = Math.max(Date.now(), (Number(previous[ruleId]) || 0) + 1,
+            (Number(rule && rule.updatedAt) || 0) + 1);
+        store.deletedRepeatRules = previous;
+    }
+
+    function persistTodayPlanRepeatGuard(store) {
+        const mirror = {
+            version:TODAY_PLAN_VERSION,
+            repeatRules:(Array.isArray(store.repeatRules) ? store.repeatRules : []).map(normalizeTodayPlanRepeatRule),
+            deletedRepeatRules:normalizeTodayPlanRepeatDeletions(store.deletedRepeatRules)
+        };
+        try { localStorage.setItem(TODAY_PLAN_REPEAT_GUARD_STORAGE_KEY, JSON.stringify(mirror)); }
+        catch(error) { console.warn('[MK_REPEAT_GUARD_MIRROR_WRITE_FAILED]', error); }
     }
 
     function isTodayPlanRepeatDue(rule) {
@@ -2302,6 +2365,7 @@
         const rule = store.repeatRules.find(entry => entry.id === ruleId);
         if(!rule) return;
         rule.enabled = !rule.enabled;
+        rule.updatedAt = Math.max(Date.now(), (Number(rule.updatedAt) || 0) + 1);
         writeTodayPlanStore(store);
         markLocalDataUpdated(Date.now()); scheduleBackup('today-plan-repeat');
         renderTodayPlan();
@@ -2311,6 +2375,7 @@
         let store = ensureTodayPlanCurrentDay();
         if(!store.repeatRules.some(rule => rule.id === ruleId)) return;
         if(!confirm('반복 설정과 이 반복 계획의 오늘 목록을 삭제할까요? 학습 기록은 유지됩니다.')) return;
+        markTodayPlanRepeatDeleted(store, ruleId);
         store.repeatRules = store.repeatRules.filter(rule => rule.id !== ruleId);
         store.items = store.items.filter(item => item.repeatRuleId !== ruleId);
         writeTodayPlanStore(store);
@@ -2442,13 +2507,16 @@
     }
 
     function writeTodayPlanStore(store) {
-        const normalized = {
+        const candidate = {
             version:TODAY_PLAN_VERSION,
             date:String(store && store.date || getTodayPlanDateKey()),
             items:(Array.isArray(store && store.items) ? store.items : []).map(normalizeTodayPlanItem),
-            repeatRules:(Array.isArray(store && store.repeatRules) ? store.repeatRules : []).map(normalizeTodayPlanRepeatRule)
+            repeatRules:(Array.isArray(store && store.repeatRules) ? store.repeatRules : []).map(normalizeTodayPlanRepeatRule),
+            deletedRepeatRules:normalizeTodayPlanRepeatDeletions(store && store.deletedRepeatRules)
         };
+        const normalized = mergeTodayPlanRepeatData(candidate, getTodayPlanRepeatGuard());
         localStorage.setItem(TODAY_PLAN_STORAGE_KEY, JSON.stringify(normalized));
+        persistTodayPlanRepeatGuard(normalized);
         updateTodayPlanMenuBadge(normalized);
         return normalized;
     }
@@ -2475,7 +2543,7 @@
             };
         }).filter(Boolean);
         todayPlanActiveItemId = '';
-        const rolledStore = writeTodayPlanStore({ version:TODAY_PLAN_VERSION, date:today, items:carriedItems, repeatRules:store.repeatRules });
+        const rolledStore = writeTodayPlanStore({ version:TODAY_PLAN_VERSION, date:today, items:carriedItems, repeatRules:store.repeatRules, deletedRepeatRules:store.deletedRepeatRules });
         markLocalDataUpdated(Date.now());
         scheduleBackup('today-plan');
         return rolledStore;
@@ -2508,6 +2576,8 @@
         updateTodayPlanMenuBadge(store);
         const modal = document.getElementById('today-plan-modal');
         if(modal && modal.style.display === 'flex') renderTodayPlan();
+        const repeatModal = document.getElementById('today-plan-repeat-modal');
+        if(repeatModal && repeatModal.style.display === 'flex') renderTodayPlanRepeatManager(store);
         const progress = (Array.isArray(store.items) ? store.items : []).reduce((acc, item) => {
             const entry = getTodayPlanProgress(item);
             acc.done += entry.done;
@@ -2529,15 +2599,32 @@
             console.warn('[MK_TODAY_PLAN_RESTORE_INVALID]', { source });
             return { ok:false, reason:'invalid_today_plan_backup' };
         }
-        const serialized = JSON.stringify(incoming);
+        const preserved = readTodayPlanStoreRaw();
+        const merged = mergeTodayPlanRepeatData(incoming, preserved);
+        // Keep the imported daily items, but explicitly deleted rules cannot return.
+        merged.items = (incoming.items || []).filter(item =>
+            !item.repeatRuleId || merged.repeatRules.some(rule => rule.id === item.repeatRuleId)
+        );
+        const serialized = JSON.stringify(merged);
         const result = safeRestoreLocalStorage(TODAY_PLAN_STORAGE_KEY, serialized);
         if(!result || !result.ok || localStorage.getItem(TODAY_PLAN_STORAGE_KEY) !== serialized) {
             console.warn('[MK_TODAY_PLAN_RESTORE_FAILED]', { source, result });
             return { ok:false, reason:'today_plan_storage_write_failed' };
         }
+        persistTodayPlanRepeatGuard(merged);
         todayPlanActiveItemId = '';
         refreshTodayPlanUiFromStorage(source);
-        return { ok:true };
+        const cloudRepeatState = mergeTodayPlanRepeatData({ repeatRules:[], deletedRepeatRules:{} }, incoming);
+        const mergedRepeatState = mergeTodayPlanRepeatData({ repeatRules:[], deletedRepeatRules:{} }, merged);
+        const comparable = state => ({
+            repeatRules:state.repeatRules.slice().sort((a,b)=>a.id.localeCompare(b.id)),
+            deletedRepeatRules:state.deletedRepeatRules
+        });
+        const repeatRulesMerged = JSON.stringify(comparable(cloudRepeatState)) !== JSON.stringify(comparable(mergedRepeatState));
+        if(repeatRulesMerged) todayPlanRepeatRestoreNeedsUpload = true;
+        console.info('[MK_REPEAT_RULE_RESTORE_MERGED]', { source, incoming:incoming.repeatRules?.length || 0,
+            preserved:preserved.repeatRules.length, final:merged.repeatRules.length, repeatRulesMerged });
+        return { ok:true, repeatRulesMerged };
     }
 
     function getTodayPlanTopDecks() {
@@ -2671,7 +2758,8 @@
             version:TODAY_PLAN_VERSION,
             date:String(inputStore && inputStore.date || getTodayPlanDateKey()),
             items:(Array.isArray(inputStore && inputStore.items) ? inputStore.items : []).map(normalizeTodayPlanItem),
-            repeatRules:(Array.isArray(inputStore && inputStore.repeatRules) ? inputStore.repeatRules : []).map(normalizeTodayPlanRepeatRule)
+            repeatRules:(Array.isArray(inputStore && inputStore.repeatRules) ? inputStore.repeatRules : []).map(normalizeTodayPlanRepeatRule),
+            deletedRepeatRules:normalizeTodayPlanRepeatDeletions(inputStore && inputStore.deletedRepeatRules)
         };
         const report = { changed:false, remapped:0, removedMissing:0, removedItems:0, missingDecks:0 };
         const repairedItems = [];
@@ -3008,11 +3096,13 @@
                 carryMode:String((document.getElementById('today-plan-repeat-carry') || {}).value || 'fill'),
                 // Rule edits can change eligibility today, so a saved edit may rerun.
                 lastGeneratedDate:previousRule && !existing ? '' : (previousRule && previousRule.lastGeneratedDate || ''),
-                lastSelectedCardId:previousRule && previousRule.lastSelectedCardId || ''
+                lastSelectedCardId:previousRule && previousRule.lastSelectedCardId || '',
+                updatedAt:Math.max(Date.now(), (Number(previousRule && previousRule.updatedAt) || 0) + 1)
             });
             store.repeatRules = store.repeatRules.filter(rule => rule.id !== repeatRule.id).concat(repeatRule);
             todayPlanRepeatZeroCache.delete(repeatRule.id);
         } else if(previousRule) {
+            markTodayPlanRepeatDeleted(store, previousRule.id);
             store.repeatRules = store.repeatRules.filter(rule => rule.id !== previousRule.id);
         }
         if(isRecurring && !isTodayPlanRepeatDue(repeatRule)) {
@@ -4860,7 +4950,7 @@
 
     function scheduleBackup(reason = '') {
         if(reason) setLocalDataDirty(true);
-        if (reason !== 'review' && reason !== 'today-plan') return;
+        if (reason !== 'review' && !reason.startsWith('today-plan')) return;
         if (backupTimer) clearTimeout(backupTimer);
         backupTimer = setTimeout(() => {
             backupTimer = null;
@@ -4898,7 +4988,55 @@
         }
     }
 
+    async function mergeRemoteRepeatRulesBeforeBackup() {
+        try {
+            // Read only the small todayPlan field, not full stats/history snapshots.
+            // The five newest retained backups protect against a recent empty/stale
+            // Windows or iOS backup. Explicit deletion tombstones prevent resurrection.
+            const records = await fetchStartupBootstrapBackupCandidates(5);
+            const newest = [...records].sort((a,b) => Number(b.ts) - Number(a.ts)).slice(0,5);
+            const remotePlans = await Promise.all(newest.map(async record => {
+                const response = await fetch(`${FIREBASE_DB_URL}${FIREBASE_BACKUP_PATH}/${record.ts}/todayPlan.json?_t=${Date.now()}`, { cache:'no-store' });
+                if(!response.ok) throw new Error(`repeat_guard_http_${response.status}`);
+                const value = await response.json();
+                if(value === null) return null;
+                const plan = parseJSONSafe(value, null);
+                if(!plan || plan.version !== TODAY_PLAN_VERSION || !Array.isArray(plan.items)) {
+                    throw new Error('repeat_guard_invalid_cloud_today_plan');
+                }
+                return plan;
+            }));
+            let local = readTodayPlanStoreRaw();
+            let merged = local;
+            // Oldest first. Newer per-rule timestamps override stale copies.
+            remotePlans.reverse().forEach(plan => {
+                if(plan) merged = mergeTodayPlanRepeatData(merged, plan);
+            });
+            // Also absorb edits made while the remote requests were in flight.
+            local = readTodayPlanStoreRaw();
+            merged = mergeTodayPlanRepeatData(merged, local);
+            const before = JSON.stringify({ repeatRules:local.repeatRules, deletedRepeatRules:local.deletedRepeatRules });
+            const after = JSON.stringify({ repeatRules:merged.repeatRules, deletedRepeatRules:merged.deletedRepeatRules });
+            if(before !== after) {
+                writeTodayPlanStore({ ...local, repeatRules:merged.repeatRules, deletedRepeatRules:merged.deletedRepeatRules });
+                markLocalDataUpdated(Date.now());
+                setLocalDataDirty(true);
+                console.info('[MK_REPEAT_GUARD_CLOUD_MERGED]', { before:local.repeatRules.length, after:merged.repeatRules.length });
+            }
+            return { ok:true };
+        } catch(error) {
+            console.warn('[MK_REPEAT_GUARD_UPLOAD_BLOCKED]', error);
+            return { ok:false, reason:String(error && error.message || error) };
+        }
+    }
+
     async function performFirebaseBackup(isAuto, options = {}) {
+        const repeatGuard = await mergeRemoteRepeatRulesBeforeBackup();
+        if(!repeatGuard.ok) {
+            updateCloudIcon('error');
+            if(!isAuto) showToast('반복 계획 보호 확인 실패 · Firebase 백업 중단', 'error');
+            return false;
+        }
         const backupChangeRevision = localDataChangeRevision;
         updateCloudIcon('active');
         persistCurrentViewState(false);
@@ -4978,7 +5116,7 @@
             // Include IndexedDB-backed full history, not the empty/old localStorage mirror.
             reviewHistory: JSON.stringify(getReviewHistory()),
             notesByCardUuid: localStorage.getItem(STORAGE_KEY_NOTES) || '{}',
-            todayPlan: localStorage.getItem(TODAY_PLAN_STORAGE_KEY) || JSON.stringify(getEmptyTodayPlanStore()),
+            todayPlan: JSON.stringify(readTodayPlanStoreRaw()),
             [LEARNING_STATS_STORAGE_KEY]: learningStatsBackup,
             [LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: learningStatsFavoriteDecksBackup,
             learningStatsPresent: true,
@@ -5007,6 +5145,7 @@
             ...(data.integrity || {}),
             stats: getCanonicalBackupFieldChecksum('stats', statsRaw),
             reviewHistory: getCanonicalBackupFieldChecksum('reviewHistory', data.reviewHistory),
+            todayPlan: getCanonicalBackupFieldChecksum('todayPlan', data.todayPlan),
             [LEARNING_STATS_STORAGE_KEY]: getCanonicalBackupFieldChecksum(LEARNING_STATS_STORAGE_KEY, learningStatsBackup),
             [LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: getCanonicalBackupFieldChecksum(LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY, learningStatsFavoriteDecksBackup)
         };
@@ -5032,6 +5171,7 @@
             learningStatsDayCount: Object.keys(learningStatsBackup.days || {}).length,
             learningStatsEntryCount: getLearningStatsEntryCount(learningStatsBackup),
             learningStatsTodayCount,
+            repeatRuleCount:readTodayPlanStoreRaw().repeatRules.length,
             learningStatsRevision:learningStatsMemoryRevision,
             learningStatsLedgerEventCount:learningStatsEvents.length,
             learningStatsSessionId,
@@ -8262,6 +8402,10 @@
             // Mark this exact cloud snapshot as the startup baseline. This also clears
             // dirty state, preventing an immediate upload of the just-restored payload.
             setStartupBackupBaseline(latestBackupId, false);
+            if(todayPlanRepeatRestoreNeedsUpload) {
+                todayPlanRepeatRestoreNeedsUpload = false;
+                scheduleBackup('today-plan-repeat');
+            }
             updateEmptyLocalStudyNotice();
 
             finalResult = {
@@ -8542,6 +8686,10 @@
             const finished = await finishFirebaseRestore(payload, null, 'Firebase 최신 백업을 불러왔습니다');
             if(!finished) throw new Error('restore_render_failed');
             updateEmptyLocalStudyNotice();
+            if(todayPlanRepeatRestoreNeedsUpload) {
+                todayPlanRepeatRestoreNeedsUpload = false;
+                scheduleBackup('today-plan-repeat');
+            }
             return true;
         } catch(error) {
             console.warn('[MK_MANUAL_FIREBASE_IMPORT_FAILED]', error);
@@ -10492,6 +10640,7 @@
         if(!verifyBackupFieldChecksum(raw, 'reviewHistory').ok) {
             return { ok:false, reason:'review_history_checksum_mismatch', key:'reviewHistory' };
         }
+        if(!verifyBackupFieldChecksum(raw, 'todayPlan').ok) return { ok:false, reason:'today_plan_checksum_mismatch', key:'todayPlan' };
         return verifyLearningStatsBackupPayloadIntegrity(raw);
     }
 
