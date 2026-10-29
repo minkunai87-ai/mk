@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.335 ARROW HIERARCHY COMPLETE -->
+<!-- preview: v18.5.336 LONG HIERARCHY SOURCE SCAN -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.335 ARROW HIERARCHY COMPLETE)</title>
+<title>MK (v18.5.336 LONG HIERARCHY SOURCE SCAN)</title>
 
 <script>
     (() => {
@@ -1092,7 +1092,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.335 ARROW HIERARCHY COMPLETE)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.336 LONG HIERARCHY SOURCE SCAN)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1485,7 +1485,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.335 ARROW HIERARCHY COMPLETE';
+    const APP_VERSION = 'v18.5.336 LONG HIERARCHY SOURCE SCAN';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -14373,7 +14373,14 @@ function getMkArrowOwnBlockText(block) {
     function getMkArrowParentScopeKey(ownerLi) {
         const parentLi = ownerLi && ownerLi.parentElement && ownerLi.parentElement.closest('li');
         if(!parentLi) return '';
-        const clone = parentLi.cloneNode(true);
+        // Clone only the parent's OWN inline content. cloneNode(true) on the
+        // entire LI copied every descendant of a 100+ bullet hierarchy for
+        // EACH source card, causing quadratic freezes in mobile PWA.
+        const clone = document.createElement('div');
+        Array.from(parentLi.childNodes || []).forEach(child => {
+            if(child.nodeType === Node.ELEMENT_NODE && /^(UL|OL)$/i.test(child.tagName || '')) return;
+            clone.appendChild(child.cloneNode(true));
+        });
         clone.querySelectorAll('ul, ol').forEach(node => node.remove());
         const images = Array.from(clone.querySelectorAll('img'))
             .map(node => {
@@ -14523,7 +14530,11 @@ function getMkArrowOwnBlockText(block) {
             holder.innerHTML = raw;
             const owner = getMkArrowTargetOwnerLi(holder);
             if(owner) {
-                const answerHtml = extractMkArrowAnswerHtmlFromCard(candidate);
+                const directAnswer = Array.from(owner.querySelectorAll('.cloze-wrapper .cloze-a'))
+                    .find(node => node.closest('li') === owner && String(node.innerHTML || node.textContent || '').trim());
+                const answerHtml = directAnswer
+                    ? String(directAnswer.innerHTML || directAnswer.textContent || '').trim()
+                    : extractMkArrowAnswerHtmlFromCard(candidate);
                 const label = getMkArrowOwnBlockText(owner).toLowerCase();
                 const level = owner.parentElement;
                 const siblings = level && Array.from(level.children).filter(n => n.tagName === 'LI');
@@ -14587,7 +14598,11 @@ function getMkArrowOwnBlockText(block) {
     // deck for VERIFIED individual :-> answers.  The strict parent/sibling
     // checks in restoreMkArrowSiblingAnswersFromSources() still decide whether
     // any of these can be attached: a matching ㄱ/1 label is never sufficient.
-    function getMkArrowMissingSiblingSources(root, card, missingBlocks, existingSources = []) {
+    // Each page can contain hundreds of independently exported arrow questions.
+    // Cache the pool per rendered page, then continue an unresolved scan in small
+    // event-loop slices: no arbitrary 320-candidate terminal cutoff or UI freeze.
+    const mkArrowPageSourceScanCache = new WeakMap();
+    function getMkArrowMissingSiblingSources(root, card, missingBlocks, existingSources = [], scanOptions = {}) {
         if(!missingBlocks.length) return [];
         const wanted = new Set(missingBlocks.map(block => getMkArrowOwnBlockText(block).toLowerCase()).filter(Boolean));
         if(!wanted.size) return [];
@@ -14609,31 +14624,39 @@ function getMkArrowOwnBlockText(block) {
         for(const [name, records] of Object.entries(library || {})) {
             if(normalizeDeckPath(name) === sourceDeck && Array.isArray(records)) pools.push(records);
         }
-        const candidates = new Map();
-        pools.forEach(pool => {
-            if(!Array.isArray(pool)) return;
-            const anchor = pool.findIndex(item => item === card ||
-                (currentId && String(item && item.id || '') === currentId));
-            pool.forEach((candidate, index) => {
-                if(!candidate || candidate === card || original.has(candidate) ||
-                    (currentId && String(candidate.id || '') === currentId)) return;
-                if(sourceDeck && normalizeDeckPath(candidate.deck || sourceDeck) !== sourceDeck) return;
-                if(breadcrumb && candidate.breadcrumb && String(candidate.breadcrumb) !== breadcrumb) return;
-                const q = String(candidate.q || '');
-                const a = String(candidate.a || '');
-                if(!markerPattern.test(q) && !markerPattern.test(a)) return;
-                if(imageNames.length && !imageNames.some(name =>
-                    q.includes(name) || a.includes(name) ||
-                    q.includes(encodeURIComponent(name)) || a.includes(encodeURIComponent(name)))) return;
-                const otherOrder = Number(candidate.sourceOrder);
-                const orderDistance = Number.isFinite(order) && Number.isFinite(otherOrder)
-                    ? Math.abs(otherOrder - order) : Infinity;
-                const indexDistance = anchor >= 0 ? Math.abs(index - anchor) : Infinity;
-                const distance = Math.min(orderDistance, indexDistance);
-                const old = candidates.get(candidate);
-                if(!old || distance < old.distance) candidates.set(candidate,{candidate,distance,indexDistance,orderDistance});
+        let pageScan = mkArrowPageSourceScanCache.get(root);
+        if(!pageScan || pageScan.card !== card || pageScan.libraryRevision !== learningStatsLibraryRevision) {
+            const candidates = new Map();
+            pools.forEach(pool => {
+                if(!Array.isArray(pool)) return;
+                const anchor = pool.findIndex(item => item === card ||
+                    (currentId && String(item && item.id || '') === currentId));
+                pool.forEach((candidate, index) => {
+                    if(!candidate || candidate === card ||
+                        (currentId && String(candidate.id || '') === currentId)) return;
+                    if(sourceDeck && normalizeDeckPath(candidate.deck || sourceDeck) !== sourceDeck) return;
+                    if(breadcrumb && candidate.breadcrumb && String(candidate.breadcrumb) !== breadcrumb) return;
+                    const q = String(candidate.q || '');
+                    const a = String(candidate.a || '');
+                    if(!markerPattern.test(q) && !markerPattern.test(a)) return;
+                    if(imageNames.length && !imageNames.some(name =>
+                        q.includes(name) || a.includes(name) ||
+                        q.includes(encodeURIComponent(name)) || a.includes(encodeURIComponent(name)))) return;
+                    const otherOrder = Number(candidate.sourceOrder);
+                    const orderDistance = Number.isFinite(order) && Number.isFinite(otherOrder)
+                        ? Math.abs(otherOrder - order) : Infinity;
+                    const indexDistance = anchor >= 0 ? Math.abs(index - anchor) : Infinity;
+                    const distance = Math.min(orderDistance, indexDistance);
+                    const old = candidates.get(candidate);
+                    if(!old || distance < old.distance) candidates.set(candidate,{candidate,distance,indexDistance,orderDistance});
+                });
             });
-        });
+            pageScan = {
+                card, libraryRevision:learningStatsLibraryRevision,
+                ranked:Array.from(candidates.values()).sort((a,b) => a.distance-b.distance)
+            };
+            mkArrowPageSourceScanCache.set(root, pageScan);
+        }
         const matches = [];
         const rootSignature = getMkArrowSiblingSignatureFromRoot(root);
         const neededPositions = new Set(missingBlocks.map(block => {
@@ -14641,13 +14664,15 @@ function getMkArrowOwnBlockText(block) {
             const siblings = level && Array.from(level.children).filter(node => node.tagName === 'LI');
             return `${getMkArrowOwnBlockText(block).toLowerCase()}#${siblings ? siblings.indexOf(block) : -1}`;
         }));
-        // Strict verification only for likely nearby source records; an arbitrary
-        // matching label elsewhere in the deck cannot reveal an answer.  In very
-        // long lists, the full stable sibling outline below replaces the old
-        // hard source-order limits (8/20/45) with parent verification.
-        const ranked = Array.from(candidates.values()).sort((a,b) => a.distance-b.distance);
-        const MAX_PARSES = 320;
-        for(const entry of ranked.slice(0, MAX_PARSES)) {
+        // Scan near records first. If unanswered questions remain, the caller
+        // continues in event-loop slices through the ENTIRE same-deck pool.
+        // Correctness comes from parent/sibling evidence, never from proximity alone.
+        const ranked = pageScan.ranked;
+        const startAt = Math.max(0, Number(scanOptions.startAt) || 0);
+        const batchSize = Math.max(1, Number(scanOptions.batchSize) || 256);
+        const scanEnd = Math.min(ranked.length, startAt + batchSize);
+        for(const entry of ranked.slice(startAt, scanEnd)) {
+            if(original.has(entry.candidate)) continue;
             const verified = getMkArrowVerifiedSource(entry.candidate);
             if(!verified || !wanted.has(verified.label)) continue;
             const thereParts = getMkArrowScopeParts(verified.scope);
@@ -14666,6 +14691,8 @@ function getMkArrowOwnBlockText(block) {
                 if(!neededPositions.size) break;
             }
         }
+        matches.nextScanIndex = scanEnd;
+        matches.hasMore = scanEnd < ranked.length && neededPositions.size > 0;
         return matches;
     }
 
@@ -14698,6 +14725,10 @@ function getMkArrowOwnBlockText(block) {
             if(getMkArrowOwnClozeWrappers(li).length) return false;
             const own = li.cloneNode(true);
             own.querySelectorAll('ul, ol').forEach(node => node.remove());
+            // Arrow-source recovery must never turn a CS or #card question into
+            // an arrow blank simply because its title matches another card.
+            if(own.querySelector('.mk-cs-wrapper, .mk-io-wrapper, .mk-card-answer-mask, .mk-card-answer-real')) return false;
+            if(/(?:^|\s)#card\b|\{\{cs\d*\b/i.test(String(own.textContent || ''))) return false;
             if(String(own.textContent || '').includes(':->')) return false; // raw marker handled in place
             return !!getMkArrowOwnBlockText(li);
         });
@@ -14710,16 +14741,39 @@ function getMkArrowOwnBlockText(block) {
         });
         addSources(nearbySources);
         let restored = 0;
+        // A 200-item hierarchy used to recompute the SAME 200-item outline for
+        // each of its 200 siblings (O(n²) DOM clones). Cache it once per UL.
+        const levelCache = new WeakMap();
+        const scopeCache = new WeakMap();
+        const getLevelInfo = level => {
+            if(!level) return null;
+            if(levelCache.has(level)) return levelCache.get(level);
+            const siblings = Array.from(level.children).filter(n => n.tagName === 'LI');
+            const labels = siblings.map(n => getMkArrowOwnBlockText(n).toLowerCase());
+            const counts = new Map();
+            labels.forEach(label => counts.set(label, (counts.get(label)||0) + 1));
+            const info = {siblings, labels, counts,
+                positions:new Map(siblings.map((node,i) => [node,i])),
+                labelSet:new Set(labels.filter(Boolean)),
+                signature:labels.filter(Boolean).join('\u241f')};
+            levelCache.set(level, info);
+            return info;
+        };
         const resolveBlocks = entries => entries.forEach(block => {
-            const label = getMkArrowOwnBlockText(block).toLowerCase();
+            const level = block.parentElement;
+            const info = getLevelInfo(level);
+            const label = info?.labels[info.positions.get(block)] || getMkArrowOwnBlockText(block).toLowerCase();
             const possibilities = byLabel.get(label) || [];
             if(!possibilities.length) return;
-            const scope = getMkArrowParentScopeKey(block);
-            const level = block.parentElement;
-            const siblings = level && Array.from(level.children).filter(n => n.tagName === 'LI');
-            const position = siblings ? siblings.indexOf(block) : -1;
-            const signature = siblings ? siblings.map(n => getMkArrowOwnBlockText(n).toLowerCase())
-                .filter(Boolean).join('\u241f') : '';
+            const parentLi = level && level.closest('li');
+            let scope = '';
+            if(parentLi) {
+                if(!scopeCache.has(parentLi)) scopeCache.set(parentLi, getMkArrowParentScopeKey(block));
+                scope = scopeCache.get(parentLi);
+            }
+            const siblings = info?.siblings || [];
+            const position = info?.positions.get(block) ?? -1;
+            const signature = info?.signature || '';
             const matching = possibilities.map(source => {
                 const exactScope = !!scope && scope !== '|' && !!source.scope && scope === source.scope;
                 const hereScope = getMkArrowScopeParts(scope);
@@ -14735,8 +14789,7 @@ function getMkArrowOwnBlockText(block) {
                     !!siblings && siblings.length === source.siblingCount;
                 const sameBreadcrumb = !!card.breadcrumb && !!source.card.breadcrumb &&
                     String(card.breadcrumb) === String(source.card.breadcrumb);
-                const duplicateHere = siblings && siblings.filter(n =>
-                    getMkArrowOwnBlockText(n).toLowerCase() === label).length > 1;
+                const duplicateHere = (info?.counts.get(label) || 0) > 1;
                 const duplicateSource = (source.siblingLabels || []).filter(n => n === label).length > 1;
                 // Repeated labels need their exact ordinal to avoid attaching the
                 // first '해설' or '1' answer to all identically named bullets.
@@ -14756,8 +14809,7 @@ function getMkArrowOwnBlockText(block) {
                 // compatible title; different question images are never paired.
                 if(scope && scope !== '|' && source.scope && source.scope !== '|' &&
                     !exactScope && !sameParentImage) return null;
-                const common = (source.siblingLabels || []).filter(text =>
-                    siblings && siblings.some(n => getMkArrowOwnBlockText(n).toLowerCase() === text)).length;
+                const common = (source.siblingLabels || []).filter(text => info?.labelSet.has(text)).length;
                 const overlap = common / Math.max(1, Math.min(
                     (source.siblingLabels || []).length, siblings ? siblings.length : 0));
                 const scopeParts = String(scope || '').split('|');
@@ -14772,22 +14824,29 @@ function getMkArrowOwnBlockText(block) {
                 // on the last items.  Use the distinct sibling *outline* as a
                 // shared hierarchy fingerprint rather than a fixed distance.
                 // Never trust a repeated 1/2/3 or ㄱ/ㄴ/ㄷ template by itself.
-                const distinct = new Set((siblings || []).map(node =>
-                    getMkArrowOwnBlockText(node).toLowerCase()).filter(Boolean));
+                const distinct = info?.labelSet || new Set();
                 const meaningful = Array.from(distinct).filter(text => text.length >= 6).length;
-                const sharedOutline = uniqueSiblingOutlineMatch(siblings, source.siblingLabels);
-                const verifiedLongOutline = sameBreadcrumb &&
+                const sourceLabelSet = new Set((source.siblingLabels || []).filter(Boolean));
+                const sharedCommon = Array.from(distinct).filter(text => sourceLabelSet.has(text)).length;
+                const sharedOutline = {common:sharedCommon,
+                    overlap:sharedCommon / Math.max(1, Math.min(distinct.size, sourceLabelSet.size))};
+                const noBreadcrumb = !String(card.breadcrumb || '').trim() &&
+                    !String(source.card.breadcrumb || '').trim();
+                // A stable, distinctive source hierarchy can be verified even
+                // when Logseq omitted breadcrumb metadata from BOTH exports.
+                const distinctiveSharedOutline = noBreadcrumb &&
+                    distinct.size >= 12 && meaningful >= 8 &&
+                    sharedOutline.common >= 10 && sharedOutline.overlap >= 0.88;
+                const verifiedLongOutline = (sameBreadcrumb || distinctiveSharedOutline) &&
                     distinct.size >= 6 && meaningful >= 3 &&
                     sharedOutline.common >= 5 && sharedOutline.overlap >= 0.82;
                 const hasDistinctiveOutline = distinct.size >= 8 && meaningful >= 5;
-                const noBreadcrumb = !String(card.breadcrumb || '').trim() &&
-                    !String(source.card.breadcrumb || '').trim();
                 const verifiedExactOutline = exactSignature &&
                     ((distinct.size >= 5 && meaningful >= 3 && sameBreadcrumb) ||
-                        (hasDistinctiveOutline && noBreadcrumb && source.orderDistance <= 500));
+                        (hasDistinctiveOutline && noBreadcrumb));
                 const verifiedDuplicateOutline = (duplicateHere || duplicateSource) &&
                     alignedDuplicate && (sameBreadcrumb ||
-                        (hasDistinctiveOutline && noBreadcrumb && source.orderDistance <= 500)) &&
+                        (hasDistinctiveOutline && noBreadcrumb)) &&
                     (verifiedExactOutline || (verifiedLongOutline &&
                         hasMkArrowAlignedSiblingWindow(siblings, source.siblingLabels, position)));
 
@@ -14848,6 +14907,37 @@ function getMkArrowOwnBlockText(block) {
             if(additionalSources.length) {
                 addSources(additionalSources);
                 resolveBlocks(missingBlocks);
+            }
+            // Never drop the rest of the same-hierarchy source pool just
+            // because it lies beyond the first 256 source records. Background
+            // slices yield to scrolling/taps instead of blocking the PWA.
+            if(additionalSources.hasMore) {
+                const renderToken = mkOrdinaryCardContextRenderToken;
+                const scanLater = nextIndex => {
+                    if(renderToken !== mkOrdinaryCardContextRenderToken ||
+                       !root.isConnected || activeDeck[currentIndex] !== card) return;
+                    const remaining = missingBlocks.filter(block =>
+                        block.isConnected && !getMkArrowOwnClozeWrappers(block).length);
+                    if(!remaining.length) return;
+                    const found = getMkArrowMissingSiblingSources(root, card, remaining,
+                        [...nearbySources, ...additionalSources], {startAt:nextIndex, batchSize:72});
+                    if(found.length) {
+                        additionalSources.push(...found);
+                        addSources(found);
+                        resolveBlocks(remaining);
+                        // An eye button may not exist before late source matches.
+                        if(!document.querySelector('.mk-unified-hierarchy-eye'))
+                            updateMkUnifiedHierarchyEye(root, card);
+                    }
+                    if(found.hasMore) setTimeout(() => scanLater(found.nextScanIndex), 0);
+                    else if(window.__MK_ARROW_SIBLING_DEBUG__ === true) {
+                        console.info('[MK_ARROW_LONG_SCAN_COMPLETE]', {
+                            scanned:found.nextScanIndex,
+                            unresolved:remaining.filter(block => !getMkArrowOwnClozeWrappers(block).length).length
+                        });
+                    }
+                };
+                setTimeout(() => scanLater(additionalSources.nextScanIndex), 0);
             }
         }
         if(window.__MK_ARROW_SIBLING_DEBUG__ === true) {
@@ -17826,8 +17916,9 @@ function getIOImageGroups() {
             if(!candidate || candidate === card || String(candidate.deck || '') !== String(card.deck || '')) return;
             const distance = Number.isFinite(order) && Number.isFinite(Number(candidate.sourceOrder))
                 ? Math.abs(order - Number(candidate.sourceOrder)) : Infinity;
-            // An answer from another chapter must never be guessed, and parsing
-            // thousands of source cards on every navigation would be slow.
+            // Nearby answers are resolved immediately. Distant matches are
+            // handled by queueMkLongOrdinaryCardAnswers() in event-loop slices;
+            // parsing every full hierarchy per visible #card would freeze PWA.
             if(Number.isFinite(distance) && distance > 12) return;
             const entry = getMkOrdinaryCardSiblingSource(candidate);
             if(!entry || !entry.realList || entry.label !== label) return;
@@ -17836,11 +17927,93 @@ function getIOImageGroups() {
             const sameBreadcrumb = !!card.breadcrumb && String(candidate.breadcrumb || '') === String(card.breadcrumb);
             // Equal names with no strong hierarchy evidence are not enough.
             if(!sameScope && !sameSignature && !(sameBreadcrumb && distance <= 3)) return;
+            // Long-distance matches require the SAME verified parent or full
+            // sibling signature, never a common label/breadcrumb alone.
+            if(distance > 12 && !sameScope && !sameSignature) return;
             const score = (sameScope ? 10000 : 0) + (sameSignature ? 5000 : 0) +
                 (sameBreadcrumb ? 1000 : 0) - Math.min(1000, distance);
             if(score > bestScore) { bestScore = score; best = entry; }
         });
         return best;
+    }
+
+    // Explicit #card siblings can be hundreds of source records apart. Search
+    // their answers once per visible hierarchy (not once per sibling) and yield
+    // between short batches to keep the mobile page interactive.
+    const mkLongOrdinarySourceScans = new WeakMap();
+    function queueMkLongOrdinaryCardAnswers(root, card, missingLis) {
+        if(!root || !card || !missingLis.length) return;
+        const old = mkLongOrdinarySourceScans.get(root);
+        if(old && old.card === card) return;
+        const token = mkOrdinaryCardContextRenderToken;
+        const sourceOrder = Number(card.sourceOrder);
+        const wanted = new Map();
+        missingLis.forEach(li => {
+            const label = normalizeMkSiblingCardLabel(getMkOwnCardQuestionLabel(li));
+            if(!label) return;
+            if(!wanted.has(label)) wanted.set(label, []);
+            wanted.get(label).push({
+                li, key:getMkOrdinaryCardContextKey(card,root,li),
+                signature:getMkOrdinaryCardSiblingSignature(li),
+                best:null, ambiguous:false
+            });
+        });
+        if(!wanted.size) return;
+        const sources = getMkSiblingCardCandidatePool(card).filter(candidate =>
+            candidate && candidate !== card && String(candidate.deck || '') === String(card.deck || '') &&
+            (!card.breadcrumb || !candidate.breadcrumb || String(candidate.breadcrumb) === String(card.breadcrumb)));
+        const scan = {card, token};
+        mkLongOrdinarySourceScans.set(root, scan);
+        let cursor = 0;
+        const run = () => {
+            if(token !== mkOrdinaryCardContextRenderToken || !root.isConnected ||
+               activeDeck[currentIndex] !== card || mkLongOrdinarySourceScans.get(root) !== scan) return;
+            const deadline = performance.now() + 6;
+            let count = 0;
+            while(cursor < sources.length && count < 14 && performance.now() < deadline) {
+                const candidate = sources[cursor++];
+                count++;
+                const entry = getMkOrdinaryCardSiblingSource(candidate);
+                if(!entry || !entry.realList) continue;
+                const requested = wanted.get(entry.label) || [];
+                if(!requested.length) continue;
+                const candidateOrder = Number(candidate.sourceOrder);
+                const distance = Number.isFinite(sourceOrder) && Number.isFinite(candidateOrder)
+                    ? Math.abs(sourceOrder-candidateOrder) : Infinity;
+                for(const item of requested) {
+                    const sameScope = !!item.key && !!entry.key && item.key === entry.key;
+                    const sameOutline = !!item.signature && !!entry.signature && item.signature === entry.signature;
+                    const sameBreadcrumb = !!card.breadcrumb && !!candidate.breadcrumb &&
+                        String(card.breadcrumb) === String(candidate.breadcrumb);
+                    if(!sameScope && !sameOutline && !(sameBreadcrumb && distance <= 3)) continue;
+                    if(distance > 12 && !sameScope && !sameOutline) continue;
+                    const score = (sameScope ? 10000 : 0) + (sameOutline ? 5000 : 0) +
+                        (sameBreadcrumb ? 100 : 0) - Math.min(distance, 1000);
+                    if(!item.best || score > item.best.score) {
+                        item.best = {source:entry,score}; item.ambiguous = false;
+                    } else if(score === item.best.score &&
+                        String(entry.card.id || '') !== String(item.best.source.card.id || '')) {
+                        item.ambiguous = true;
+                    }
+                }
+            }
+            if(cursor < sources.length) { setTimeout(run, 0); return; }
+            let attached = 0;
+            wanted.forEach(items => items.forEach(item => {
+                if(!item.li.isConnected || item.li.dataset.mkCardAnswerAttached === '1' ||
+                    !item.best || item.ambiguous) return;
+                const current = getMkOrdinaryCardActiveLi(root);
+                const isCurrent = !isMkArrowCard(card) && !isMkCSCardFast(card) && item.li === current;
+                if(decorateMkOrdinaryCardAnswer(item.li,item.best.source,isCurrent)) attached++;
+            }));
+            if(attached) {
+                root.classList.add('mk-card-hierarchy-expanded');
+                if(!document.querySelector('.mk-unified-hierarchy-eye')) updateMkUnifiedHierarchyEye(root,card);
+            }
+            if(window.__MK_CARD_VERBOSE_DEBUG__ === true)
+                console.info('[MK_CARD_LONG_HIERARCHY_SCAN]', {scanned:cursor, attached});
+        };
+        setTimeout(run,0);
     }
 
     // The question page is one Logseq source hierarchy, regardless of which
@@ -17863,6 +18036,7 @@ function getIOImageGroups() {
         // spans. Keep the original list as the real answer and mask a clone.
         // Only explicit #card blocks are converted; unrelated nested outlines
         // (headings, notes, explanations) remain untouched.
+        const delayedCardBlocks = [];
         root.querySelectorAll('li').forEach(li => {
             if(li.closest('.mk-extra-node, .mk-extra-content')) return;
             if(li.dataset.mkCardAnswerAttached === '1') return;
@@ -17873,7 +18047,10 @@ function getIOImageGroups() {
             const source = existing && mkCardAnswerListHasContent(existing)
                 ? {realList:existing.cloneNode(true)}
                 : findMkUnifiedCardAnswerSource(card, root, li);
-            if(!source || !source.realList) return; // No verified answer; no fake blank.
+            if(!source || !source.realList) {
+                delayedCardBlocks.push(li); // Try exact remote sibling source asynchronously.
+                return;
+            }
             const currentOwner = getMkOrdinaryCardActiveLi(root);
             const isCurrent = !isMkArrowCard(card) && !isMkCSCardFast(card) &&
                 (li === currentOwner || li.classList.contains('mk-card-current'));
@@ -17882,6 +18059,7 @@ function getIOImageGroups() {
         if(root.querySelector('.mk-card-current, .mk-card-context')) {
             root.classList.add('mk-card-hierarchy-expanded');
         }
+        if(delayedCardBlocks.length) queueMkLongOrdinaryCardAnswers(root,card,delayedCardBlocks);
         // Mark only ordinary clozes belonging to OTHER bullets as context;
         // mode-answer must never accidentally reveal them alongside the target.
         const arrow = root.querySelector('.mk-arrow-target, .mk-arrow-card');
