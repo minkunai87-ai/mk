@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.342 MIXED CARD SOURCE RECOVERY -->
+<!-- preview: v18.5.348 ACTUAL DECK SOURCE AUDIT -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.342 MIXED CARD SOURCE RECOVERY)</title>
+<title>MK (v18.5.348 ACTUAL DECK SOURCE AUDIT)</title>
 
 <script>
     (() => {
@@ -1117,13 +1117,31 @@
             <button class="btn-sub" onclick="openUuidMigrationModal()">🔗 UUID 마이그레이션</button>
             <button class="btn-sub" onclick="copyCurrentPdfDiagnostic()">📋 PDF 진단 복사</button>
             <button class="btn-sub" onclick="copyMkCardSiblingDiagnostics()">📋 카드 계층 진단 복사</button>
+            <button class="btn-sub" onclick="openMkActualDeckAudit()">🧪 전체 덱 빈칸 원본 검사</button>
             <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 서버 연결 안정화됨</div>
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.342 MIXED CARD SOURCE RECOVERY)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.348 ACTUAL DECK SOURCE AUDIT)</div>
     </div>
 
+
+    <div class="modal-overlay" id="mk-audit-overlay" style="display:none;z-index:4005;align-items:center;justify-content:center;">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="mk-audit-title" style="width:min(96vw,560px);max-height:85dvh;overflow:auto;padding:18px;background:#212329;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <h3 id="mk-audit-title" style="margin:0;">🧪 실제 덱 원본 검사</h3>
+          <button type="button" class="btn-sub" style="width:auto;padding:7px 12px;" onclick="closeMkActualDeckAudit()">닫기</button>
+        </div>
+        <p style="line-height:1.6;font-size:.85rem;color:#b7c2d0;">현재 기기에 불러온 <b>모든 덱의 카드 원본</b>을 읽기 전용으로 비교합니다. 같은 하이어라키 항목의 빈칸 표시 불일치와 원본 문법 이상을 찾습니다. 정답이 실제 화면에서 열리는지까지 증명하는 검사는 아니며, 실행 중에는 다른 화면으로 이동하지 마세요.</p>
+        <div id="mk-audit-status" style="padding:12px;background:#171b20;border-radius:9px;line-height:1.65;white-space:pre-wrap;font-size:.85rem;">검사 시작을 눌러주세요.</div>
+        <progress id="mk-audit-progress" value="0" max="100" style="margin-top:12px;width:100%;height:12px;"></progress>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
+          <button id="mk-audit-run" class="btn-sub" style="width:auto;flex:1;background:#2274bd;color:white;" onclick="startMkActualDeckAudit()">전체 검사 시작</button>
+          <button id="mk-audit-stop" class="btn-sub" style="width:auto;flex:1;" onclick="stopMkActualDeckAudit()" disabled>중단</button>
+          <button id="mk-audit-download" class="btn-sub" style="width:auto;flex:1;" onclick="downloadMkActualDeckAudit()" disabled>결과 JSON 다운로드</button>
+        </div>
+      </div>
+    </div>
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
         <div class="modal-content learning-stats-panel">
             <div class="learning-stats-header">
@@ -1514,7 +1532,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.342 MIXED CARD SOURCE RECOVERY';
+    const APP_VERSION = 'v18.5.348 ACTUAL DECK SOURCE AUDIT';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -12458,7 +12476,10 @@
                             mkCsTarget:group.key,
                             mkCsGrouped:group.key.startsWith('n'),
                             mkProblemScope:'active-block',
-                            mkProblemBlockIndex:problem.problemIndex
+                            mkProblemBlockIndex:problem.problemIndex,
+                            // Source identity is independent of current focus,
+                            // filter order, and the rendered cloze's HTML.
+                            mkSourceIdentity:`mk-src-v1:${blockId || finalId}:b${problem.problemIndex}:cs:${group.key}`
                         };
 
                         if (existingCardIndex !== -1) targetLib[deckNameInRow].splice(existingCardIndex, 1);
@@ -12484,7 +12505,8 @@
                 const cardId = splitIndex === 0 ? finalId : `${finalId}__mk_io_${splitIndex + 1}`;
                 const existingCardIndex = targetLib[deckNameInRow].findIndex(c => c.id === cardId);
                 const baseOrderFraction = (baseProblemPosition + (splitIndex / Math.max(1, splitContents.length))) / Math.max(10, problemPositionCount + 1);
-                const cardObj = { id:cardId, q:content.q, a:content.a, isLogseq, blockId, breadcrumb, extra, graphName, sourceOrder:sourceOrder + baseOrderFraction, deck:deckNameInRow };
+                const cardObj = { id:cardId, q:content.q, a:content.a, isLogseq, blockId, breadcrumb, extra, graphName, sourceOrder:sourceOrder + baseOrderFraction, deck:deckNameInRow,
+                    mkSourceIdentity:isLogseq ? `mk-src-v1:${blockId || finalId}:b${baseProblemPosition}:part${splitIndex}` : '' };
                 if (existingCardIndex !== -1) targetLib[deckNameInRow].splice(existingCardIndex, 1);
                 targetLib[deckNameInRow].push(cardObj);
             });
@@ -14982,6 +15004,14 @@ function getMkArrowOwnBlockText(block) {
                         uniqueLabel && (!scope || scope === '|' || exactScope || sameParentImage)) ||
                     (exactScope && strongScope && uniqueLabel && sameBreadcrumb &&
                         source.orderDistance <= 160 && strongSharedOutline) ||
+                    // A numbered-only outline has no long distinct titles, but
+                    // an exact, nontrivial parent scope + complete ordered
+                    // sibling tree + same breadcrumb is stronger evidence than
+                    // an arbitrary index gap. Do not discard such verified
+                    // sources because other cards separate their exports.
+                    (exactScope && strongScope && sameBreadcrumb && uniqueLabel &&
+                        exactSignature && samePosition && siblings.length >= 8 &&
+                        siblings.length === source.siblingCount) ||
                     (exactScope && strongScope && uniqueLabel &&
                         source.orderDistance <= (sameBreadcrumb ? 20 : 4)) ||
                     (sameParentImage && uniqueLabel && sameBreadcrumb &&
@@ -15006,6 +15036,127 @@ function getMkArrowOwnBlockText(block) {
         // match. Retry *all* still-plain siblings against independently exported
         // source cards, rather than treating the presence of a label as success.
         resolveBlocks(blocks);
+
+        // Partial Logseq exports may carry a sibling's real :-> answer ONLY in
+        // another card's exported hierarchy, while the sibling itself has no
+        // independent source card at all. Example: focus 2 shows rows 11/12 as
+        // plain text, focus 4 contains their cloze answer nodes. The old resolver
+        // only extracted each card's ACTIVE answer, so 11/12 never matched.
+        // Recover an answer from another snapshot only when the full sibling
+        // outline AND nontrivial parent scope match. A bare "11" is never proof.
+        const snapshotMatches = new Set();
+        const currentSourceOrder = Number(card.sourceOrder);
+        const currentSourceDeck = normalizeDeckPath(card.deck || currentDeckName || '');
+        const candidateSnapshotMap = new Map();
+        [originalDeck, library && library[currentSourceDeck]].forEach(pool => {
+            if(!Array.isArray(pool)) return;
+            pool.forEach((candidate, index) => {
+                if(!candidate || candidate === card || !candidate.isLogseq) return;
+                if(currentSourceDeck && normalizeDeckPath(candidate.deck || currentSourceDeck) !== currentSourceDeck) return;
+                if(card.breadcrumb && candidate.breadcrumb && String(card.breadcrumb) !== String(candidate.breadcrumb)) return;
+                const key=String(candidate.id || '') || candidate;
+                if(candidateSnapshotMap.has(key)) return;
+                const sourceOrder=Number(candidate.sourceOrder);
+                const distance=Number.isFinite(currentSourceOrder) && Number.isFinite(sourceOrder)
+                    ? Math.abs(sourceOrder-currentSourceOrder) : Math.abs(index);
+                candidateSnapshotMap.set(key,{candidate,distance});
+            });
+        });
+        const candidateSnapshots=Array.from(candidateSnapshotMap.values()).sort((a,b)=>a.distance-b.distance);
+        const snapshotToken=mkOrdinaryCardContextRenderToken;
+        let snapshotCursor=0;
+        const findSnapshotAnswers = () => {
+            // Only direct, unresolved sibling rows; never infer answers from
+            // a section heading, nested #card answer, or CS macro.
+            const missing=blocks.filter(block=>block.isConnected && !getMkArrowOwnClozeWrappers(block).length &&
+                !block.querySelector('ul,ol') && block.parentElement);
+            if(!missing.length) return false;
+            const expected=new Map();
+            missing.forEach(block=>{
+                const info=getLevelInfo(block.parentElement);
+                const scope=getMkArrowParentScopeKey(block);
+                const parts=getMkArrowScopeParts(scope);
+                if(!info || !(parts.images || parts.text.length>=12)) return;
+                const position=info.positions.get(block);
+                const label=info.labels[position];
+                // A plain explanatory paragraph is NOT a missing :-> card.
+                // Only explicit arrows or short numbered/lettered choices in
+                // a VERIFIED arrow sibling list qualify for cross-snapshot
+                // recovery; independently exported named arrows are already
+                // handled by the normal source-card resolver above.
+                const ownText=String(cloneMkHierarchyOwnContent(block).textContent || '');
+                const hasMarker=ownText.includes(':->');
+                const numbered=/^(?:[0-9]{1,4}[.)]?|[ㄱ-ㅎ]|[가-힣][.)])$/.test(label);
+                // Check the cheap label predicate BEFORE touching the sibling
+                // tree: 300+ mixed cards must not each rescan 300 siblings.
+                if(!hasMarker && !numbered) return;
+                if(numbered && !hasMarker && !info.siblings.some(li=>li!==block &&
+                    String(cloneMkHierarchyOwnContent(li).textContent||'').includes(':->'))) return;
+                if(label && position>=0) {
+                    const key=`${scope}\u241e${info.signature}\u241e${position}\u241e${label}`;
+                    expected.set(key,true);
+                }
+            });
+            if(!expected.size) return false;
+            const collected=[];
+            const deadline=performance.now()+7;
+            let count=0;
+            while(snapshotCursor<candidateSnapshots.length && count<14 && performance.now()<deadline) {
+                const {candidate,distance}=candidateSnapshots[snapshotCursor++];
+                count++;
+                // Do NOT use a fixed source-order distance cutoff. Real Logseq
+                // snapshots can contain the exact same sibling hierarchy hundreds
+                // of exported cards apart. The full scope + sibling-signature +
+                // ordinal + title match below is the safety condition; proximity
+                // is only a search ranking hint, never proof of correctness.
+                // Some exports put the complete answer tree in `a` while `q`
+                // only carries the questions. Inspect both distinct snapshots.
+                const snapshots = new Set([String(candidate.q || ''), String(candidate.a || '')]);
+                for(const html of snapshots) {
+                if(snapshotMatches.size >= expected.size) break;
+                if(!html.includes('cloze-a') && !html.includes(':->')) continue;
+                const holder=document.createElement('div');
+                holder.innerHTML=html;
+                // Convert raw sibling :-> answers in this detached snapshot.
+                maskMkArrowNestedContext(holder);
+                holder.querySelectorAll('li').forEach(li=>{
+                    const own=getMkArrowOwnClozeWrappers(li);
+                    if(!own.length || !String(cloneMkHierarchyOwnContent(li).textContent||'').includes(':->')) return;
+                    const answer=own.map(w=>w.querySelector('.cloze-a')).find(a=>a && String(a.innerHTML||'').trim());
+                    if(!answer || !li.parentElement) return;
+                    const scope=getMkArrowParentScopeKey(li);
+                    const siblings=Array.from(li.parentElement.children).filter(n=>n.tagName==='LI');
+                    const labels=siblings.map(n=>getMkArrowOwnBlockText(n).toLowerCase()).filter(Boolean);
+                    const position=siblings.indexOf(li);
+                    const label=getMkArrowOwnBlockText(li).toLowerCase();
+                    const signature=labels.join('\u241f');
+                    const key=`${scope}\u241e${signature}\u241e${position}\u241e${label}`;
+                    if(!expected.has(key) || snapshotMatches.has(key)) return;
+                    snapshotMatches.add(key);
+                    collected.push({card:candidate,answerHtml:String(answer.innerHTML).trim(),label,scope,
+                        signature,position,siblingCount:siblings.length,siblingLabels:labels,
+                        orderDistance:distance,indexDistance:distance});
+                });
+                } // end candidate q/a snapshots
+                if(snapshotMatches.size>=expected.size) break;
+            }
+            if(collected.length) {addSources(collected);resolveBlocks(missing);}
+            return snapshotCursor<candidateSnapshots.length &&
+                blocks.some(block=>block.isConnected && !getMkArrowOwnClozeWrappers(block).length);
+        };
+        if(blocks.some(block=>!getMkArrowOwnClozeWrappers(block).length)) {
+            const more=findSnapshotAnswers();
+            if(more) {
+                const continueSnapshots=()=>{
+                    if(snapshotToken!==mkOrdinaryCardContextRenderToken || !root.isConnected ||
+                        activeDeck[currentIndex]!==card) return;
+                    if(findSnapshotAnswers()) setTimeout(continueSnapshots,0);
+                    else if(!document.querySelector('.mk-unified-hierarchy-eye'))
+                        updateMkUnifiedHierarchyEye(root,card);
+                };
+                setTimeout(continueSnapshots,0);
+            }
+        }
         const arrowLevels = new Set(Array.from(root.querySelectorAll(
             '.mk-arrow-target, .mk-arrow-card, .mk-arrow-blank, .mk-arrow-context'
         )).map(wrapper => wrapper.closest('li')?.parentElement).filter(Boolean));
@@ -18290,13 +18441,27 @@ function getIOImageGroups() {
         // in any order. Normalize ALL raw cloze syntaxes irrespective of the
         // current card type. Older code only converted raw CS on a CS-focused
         // page, so siblings silently disappeared on #card/:-> focused pages.
-        if(String(card.q || '').includes('{{cs') || String(root.textContent || '').includes('{{cs'))
+        // Never use the focused card's format as a gate for its siblings. The
+        // page can include fragments imported from OTHER source cards that were
+        // absent from card.q (or only arrived in card.a). Inspect the rendered
+        // hierarchy itself; conversion routines are idempotent for wrappers.
+        const renderedSourceText = String(root.textContent || '');
+        const sourceQuestionText = String(card.q || '');
+        const sourceAnswerText = String(card.a || '');
+        if(/\{\{cs\d*\s/i.test(renderedSourceText) ||
+           /\{\{cs\d*\s/i.test(sourceQuestionText) ||
+           /\{\{cs\d*\s/i.test(sourceAnswerText))
             maskMkCSContextMacros(root);
-        if(String(card.q || '').includes('{{c')) maskMkOrdinaryClozeContextMacros(root);
+        if(/\{\{c\d+::/i.test(renderedSourceText) ||
+           /\{\{c\d+::/i.test(sourceQuestionText) ||
+           /\{\{c\d+::/i.test(sourceAnswerText))
+            maskMkOrdinaryClozeContextMacros(root);
         // Arrow card normalization has already processed its nested sources;
         // run the same pass here only for CS / #card / ordinary targets.
         if(!isMkArrowCard(card) &&
-            (String(card.q || '').includes(':->') || root.querySelector('.mk-arrow-blank, .mk-arrow-card'))) {
+            (renderedSourceText.includes(':->') || sourceQuestionText.includes(':->') ||
+             sourceAnswerText.includes(':->') ||
+             root.querySelector('.mk-arrow-blank, .mk-arrow-card'))) {
             maskMkArrowNestedContext(root);
         }
         // Restore independently exported :-> answers even when the focused
@@ -18339,6 +18504,9 @@ function getIOImageGroups() {
         unmarked.forEach(li => { li.dataset.mkUnmarkedCardCandidate = '1'; });
         const pending = delayedCardBlocks.concat(unmarked);
         if(pending.length) queueMkLongOrdinaryCardAnswers(root,card,pending);
+        // Canonical registry runs after the format-specific passes. It consults
+        // original snapshots rather than treating the focused HTML as complete.
+        queueMkHierarchySourceRegistry(root,card);
         // Mark only ordinary clozes belonging to OTHER bullets as context;
         // mode-answer must never accidentally reveal them alongside the target.
         const arrow = root.querySelector('.mk-arrow-target, .mk-arrow-card');
@@ -18362,6 +18530,307 @@ function getIOImageGroups() {
             else if(inFocusedCardAnswer)
                 wrapper.classList.remove('mk-unified-cloze-context');
         });
+    }
+
+    // Canonical hierarchy registry (v18.5.347). Instead of deciding whether a
+    // sibling is a question from the *currently focused card*, index independent
+    // source snapshots by parent path + ordinal + title + surrounding siblings.
+    // Do not use a title alone, an arbitrary source-order cutoff, or a card type
+    // switch as proof of identity. This is a conservative recovery layer: it is
+    // additive to the ordinary :->/CS/#card renderers and never changes card IDs.
+    const mkHierarchySourceCache = new Map();
+    const mkHierarchyRecoveryJobs = new WeakMap();
+    const MK_HIERARCHY_SOURCE_CACHE_LIMIT = 36;
+    function mkHierarchyOwnTitle(li) {
+        const own = cloneMkHierarchyOwnContent(li);
+        own.querySelectorAll('.cloze-wrapper, .mk-cs-wrapper, .mk-card-answer-mask, .mk-card-answer-real, .mk-card-original-answer').forEach(node => node.remove());
+        return normalizeMkMixedSiblingTitle(String(own.textContent || '')
+            .replace(/\{\{cs\d*\s+[\s\S]*?\}\}/gi,'')
+            .replace(/\{\{c\d+::[\s\S]*?\}\}/gi,''));
+    }
+    function mkHierarchyStableNodeId(li) {
+        if(!li) return '';
+        // Only source-defined identifiers; never fabricate a UUID from a
+        // duplicated title or the current selected card's position.
+        return String(li.getAttribute('data-uuid') ||
+            li.getAttribute('data-block-uuid') ||
+            li.getAttribute('data-block-id') || '').trim();
+    }
+    const mkHierarchyOutlineCache = new WeakMap();
+    function mkHierarchySiblingOutline(li) {
+        if(!li || !li.parentElement) return {index:-1,labels:[]};
+        const parent = li.parentElement;
+        let cached = mkHierarchyOutlineCache.get(parent);
+        if(!cached) {
+            const siblings = Array.from(parent.children).filter(node=>node.tagName==='LI');
+            cached = {positions:new Map(siblings.map((child,i)=>[child,i])),
+                labels:siblings.map(mkHierarchyOwnTitle)};
+            mkHierarchyOutlineCache.set(parent,cached);
+        }
+        return {index:cached.positions.get(li) ?? -1,labels:cached.labels};
+    }
+    function mkHierarchySourceAnswer(li, isActive) {
+        const own = cloneMkHierarchyOwnContent(li);
+        const text = String(own.textContent || '');
+        // Source card answers inside real child lists retain the rich HTML.
+        const tag = /(?:^|\s)#card\b/i.test(text);
+        const list = getMkOrdinaryCardOwnList(li);
+        if(tag && mkCardAnswerListHasContent(list))
+            return {type:'card',html:'',realList:list.cloneNode(true)};
+        const cs = own.querySelector('.mk-cs-wrapper .mk-cs-answer');
+        if(cs && String(cs.textContent || '').trim()) return {type:'cs',html:cs.innerHTML};
+        const rawCs = text.match(/\{\{cs\d*\s+([\s\S]*?)\}\}/i);
+        if(rawCs && rawCs[1].trim()) return {type:'cs',text:rawCs[1].trim()};
+        const wrapper = getMkArrowOwnClozeWrappers(li).find(w => !!w.querySelector('.cloze-a'));
+        if(wrapper) {
+            const answer=wrapper.querySelector('.cloze-a');
+            if(String(answer.textContent||answer.innerHTML||'').trim())
+                return {type:'arrow',html:answer.innerHTML};
+        }
+        const arrow = text.indexOf(':->');
+        if(arrow >= 0) {
+            const trailing = text.slice(arrow+3).trim();
+            if(trailing && trailing !== '[...]') return {type:'arrow',text:trailing};
+        }
+        return null;
+    }
+    // A Logseq hierarchy can be a root-level numbered list with no parent
+    // title at all.  The old registry discarded it because its parent scope
+    // was empty, even when an adjacent exported card carried the missing
+    // answer.  This is intentionally WEAK provenance: it may only be matched
+    // to a nearby sourceOrder, in the same breadcrumb, with the identical
+    // complete sibling outline and no conflicting answer candidate.
+    function mkHierarchyRecoveryScope(card, holder, li) {
+        const stable = getMkOrdinaryCardContextKey(card, holder, li);
+        if(stable) return stable;
+        if(!card || !li || !li.parentElement) return '';
+        const breadcrumb = String(card.breadcrumb || '').trim();
+        const deck = normalizeDeckPath(card.deck || '');
+        if(!breadcrumb || !deck || !Number.isFinite(Number(card.sourceOrder))) return '';
+        // Never infer a root provenance for a nested, unnamed parent block.
+        if(li.parentElement.closest('li')) return '';
+        const outline = mkHierarchySiblingOutline(li).labels;
+        if(outline.length < 3 || outline.length > 400 || !outline.every(label =>
+            /^(?:[0-9]{1,4}[.)]?|[ㄱ-ㅎ]|[가-힣][.)])$/.test(label))) return '';
+        return `mk-weak-root:${deck}::${breadcrumb}::${outline.join('\u241f')}`;
+    }
+    function mkHierarchySnapshotRecords(card) {
+        if(mkHierarchySourceCache.has(card)) return mkHierarchySourceCache.get(card);
+        const records=[];
+        if(card && card.isLogseq && !isMkImageOcclusionCardFast(card)) {
+            const unique = new Set([String(card.q||''),String(card.a||'')]);
+            for(const html of unique) {
+                if(!html || !/<li\b/i.test(html)) continue;
+                const holder = document.createElement('div');
+                holder.innerHTML=html;
+                const active = getMkArrowTargetOwnerLi(holder) || getMkOrdinaryCardActiveLi(holder);
+                holder.querySelectorAll('li').forEach(li => {
+                    if(li.closest('.mk-extra-node, .mk-extra-content, .mk-card-answer-real, .mk-card-answer-mask')) return;
+                    const answer = mkHierarchySourceAnswer(li,li===active);
+                    if(!answer) return;
+                    const label=mkHierarchyOwnTitle(li);
+                    const scope=mkHierarchyRecoveryScope(card,holder,li);
+                    if(!label || !scope) return;
+                    const outline=mkHierarchySiblingOutline(li);
+                    if(outline.index<0) return;
+                    records.push({label,scope,nodeId:mkHierarchyStableNodeId(li),position:outline.index,outline:outline.labels,
+                        type:answer.type,html:answer.html||'',text:answer.text||'',
+                        realList:answer.realList||null,sourceCardId:String(card.id||''),
+                        sourceOrder:Number(card.sourceOrder)});
+                });
+            }
+        }
+        mkHierarchySourceCache.set(card,records);
+        if(mkHierarchySourceCache.size>MK_HIERARCHY_SOURCE_CACHE_LIMIT)
+            mkHierarchySourceCache.delete(mkHierarchySourceCache.keys().next().value);
+        return records;
+    }
+    function mkHierarchyMatchScore(target, source) {
+        if(target.nodeId && source.nodeId) {
+            if(target.nodeId!==source.nodeId) return -1;
+            // A shared immutable source UUID outranks snapshot layout changes.
+            return 100000;
+        }
+        if(target.scope!==source.scope || target.label!==source.label ||
+           target.position!==source.position) return -1;
+        // Parent scope and ordinal are necessary but not sufficient when a
+        // heading is repeated. Verify other siblings from both snapshots.
+        const a=target.outline, b=source.outline;
+        let matches=0, compared=0;
+        for(let i=0;i<Math.min(a.length,b.length);i++) {
+            if(i===target.position || !a[i] || !b[i]) continue;
+            compared++;
+            if(a[i]===b[i]) matches++;
+        }
+        // No positive context evidence => don't attach a guessed answer.
+        if(compared && matches===0) return -1;
+        if(compared>=3 && matches<2) return -1;
+        if(!compared && a.length>1 && b.length>1) return -1;
+        return matches*10 + (a.length===b.length?3:0) + (a.join('\u241f')===b.join('\u241f')?50:0);
+    }
+    function mkHierarchyRecoveryTargets(root, card) {
+        if(!root || !card || !card.isLogseq) return [];
+        const result=[];
+        root.querySelectorAll('li').forEach(li => {
+            if(li.closest('.mk-extra-node,.mk-extra-content,.mk-card-answer-real,.mk-card-answer-mask,.mk-card-original-answer') ||
+                li.dataset.mkCardAnswerAttached==='1') return;
+            const own = cloneMkHierarchyOwnContent(li);
+            const ownText=String(own.textContent||'');
+            if(!ownText.trim() || /(?:^|\s)#card\b/.test(ownText) && !!getMkOrdinaryCardOwnList(li)) return;
+            if(own.querySelector('.cloze-wrapper,.mk-cs-wrapper,.mk-card-answer-mask,.mk-io-wrapper')) return;
+            // A parent with nested bullets is normally an outline heading; an
+            // explicit #card without an answer is the only exception.
+            if(getMkOrdinaryCardOwnList(li) && !/(?:^|\s)#card\b/i.test(ownText)) return;
+            const label=mkHierarchyOwnTitle(li);
+            const scope=mkHierarchyRecoveryScope(card,root,li);
+            if(!label || !scope) return;
+            const outline=mkHierarchySiblingOutline(li);
+            if(outline.index<0) return;
+            result.push({li,label,scope,nodeId:mkHierarchyStableNodeId(li),position:outline.index,outline:outline.labels,
+                explicitCard:/(?:^|\s)#card\b/i.test(ownText),
+                explicitArrow:ownText.includes(':->'),
+                explicitCs:/\{\{cs\d*\s/i.test(ownText)});
+        });
+        return result;
+    }
+    function mkHierarchyAttachRecovered(row, source, root, card) {
+        const li=row.li;
+        if(!li.isConnected || li.dataset.mkCardAnswerAttached==='1') return false;
+        if(row.explicitArrow && source.type!=='arrow') return false;
+        if(row.explicitCard && source.type!=='card') return false;
+        if(row.explicitCs && source.type!=='cs') return false;
+        if(source.type==='card') {
+            if(getMkOrdinaryCardOwnList(li) && !row.explicitCard) return false;
+            if(!decorateMkOrdinaryCardAnswer(li,source,false)) return false;
+            root.classList.add('mk-card-hierarchy-expanded');
+        } else if(source.type==='arrow') {
+            const answerHtml=source.html || escapeTodayPlanHtml(source.text);
+            if(!answerHtml || !ensureMkArrowContextBlank(li,{answerHtml})) return false;
+        } else if(source.type==='cs') {
+            const answerHtml=source.html || escapeTodayPlanHtml(source.text);
+            if(!answerHtml) return false;
+            const wrap=document.createElement('span');
+            wrap.className='mk-cs-wrapper mk-cs-context';
+            wrap.dataset.mkCs='1';
+            const mask=document.createElement('span');mask.className='mk-cs-mask';mask.textContent='[...]';
+            const ans=document.createElement('span');ans.className='mk-cs-answer';ans.innerHTML=answerHtml;
+            wrap.append(mask,ans); li.appendChild(document.createTextNode(' '));li.appendChild(wrap);
+        } else return false;
+        li.dataset.mkHierarchyIdentity = [row.scope,row.position,row.label,source.type].join('\u241e');
+        return true;
+    }
+    function mkHierarchyCandidateHasSourceEvidence(candidate, rows) {
+        const sources=[String(candidate.q||'')];
+        if(candidate.a && candidate.a!==candidate.q) sources.push(String(candidate.a));
+        const loweredSources=sources.map(html=>html.toLocaleLowerCase('ko'));
+        // This is only a cheap *negative* prefilter for distinctive plain
+        // titles. Short numeric choices and markup-split titles are parsed
+        // normally, never filtered out solely on their text.
+        for(const row of rows) {
+            if(row.label.length<4 || /[<>]/.test(row.label)) return true;
+            for(let i=0;i<sources.length;i++) {
+                const html=sources[i],content=loweredSources[i];
+                const pos=content.indexOf(row.label);
+                if(pos<0) {
+                    // Inline formatting may split the label; allow an actual
+                    // source if its first distinctive word could be present.
+                    const prefix=row.label.split(/\s+/)[0];
+                    if(prefix.length>=4 && content.includes(prefix)) return true;
+                    continue;
+                }
+                // A source answer needs actual Logseq card/cloze syntax in
+                // this bullet, not merely a title repeated in the outline.
+                const after=html.slice(pos+row.label.length,pos+row.label.length+600);
+                const next=after.search(/<li(?:\s|>)/i);
+                const own=next>=0?after.slice(0,next):after;
+                if(/#card\b|:-\s*(?:>|&gt;)|\{\{cs\d*\s|\bcloze-(?:wrapper|a)\b|\bmk-cs-answer\b|<(?:ul|ol)(?:\s|>)/i.test(own))
+                    return true;
+            }
+        }
+        return false;
+    }
+    function queueMkHierarchySourceRegistry(root, card) {
+        const targets=mkHierarchyRecoveryTargets(root,card);
+        if(!targets.length) return;
+        const token=mkOrdinaryCardContextRenderToken;
+        const job={token,card};
+        mkHierarchyRecoveryJobs.set(root,job);
+        const byKey=new Map();
+        targets.forEach(row => {
+            const key=row.scope+'\u241f'+row.label;
+            if(!byKey.has(key)) byKey.set(key,[]);
+            byKey.get(key).push({row,score:-1,answer:null,ambiguous:false});
+        });
+        const deck=normalizeDeckPath(card.deck||currentDeckName||'');
+        const onlyWeakRoots = targets.every(row=>row.scope.startsWith('mk-weak-root:'));
+        const pool=getMkSiblingCardCandidatePool(card).filter(candidate => {
+            if(!candidate || !candidate.isLogseq || normalizeDeckPath(candidate.deck||deck)!==deck)
+                return false;
+            if(onlyWeakRoots) {
+                const distance=Math.abs(Number(candidate.sourceOrder)-Number(card.sourceOrder));
+                const limit=Math.max(4,Math.min(12,targets[0].outline.length*2));
+                if(!Number.isFinite(distance) || distance>limit ||
+                   String(candidate.breadcrumb||'').trim() !== String(card.breadcrumb||'').trim()) return false;
+            }
+            return mkHierarchyCandidateHasSourceEvidence(candidate,targets);
+        });
+        let cursor=0;
+        const scan=()=>{
+            if(mkHierarchyRecoveryJobs.get(root)!==job ||
+                token!==mkOrdinaryCardContextRenderToken || !root.isConnected ||
+                activeDeck[currentIndex]!==card) return;
+            // Earlier format-specific async scans may already have attached the
+            // answers; never parse the entire deck for resolved siblings.
+            if(targets.every(row => !row.li.isConnected ||
+                row.li.dataset.mkCardAnswerAttached==='1' ||
+                !!row.li.querySelector('.cloze-wrapper,.mk-cs-wrapper,.mk-card-answer-mask'))) return;
+            const deadline=performance.now()+5;
+            let count=0;
+            while(cursor<pool.length && count<8 && performance.now()<deadline) {
+                const candidate=pool[cursor++];count++;
+                mkHierarchySnapshotRecords(candidate).forEach(source=>{
+                    const entries=byKey.get(source.scope+'\u241f'+source.label);
+                    if(!entries) return;
+                    entries.forEach(entry=>{
+                        let score=mkHierarchyMatchScore(entry.row,source);
+                        if(score<0) return;
+                        if(entry.row.scope.startsWith('mk-weak-root:')) {
+                            const currentOrder=Number(card.sourceOrder);
+                            const sourceOrder=Number(source.sourceOrder);
+                            const maxDistance=Math.max(4,Math.min(12,entry.row.outline.length*2));
+                            // Numbers alone cannot identify a problem. Never
+                            // expand the radius for a bare numeric root list.
+                            if(!Number.isFinite(currentOrder) ||
+                               !Number.isFinite(sourceOrder) ||
+                               Math.abs(sourceOrder-currentOrder)>maxDistance) return;
+                            // A weak root is accepted ONLY if the entire
+                            // ordered sibling outline agrees across snapshots.
+                            if(entry.row.outline.join('\u241f') !== source.outline.join('\u241f')) return;
+                        }
+                        const identity=source.type+'\u241f'+(source.html||source.text||source.realList?.textContent||'');
+                        if(score>entry.score) {
+                            entry.score=score;entry.answer=source;entry.identity=identity;entry.ambiguous=false;
+                        } else if(score===entry.score && entry.identity!==identity) {
+                            entry.ambiguous=true;
+                        }
+                    });
+                });
+            }
+            if(cursor<pool.length){setTimeout(scan,0);return;}
+            let attached=0,ambiguous=0;
+            byKey.forEach(entries=>entries.forEach(entry=>{
+                if(entry.ambiguous) ambiguous++;
+                if(!entry.answer || entry.ambiguous) return;
+                if(mkHierarchyAttachRecovered(entry.row,entry.answer,root,card)) attached++;
+            }));
+            root.dataset.mkHierarchyRegistryUnresolved = String(targets.length-attached);
+            root.dataset.mkHierarchyRegistryAmbiguous = String(ambiguous);
+            if(attached) updateMkUnifiedHierarchyEye(root,card);
+            if(ambiguous) console.warn('[MK_HIERARCHY_SOURCE_AMBIGUOUS]',{count:ambiguous});
+        };
+        // Allow the legacy localized context passes to complete first. This
+        // deeper index is the fallback, never allowed to block first paint.
+        setTimeout(scan,pool.length>100 ? 2300 : 30);
     }
 
     // Regression observability: expose structured defects without fabricating
@@ -18392,9 +18861,214 @@ function getIOImageGroups() {
             if(!hasBlank) result.unresolved.push({title,type:card?'#card':cs?'cs':':->'});
             if(wrappers.length>1 && arrow) result.duplicateMasks.push(title);
         });
+        // A parser can preserve raw macro text in a nested span without it
+        // being an immediate LI text node. Count these as unconverted source,
+        // not as successful answers. Diagnostic-only: never guess their text.
+        const rawPattern = /\{\{(?:cs\d*\s+|c\d+::)/i;
+        const unconverted = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+            acceptNode(node) {
+                if(!rawPattern.test(String(node.nodeValue || ''))) return NodeFilter.FILTER_REJECT;
+                if(node.parentElement?.closest('.mk-extra-node, .mk-extra-content, .mk-card-answer-real, .mk-card-answer-mask, pre, code, script, style, textarea'))
+                    return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+        while(unconverted.nextNode()) {
+            const node = unconverted.currentNode;
+            result.unresolved.push({title:String(node.nodeValue || '').trim().slice(0,120),type:'unconverted-macro'});
+        }
         return result;
     }
     window.auditMkUnifiedHierarchy = auditMkUnifiedHierarchy;
+    window.auditMkSourceRegistry = () => {
+        const root=document.getElementById('question-section');
+        const card=activeDeck&&activeDeck[currentIndex];
+        const pending=mkHierarchyRecoveryTargets(root,card);
+        return {
+            appVersion:APP_VERSION,
+            sourceIdentity:String(card?.mkSourceIdentity || card?.blockId || ''),
+            candidateCount:pending.length,
+            unresolved:pending.slice(0,50).map(row=>({
+                label:row.label.slice(0,90),position:row.position,
+                explicit:row.explicitCard?'#card':row.explicitArrow?':->':row.explicitCs?'cs':'unmarked'
+            })),
+            lastRegistryUnresolved:Number(root?.dataset.mkHierarchyRegistryUnresolved||0),
+            ambiguous:Number(root?.dataset.mkHierarchyRegistryAmbiguous||0)
+        };
+    };
+
+
+    // ACTUAL DECK SOURCE AUDIT v1 — read-only. No showCard(), stats writes,
+    // cloud writes, network access, or changes to activeDeck/currentIndex.
+    const mkActualDeckAuditState = { running:false, abort:false, report:null };
+    function mkActualDeckAuditStatus(message) {
+        const node=document.getElementById('mk-audit-status');
+        if(node) node.textContent=String(message||'');
+    }
+    function openMkActualDeckAudit() {
+        const node=document.getElementById('mk-audit-overlay');
+        if(node) node.style.display='flex';
+        try { document.getElementById('sidebar')?.classList.remove('open');
+              document.querySelector('.sidebar-overlay')?.classList.remove('active'); } catch(_){}
+        if(!mkActualDeckAuditState.running && !mkActualDeckAuditState.report)
+            mkActualDeckAuditStatus('현재 앱에 로드된 덱만 검사합니다. 데이터가 없는 기기에서는 검사 결과도 제한됩니다.');
+    }
+    function closeMkActualDeckAudit() {
+        const node=document.getElementById('mk-audit-overlay');
+        if(node) node.style.display='none';
+    }
+    function stopMkActualDeckAudit() { mkActualDeckAuditState.abort=true; }
+    function mkAuditNormalizeLabel(value) {
+        return String(value||'').replace(/\{\{(?:cs\d*\s+|c\d+::)[^}]*\}\}/gi,'[정답]')
+            .replace(/\[\s*\.\.\.\s*\]/g,'[정답]')
+            .replace(/\s*#card\b/gi,'').replace(/\s*:-\s*>[\s\S]*$/,'')
+            .replace(/\s*\[정답\][\s\S]*$/,'').replace(/\s+/g,' ').trim().slice(0,160);
+    }
+    function mkAuditOwn(li) {
+        const copy=li.cloneNode(false);
+        Array.from(li.childNodes).forEach(node=>{
+            if(node.nodeType===1 && /^(?:UL|OL)$/.test(node.tagName))return;
+            const part=node.cloneNode(true);
+            if(part.nodeType===1)part.querySelectorAll('ul,ol').forEach(list=>list.remove());
+            copy.appendChild(part);
+        });
+        const ownHtml=String(copy.innerHTML||'');
+        const rawText=String(copy.textContent||'').replace(/\s+/g,' ').trim();
+        const title=mkAuditNormalizeLabel(rawText);
+        const arrow=/:\s*-\s*>|:-\s*(?:>|&gt;)/i.test(ownHtml) || /\bmk-arrow-(?:card|context|blank)\b/.test(ownHtml);
+        const cs=/\{\{cs\d*\s|\{\{c\d+::|\bmk-cs-(?:wrapper|mask)\b/i.test(ownHtml);
+        const ordinary=/#card\b|\bmk-card-(?:current|context|answer-mask)\b/i.test(ownHtml);
+        const blank=/\bcloze-q\b|\bmk-cs-mask\b|\bmk-card-answer-mask\b|\[\s*\.\.\.\s*\]/i.test(ownHtml);
+        const answer=/\bcloze-a\b|\bmk-cs-answer\b/i.test(ownHtml) ||
+              (ordinary && !!li.querySelector(':scope > ul, :scope > ol'));
+        return {title,arrow,cs,ordinary,blank,answer,raw:ownHtml.slice(0,260)};
+    }
+    function mkAuditSourceCard(card, deckPath, observations, statistics) {
+        const html=String(card.q||'');
+        const answerHtml=String(card.a||'');
+        if(!card.isLogseq) { statistics.nonLogseq++;return; }
+        if(/mk-io-wrapper|data-mk-io=/i.test(html)) { statistics.imageOcclusion++;return; }
+        statistics.logseq++;
+        if(html.length>1600000 || answerHtml.length>1600000) {
+            statistics.largeCardSkipped++;
+            statistics.warnings.push({id:String(card.id||''),deck:deckPath,reason:'원본 HTML 크기 초과 (개별 검증 필요)'});
+            return;
+        }
+        const parser=new DOMParser();
+        const body=parser.parseFromString(html,'text/html').body;
+        const cardRef=String(card.id||card.blockId||'');
+        const breadcrumb=String(card.breadcrumb||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,170);
+        const all=[...body.querySelectorAll('li')];
+        const ownCache=new WeakMap(), groupCache=new WeakMap();
+        const ownFor=li=>{if(!ownCache.has(li))ownCache.set(li,mkAuditOwn(li));return ownCache.get(li);};
+        let recognized=0;
+        all.forEach((li,index)=>{
+            if(li.closest('.mk-extra-node,.mk-extra-content'))return;
+            const entry=ownFor(li);
+            if(!entry.title) return;
+            // Canonical identity within a card: deck + breadcrumb + parent outline + title.
+            // Structural collisions are reported, never auto-repaired.
+            const parent=li.parentElement?.closest('li');
+            const parentText=parent?ownFor(parent).title:'(root)';
+            if(!groupCache.has(li.parentElement)) {
+                const groups=new Map();
+                Array.from(li.parentElement?.children||[]).filter(el=>el.tagName==='LI').forEach(sibling=>{
+                    const title=ownFor(sibling).title;
+                    if(!groups.has(title))groups.set(title,[]);
+                    groups.get(title).push(sibling);
+                });
+                groupCache.set(li.parentElement,groups);
+            }
+            const sameName=groupCache.get(li.parentElement).get(entry.title)||[];
+            const duplicate=sameName.length>1;
+            const occurrence=duplicate?sameName.indexOf(li)+1:0;
+            const key=JSON.stringify([deckPath,breadcrumb,parentText,entry.title,occurrence]);
+            const signal=entry.arrow||entry.cs||entry.ordinary||entry.blank||entry.answer;
+            if(signal) recognized++;
+            if(!observations.has(key)) observations.set(key,{deck:deckPath,breadcrumb,parent:parentText,label:entry.title,duplicate,observed:new Map(),signals:new Set()});
+            const record=observations.get(key);
+            if(signal) {
+                if(entry.arrow)record.signals.add(':->');
+                if(entry.cs)record.signals.add('cs');
+                if(entry.ordinary)record.signals.add('#card');
+            }
+            let current=record.observed.get(cardRef);
+            if(!current) {current={id:cardRef,sourceOrder:Number(card.sourceOrder)||0,marked:false,hasAnswer:false,hasBlank:false,occurrences:0};record.observed.set(cardRef,current);}
+            current.marked ||= signal;
+            current.hasBlank ||= entry.blank;
+            current.hasAnswer ||= entry.answer;
+            current.occurrences++;
+            if(current.occurrences>1) record.duplicate=true;
+        });
+        statistics.recognized+=recognized;
+        if(/\{\{(?:cs\d*\s+|c\d+::)[^}]*$/i.test(html)) statistics.warnings.push({deck:deckPath,id:cardRef,reason:'닫히지 않은 빈칸 매크로 가능성'});
+    }
+    async function startMkActualDeckAudit() {
+        if(mkActualDeckAuditState.running)return;
+        const cards=[];
+        Object.entries(library||{}).forEach(([deckPath, rows])=>(Array.isArray(rows)?rows:[]).forEach(card=>{
+            if(card&&typeof card==='object')cards.push({card,deckPath});
+        }));
+        if(!cards.length) {mkActualDeckAuditStatus('불러온 덱이 없습니다. 먼저 덱을 정상적으로 불러와주세요.');return;}
+        mkActualDeckAuditState.running=true;
+        mkActualDeckAuditState.abort=false;
+        mkActualDeckAuditState.report=null;
+        const run=document.getElementById('mk-audit-run'), stop=document.getElementById('mk-audit-stop'), dl=document.getElementById('mk-audit-download');
+        if(run)run.disabled=true;
+        if(stop)stop.disabled=false;
+        if(dl)dl.disabled=true;
+        const statistics={totalCards:cards.length,logseq:0,nonLogseq:0,imageOcclusion:0,largeCardSkipped:0,recognized:0,warnings:[]};
+        const observations=new Map();
+        let index=0;
+        let errors=[];
+        try {
+            while(index<cards.length && !mkActualDeckAuditState.abort) {
+                const started=performance.now();
+                do {
+                    const row=cards[index];
+                    try {mkAuditSourceCard(row.card,row.deckPath,observations,statistics);}
+                    catch(e) {errors.push({deck:row.deckPath,cardId:String(row.card.id||''),reason:String(e).slice(0,200)});}
+                    index++;
+                } while(index<cards.length && index%16!==0 && performance.now()-started<12);
+                const pg=document.getElementById('mk-audit-progress');if(pg)pg.value=Math.floor(index/cards.length*100);
+                mkActualDeckAuditStatus(`원본 카드 분석 중: ${index.toLocaleString()} / ${cards.length.toLocaleString()}\n검사 실패 ${errors.length}건 · 로드된 덱 ${Object.keys(library).length}개`);
+                await new Promise(resolve=>setTimeout(resolve,0));
+            }
+            const mismatches=[];
+            let sourceBlocks=0;
+            for(const v of observations.values()) {
+                sourceBlocks++;
+                const rows=[...v.observed.values()];
+                if(rows.length<2)continue;
+                const yes=rows.filter(row=>row.marked), no=rows.filter(row=>!row.marked);
+                if(!yes.length||!no.length)continue;
+                mismatches.push({deck:v.deck,breadcrumb:v.breadcrumb,parent:v.parent,label:v.label,
+                    sourceTypes:[...v.signals],ambiguous:!!v.duplicate,
+                    markedCardIds:yes.map(r=>r.id),missingCardIds:no.map(r=>r.id),
+                    markedCount:yes.length,missingCount:no.length});
+            }
+            mismatches.sort((a,b)=>b.missingCount-a.missingCount);
+            const report={schemaVersion:1,auditType:'read-only-raw-source-consistency',appVersion:APP_VERSION,
+              auditedAt:new Date().toISOString(),manifestVersion:String(window.__mkLibraryCacheMeta?.manifestVersion||'unknown'),
+              completed:!mkActualDeckAuditState.abort,scannedCards:index,totalLoadedCards:cards.length,
+              loadedDeckPaths:Object.keys(library),statistics:{...statistics,groupCount:sourceBlocks,mismatchCount:mismatches.length,parseErrors:errors.length},
+              limitations:['문제 원본 q와 계층 간 빈칸 표식 일관성을 검사함','동일한 항목이 카드 포커스에 따라 다르게 마스킹되는 정상적인 원본 차이도 후보로 탐지할 수 있음','실제 포커스별 렌더링/정답 공개 전수검사는 아님','동일한 제목을 갖는 독립 계층은 탐지 결과가 모호할 수 있음','가져오지 않은 덱 및 미래 카드 데이터는 검사하지 않음'],
+              mismatches,errors};
+            mkActualDeckAuditState.report=report;
+            mkActualDeckAuditStatus((report.completed?'검사 완료':'사용자가 검사 중단')+`\n분석 카드 ${index.toLocaleString()} / ${cards.length.toLocaleString()}\n계층 항목 ${sourceBlocks.toLocaleString()}\n빈칸 표시 불일치 후보 ${mismatches.length.toLocaleString()}건\n분석 예외 ${errors.length}건\n\n결과 JSON을 저장해서 공유하면 원인별로 수정할 수 있어. 이 검사는 실제 렌더링 전체 통과를 의미하지 않아.`);
+            if(dl)dl.disabled=false;
+        } finally { mkActualDeckAuditState.running=false;if(run)run.disabled=false;if(stop)stop.disabled=true; }
+    }
+    function downloadMkActualDeckAudit() {
+        const result=mkActualDeckAuditState.report;
+        if(!result)return;
+        const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'}));
+        const a=document.createElement('a');a.href=url;a.download='MK_deck_source_audit_'+new Date().toISOString().slice(0,10)+'.json';
+        document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+    }
+    window.openMkActualDeckAudit=openMkActualDeckAudit;
+    window.startMkActualDeckAudit=startMkActualDeckAudit;
+    window.downloadMkActualDeckAudit=downloadMkActualDeckAudit;
 
     function updateMkUnifiedHierarchyEye(root, card) {
         if(!root || !card || !card.isLogseq || isMkImageOcclusionCardFast(card)) return;
