@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.340 UNIFIED HIERARCHY GUARD -->
+<!-- preview: v18.5.341 SCROLL TARGET REVEAL FIX -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.340 UNIFIED HIERARCHY GUARD)</title>
+<title>MK (v18.5.341 SCROLL TARGET REVEAL FIX)</title>
 
 <script>
     (() => {
@@ -1096,7 +1096,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.340 UNIFIED HIERARCHY GUARD)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.341 SCROLL TARGET REVEAL FIX)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1489,7 +1489,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.340 UNIFIED HIERARCHY GUARD';
+    const APP_VERSION = 'v18.5.341 SCROLL TARGET REVEAL FIX';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -4661,11 +4661,15 @@
         if (!isVisibleRect(elementRect)) return false;
 
         const containerRect = container.getBoundingClientRect();
+        // A #card's expanded answer can be many screens tall. Centering the
+        // entire LI/list would land well below the first answer. For long
+        // targets anchor near their first line, not in the middle of the tree.
+        const offsetIntoTarget = Math.min(elementRect.height / 2, 20);
         const targetTop =
             container.scrollTop +
             (elementRect.top - containerRect.top) -
             (container.clientHeight * (options.alignRatio ?? 0.38)) +
-            (elementRect.height / 2);
+            offsetIntoTarget;
 
         const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
         const top = Math.min(maxTop, Math.max(0, targetTop));
@@ -4816,31 +4820,100 @@
         });
     }
 
+    // Always use the *visible* representation of the focused problem.  For
+    // :-> and {{cs}}, the answer is revealed inline in #question-section,
+    // not in #answer-section.  A static selector for only .cloze-q/.mk-cs-mask
+    // stops working as soon as the answer is opened.
+    function getMkCurrentProblemScrollTarget() {
+        const question = document.getElementById('question-section');
+        const answer = document.getElementById('answer-section');
+        if(!question) return null;
+        const card = activeDeck && activeDeck[currentIndex];
+        const firstVisible = (root, selectors) => {
+            if(!root) return null;
+            for(const selector of selectors) {
+                const candidate = Array.from(root.querySelectorAll(selector))
+                    .find(el => isVisibleRect(el.getBoundingClientRect()));
+                if(candidate) return candidate;
+            }
+            return null;
+        };
+        const visibleInQuestion = selectors => firstVisible(question, selectors);
+
+        if(isMkCSCardFast(card)) {
+            return visibleInQuestion([
+                '.mk-cs-wrapper.mk-cs-target .mk-cs-answer',
+                '.mk-cs-wrapper.mk-cs-target .mk-cs-mask',
+                '.mk-cs-wrapper.mk-cs-target'
+            ]) || firstVisible(answer, [
+                '.mk-cs-wrapper.mk-cs-target .mk-cs-answer',
+                '.mk-cs-wrapper.mk-cs-target .mk-cs-mask'
+            ]);
+        }
+        if(isMkArrowCard(card)) {
+            return visibleInQuestion([
+                '.mk-arrow-target .cloze-a',
+                '.mk-arrow-target .cloze-q',
+                '.mk-arrow-target',
+                '.mk-arrow-card .cloze-a',
+                '.mk-arrow-card .cloze-q'
+            ]) || firstVisible(answer, [
+                '.mk-arrow-target .cloze-a',
+                '.mk-arrow-target .cloze-q'
+            ]);
+        }
+        if(isMkImageOcclusionCardFast(card)) {
+            return visibleInQuestion(['.mk-io-target-mask', '.mk-io-image']) ||
+                firstVisible(answer, ['.mk-io-target-mask', '.mk-io-image']);
+        }
+
+        // #card: anchor to the beginning of the current answer, never to the
+        // center of li.mk-card-current (which can contain hundreds of bullets).
+        const focused = question.querySelector('li.mk-card-current');
+        if(focused) {
+            const target = firstVisible(focused, [
+                ':scope > .mk-card-original-answer .cloze-a',
+                ':scope > .mk-card-answer-real .cloze-a',
+                ':scope > .mk-card-answer-real > li > span',
+                ':scope > .mk-card-answer-real > li',
+                ':scope > .mk-card-original-answer > li > span',
+                ':scope > .mk-card-original-answer > li',
+                ':scope > .mk-card-answer-mask .mk-card-mask-label',
+                ':scope > .mk-card-answer-mask > li',
+                ':scope > .mk-card-question'
+            ]);
+            if(target) return target;
+            return focused;
+        }
+
+        // Other Logseq / ordinary cloze cards. Prefer the active block, not an
+        // unrelated sibling blank which happens to be first in document order.
+        return visibleInQuestion([
+            'li.active-block .cloze-a',
+            'li.active-block .cloze-q',
+            '.active-block .cloze-a',
+            '.active-block .cloze-q',
+            '.cloze-wrapper.mk-current-target .cloze-a',
+            '.cloze-wrapper.mk-current-target .cloze-q',
+            '.cloze-a',
+            '.cloze-q',
+            'li.active-block',
+            '.active-block'
+        ]) || firstVisible(answer, ['.cloze-a', '.cloze-q']);
+    }
+
     function scrollToCurrentProblem(e) {
         if(e) e.preventDefault();
-        const ioWrapper = findVisibleProblemElement('#question-section .mk-io-wrapper[data-mk-io="1"], #answer-section .mk-io-wrapper[data-mk-io="1"]');
-        if (scrollToStoredIOMaskRect(ioWrapper, { alignRatio: 0.35 })) return;
-
-        const currentIOMask = findVisibleProblemElement('#question-section .mk-io-target-mask, #answer-section .mk-io-target-mask');
-        if (scrollElementToProblemPosition(currentIOMask, { alignRatio: 0.35 })) return;
-
-        const currentCSTarget = findVisibleProblemElement('#question-section .mk-cs-wrapper.mk-cs-target .mk-cs-mask, #answer-section .mk-cs-wrapper.mk-cs-target .mk-cs-answer');
-        if (scrollElementToProblemPosition(currentCSTarget, { alignRatio: 0.38 })) return;
-
-        const currentArrow = findVisibleProblemElement('#question-section .mk-arrow-card .cloze-q, #answer-section .mk-arrow-card .cloze-a');
-        if (scrollElementToProblemPosition(currentArrow, { alignRatio: 0.38 })) return;
-
-        const currentOrdinaryCard = findVisibleProblemElement('#question-section li.mk-card-current');
-        if (scrollElementToProblemPosition(currentOrdinaryCard, { alignRatio: 0.36 })) return;
-
-        const currentCloze = findVisibleProblemElement('#question-section .cloze-q, #answer-section .cloze-a, .cloze-q');
-        if (scrollElementToProblemPosition(currentCloze, { alignRatio: 0.38 })) return;
-
-        const currentImage = findVisibleProblemElement('#question-section img, #answer-section img');
-        if (scrollElementToProblemPosition(currentImage, { alignRatio: 0.42 })) return;
-
-        const container = document.getElementById('scroll-area');
-        if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+        const card = activeDeck && activeDeck[currentIndex];
+        if(isMkImageOcclusionCardFast(card)) {
+            const wrapper = findVisibleProblemElement('#question-section .mk-io-wrapper[data-mk-io="1"], #answer-section .mk-io-wrapper[data-mk-io="1"]');
+            if(scrollToStoredIOMaskRect(wrapper, { alignRatio: 0.35 })) return;
+        }
+        const target = getMkCurrentProblemScrollTarget();
+        if(scrollElementToProblemPosition(target, { alignRatio: 0.38 })) return;
+        // Never jump to scrollHeight on failure: that looks like an answer
+        // anchor but is almost always the wrong location in a long hierarchy.
+        console.warn('[MK_SCROLL_TO_PROBLEM_TARGET_MISSING]', {cardId:String(card && card.id || '')});
     }
 
     function scrollToCloze(e) {
