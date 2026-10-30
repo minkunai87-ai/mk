@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.341 SCROLL TARGET REVEAL FIX -->
+<!-- preview: v18.5.342 MIXED CARD SOURCE RECOVERY -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.341 SCROLL TARGET REVEAL FIX)</title>
+<title>MK (v18.5.342 MIXED CARD SOURCE RECOVERY)</title>
 
 <script>
     (() => {
@@ -1020,6 +1020,31 @@
     .text-area.mk-unified-hierarchy.mode-answer .mk-unified-cloze-context > .cloze-a {
         display: none !important;
     }
+    /* Async source scans can append :-> context wrappers AFTER the original
+       question-mode classification. They must stay masked when a #card / CS
+       answer is revealed; only the focused answer or the eye may open them. */
+    .text-area.mk-unified-hierarchy.mode-answer:not(.mk-hierarchy-show-all)
+      .mk-arrow-context:not(.mk-arrow-target):not(.mk-arrow-card) > .cloze-q {
+        display: inline !important;
+    }
+    .text-area.mk-unified-hierarchy.mode-answer:not(.mk-hierarchy-show-all)
+      .mk-arrow-context:not(.mk-arrow-target):not(.mk-arrow-card) > .cloze-a {
+        display: none !important;
+    }
+    /* A genuine nested :-> answer INSIDE the focused ordinary #card is part
+       of that card's answer tree, not a separate sibling question. */
+    .text-area.mk-unified-hierarchy.mode-answer:not(.mk-hierarchy-show-all)
+      li.mk-card-current > .mk-card-original-answer .mk-arrow-context > .cloze-q,
+    .text-area.mk-unified-hierarchy.mode-answer:not(.mk-hierarchy-show-all)
+      li.mk-card-current > .mk-card-answer-real .mk-arrow-context > .cloze-q {
+        display: none !important;
+    }
+    .text-area.mk-unified-hierarchy.mode-answer:not(.mk-hierarchy-show-all)
+      li.mk-card-current > .mk-card-original-answer .mk-arrow-context > .cloze-a,
+    .text-area.mk-unified-hierarchy.mode-answer:not(.mk-hierarchy-show-all)
+      li.mk-card-current > .mk-card-answer-real .mk-arrow-context > .cloze-a {
+        display: inline !important;
+    }
     /* All descendants of the active #card answer subtree belong to the
        current answer, even when an importer put cloze wrappers in child LIs. */
     .text-area.mk-unified-hierarchy.mode-answer li.mk-card-current > .mk-card-original-answer .cloze-q { display:none !important; }
@@ -1096,7 +1121,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.341 SCROLL TARGET REVEAL FIX)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.342 MIXED CARD SOURCE RECOVERY)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1489,7 +1514,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.341 SCROLL TARGET REVEAL FIX';
+    const APP_VERSION = 'v18.5.342 MIXED CARD SOURCE RECOVERY';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -18052,6 +18077,56 @@ function getIOImageGroups() {
         return best;
     }
 
+    // A synced page can omit the literal #card marker AND the answer subtree
+    // for every inactive sibling.  Such rows are ordinary text when the focus
+    // is :-> or CS, even though their own independently exported cards still
+    // contain the real #card answers.  Collect only unmasked rows, then require
+    // a verified source from this SAME hierarchy before adding any mask.
+    function normalizeMkMixedSiblingTitle(label) {
+        return normalizeMkSiblingCardLabel(String(label || '')
+            .replace(/\{\{cs(?:\d+)?\s+[\s\S]*?\}\}/gi, '')
+            .replace(/:\s*->(?:\s*\[\s*\.\.\.\s*\])?/g, '')
+            .replace(/\{\{c\d+::[\s\S]*?\}\}/gi, ''));
+    }
+
+    function getMkMixedSiblingOutline(li) {
+        if(!li || !li.parentElement) return [];
+        return Array.from(li.parentElement.children).filter(node => node.tagName === 'LI')
+            .map(node => normalizeMkMixedSiblingTitle(getMkOwnCardQuestionLabel(node)))
+            .filter(Boolean);
+    }
+
+    function collectMkUnmarkedOrdinaryCardRows(root, card) {
+        if(!root || !card || !card.isLogseq) return [];
+        const rows = [];
+        root.querySelectorAll('li').forEach(li => {
+            if(li.dataset.mkCardAnswerAttached === '1' || li.classList.contains('mk-card-current') ||
+                li.classList.contains('mk-card-context') ||
+                li.closest('.mk-extra-node, .mk-extra-content, .mk-card-answer-real, .mk-card-answer-mask, .mk-card-original-answer')) return;
+            // An ancestor's nested list is an outline, not an unmarked card.
+            // Skip it before cloning potentially hundreds of descendants.
+            if(getMkOrdinaryCardOwnList(li)) return;
+            // This row already has an answer or an identified problem type.
+            // No title-only guessing is allowed for CS / :-> / ordinary clozes.
+            const own = cloneMkHierarchyOwnContent(li);
+            const title = String(own.textContent || '').trim();
+            if(!li.parentElement || !title || /(?:^|\s)#card\b|:\s*->|\{\{cs(?:\d+)?\b|\{\{c\d+::/i.test(title) ||
+               own.querySelector('.cloze-wrapper, .mk-cs-wrapper, .mk-card-answer-mask, .mk-arrow-blank, .mk-io-wrapper')) return;
+            const label = normalizeMkSiblingCardLabel(title);
+            if(label) rows.push(li);
+        });
+        return rows;
+    }
+
+    function getMkMixedSiblingOutlineFromSource(entry) {
+        if(entry.mixedOutline) return entry.mixedOutline;
+        // The source parser already captured sibling titles; don't parse a
+        // 300-row Logseq tree a second time for every ordinary card.
+        entry.mixedOutline = String(entry.signature || '').split('\u241f')
+            .map(normalizeMkMixedSiblingTitle).filter(Boolean);
+        return entry.mixedOutline;
+    }
+
     // Explicit #card siblings can be hundreds of source records apart. Search
     // their answers once per visible hierarchy (not once per sibling) and yield
     // between short batches to keep the mobile page interactive.
@@ -18059,24 +18134,43 @@ function getIOImageGroups() {
     function queueMkLongOrdinaryCardAnswers(root, card, missingLis) {
         if(!root || !card || !missingLis.length) return;
         const old = mkLongOrdinarySourceScans.get(root);
-        if(old && old.card === card) return;
         const token = mkOrdinaryCardContextRenderToken;
+        // The same DOM root is reused on every showCard(). An old scan of the
+        // same card belongs to a previous render token and must not block the
+        // new render's missing sibling answers.
+        if(old && old.card === card && old.token === token) return;
         const sourceOrder = Number(card.sourceOrder);
         const wanted = new Map();
+        const parentOutlines = new Map();
         missingLis.forEach(li => {
             const label = normalizeMkSiblingCardLabel(getMkOwnCardQuestionLabel(li));
             if(!label) return;
             if(!wanted.has(label)) wanted.set(label, []);
+            const unmarked = li.dataset.mkUnmarkedCardCandidate === '1';
+            if(unmarked && !parentOutlines.has(li.parentElement))
+                parentOutlines.set(li.parentElement, getMkMixedSiblingOutline(li));
             wanted.get(label).push({
                 li, key:getMkOrdinaryCardContextKey(card,root,li),
-                signature:getMkOrdinaryCardSiblingSignature(li),
+                signature:unmarked ? '' : getMkOrdinaryCardSiblingSignature(li),
+                outline:unmarked ? parentOutlines.get(li.parentElement) : [],
+                unmarked,
                 best:null, ambiguous:false
             });
         });
         if(!wanted.size) return;
         const sources = getMkSiblingCardCandidatePool(card).filter(candidate =>
-            candidate && candidate !== card && String(candidate.deck || '') === String(card.deck || '') &&
+            candidate && candidate !== card && candidate.isLogseq &&
+            !isMkArrowCard(candidate) && !isMkCSCardFast(candidate) && !isMkImageOcclusionCardFast(candidate) &&
+            String(candidate.deck || '') === String(card.deck || '') &&
             (!card.breadcrumb || !candidate.breadcrumb || String(candidate.breadcrumb) === String(card.breadcrumb)));
+        // Nearby sources first; the rest are still searched for long hierarchies.
+        // Do not walk a 2,000-card deck for every individual blank.
+        sources.sort((a,b) => {
+            const ao=Number(a.sourceOrder), bo=Number(b.sourceOrder);
+            const ad=Number.isFinite(sourceOrder)&&Number.isFinite(ao)?Math.abs(ao-sourceOrder):Infinity;
+            const bd=Number.isFinite(sourceOrder)&&Number.isFinite(bo)?Math.abs(bo-sourceOrder):Infinity;
+            return ad-bd;
+        });
         const scan = {card, token};
         mkLongOrdinarySourceScans.set(root, scan);
         let cursor = 0;
@@ -18100,10 +18194,25 @@ function getIOImageGroups() {
                     const sameOutline = !!item.signature && !!entry.signature && item.signature === entry.signature;
                     const sameBreadcrumb = !!card.breadcrumb && !!candidate.breadcrumb &&
                         String(card.breadcrumb) === String(candidate.breadcrumb);
-                    if(!sameScope && !sameOutline && !(sameBreadcrumb && distance <= 3)) continue;
-                    if(distance > 12 && !sameScope && !sameOutline) continue;
+                    let commonOutline = 0;
+                    if(item.unmarked) {
+                        const sourceOutline = getMkMixedSiblingOutlineFromSource(entry);
+                        const sourceSet = new Set(sourceOutline);
+                        commonOutline = item.outline.reduce((count,label) => count + (sourceSet.has(label) ? 1 : 0), 0);
+                        // An unmarked row must be backed by a matching source
+                        // hierarchy, not just a matching label or same deck.
+                        const structurallySame = (sameScope && commonOutline >= 2) ||
+                            (sameScope && sameBreadcrumb && distance <= 12) ||
+                            (sameBreadcrumb && commonOutline >= 3 && distance <= 30);
+                        if(!structurallySame) continue;
+                        if(item.outline.filter(label => label === normalizeMkMixedSiblingTitle(getMkOwnCardQuestionLabel(item.li))).length > 1)
+                            continue; // Ambiguous duplicate title in this sibling group.
+                    } else {
+                        if(!sameScope && !sameOutline && !(sameBreadcrumb && distance <= 3)) continue;
+                        if(distance > 12 && !sameScope && !sameOutline) continue;
+                    }
                     const score = (sameScope ? 10000 : 0) + (sameOutline ? 5000 : 0) +
-                        (sameBreadcrumb ? 100 : 0) - Math.min(distance, 1000);
+                        (sameBreadcrumb ? 100 : 0) + (item.unmarked ? commonOutline*20 : 0) - Math.min(distance,1000);
                     if(!item.best || score > item.best.score) {
                         item.best = {source:entry,score}; item.ambiguous = false;
                     } else if(score === item.best.score &&
@@ -18223,7 +18332,13 @@ function getIOImageGroups() {
         if(root.querySelector('.mk-card-current, .mk-card-context')) {
             root.classList.add('mk-card-hierarchy-expanded');
         }
-        if(delayedCardBlocks.length) queueMkLongOrdinaryCardAnswers(root,card,delayedCardBlocks);
+        // Imported sibling HTML may omit #card altogether.  Collect the
+        // remaining plain-text rows and match only verified #card source trees.
+        // The source scan is shared with explicitly tagged unresolved cards.
+        const unmarked = collectMkUnmarkedOrdinaryCardRows(root, card);
+        unmarked.forEach(li => { li.dataset.mkUnmarkedCardCandidate = '1'; });
+        const pending = delayedCardBlocks.concat(unmarked);
+        if(pending.length) queueMkLongOrdinaryCardAnswers(root,card,pending);
         // Mark only ordinary clozes belonging to OTHER bullets as context;
         // mode-answer must never accidentally reveal them alongside the target.
         const arrow = root.querySelector('.mk-arrow-target, .mk-arrow-card');
