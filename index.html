@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.348 ACTUAL DECK SOURCE AUDIT -->
+<!-- preview: v18.5.349 REAL SOURCE CARD PROVENANCE -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.348 ACTUAL DECK SOURCE AUDIT)</title>
+<title>MK (v18.5.349 REAL SOURCE CARD PROVENANCE)</title>
 
 <script>
     (() => {
@@ -1122,7 +1122,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.348 ACTUAL DECK SOURCE AUDIT)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.349 REAL SOURCE CARD PROVENANCE)</div>
     </div>
 
 
@@ -1532,7 +1532,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.348 ACTUAL DECK SOURCE AUDIT';
+    const APP_VERSION = 'v18.5.349 REAL SOURCE CARD PROVENANCE';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -12216,9 +12216,17 @@
         return getMkCachedCardType(card,'cs',() => {
             const q = String(card.q || ''), a = String(card.a || '');
             const hasActiveCS = value => value.includes('data-mk-cs="1"') || value.includes("data-mk-cs='1'");
-            if(!hasActiveCS(q) && !hasActiveCS(a)) return false;
-            // Only the CURRENT active block defines the type, not sibling context.
-            return hasActiveCS(getMkActiveBlockHtml(q)) || hasActiveCS(getMkActiveBlockHtml(a));
+            // Raw Logseq exports may keep {{cs answer}} rather than the
+            // generated data-mk-cs wrapper. This is still a CS card if and
+            // ONLY if the current ACTIVE block owns that macro. A CS in an
+            // inactive sibling must not change the current card's type.
+            const rawCS=value=>/\{\{(?:cs\d*\s+|c\d+::)/i.test(String(value||''));
+            // Most of the 10k cards have neither CS marker nor raw macro.
+            // Avoid constructing a DOM at all for those ordinary cards.
+            if(!hasActiveCS(q) && !hasActiveCS(a) && !rawCS(q) && !rawCS(a)) return false;
+            const activeQ=getMkActiveBlockHtml(q), activeA=getMkActiveBlockHtml(a);
+            return hasActiveCS(activeQ) || hasActiveCS(activeA) ||
+                rawCS(activeQ) || rawCS(activeA);
         });
     }
 
@@ -15342,7 +15350,12 @@ function getMkArrowOwnBlockText(block) {
         const isProblemBlock = block => {
             const own = directOwnClone(block);
             const ownText = String(own.textContent || '').replace(/\s+/g, ' ').trim();
-            return ownText.includes(':->') || !!own.querySelector('.mk-arrow-card, .mk-arrow-target, .mk-cs-target');
+            // A CS or #card sibling BEFORE the focused arrow is another
+            // QUESTION, not orphan EXTRA. Marking it EXTRA hides its masks
+            // (and later incorrectly reveals its answer).
+            return ownText.includes(':->') || /\{\{cs\d*\s/i.test(ownText) ||
+                /(?:^|\s)#card\b/i.test(ownText) ||
+                !!own.querySelector('.mk-arrow-card, .mk-arrow-target, .mk-cs-wrapper, a[data-ref="card"], a.tag[href*="page=card"]');
         };
 
         const firstProblemIndex = siblings.findIndex(isProblemBlock);
@@ -15353,7 +15366,8 @@ function getMkArrowOwnBlockText(block) {
             if(block.classList.contains('mk-extra-node')) return;
             const own = directOwnClone(block);
             const ownText = String(own.textContent || '').replace(/\s+/g, ' ').trim();
-            if(ownText.includes(':->')) return;
+            if(ownText.includes(':->') || /\{\{cs\d*\s|(?:^|\s)#card\b/i.test(ownText) ||
+                !!own.querySelector('.mk-cs-wrapper,a[data-ref="card"],a.tag[href*="page=card"]')) return;
 
             // Old cached/parser output can leave the block that OWNS BEGIN_EXTRA as
             // a normal hierarchy sibling. It appears as the stray red [...] directly
@@ -15421,12 +15435,15 @@ function getMkArrowOwnBlockText(block) {
             const isArrowProblem = block => {
                 const own = ownClone(block);
                 const text = String(own.textContent || '').replace(/\s+/g, ' ').trim();
-                return text.includes(':->') || !!own.querySelector('.mk-arrow-target, .mk-arrow-card, .mk-arrow-blank');
+                return text.includes(':->') || /\{\{cs\d*\s|(?:^|\s)#card\b/i.test(text) ||
+                    !!own.querySelector('.mk-arrow-target, .mk-arrow-card, .mk-arrow-blank, .mk-cs-wrapper, a[data-ref="card"], a.tag[href*="page=card"]');
             };
             const firstProblemIndex = siblings.findIndex(isArrowProblem);
             if(firstProblemIndex > 0) {
                 siblings.slice(0, firstProblemIndex).forEach(block => {
                     const own = ownClone(block);
+                    if(!!own.querySelector('.mk-cs-wrapper, a[data-ref="card"], a.tag[href*="page=card"]') ||
+                        /\{\{cs\d*\s|(?:^|\s)#card\b/i.test(String(own.textContent||''))) return;
                     const hasMaskedAnswer = !!own.querySelector('.cloze-wrapper .cloze-a, .mk-cs-wrapper .mk-cs-answer');
                     if(!hasMaskedAnswer) return;
                     revealed += openBlock(block);
@@ -15934,18 +15951,19 @@ if (img.classList.contains('mk-io-image') || img.getAttribute('data-mk-io') === 
             }
         });
 
-        // Fallback for older/generated cards whose target key metadata was lost:
-        // the active problem block owns the target, so use its first CS wrapper.
+        // If an exported CS card has no group metadata, every CS macro
+        // owned by its active block is part of that single question. Never
+        // reveal CS macros in sibling LIs as a side effect.
         if(!root.querySelector('.mk-cs-wrapper.mk-cs-target')) {
-            const activeWrapper =
-                root.querySelector('li.active-block .mk-cs-wrapper') ||
-                root.querySelector('.active-block .mk-cs-wrapper') ||
-                wrappers[0];
-
-            if(activeWrapper) {
-                activeWrapper.classList.add('mk-cs-target');
-                activeWrapper.classList.remove('mk-cs-context');
-            }
+            const activeNodes=Array.from(root.querySelectorAll('li.active-block, li.ls-active')).reverse();
+            const active=activeNodes.find(li => Array.from(li.querySelectorAll('.mk-cs-wrapper'))
+                .some(w => w.closest('li')===li));
+            const owned=active ? Array.from(active.querySelectorAll('.mk-cs-wrapper'))
+                .filter(w=>w.closest('li')===active) : [];
+            (owned.length?owned:[wrappers[0]]).forEach(wrapper=>{
+                wrapper.classList.add('mk-cs-target');
+                wrapper.classList.remove('mk-cs-context');
+            });
         }
 
         return !!root.querySelector('.mk-cs-wrapper.mk-cs-target');
@@ -18573,9 +18591,18 @@ function getIOImageGroups() {
         const own = cloneMkHierarchyOwnContent(li);
         const text = String(own.textContent || '');
         // Source card answers inside real child lists retain the rich HTML.
-        const tag = /(?:^|\s)#card\b/i.test(text);
+        // Logseq's HTML export commonly renders #card as an empty link tag:
+        // <a class="tag" data-ref="card" href="...page=card"></a>.
+        // The literal '#card' is then ABSENT from textContent. Also accept the
+        // actively exported nested answer list, which contains cloze-a even
+        // when the tag itself was stripped. Never infer a #card merely from
+        // an unmarked *inactive* sibling or an ordinary outline heading.
+        const tag = /(?:^|\s)#card\b/i.test(text) ||
+            !!own.querySelector('a[data-ref="card"], a.tag[href*="page=card"]');
         const list = getMkOrdinaryCardOwnList(li);
-        if(tag && mkCardAnswerListHasContent(list))
+        const activeCardAnswer = isActive && !!list &&
+            !!list.querySelector('.cloze-wrapper .cloze-a');
+        if((tag || activeCardAnswer) && mkCardAnswerListHasContent(list))
             return {type:'card',html:'',realList:list.cloneNode(true)};
         const cs = own.querySelector('.mk-cs-wrapper .mk-cs-answer');
         if(cs && String(cs.textContent || '').trim()) return {type:'cs',html:cs.innerHTML};
@@ -18623,7 +18650,13 @@ function getIOImageGroups() {
                 if(!html || !/<li\b/i.test(html)) continue;
                 const holder = document.createElement('div');
                 holder.innerHTML=html;
-                const active = getMkArrowTargetOwnerLi(holder) || getMkOrdinaryCardActiveLi(holder);
+                const focused = Array.from(holder.querySelectorAll('li.active-block, li.ls-active'));
+                const active = focused.reverse().find(li => {
+                    const own=cloneMkHierarchyOwnContent(li);
+                    return /:-\s*>/.test(String(own.textContent||'')) ||
+                        !!own.querySelector('a[data-ref="card"], a.tag[href*="page=card"]') ||
+                        !!getMkOrdinaryCardOwnList(li) || /\{\{cs\d*\s/i.test(String(own.textContent||''));
+                }) || getMkArrowTargetOwnerLi(holder) || getMkOrdinaryCardActiveLi(holder);
                 holder.querySelectorAll('li').forEach(li => {
                     if(li.closest('.mk-extra-node, .mk-extra-content, .mk-card-answer-real, .mk-card-answer-mask')) return;
                     const answer = mkHierarchySourceAnswer(li,li===active);
@@ -18676,7 +18709,9 @@ function getIOImageGroups() {
                 li.dataset.mkCardAnswerAttached==='1') return;
             const own = cloneMkHierarchyOwnContent(li);
             const ownText=String(own.textContent||'');
-            if(!ownText.trim() || /(?:^|\s)#card\b/.test(ownText) && !!getMkOrdinaryCardOwnList(li)) return;
+            const hasCardTag=/(?:^|\s)#card\b/i.test(ownText) ||
+                !!own.querySelector('a[data-ref="card"], a.tag[href*="page=card"]');
+            if(!ownText.trim() || (hasCardTag && !!getMkOrdinaryCardOwnList(li))) return;
             if(own.querySelector('.cloze-wrapper,.mk-cs-wrapper,.mk-card-answer-mask,.mk-io-wrapper')) return;
             // A parent with nested bullets is normally an outline heading; an
             // explicit #card without an answer is the only exception.
@@ -18687,7 +18722,8 @@ function getIOImageGroups() {
             const outline=mkHierarchySiblingOutline(li);
             if(outline.index<0) return;
             result.push({li,label,scope,nodeId:mkHierarchyStableNodeId(li),position:outline.index,outline:outline.labels,
-                explicitCard:/(?:^|\s)#card\b/i.test(ownText),
+                explicitCard:/(?:^|\s)#card\b/i.test(ownText) ||
+                    !!own.querySelector('a[data-ref="card"], a.tag[href*="page=card"]'),
                 explicitArrow:ownText.includes(':->'),
                 explicitCs:/\{\{cs\d*\s/i.test(ownText)});
         });
@@ -18937,7 +18973,7 @@ function getIOImageGroups() {
         const title=mkAuditNormalizeLabel(rawText);
         const arrow=/:\s*-\s*>|:-\s*(?:>|&gt;)/i.test(ownHtml) || /\bmk-arrow-(?:card|context|blank)\b/.test(ownHtml);
         const cs=/\{\{cs\d*\s|\{\{c\d+::|\bmk-cs-(?:wrapper|mask)\b/i.test(ownHtml);
-        const ordinary=/#card\b|\bmk-card-(?:current|context|answer-mask)\b/i.test(ownHtml);
+        const ordinary=/#card\b|\bmk-card-(?:current|context|answer-mask)\b|data-ref=[\"']card[\"']/i.test(ownHtml);
         const blank=/\bcloze-q\b|\bmk-cs-mask\b|\bmk-card-answer-mask\b|\[\s*\.\.\.\s*\]/i.test(ownHtml);
         const answer=/\bcloze-a\b|\bmk-cs-answer\b/i.test(ownHtml) ||
               (ordinary && !!li.querySelector(':scope > ul, :scope > ol'));
@@ -18959,6 +18995,14 @@ function getIOImageGroups() {
         const cardRef=String(card.id||card.blockId||'');
         const breadcrumb=String(card.breadcrumb||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,170);
         const all=[...body.querySelectorAll('li')];
+        const sourceAncestor=body.querySelector('.ancestor-wrapper');
+        // The deck name and a bare '1'/'2' label do NOT identify a Logseq
+        // source problem. Old audit grouped 1,625 unrelated labels together.
+        // Use the entire ancestor outline and exact ordered sibling titles;
+        // this is conservative and may report fewer candidates, never a
+        // misleading cross-question mismatch.
+        const ancestorPath=sourceAncestor ? String(sourceAncestor.textContent||'')
+            .replace(/\s+/g,' ').trim().slice(0,2400) : '';
         const ownCache=new WeakMap(), groupCache=new WeakMap();
         const ownFor=li=>{if(!ownCache.has(li))ownCache.set(li,mkAuditOwn(li));return ownCache.get(li);};
         let recognized=0;
@@ -18982,7 +19026,16 @@ function getIOImageGroups() {
             const sameName=groupCache.get(li.parentElement).get(entry.title)||[];
             const duplicate=sameName.length>1;
             const occurrence=duplicate?sameName.indexOf(li)+1:0;
-            const key=JSON.stringify([deckPath,breadcrumb,parentText,entry.title,occurrence]);
+            const siblings=Array.from(li.parentElement?.children||[]).filter(el=>el.tagName==='LI');
+            const exactOutline=siblings.map(sibling=>ownFor(sibling).title);
+            const position=siblings.indexOf(li);
+            const parents=[];
+            let parentNode=parent;
+            while(parentNode) {
+                parents.unshift(ownFor(parentNode).title);
+                parentNode=parentNode.parentElement?.closest('li');
+            }
+            const key=JSON.stringify([deckPath,breadcrumb,ancestorPath,parents,exactOutline,position,entry.title,occurrence]);
             const signal=entry.arrow||entry.cs||entry.ordinary||entry.blank||entry.answer;
             if(signal) recognized++;
             if(!observations.has(key)) observations.set(key,{deck:deckPath,breadcrumb,parent:parentText,label:entry.title,duplicate,observed:new Map(),signals:new Set()});
@@ -19048,11 +19101,11 @@ function getIOImageGroups() {
                     markedCount:yes.length,missingCount:no.length});
             }
             mismatches.sort((a,b)=>b.missingCount-a.missingCount);
-            const report={schemaVersion:1,auditType:'read-only-raw-source-consistency',appVersion:APP_VERSION,
+            const report={schemaVersion:2,auditType:'read-only-exact-outline-source-consistency',appVersion:APP_VERSION,
               auditedAt:new Date().toISOString(),manifestVersion:String(window.__mkLibraryCacheMeta?.manifestVersion||'unknown'),
               completed:!mkActualDeckAuditState.abort,scannedCards:index,totalLoadedCards:cards.length,
               loadedDeckPaths:Object.keys(library),statistics:{...statistics,groupCount:sourceBlocks,mismatchCount:mismatches.length,parseErrors:errors.length},
-              limitations:['문제 원본 q와 계층 간 빈칸 표식 일관성을 검사함','동일한 항목이 카드 포커스에 따라 다르게 마스킹되는 정상적인 원본 차이도 후보로 탐지할 수 있음','실제 포커스별 렌더링/정답 공개 전수검사는 아님','동일한 제목을 갖는 독립 계층은 탐지 결과가 모호할 수 있음','가져오지 않은 덱 및 미래 카드 데이터는 검사하지 않음'],
+              limitations:['문제 원본 q와 계층 간 빈칸 표식 일관성을 검사함','동일한 항목이 카드 포커스에 따라 다르게 마스킹되는 정상적인 원본 차이도 후보로 탐지할 수 있음','실제 포커스별 렌더링/정답 공개 전수검사는 아님','같은 조상·형제 구성이 완전히 동일한 독립 계층은 모호할 수 있어 오연결을 금지해야 함','가져오지 않은 덱 및 미래 카드 데이터는 검사하지 않음'],
               mismatches,errors};
             mkActualDeckAuditState.report=report;
             mkActualDeckAuditStatus((report.completed?'검사 완료':'사용자가 검사 중단')+`\n분석 카드 ${index.toLocaleString()} / ${cards.length.toLocaleString()}\n계층 항목 ${sourceBlocks.toLocaleString()}\n빈칸 표시 불일치 후보 ${mismatches.length.toLocaleString()}건\n분석 예외 ${errors.length}건\n\n결과 JSON을 저장해서 공유하면 원인별로 수정할 수 있어. 이 검사는 실제 렌더링 전체 통과를 의미하지 않아.`);
