@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.337 CARD ANSWER REVEAL -->
+<!-- preview: v18.5.340 UNIFIED HIERARCHY GUARD -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.337 CARD ANSWER REVEAL)</title>
+<title>MK (v18.5.340 UNIFIED HIERARCHY GUARD)</title>
 
 <script>
     (() => {
@@ -1096,7 +1096,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.337 CARD ANSWER REVEAL)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.340 UNIFIED HIERARCHY GUARD)</div>
     </div>
 
     <div class="modal-overlay learning-stats-modal" id="learning-stats-modal">
@@ -1489,7 +1489,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.337 CARD ANSWER REVEAL';
+    const APP_VERSION = 'v18.5.340 UNIFIED HIERARCHY GUARD';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -14169,12 +14169,25 @@ function tagRenderedMkArrowTarget(root) {
         return tagged;
     }
 
+    // Shared Logseq tree primitive: inspect only the owning block's content.
+    // Deep-cloning an LI with 300 nested siblings at each level is quadratic
+    // and made mixed CS/#card/:-> pages appear to hang in mobile PWA.
+    // Preserve inline formatting/answer wrappers, but exclude descendant
+    // lists. A copied wrapper with an embedded list is pruned as well.
+    function cloneMkHierarchyOwnContent(block) {
+        const own = document.createElement('div');
+        if(!block) return own;
+        Array.from(block.childNodes || []).forEach(node => {
+            if(node.nodeType === Node.ELEMENT_NODE && /^(UL|OL)$/i.test(node.tagName || '')) return;
+            own.appendChild(node.cloneNode(true));
+        });
+        own.querySelectorAll('ul,ol').forEach(list => list.remove());
+        return own;
+    }
+
 function getMkArrowOwnBlockText(block) {
         if(!block) return '';
-        const clone = block.cloneNode(true);
-        Array.from(clone.children || []).forEach(child => {
-            if(/^(UL|OL)$/i.test(child.tagName || '')) child.remove();
-        });
+        const clone = cloneMkHierarchyOwnContent(block);
         clone.querySelectorAll('.cloze-wrapper, .mk-cs-wrapper, table, img, svg').forEach(node => node.remove());
         // Some imported source cards still contain a raw ':-> answer' rather
         // than a rendered cloze. The identity of that question ends BEFORE
@@ -14226,8 +14239,7 @@ function getMkArrowOwnBlockText(block) {
         const activeBlocks = Array.from(root.querySelectorAll('li.active-block'));
         for(let i = activeBlocks.length - 1; i >= 0; i--) {
             const li = activeBlocks[i];
-            const own = li.cloneNode(true);
-            own.querySelectorAll('ul, ol').forEach(node => node.remove());
+            const own = cloneMkHierarchyOwnContent(li);
             if(own.textContent.includes(':->')) return li;
         }
         const fallback = activeBlocks[activeBlocks.length - 1] || root.querySelector('.active-block');
@@ -14727,13 +14739,15 @@ function getMkArrowOwnBlockText(block) {
         const blocks = Array.from(root.querySelectorAll('li')).filter(li => {
             if(li.closest('.mk-extra-node, .mk-extra-content, .mk-card-answer-mask, .mk-card-answer-real')) return false;
             if(getMkArrowOwnClozeWrappers(li).length) return false;
-            const own = li.cloneNode(true);
-            own.querySelectorAll('ul, ol').forEach(node => node.remove());
+            const own = cloneMkHierarchyOwnContent(li);
             // Arrow-source recovery must never turn a CS or #card question into
             // an arrow blank simply because its title matches another card.
             if(own.querySelector('.mk-cs-wrapper, .mk-io-wrapper, .mk-card-answer-mask, .mk-card-answer-real')) return false;
             if(/(?:^|\s)#card\b|\{\{cs\d*\b/i.test(String(own.textContent || ''))) return false;
-            if(String(own.textContent || '').includes(':->')) return false; // raw marker handled in place
+            // An unfocused :-> row often retains its marker but has no answer
+            // in this card's exported HTML. It MUST be eligible for verified
+            // source recovery. The nested-marker pass only handles rows that
+            // already contain their own inline answer.
             return !!getMkArrowOwnBlockText(li);
         });
         if(!blocks.length) return 0;
@@ -14897,6 +14911,22 @@ function getMkArrowOwnBlockText(block) {
         const arrowLevels = new Set(Array.from(root.querySelectorAll(
             '.mk-arrow-target, .mk-arrow-card, .mk-arrow-blank, .mk-arrow-context'
         )).map(wrapper => wrapper.closest('li')?.parentElement).filter(Boolean));
+        // Even when the currently focused card is CS or #card, unmasked :->
+        // siblings belong to the SAME source hierarchy and must be recovered.
+        // A raw marker is not a rendered cloze, so the previous arrowLevels
+        // discovery missed the entire list (especially in mixed pages).
+        // Restrict candidates to the immediate sibling level of a verified
+        // question marker/target; never scan unrelated parent headings.
+        root.querySelectorAll('li').forEach(li => {
+            if(li.closest('.mk-extra-node, .mk-extra-content, .mk-card-answer-mask, .mk-card-answer-real')) return;
+            const own = cloneMkHierarchyOwnContent(li);
+            if(String(own.textContent || '').includes(':->') ||
+                !!own.querySelector('.mk-cs-wrapper.mk-cs-target') ||
+                /(?:^|\s)#card\b/i.test(String(own.textContent || '')) ||
+                li.classList.contains('mk-card-current')) {
+                if(li.parentElement) arrowLevels.add(li.parentElement);
+            }
+        });
         // Parent headings and unrelated nested notes are not missing questions.
         // Searching the full deck for each of them would both slow navigation and
         // risk attaching a same-named answer from a different subtree.
@@ -17517,9 +17547,9 @@ function getIOImageGroups() {
 
     function getMkOwnCardQuestionLabel(li) {
         if(!li) return '';
-        const copy = li.cloneNode(true);
+        const copy = cloneMkHierarchyOwnContent(li);
         // A nested answer tree must never be treated as part of the parent title.
-        copy.querySelectorAll('ul, ol, .mk-card-answer-real, .mk-card-answer-mask').forEach(el => el.remove());
+        copy.querySelectorAll('.mk-card-answer-real, .mk-card-answer-mask').forEach(el => el.remove());
         return String(copy.textContent || '').replace(/\s*#card\b/gi, '')
             .replace(/\[\s*\.\.\.\s*\]/g, '').replace(/\s+/g,' ').trim();
     }
@@ -17742,8 +17772,14 @@ function getIOImageGroups() {
             }
             found.set(label,winner.source);
         }
-        // Never append another copy of a #card title; work on the existing LI.
-        if(!decorateMkOrdinaryCardAnswer(active,current,true)) return false;
+        // The first render has already passed through prepareMkUnifiedHierarchy().
+        // In large decks this scan completes asynchronously, so the focused
+        // #card is usually decorated before this callback executes.  Do NOT
+        // abort the sibling pass merely because that answer is already set.
+        // That used to leave every untagged sibling as bare question text.
+        const focusedReady = active.dataset.mkCardAnswerAttached === '1' &&
+            active.classList.contains('mk-card-current');
+        if(!focusedReady && !decorateMkOrdinaryCardAnswer(active,current,true)) return false;
         let otherCount=0, matched=0;
         siblings.forEach((li,i)=>{
             if(li===active) return;
@@ -18068,6 +18104,12 @@ function getIOImageGroups() {
     function prepareMkUnifiedHierarchy(root, card) {
         if(!root || !card || !card.isLogseq || isMkImageOcclusionCardFast(card)) return;
         root.classList.add('mk-unified-hierarchy');
+        // A source hierarchy may mix :->, #card, {{cs ...}}, and Anki {{c1::...}}
+        // in any order. Normalize ALL raw cloze syntaxes irrespective of the
+        // current card type. Older code only converted raw CS on a CS-focused
+        // page, so siblings silently disappeared on #card/:-> focused pages.
+        if(String(card.q || '').includes('{{cs') || String(root.textContent || '').includes('{{cs'))
+            maskMkCSContextMacros(root);
         if(String(card.q || '').includes('{{c')) maskMkOrdinaryClozeContextMacros(root);
         // Arrow card normalization has already processed its nested sources;
         // run the same pass here only for CS / #card / ordinary targets.
@@ -18134,6 +18176,38 @@ function getIOImageGroups() {
         });
     }
 
+    // Regression observability: expose structured defects without fabricating
+    // missing answers or marking unrelated explanation bullets as cards.
+    // This diagnostic is intentionally lazy (only run by explicit developer
+    // invocation), so routine study navigation remains fast on long decks.
+    function auditMkUnifiedHierarchy(root = document.getElementById('question-section')) {
+        if(!root) return {error:'no-question-section'};
+        const result = {version:APP_VERSION, cardId:String(activeDeck?.[currentIndex]?.id || ''),
+            total:0, arrow:0, cs:0, ordinary:0, unresolved:[], duplicateMasks:[]};
+        root.querySelectorAll('li').forEach(li => {
+            if(li.closest('.mk-extra-node, .mk-extra-content, .mk-card-answer-real, .mk-card-answer-mask')) return;
+            const own = cloneMkHierarchyOwnContent(li);
+            const title = String(getMkArrowOwnBlockText(li)).slice(0,120);
+            const text = String(own.textContent || '');
+            const arrow = /:-\s*>/.test(text);
+            const cs = own.querySelector('.mk-cs-wrapper') || /\{\{cs(?:\d+)?\s/.test(text);
+            const card = /(?:^|\s)#card\b/i.test(text);
+            if(!arrow && !cs && !card) return;
+            result.total++;
+            const wrappers = getMkArrowOwnClozeWrappers(li);
+            const hasBlank = wrappers.some(w => w.querySelector('.cloze-q')) ||
+                !!own.querySelector('.mk-cs-mask') ||
+                !!li.querySelector(':scope > .mk-card-answer-mask, :scope > .mk-card-original-answer');
+            if(arrow) result.arrow++;
+            if(cs) result.cs++;
+            if(card) result.ordinary++;
+            if(!hasBlank) result.unresolved.push({title,type:card?'#card':cs?'cs':':->'});
+            if(wrappers.length>1 && arrow) result.duplicateMasks.push(title);
+        });
+        return result;
+    }
+    window.auditMkUnifiedHierarchy = auditMkUnifiedHierarchy;
+
     function updateMkUnifiedHierarchyEye(root, card) {
         if(!root || !card || !card.isLogseq || isMkImageOcclusionCardFast(card)) return;
         const existing = document.querySelector('.mk-unified-hierarchy-eye');
@@ -18156,6 +18230,16 @@ function getIOImageGroups() {
             const showAll = root.classList.toggle('mk-hierarchy-show-all');
             button.classList.toggle('active', showAll);
             button.setAttribute('aria-pressed', String(showAll));
+            // Never report 'all shown' silently when a recognized question has
+            // no resolvable answer. The source may genuinely be absent; do not
+            // invent it or pull text from an unrelated hierarchy.
+            if(showAll) {
+                const audit = auditMkUnifiedHierarchy(root);
+                if(audit.unresolved.length) {
+                    console.warn('[MK_HIERARCHY_UNRESOLVED]', audit);
+                    showToast(`정답이 연결되지 않은 항목 ${audit.unresolved.length}개 · 원본 확인 필요`, 'error');
+                }
+            }
             button.title = showAll ? '현재 페이지 정답 가리기' : '현재 페이지 모든 정답 보기';
             button.setAttribute('aria-label', button.title);
         });
