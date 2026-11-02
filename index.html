@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.350 TODAY PLAN MENU PROGRESS SYNC -->
+<!-- preview: v18.5.351 READING FONT CONTROL -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.350 TODAY PLAN MENU PROGRESS SYNC)</title>
+<title>MK (v18.5.351 READING FONT CONTROL)</title>
 
 <script>
     (() => {
@@ -1070,7 +1070,63 @@
     .text-area.mk-unified-hierarchy.mk-hierarchy-show-all .cloze-wrapper[data-mk-arrow-answer-unresolved="1"] > .cloze-a {
         display: none !important;
     }
+
+    /* v18.5.351: Device-local reading size; only question/answer content, never controls. */
+    :root { --mk-reading-font-size: 17px; }
+    #question-section, #answer-section { font-size: var(--mk-reading-font-size, 17px) !important; }
+    #question-section :is(.ancestor-text, .mk-extra-node, .mk-extra-content, .extra-label, .ls-breadcrumb, table, th, td),
+    #answer-section :is(.ancestor-text, .mk-extra-node, .mk-extra-content, .extra-label, .ls-breadcrumb, table, th, td) {
+        font-size: inherit !important;
+    }
+    .mk-font-setting-section { padding-top: 18px; border-top: 1px solid var(--border); }
+    .mk-font-setting-card { background: var(--input-bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 10px; }
+    .mk-font-setting-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; color: var(--text); font-size: .86rem; font-weight: 700; }
+    .mk-font-setting-value { min-width: 48px; text-align: center; border-radius: 14px; padding: 4px 7px; color: #bcdfff; background: #233a4f; font-size: .83rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .mk-font-setting-slider-row { display: flex; align-items: center; gap: 7px; margin-top: 13px; }
+    .mk-font-setting-step { flex: 0 0 34px; width: 34px; height: 36px; border: 1px solid #505050; border-radius: 9px; background: #383838; color: var(--text); font-size: 1.16rem; font-weight: 700; cursor: pointer; }
+    .mk-font-setting-step:disabled { opacity: .35; cursor: not-allowed; }
+    .mk-font-setting-range { flex: 1 1 auto; width: 100%; min-width: 0; margin: 0; accent-color: var(--primary); cursor: pointer; touch-action: pan-x; }
+    .mk-font-setting-minmax { display: flex; justify-content: space-between; padding: 5px 41px 0; font-size: .73rem; color: var(--text-sub); }
+    .mk-font-setting-step:focus-visible, .mk-font-setting-range:focus-visible { outline: 2px solid #8cc6ff; outline-offset: 3px; }
 </style>
+
+<script>
+/* Reading font setting deliberately stays device-local: never add to synced study state. */
+(() => {
+    const storageKey = 'mk_reading_font_size_px_v1';
+    const minimum = 8, maximum = 18, defaultSize = 17;
+    const sanitize = value => {
+        const number = Number(value);
+        return Number.isFinite(number) ? Math.max(minimum, Math.min(maximum, Math.round(number))) : defaultSize;
+    };
+    let initial = defaultSize;
+    try {
+        const stored = localStorage.getItem(storageKey);
+        if (stored !== null) initial = sanitize(stored);
+    } catch (error) { /* private storage mode */ }
+    let current = initial;
+    const refreshMenuControls = () => {
+        const input = document.getElementById('mk-reading-font-range');
+        const output = document.getElementById('mk-reading-font-value');
+        const smaller = document.getElementById('mk-reading-font-smaller');
+        const larger = document.getElementById('mk-reading-font-larger');
+        if (input) input.value = String(current);
+        if (output) output.textContent = current + 'px';
+        if (smaller) smaller.disabled = current <= minimum;
+        if (larger) larger.disabled = current >= maximum;
+    };
+    window.mkSetReadingFontSize = value => {
+        current = sanitize(value);
+        document.documentElement.style.setProperty('--mk-reading-font-size', current + 'px');
+        try { localStorage.setItem(storageKey, String(current)); } catch (error) { /* local storage unavailable */ }
+        refreshMenuControls();
+    };
+    window.mkAdjustReadingFontSize = delta => window.mkSetReadingFontSize(current + Number(delta || 0));
+    document.documentElement.style.setProperty('--mk-reading-font-size', current + 'px');
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', refreshMenuControls, {once: true});
+    else refreshMenuControls();
+})();
+</script>
 </head>
 <body>
     <div id="toast">알림 메시지</div>
@@ -1113,16 +1169,26 @@
             <button class="btn-cloud" onclick="openFirebaseSettings()">🔥 Firebase 백업 설정</button>
             <button class="btn-cloud" id="firebase-latest-import-btn" onclick="requestLatestFirebaseImport()">Firebase 최신 데이터 가져오기</button>
             <div id="empty-local-study-notice" hidden>로컬 학습 데이터가 없습니다<br><button class="btn-sub" onclick="requestLatestFirebaseImport()">Firebase 백업에서 복원</button></div>
-            <button class="btn-sub" id="review-history-full-recovery-btn" onclick="recoverAllReviewHistoryFromFirebase()">🛟 과거 히스토리 전체 복구</button>
-            <button class="btn-sub" onclick="openUuidMigrationModal()">🔗 UUID 마이그레이션</button>
-            <button class="btn-sub" onclick="copyCurrentPdfDiagnostic()">📋 PDF 진단 복사</button>
-            <button class="btn-sub" onclick="copyMkCardSiblingDiagnostics()">📋 카드 계층 진단 복사</button>
-            <button class="btn-sub" onclick="openMkActualDeckAudit()">🧪 전체 덱 빈칸 원본 검사</button>
             <div id="fb-status-text" style="font-size:0.8rem; color:#40c057; text-align:center; margin-top:5px; font-weight:bold;">⚡️ 서버 연결 안정화됨</div>
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.350 TODAY PLAN MENU PROGRESS SYNC)</div>
+        <div class="menu-section mk-font-setting-section" role="group" aria-labelledby="mk-reading-font-label">
+            <span class="menu-label" id="mk-reading-font-label">🖥️ 화면 설정</span>
+            <div class="mk-font-setting-card">
+                <div class="mk-font-setting-head">
+                    <label for="mk-reading-font-range">Aa 본문 글자 크기</label>
+                    <output class="mk-font-setting-value" id="mk-reading-font-value" for="mk-reading-font-range">17px</output>
+                </div>
+                <div class="mk-font-setting-slider-row">
+                    <button type="button" class="mk-font-setting-step" id="mk-reading-font-smaller" onclick="mkAdjustReadingFontSize(-1)" aria-label="본문 글자 크기 1px 줄이기">−</button>
+                    <input class="mk-font-setting-range" id="mk-reading-font-range" type="range" min="8" max="18" step="1" value="17" oninput="mkSetReadingFontSize(this.value)" aria-label="본문 글자 크기 8에서 18픽셀 사이 조절">
+                    <button type="button" class="mk-font-setting-step" id="mk-reading-font-larger" onclick="mkAdjustReadingFontSize(1)" aria-label="본문 글자 크기 1px 늘리기">＋</button>
+                </div>
+                <div class="mk-font-setting-minmax"><span>8px</span><span>18px</span></div>
+            </div>
+        </div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.351 READING FONT CONTROL)</div>
     </div>
 
 
@@ -1532,7 +1598,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.350 TODAY PLAN MENU PROGRESS SYNC';
+    const APP_VERSION = 'v18.5.351 READING FONT CONTROL';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -20474,7 +20540,7 @@ function getIOImageGroups() {
         const expectedCount = Math.max(Number(stat.total) || 0, Number(stat.fsrs && stat.fsrs.reps) || 0);
         if (expectedCount > visibleReviewCount) {
             const list = document.getElementById('history-list');
-            if (list) list.insertAdjacentHTML('afterbegin', `<div class="history-empty">과거 상세 기록 ${Math.max(0, expectedCount - visibleReviewCount)}회 누락 · 메뉴의 “과거 히스토리 전체 복구”에서 한 번만 복구할 수 있습니다.</div>`);
+            if (list) list.insertAdjacentHTML('afterbegin', `<div class="history-empty">과거 상세 기록 ${Math.max(0, expectedCount - visibleReviewCount)}회 누락 · 필요하면 기존 백업 자료를 확인하세요.</div>`);
         }
     }
 
