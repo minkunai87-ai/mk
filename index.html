@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.349 REAL SOURCE CARD PROVENANCE -->
+<!-- preview: v18.5.350 TODAY PLAN MENU PROGRESS SYNC -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.349 REAL SOURCE CARD PROVENANCE)</title>
+<title>MK (v18.5.350 TODAY PLAN MENU PROGRESS SYNC)</title>
 
 <script>
     (() => {
@@ -1122,7 +1122,7 @@
             
             <button class="btn-refresh" onclick="requestMkAppUpdate()">🔄 사이트 새로고침</button>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.349 REAL SOURCE CARD PROVENANCE)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.350 TODAY PLAN MENU PROGRESS SYNC)</div>
     </div>
 
 
@@ -1532,7 +1532,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.349 REAL SOURCE CARD PROVENANCE';
+    const APP_VERSION = 'v18.5.350 TODAY PLAN MENU PROGRESS SYNC';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -2669,16 +2669,23 @@
         return { done, total:normalized.cardIds.length, remain:Math.max(0, normalized.cardIds.length - done) };
     }
 
+    // Single source of truth for the sidebar, the today-plan modal, and Firebase
+    // restore refresh. Completed recurring plans still count toward today's total.
+    function getTodayPlanOverallProgress(store) {
+        const totals = (Array.isArray(store && store.items) ? store.items : []).reduce((acc, item) => {
+            const progress = getTodayPlanProgress(item);
+            acc.done += progress.done;
+            acc.total += progress.total;
+            return acc;
+        }, { done:0, total:0 });
+        return { ...totals, remain:Math.max(0, totals.total - totals.done) };
+    }
+
     function updateTodayPlanMenuBadge(store = null) {
         const badge = document.getElementById('today-plan-menu-count');
         if(!badge) return;
         store = store || readTodayPlanStoreRaw();
-        const progress = (Array.isArray(store.items) ? store.items : []).filter(item => !item.repeatRuleId || getTodayPlanProgress(item).remain > 0).reduce((acc, item) => {
-            const p = getTodayPlanProgress(item);
-            acc.done += p.done;
-            acc.total += p.total;
-            return acc;
-        }, { done:0, total:0 });
+        const progress = getTodayPlanOverallProgress(store);
         badge.textContent = progress.total ? `${progress.done}/${progress.total}` : '';
     }
 
@@ -2691,12 +2698,7 @@
         if(modal && modal.style.display === 'flex') renderTodayPlan();
         const repeatModal = document.getElementById('today-plan-repeat-modal');
         if(repeatModal && repeatModal.style.display === 'flex') renderTodayPlanRepeatManager(store);
-        const progress = (Array.isArray(store.items) ? store.items : []).reduce((acc, item) => {
-            const entry = getTodayPlanProgress(item);
-            acc.done += entry.done;
-            acc.total += entry.total;
-            return acc;
-        }, { done:0, total:0 });
+        const progress = getTodayPlanOverallProgress(store);
         console.info('[MK_TODAY_PLAN_CLOUD_UI_REFRESH]', { source, done:progress.done, total:progress.total, planDate:store.date });
         return progress;
     }
@@ -3263,13 +3265,8 @@
         const list = document.getElementById('today-plan-list');
         const summary = document.getElementById('today-plan-summary');
         if(!list || !summary) return;
-        const totals = store.items.reduce((acc, item) => {
-            const p = getTodayPlanProgress(item);
-            acc.done += p.done;
-            acc.total += p.total;
-            return acc;
-        }, { done:0, total:0 });
-        const remain = Math.max(0, totals.total - totals.done);
+        const totals = getTodayPlanOverallProgress(store);
+        const remain = totals.remain;
         const totalPercent = totals.total ? Math.round(totals.done / totals.total * 100) : 0;
         summary.innerHTML = `<div class="today-plan-summary-header">
                 <div><span class="today-plan-summary-title">오늘 전체 진행률 · ${totalPercent}%</span>
