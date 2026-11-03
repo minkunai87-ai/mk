@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.352 HTML TABLE DEDUP GUARD -->
+<!-- preview: v18.5.353 COLLAPSIBLE STUDY HEADER -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.352 HTML TABLE DEDUP GUARD)</title>
+<title>MK (v18.5.353 COLLAPSIBLE STUDY HEADER)</title>
 
 <script>
     (() => {
@@ -192,6 +192,26 @@
     .card { background: var(--surface); width: 100%; height: 100%; max-width: none; border-radius: 0; display: flex; flex-direction: column; position: relative; overflow: hidden; }
     
     .card-scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+
+    /* v18.5.353 - Scroll-only, non-layout-shifting access to the original study header. */
+    .mk-fold-study-header { position:absolute; z-index:18; right:14px; top:8px; width:min(440px,calc(100% - 28px)); display:flex; align-items:flex-end; flex-direction:column; pointer-events:none; }
+    .mk-fold-study-header[hidden], .mk-fold-study-panel[hidden] { display:none !important; }
+    .mk-fold-study-toggle { pointer-events:auto; min-height:36px; border:1px solid #626c77; color:#eaf4ff; background:rgba(35,43,51,.97); border-radius:10px; padding:7px 11px; font-size:.8rem; font-weight:700; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.32); white-space:nowrap; }
+    .mk-fold-study-toggle:focus-visible, .mk-fold-study-panel button:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+    .mk-fold-study-panel { pointer-events:auto; width:100%; max-height:min(48dvh,380px); overflow-y:auto; overscroll-behavior:contain; border:1px solid #4b5563; background:rgba(30,30,30,.98); border-radius:12px; padding:12px; margin-top:6px; box-shadow:0 12px 30px rgba(0,0,0,.52); -webkit-backdrop-filter:blur(9px); backdrop-filter:blur(9px); }
+    .mk-fold-study-title { color:var(--text); font-weight:700; font-size:.85rem; line-height:1.35; overflow-wrap:anywhere; }
+    .mk-fold-study-path { font-size:.74rem; line-height:1.35; color:var(--text-sub); margin-top:3px; white-space:normal; overflow-wrap:anywhere; }
+    .mk-fold-study-status { color:var(--primary); font-size:.74rem; margin-top:3px; font-weight:600; }
+    .mk-fold-study-row { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+    .mk-fold-study-row .info-left { min-width:0; }
+    .mk-fold-study-row .icon-wrapper { margin-left:auto; }
+    .mk-fold-study-row .icon-btn { touch-action:manipulation; }
+    @media (max-width:480px) {
+      .mk-fold-study-header { right:9px; top:6px; width:min(375px,calc(100% - 18px)); }
+      .mk-fold-study-panel { padding:10px; }
+      .mk-fold-study-row .icon-wrapper { gap:5px 9px; }
+    }
+
     .zoom-content { padding: 25px 20px; min-height: 100%; width: 100%; transform-origin: 0 0; will-change: transform; }
     
     .card-info { display: flex; justify-content: space-between; width: 100%; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px dashed var(--border); align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -1188,7 +1208,7 @@
                 <div class="mk-font-setting-minmax"><span>8px</span><span>18px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.352 HTML TABLE DEDUP GUARD)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.353 COLLAPSIBLE STUDY HEADER)</div>
     </div>
 
 
@@ -1434,6 +1454,19 @@
     <button type="button" id="mk-io-image-next" class="mk-io-image-nav next" onclick="jumpToAdjacentIOImage(1)" aria-label="다음 이미지" title="다음 이미지">▧›</button>
 
     <div class="main-container">
+        <!-- Remains outside #scroll-area so expanding/collapsing cannot move the reading position. -->
+        <div id="mk-fold-study-header" class="mk-fold-study-header" hidden>
+            <button type="button" id="mk-fold-study-toggle" class="mk-fold-study-toggle" aria-controls="mk-fold-study-panel" aria-expanded="false">⌄ 헤더 펼치기</button>
+            <div id="mk-fold-study-panel" class="mk-fold-study-panel" role="region" aria-label="현재 문제 제목 및 버튼" hidden>
+                <div class="mk-fold-study-title" id="mk-fold-study-title"></div>
+                <div class="mk-fold-study-path" id="mk-fold-study-path"></div>
+                <div class="mk-fold-study-status" id="mk-fold-study-status"></div>
+                <div class="mk-fold-study-row">
+                    <div id="mk-fold-study-meta"></div>
+                    <div id="mk-fold-study-icons"></div>
+                </div>
+            </div>
+        </div>
         <div class="card">
             <div class="card-scroll-area" id="scroll-area">
                 <div class="zoom-content" id="zoom-content">
@@ -1598,7 +1631,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.352 HTML TABLE DEDUP GUARD';
+    const APP_VERSION = 'v18.5.353 COLLAPSIBLE STUDY HEADER';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -1754,6 +1787,129 @@
         new ResizeObserver(syncIOImageNavigationPosition).observe(headerElement);
     }
     window.addEventListener('resize', syncIOImageNavigationPosition);
+
+    // v18.5.353: Compact replacement for the study title/context and 8 real icon buttons.
+    // It is intentionally outside the scrollable content: opening it never changes scrollHeight/scrollTop.
+    function initializeMkFoldStudyHeader() {
+        const scroller = document.getElementById('scroll-area');
+        const cardInfo = document.getElementById('card-info');
+        const root = document.getElementById('mk-fold-study-header');
+        const toggle = document.getElementById('mk-fold-study-toggle');
+        const panel = document.getElementById('mk-fold-study-panel');
+        if (!scroller || !cardInfo || !root || !toggle || !panel) return;
+        const title = document.getElementById('mk-fold-study-title');
+        const path = document.getElementById('mk-fold-study-path');
+        const status = document.getElementById('mk-fold-study-status');
+        const meta = document.getElementById('mk-fold-study-meta');
+        const icons = document.getElementById('mk-fold-study-icons');
+        let open = false;
+        let scrollFrame = 0;
+        let syncFrame = 0;
+
+        function setOpen(value) {
+            open = !!value && !root.hidden;
+            panel.hidden = !open;
+            toggle.textContent = open ? '⌃ 헤더 접기' : '⌄ 헤더 펼치기';
+            toggle.setAttribute('aria-expanded', String(open));
+            if (open) refreshCopies();
+        }
+        function refreshCopies() {
+            if (!open) return;
+            const titleSource = document.getElementById('deck-title-text');
+            const segments = titleSource && Array.from(titleSource.querySelectorAll('.deck-path-segment'));
+            title.textContent = segments && segments.length
+                ? segments.map(node => (node.textContent || '').trim()).filter(Boolean).join(' › ')
+                : String(titleSource && titleSource.textContent || '현재 문제').trim();
+            const statusSource = document.getElementById('filter-status-text');
+            status.textContent = statusSource ? statusSource.textContent.trim() : '';
+            const question = document.getElementById('question-section');
+            const ancestry = question && question.querySelector('.ancestor-wrapper, .ls-breadcrumb');
+            let label = '';
+            if (ancestry) {
+                const entries = Array.from(ancestry.querySelectorAll('.ancestor-text'))
+                    .map(node => String(node.textContent || '').replace(/\s+/g, ' ').trim())
+                    .filter(value => value && !/^deck::/i.test(value) && value !== '덱');
+                label = entries.slice(-2).join(' › ');
+                if (!label && ancestry.classList.contains('ls-breadcrumb')) label = ancestry.textContent.trim();
+            }
+            path.textContent = label;
+            path.hidden = !label;
+            const sourceMeta = cardInfo.querySelector('.info-left');
+            meta.replaceChildren();
+            if (sourceMeta) {
+                const copy = sourceMeta.cloneNode(true);
+                copy.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
+                meta.appendChild(copy);
+            }
+            icons.replaceChildren();
+            const originalButtons = Array.from(cardInfo.querySelectorAll('.icon-wrapper button.icon-btn'));
+            if (!originalButtons.length) return;
+            const copyWrapper = document.createElement('div');
+            copyWrapper.className = 'icon-wrapper';
+            for (let i = 0; i < originalButtons.length; i++) {
+                const original = originalButtons[i];
+                const proxy = document.createElement('button');
+                proxy.type = 'button';
+                proxy.className = original.className;
+                proxy.textContent = original.textContent;
+                proxy.title = original.title || original.getAttribute('aria-label') || '';
+                proxy.disabled = original.disabled;
+                if (original.hasAttribute('aria-pressed')) proxy.setAttribute('aria-pressed', original.getAttribute('aria-pressed'));
+                proxy.setAttribute('aria-label', original.getAttribute('aria-label') || original.title || original.textContent.trim());
+                proxy.addEventListener('click', event => {
+                    event.preventDefault(); event.stopPropagation();
+                    // Real handler, event state, and data mutations remain owned by the original control.
+                    if (original.isConnected && !original.disabled) original.click();
+                    requestAnimationFrame(refreshCopies);
+                });
+                if (i % 4 === 0) {
+                    const row = document.createElement('div');
+                    row.className = 'icon-row';
+                    copyWrapper.appendChild(row);
+                }
+                copyWrapper.lastElementChild.appendChild(proxy);
+            }
+            icons.appendChild(copyWrapper);
+        }
+        function isOriginalHeadersOutOfView() {
+            if (cardInfo.style.display === 'none' || !scroller.clientHeight || scroller.scrollTop <= 0) return false;
+            const top = scroller.getBoundingClientRect().top + 4;
+            if (cardInfo.getBoundingClientRect().bottom > top) return false;
+            const question = document.getElementById('question-section');
+            const heading = question && question.querySelector('.ancestor-wrapper, .ls-header, .ls-breadcrumb');
+            // Only show the toggle once both the tool icons and question's source title are out of view.
+            return !heading || heading.getBoundingClientRect().bottom <= top;
+        }
+        function updateVisibility() {
+            scrollFrame = 0;
+            const visible = isOriginalHeadersOutOfView();
+            if (root.hidden === visible) root.hidden = !visible;
+            if (!visible && open) setOpen(false);
+        }
+        function scheduleVisibility() {
+            if (!scrollFrame) scrollFrame = requestAnimationFrame(updateVisibility);
+        }
+        function scheduleCopies() {
+            if (!open || syncFrame) return;
+            syncFrame = requestAnimationFrame(() => { syncFrame = 0; refreshCopies(); });
+        }
+        toggle.addEventListener('click', () => setOpen(!open));
+        scroller.addEventListener('scroll', scheduleVisibility, { passive:true });
+        window.addEventListener('resize', scheduleVisibility, { passive:true });
+        // State icons/badges can change without a scroll, e.g. favorite or review scheduling.
+        new MutationObserver(scheduleCopies).observe(cardInfo, {
+            attributes:true, attributeFilter:['class','style','disabled','title','aria-pressed'],
+            childList:true, characterData:true, subtree:true
+        });
+        window.mkResetFoldStudyHeader = () => {
+            root.hidden = true;
+            setOpen(false);
+            scheduleVisibility();
+        };
+        window.mkRefreshFoldStudyHeader = () => { scheduleVisibility(); scheduleCopies(); };
+        updateVisibility();
+    }
+    initializeMkFoldStudyHeader();
     
     let library = {}, currentDeckName = null, originalDeck = [], activeDeck = [], currentIndex = 0;
     let pdfAnnotationSourceIndex = new Map();
@@ -19292,6 +19448,7 @@ function getIOImageGroups() {
 
     let mkOrdinaryCardContextRenderToken = 0;
     function showCard() {
+        if (window.mkResetFoldStudyHeader) window.mkResetFoldStudyHeader();
         const mkCardRenderStartedAt = performance.now();
         const mkCardRenderPhases = {};
         mkOrdinaryCardContextRenderToken++;
@@ -19422,6 +19579,7 @@ function getIOImageGroups() {
         document.getElementById('nav-area').style.display = 'flex';
         document.getElementById('grade-area').style.display = 'none';
         scrollContainer.scrollTop = 0;
+        if (window.mkRefreshFoldStudyHeader) window.mkRefreshFoldStudyHeader();
 
         if (window.MathJax && cardNeedsMathJax(card, !isIOCard)) {
             MathJax.typesetPromise(isIOCard ? [qSection] : [qSection, aSection]).catch(function (err) { console.log(err); });
