@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.354 TABBED SECTOR HEADER -->
+<!-- preview: v18.5.355 ABOVE-DIVIDER HEADER -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.354 TABBED SECTOR HEADER)</title>
+<title>MK (v18.5.355 ABOVE-DIVIDER HEADER)</title>
 
 <script>
     (() => {
@@ -193,7 +193,7 @@
     
     .card-scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
 
-    /* v18.5.354 - Sticky top title stays outside this scroll-only, tabbed, read-only sector drawer. */
+    /* v18.5.355 - Mirror only source heading and ancestry above the body divider; keep sticky title separate. */
     .mk-fold-study-header { position:absolute; z-index:18; right:14px; top:8px; width:min(540px,calc(100% - 28px)); display:flex; align-items:flex-end; flex-direction:column; pointer-events:none; }
     .mk-fold-study-header[hidden], .mk-fold-study-panel[hidden], .mk-fold-study-tab-content[hidden] { display:none !important; }
     .mk-fold-study-toggle { pointer-events:auto; min-height:36px; border:1px solid #626c77; color:#eaf4ff; background:rgba(35,43,51,.97); border-radius:10px; padding:7px 11px; font-size:.8rem; font-weight:700; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.32); white-space:nowrap; }
@@ -215,7 +215,9 @@
     .mk-fold-sector-mirror { font-size:var(--mk-reading-font-size,17px); line-height:1.48; overflow-wrap:anywhere; }
     .mk-fold-sector-mirror img, .mk-fold-sector-mirror table { max-width:100%; }
     .mk-fold-sector-mirror img { height:auto; }
-    .mk-fold-sector-mirror .ancestor-wrapper { max-width:100%; }
+    .mk-fold-sector-mirror.ancestor-wrapper { max-width:100%; margin-bottom:0; padding-bottom:0; border-bottom:0; }
+    .mk-fold-sector-mirror.ls-header { margin-bottom:8px; }
+    .mk-fold-sector-mirror .ls-arrows :is(a,button) { pointer-events:auto !important; cursor:pointer !important; }
     .mk-fold-sector-mirror :is(button, a, input, select, textarea, .cloze-q, .cloze-a, .mk-cs-mask, .mk-cs-answer, .mk-io-wrapper) { pointer-events:none !important; cursor:default !important; }
     .mk-fold-sector-answer { margin-top:12px; padding-top:10px; border-top:1px dashed var(--border); }
     .mk-fold-sector-empty { color:var(--text-sub); font-size:.82rem; text-align:center; padding:28px 8px; }
@@ -1222,7 +1224,7 @@
                 <div class="mk-font-setting-minmax"><span>8px</span><span>18px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.354 TABBED SECTOR HEADER)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.355 ABOVE-DIVIDER HEADER)</div>
     </div>
 
 
@@ -1471,10 +1473,10 @@
         <!-- Stays outside #scroll-area: the sticky deck title is NOT duplicated. -->
         <div id="mk-fold-study-header" class="mk-fold-study-header" hidden>
             <button type="button" id="mk-fold-study-toggle" class="mk-fold-study-toggle" aria-controls="mk-fold-study-panel" aria-expanded="false">⌄ 헤더 펼치기</button>
-            <div id="mk-fold-study-panel" class="mk-fold-study-panel" role="region" aria-label="학습 정보와 현재 원본 섹터" hidden>
+            <div id="mk-fold-study-panel" class="mk-fold-study-panel" role="region" aria-label="학습 정보와 상단 하이어라키" hidden>
                 <div class="mk-fold-study-tabs" role="tablist" aria-label="펼친 헤더 보기">
                     <button type="button" class="mk-fold-study-tab" id="mk-fold-tab-tools" role="tab" aria-selected="true" aria-controls="mk-fold-content-tools">기능 버튼</button>
-                    <button type="button" class="mk-fold-study-tab" id="mk-fold-tab-sector" role="tab" aria-selected="false" aria-controls="mk-fold-content-sector">원본 섹터</button>
+                    <button type="button" class="mk-fold-study-tab" id="mk-fold-tab-sector" role="tab" aria-selected="false" aria-controls="mk-fold-content-sector">상단 하이어라키</button>
                 </div>
                 <div id="mk-fold-content-tools" class="mk-fold-study-tab-content mk-fold-study-tools" role="tabpanel" aria-labelledby="mk-fold-tab-tools">
                     <div class="mk-fold-study-row">
@@ -1483,8 +1485,8 @@
                     </div>
                 </div>
                 <div id="mk-fold-content-sector" class="mk-fold-study-tab-content mk-fold-study-sector" role="tabpanel" aria-labelledby="mk-fold-tab-sector" hidden>
-                    <div class="mk-fold-sector-label" id="mk-fold-sector-label">현재 원본 섹터 · 패널 안에서 스크롤</div>
-                    <div class="mk-fold-sector-viewport" id="mk-fold-sector-viewport" tabindex="0" aria-label="현재 문제의 원본 섹터 전체">
+                    <div class="mk-fold-sector-label" id="mk-fold-sector-label">구분선 위 하이어라키 · 내부 스크롤</div>
+                    <div class="mk-fold-sector-viewport" id="mk-fold-sector-viewport" tabindex="0" aria-label="문제 본문 시작 전 하이어라키 정보">
                         <div class="mk-fold-sector-content" id="mk-fold-sector-content"></div>
                     </div>
                 </div>
@@ -1654,7 +1656,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.354 TABBED SECTOR HEADER';
+    const APP_VERSION = 'v18.5.355 ABOVE-DIVIDER HEADER';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -1811,7 +1813,7 @@
     }
     window.addEventListener('resize', syncIOImageNavigationPosition);
 
-    // v18.5.354: Scroll-only access to real controls or a READ-ONLY mirror of the current full Logseq sector.
+    // v18.5.355: Scroll-only controls plus the heading/breadcrumb ABOVE the first Logseq body divider.
     // The top deck title is sticky already and is intentionally never copied into this drawer.
     function initializeMkFoldStudyHeader() {
         const scroller = document.getElementById('scroll-area');
@@ -1867,36 +1869,53 @@
             copy.querySelectorAll('script,iframe,object,embed').forEach(node => node.remove());
             return copy;
         }
+        // Only mirror the on-page heading ABOVE the dashed ancestry/body divider.
+        // Never mirror .children-list (the questions, tables and images below it),
+        // the fixed #deck-title, or the separate answer-section.
         function refreshSector() {
             sectorTimer = 0;
             if (!open || currentTab !== 'sector' || root.hidden) return;
             const question = document.getElementById('question-section');
-            const answer = document.getElementById('answer-section');
             const previousScroll = sectorViewport.scrollTop;
             const fragment = document.createDocumentFragment();
-            if (question && question.childNodes.length) {
-                const mirror = sanitizeSectorCopy(question.cloneNode(true));
-                mirror.classList.add('mk-fold-sector-mirror');
-                fragment.appendChild(mirror);
-                const headings = Array.from(question.querySelectorAll('.ancestor-wrapper .ancestor-text'))
-                    .map(node => String(node.textContent || '').replace(/\s+/g, ' ').trim())
-                    .filter(value => value && !/^deck::/i.test(value) && value !== '덱');
-                const sectorName = headings.length ? headings[headings.length - 1] : '';
-                sectorLabel.textContent = (sectorName ? sectorName + ' · ' : '') + '현재 원본 섹터 전체 · 내부 스크롤';
-                sectorLabel.title = sectorName;
-                // Ordinary/#card answers may appear in the separate answer section after reveal.
-                if (answer && answer.style.display !== 'none' && answer.childNodes.length) {
-                    const answerMirror = sanitizeSectorCopy(answer.cloneNode(true));
-                    answerMirror.classList.add('mk-fold-sector-mirror', 'mk-fold-sector-answer');
-                    fragment.appendChild(answerMirror);
+            const heading = question && question.querySelector('.ls-header');
+            const ancestry = question && question.querySelector('.ancestor-wrapper');
+            const sources = [heading, ancestry].filter(Boolean);
+            for (const source of sources) {
+                const copy = sanitizeSectorCopy(source.cloneNode(true));
+                copy.classList.add('mk-fold-sector-mirror');
+                // The existing Logseq / scroll-to-problem actions should remain functional,
+                // but must always delegate to the *original*, never copy event handlers.
+                if (source === heading) {
+                    const originals = Array.from(source.querySelectorAll('.ls-arrows a, .ls-arrows button'));
+                    const proxies = Array.from(copy.querySelectorAll('.ls-arrows a, .ls-arrows button'));
+                    proxies.forEach((proxy, index) => {
+                        const original = originals[index];
+                        if (!original) return;
+                        if (proxy.matches('button')) proxy.disabled = false;
+                        if (proxy.matches('a')) {
+                            proxy.setAttribute('role', 'button');
+                            proxy.setAttribute('tabindex', '0');
+                        }
+                        proxy.addEventListener('click', event => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            if (original.isConnected) original.click();
+                        });
+                        if (proxy.matches('a')) proxy.addEventListener('keydown', event => {
+                            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); proxy.click(); }
+                        });
+                    });
                 }
-            } else {
+                fragment.appendChild(copy);
+            }
+            if (!sources.length) {
                 const empty = document.createElement('div');
                 empty.className = 'mk-fold-sector-empty';
-                empty.textContent = '표시할 원본 섹터가 없습니다.';
+                empty.textContent = '표시할 상단 하이어라키 정보가 없습니다.';
                 fragment.appendChild(empty);
-                sectorLabel.textContent = '현재 원본 섹터 · 내부 스크롤';
             }
+            sectorLabel.textContent = '구분선 위 하이어라키 · 내부 스크롤';
             sectorContent.replaceChildren(fragment);
             sectorViewport.scrollTop = previousScroll;
             sectorDirty = false;
@@ -1911,11 +1930,9 @@
             stopSourceObserver();
             if (!open || currentTab !== 'sector') return;
             const question = document.getElementById('question-section');
-            const answer = document.getElementById('answer-section');
             sourceObserver = new MutationObserver(scheduleSectorRefresh);
             const options = { attributes:true, childList:true, characterData:true, subtree:true };
             if (question) sourceObserver.observe(question, options);
-            if (answer) sourceObserver.observe(answer, options);
         }
         function switchTab(nextTab) {
             if (nextTab !== 'sector' && nextTab !== 'tools') return;
