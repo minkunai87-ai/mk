@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.355 ABOVE-DIVIDER HEADER -->
+<!-- preview: v18.5.356 UNIFIED LIVE HEADER PDF ACTIONS -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.355 ABOVE-DIVIDER HEADER)</title>
+<title>MK (v18.5.356 UNIFIED LIVE HEADER PDF ACTIONS)</title>
 
 <script>
     (() => {
@@ -193,22 +193,18 @@
     
     .card-scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
 
-    /* v18.5.355 - Mirror only source heading and ancestry above the body divider; keep sticky title separate. */
+    /* v18.5.356 - Unified floating controls + hierarchy above divider; live PDF actions. */
     .mk-fold-study-header { position:absolute; z-index:18; right:14px; top:8px; width:min(540px,calc(100% - 28px)); display:flex; align-items:flex-end; flex-direction:column; pointer-events:none; }
     .mk-fold-study-header[hidden], .mk-fold-study-panel[hidden], .mk-fold-study-tab-content[hidden] { display:none !important; }
     .mk-fold-study-toggle { pointer-events:auto; min-height:36px; border:1px solid #626c77; color:#eaf4ff; background:rgba(35,43,51,.97); border-radius:10px; padding:7px 11px; font-size:.8rem; font-weight:700; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.32); white-space:nowrap; }
     .mk-fold-study-toggle:focus-visible, .mk-fold-study-panel button:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
     .mk-fold-study-panel { pointer-events:auto; width:100%; max-height:min(50dvh,430px); display:flex; flex-direction:column; min-height:0; overflow:hidden; overscroll-behavior:contain; border:1px solid #4b5563; background:rgba(30,30,30,.98); border-radius:12px; padding:10px; margin-top:6px; box-shadow:0 12px 30px rgba(0,0,0,.52); -webkit-backdrop-filter:blur(9px); backdrop-filter:blur(9px); }
-    .mk-fold-study-tabs { display:flex; gap:5px; flex-shrink:0; border-radius:8px; background:#222; padding:4px; }
-    .mk-fold-study-tab { flex:1; min-height:36px; border:0; border-radius:7px; background:transparent; color:var(--text-sub); font-size:.8rem; font-weight:700; cursor:pointer; }
-    .mk-fold-study-tab[aria-selected="true"] { background:#36414d; color:#d6eeff; box-shadow:inset 0 0 0 1px #52687b; }
-    .mk-fold-study-tab-content { margin-top:8px; min-height:0; overscroll-behavior:contain; }
-    .mk-fold-study-tools { overflow-y:auto; }
+    .mk-fold-study-tools { flex:0 1 auto; min-height:0; overflow-y:auto; padding-bottom:7px; border-bottom:1px solid #414a55; overscroll-behavior:contain; }
     .mk-fold-study-tools .icon-wrapper { margin-left:auto; }
     .mk-fold-study-tools .icon-btn { touch-action:manipulation; }
     .mk-fold-study-row { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:10px; padding:5px 2px; }
     .mk-fold-study-row .info-left { min-width:0; }
-    .mk-fold-study-sector { display:flex; flex-direction:column; overflow:hidden; flex:1; }
+    .mk-fold-study-sector { display:flex; flex-direction:column; overflow:hidden; flex:1 1 auto; min-height:85px; padding-top:5px; }
     .mk-fold-sector-label { flex-shrink:0; margin:2px 3px 7px; color:var(--text-sub); font-size:.74rem; line-height:1.35; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
     .mk-fold-sector-viewport { overflow-y:auto; overflow-x:auto; flex:1; min-height:0; padding:10px; border:1px solid #414a55; border-radius:8px; background:var(--bg); overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
     .mk-fold-sector-content { width:100%; min-width:0; }
@@ -217,8 +213,11 @@
     .mk-fold-sector-mirror img { height:auto; }
     .mk-fold-sector-mirror.ancestor-wrapper { max-width:100%; margin-bottom:0; padding-bottom:0; border-bottom:0; }
     .mk-fold-sector-mirror.ls-header { margin-bottom:8px; }
-    .mk-fold-sector-mirror .ls-arrows :is(a,button) { pointer-events:auto !important; cursor:pointer !important; }
     .mk-fold-sector-mirror :is(button, a, input, select, textarea, .cloze-q, .cloze-a, .mk-cs-mask, .mk-cs-answer, .mk-io-wrapper) { pointer-events:none !important; cursor:default !important; }
+    /* Only explicitly connected proxies are interactive; the copy has no inline handlers or live links. */
+    .mk-fold-sector-mirror .mk-fold-sector-interactive,
+    .mk-fold-sector-mirror .mk-fold-sector-interactive * { pointer-events:auto !important; cursor:pointer !important; }
+    .mk-fold-sector-mirror .mk-fold-sector-interactive:focus-visible { outline:2px solid var(--primary); outline-offset:2px; border-radius:4px; }
     .mk-fold-sector-answer { margin-top:12px; padding-top:10px; border-top:1px dashed var(--border); }
     .mk-fold-sector-empty { color:var(--text-sub); font-size:.82rem; text-align:center; padding:28px 8px; }
     @media (max-width:480px) {
@@ -1224,7 +1223,7 @@
                 <div class="mk-font-setting-minmax"><span>8px</span><span>18px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.355 ABOVE-DIVIDER HEADER)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.356 UNIFIED LIVE HEADER PDF ACTIONS)</div>
     </div>
 
 
@@ -1473,19 +1472,15 @@
         <!-- Stays outside #scroll-area: the sticky deck title is NOT duplicated. -->
         <div id="mk-fold-study-header" class="mk-fold-study-header" hidden>
             <button type="button" id="mk-fold-study-toggle" class="mk-fold-study-toggle" aria-controls="mk-fold-study-panel" aria-expanded="false">⌄ 헤더 펼치기</button>
-            <div id="mk-fold-study-panel" class="mk-fold-study-panel" role="region" aria-label="학습 정보와 상단 하이어라키" hidden>
-                <div class="mk-fold-study-tabs" role="tablist" aria-label="펼친 헤더 보기">
-                    <button type="button" class="mk-fold-study-tab" id="mk-fold-tab-tools" role="tab" aria-selected="true" aria-controls="mk-fold-content-tools">기능 버튼</button>
-                    <button type="button" class="mk-fold-study-tab" id="mk-fold-tab-sector" role="tab" aria-selected="false" aria-controls="mk-fold-content-sector">상단 하이어라키</button>
-                </div>
-                <div id="mk-fold-content-tools" class="mk-fold-study-tab-content mk-fold-study-tools" role="tabpanel" aria-labelledby="mk-fold-tab-tools">
+            <div id="mk-fold-study-panel" class="mk-fold-study-panel" role="region" aria-label="학습 정보·기능 버튼·상단 하이어라키" hidden>
+                <div id="mk-fold-content-tools" class="mk-fold-study-tools">
                     <div class="mk-fold-study-row">
                         <div id="mk-fold-study-meta"></div>
                         <div id="mk-fold-study-icons"></div>
                     </div>
                 </div>
-                <div id="mk-fold-content-sector" class="mk-fold-study-tab-content mk-fold-study-sector" role="tabpanel" aria-labelledby="mk-fold-tab-sector" hidden>
-                    <div class="mk-fold-sector-label" id="mk-fold-sector-label">구분선 위 하이어라키 · 내부 스크롤</div>
+                <div id="mk-fold-content-sector" class="mk-fold-study-sector" aria-label="상단 하이어라키">
+                    <div class="mk-fold-sector-label" id="mk-fold-sector-label">상단 하이어라키 · 내부 스크롤</div>
                     <div class="mk-fold-sector-viewport" id="mk-fold-sector-viewport" tabindex="0" aria-label="문제 본문 시작 전 하이어라키 정보">
                         <div class="mk-fold-sector-content" id="mk-fold-sector-content"></div>
                     </div>
@@ -1656,7 +1651,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.355 ABOVE-DIVIDER HEADER';
+    const APP_VERSION = 'v18.5.356 UNIFIED LIVE HEADER PDF ACTIONS';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -1813,7 +1808,8 @@
     }
     window.addEventListener('resize', syncIOImageNavigationPosition);
 
-    // v18.5.355: Scroll-only controls plus the heading/breadcrumb ABOVE the first Logseq body divider.
+    // v18.5.356: One compact panel for source controls + heading above the first body divider.
+    // PDF/Logseq actions are delegated synchronously to the original live DOM controls.
     // The top deck title is sticky already and is intentionally never copied into this drawer.
     function initializeMkFoldStudyHeader() {
         const scroller = document.getElementById('scroll-area');
@@ -1821,8 +1817,6 @@
         const root = document.getElementById('mk-fold-study-header');
         const toggle = document.getElementById('mk-fold-study-toggle');
         const panel = document.getElementById('mk-fold-study-panel');
-        const toolsTab = document.getElementById('mk-fold-tab-tools');
-        const sectorTab = document.getElementById('mk-fold-tab-sector');
         const toolsBody = document.getElementById('mk-fold-content-tools');
         const sectorBody = document.getElementById('mk-fold-content-sector');
         const sectorLabel = document.getElementById('mk-fold-sector-label');
@@ -1830,11 +1824,10 @@
         const sectorContent = document.getElementById('mk-fold-sector-content');
         const meta = document.getElementById('mk-fold-study-meta');
         const icons = document.getElementById('mk-fold-study-icons');
-        if (![scroller, cardInfo, root, toggle, panel, toolsTab, sectorTab, toolsBody, sectorBody,
+        if (![scroller, cardInfo, root, toggle, panel, toolsBody, sectorBody,
                sectorLabel, sectorViewport, sectorContent, meta, icons].every(Boolean)) return;
 
         let open = false;
-        let currentTab = 'tools';
         let scrollFrame = 0;
         let iconFrame = 0;
         let sectorTimer = 0;
@@ -1874,7 +1867,7 @@
         // the fixed #deck-title, or the separate answer-section.
         function refreshSector() {
             sectorTimer = 0;
-            if (!open || currentTab !== 'sector' || root.hidden) return;
+            if (!open || root.hidden) return;
             const question = document.getElementById('question-section');
             const previousScroll = sectorViewport.scrollTop;
             const fragment = document.createDocumentFragment();
@@ -1882,29 +1875,39 @@
             const ancestry = question && question.querySelector('.ancestor-wrapper');
             const sources = [heading, ancestry].filter(Boolean);
             for (const source of sources) {
-                const copy = sanitizeSectorCopy(source.cloneNode(true));
+                const copy = source.cloneNode(true);
+                // Walk source and copy in their original DOM order before sanitizing; cloneNode
+                // does NOT copy addEventListener PDF actions, so route each proxy to the original.
+                const originals = [source, ...source.querySelectorAll('*')];
+                const proxies = [copy, ...copy.querySelectorAll('*')];
+                sanitizeSectorCopy(copy);
                 copy.classList.add('mk-fold-sector-mirror');
-                // The existing Logseq / scroll-to-problem actions should remain functional,
-                // but must always delegate to the *original*, never copy event handlers.
-                if (source === heading) {
-                    const originals = Array.from(source.querySelectorAll('.ls-arrows a, .ls-arrows button'));
-                    const proxies = Array.from(copy.querySelectorAll('.ls-arrows a, .ls-arrows button'));
-                    proxies.forEach((proxy, index) => {
-                        const original = originals[index];
-                        if (!original) return;
-                        if (proxy.matches('button')) proxy.disabled = false;
-                        if (proxy.matches('a')) {
-                            proxy.setAttribute('role', 'button');
-                            proxy.setAttribute('tabindex', '0');
-                        }
-                        proxy.addEventListener('click', event => {
+                for (let i = 0; i < originals.length; i++) {
+                    const original = originals[i];
+                    const proxy = proxies[i];
+                    if (!proxy || !copy.contains(proxy) && proxy !== copy) continue;
+                    // PDF refs have click listeners on their region and/or icon, not in the HTML.
+                    // Nested proxy clicks stop propagation to prevent opening the same PDF twice.
+                    const isPdf = original.matches('.mk-pdf-annotation, .mk-pdf-annotation-icon');
+                    const isControl = original.matches('.ls-arrows a, .ls-arrows button, a[href], [onclick]');
+                    if (!isPdf && !isControl) continue;
+                    if (original.matches('.mk-pdf-image-annotation')) continue; // image itself is not the PDF button
+                    if (proxy.matches('button')) proxy.disabled = original.disabled;
+                    else {
+                        proxy.setAttribute('role', original.matches('a') ? 'link' : 'button');
+                        proxy.setAttribute('tabindex', '0');
+                    }
+                    proxy.classList.add('mk-fold-sector-interactive');
+                    proxy.addEventListener('click', event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (original.isConnected && !original.disabled) original.click();
+                    });
+                    if (!proxy.matches('button')) proxy.addEventListener('keydown', event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault();
-                            event.stopPropagation();
-                            if (original.isConnected) original.click();
-                        });
-                        if (proxy.matches('a')) proxy.addEventListener('keydown', event => {
-                            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); proxy.click(); }
-                        });
+                            proxy.click();
+                        }
                     });
                 }
                 fragment.appendChild(copy);
@@ -1915,40 +1918,24 @@
                 empty.textContent = '표시할 상단 하이어라키 정보가 없습니다.';
                 fragment.appendChild(empty);
             }
-            sectorLabel.textContent = '구분선 위 하이어라키 · 내부 스크롤';
+            sectorLabel.textContent = '상단 하이어라키 · 내부 스크롤';
             sectorContent.replaceChildren(fragment);
             sectorViewport.scrollTop = previousScroll;
             sectorDirty = false;
         }
         function scheduleSectorRefresh() {
             sectorDirty = true;
-            if (!open || currentTab !== 'sector' || sectorTimer) return;
+            if (!open || sectorTimer) return;
             // Coalesce asynchronous hierarchy/CS recovery into one update instead of cloning on every DOM mutation.
             sectorTimer = setTimeout(refreshSector, 160);
         }
         function watchSource() {
             stopSourceObserver();
-            if (!open || currentTab !== 'sector') return;
+            if (!open) return;
             const question = document.getElementById('question-section');
             sourceObserver = new MutationObserver(scheduleSectorRefresh);
             const options = { attributes:true, childList:true, characterData:true, subtree:true };
             if (question) sourceObserver.observe(question, options);
-        }
-        function switchTab(nextTab) {
-            if (nextTab !== 'sector' && nextTab !== 'tools') return;
-            currentTab = nextTab;
-            toolsTab.setAttribute('aria-selected', String(nextTab === 'tools'));
-            sectorTab.setAttribute('aria-selected', String(nextTab === 'sector'));
-            toolsBody.hidden = nextTab !== 'tools';
-            sectorBody.hidden = nextTab !== 'sector';
-            if (!open) return;
-            if (nextTab === 'sector') {
-                if (sectorDirty) refreshSector();
-                watchSource();
-            } else {
-                stopSourceObserver();
-                refreshTools();
-            }
         }
         function setOpen(value) {
             open = !!value && !root.hidden;
@@ -1956,17 +1943,18 @@
             toggle.textContent = open ? '⌃ 헤더 접기' : '⌄ 헤더 펼치기';
             toggle.setAttribute('aria-expanded', String(open));
             if (open) {
-                switchTab(currentTab);
-                if (currentTab === 'tools') refreshTools();
+                refreshTools();
+                if (sectorDirty) refreshSector();
+                watchSource();
             } else {
                 stopSourceObserver();
-                // Huge HTML/IO images stay out of memory whenever the floating panel is closed.
+                // Clear copied HTML/IO images when collapsed to avoid holding large cloned trees.
                 sectorContent.replaceChildren();
                 sectorDirty = true;
             }
         }
         function refreshTools() {
-            if (!open || currentTab !== 'tools') return;
+            if (!open) return;
             const sourceMeta = cardInfo.querySelector('.info-left');
             meta.replaceChildren();
             if (sourceMeta) {
@@ -2021,12 +2009,10 @@
             if (!scrollFrame) scrollFrame = requestAnimationFrame(updateVisibility);
         }
         function scheduleTools() {
-            if (!open || currentTab !== 'tools' || iconFrame) return;
+            if (!open || iconFrame) return;
             iconFrame = requestAnimationFrame(() => { iconFrame = 0; refreshTools(); });
         }
         toggle.addEventListener('click', () => setOpen(!open));
-        toolsTab.addEventListener('click', () => switchTab('tools'));
-        sectorTab.addEventListener('click', () => switchTab('sector'));
         scroller.addEventListener('scroll', scheduleVisibility, { passive:true });
         window.addEventListener('resize', scheduleVisibility, { passive:true });
         // Reuse original live controls; do not create a second source of learning state.
@@ -2037,8 +2023,6 @@
         window.mkResetFoldStudyHeader = () => {
             root.hidden = true;
             setOpen(false);
-            currentTab = 'tools';
-            switchTab('tools');
             scheduleVisibility();
         };
         window.mkRefreshFoldStudyHeader = () => { scheduleVisibility(); scheduleTools(); scheduleSectorRefresh(); };
