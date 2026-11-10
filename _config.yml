@@ -1,0 +1,6 @@
+exclude:
+  - backups
+  - tests
+  - ios
+  - token-low-memory-test
+  - AGENTS.md
