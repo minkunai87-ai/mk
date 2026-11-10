@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.360 TABLE SCOPE DEDUP GUARD -->
+<!-- preview: v18.5.362 TODAY PLAN PRIORITY -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.360 TABLE SCOPE DEDUP GUARD)</title>
+<title>MK (v18.5.362 TODAY PLAN PRIORITY)</title>
 
 <script>
     (() => {
@@ -941,6 +941,20 @@
     .today-plan-availability strong { color:var(--primary); }
     .today-plan-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
     .today-plan-empty { padding:22px 8px; text-align:center; color:var(--text-sub); border:1px dashed var(--border); border-radius:12px; }
+    /* v18.5.362: on-demand, read-only ranking of existing Today Plan items. */
+    .today-plan-priority-toggle { width:100%; min-height:43px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 13px; background:#263441; color:#dceeff; border:1px solid #40617b; border-radius:10px; cursor:pointer; font-weight:800; text-align:left; }
+    .today-plan-priority-toggle[aria-expanded="true"] { border-color:#69b9f7; }
+    .today-plan-priority-list[hidden] { display:none !important; }
+    .today-plan-priority-list { display:flex; flex-direction:column; gap:9px; max-height:46dvh; overflow-y:auto; overscroll-behavior:contain; padding:1px 2px 3px; }
+    .today-plan-priority-intro { font-size:0.75rem; color:var(--text-sub); line-height:1.45; padding:0 3px; }
+    .today-plan-priority-card { border:1px solid #3b5365; border-radius:11px; background:#252f38; padding:11px 12px; display:flex; flex-direction:column; gap:8px; }
+    .today-plan-priority-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+    .today-plan-priority-title { font-weight:850; font-size:0.9rem; overflow-wrap:anywhere; min-width:0; }
+    .today-plan-priority-rank { flex:0 0 auto; font-size:0.73rem; color:#a8d8fb; white-space:nowrap; font-weight:800; }
+    .today-plan-priority-desc { color:var(--text-sub); font-size:0.77rem; overflow-wrap:anywhere; line-height:1.45; }
+    .today-plan-priority-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+    .today-plan-priority-actions button { min-width:0; min-height:37px; border-radius:8px; border:1px solid #4e718b; background:#303943; color:#ebf6ff; cursor:pointer; font-weight:800; font-size:0.78rem; }
+    .today-plan-priority-actions .priority-start { background:#3795d6; border-color:#3795d6; color:#fff; }
     .today-plan-menu-btn { position:relative; }
     .today-plan-menu-count { float:right; color:var(--primary); }
     .today-plan-repeat-row { display:flex; gap:10px; align-items:center; justify-content:space-between; margin:8px 0; }
@@ -1310,7 +1324,7 @@
                 <div class="mk-font-setting-minmax"><span>8px</span><span>18px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.360 TABLE SCOPE DEDUP GUARD)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.362 TODAY PLAN PRIORITY)</div>
     </div>
 
 
@@ -1379,6 +1393,8 @@
                 <button class="modal-btn btn-cancel" style="padding:7px 11px;" onclick="closeTodayPlanModal()">닫기</button>
             </div>
             <div class="today-plan-summary" id="today-plan-summary"></div>
+            <button type="button" class="today-plan-priority-toggle" id="today-plan-priority-toggle" aria-expanded="false" aria-controls="today-plan-priority-list" onclick="toggleTodayPlanPriority()"><span>🎯 오늘의 우선 추천</span><span id="today-plan-priority-chevron">펼치기 ▾</span></button>
+            <div class="today-plan-priority-list" id="today-plan-priority-list" hidden></div>
             <div class="today-plan-list" id="today-plan-list"></div>
             <button class="modal-btn btn-save" style="width:100%;" onclick="openTodayPlanEditor()">+ 오늘 계획 추가</button>
             <button class="btn-sub" style="margin-top:3px;" onclick="toggleTodayPlanRepeatManager()">🔁 반복 계획 관리 <span id="today-plan-repeat-total"></span></button>
@@ -1761,7 +1777,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.360 TABLE SCOPE DEDUP GUARD';
+    const APP_VERSION = 'v18.5.362 TODAY PLAN PRIORITY';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -3708,6 +3724,119 @@
         items.hidden = !expanded;
     }
 
+    // Priority suggestions are display-only. The only way to record completion is
+    // the existing review action -> markTodayPlanCardCompleted pipeline.
+    const TODAY_PLAN_PRIORITY_BATCH_SIZE = 20;
+    let todayPlanPriorityOpen = false;
+
+    function getTodayPlanPriorityCard(card, item, stats, history, todayStart) {
+        const id = String(card && card.id || '');
+        const direct = stats && stats[id];
+        const found = direct ? { key:id, stat:direct } : findStatsForCard(card, stats || {}, id);
+        const stat = found && found.stat ? found.stat : {};
+        const key = String(found && found.key || id);
+        const rawHistory = (history && (history[key] || history[id])) || [];
+        // Score 3 ("확인") is not a review grade and should not affect priority.
+        const reviews = Array.isArray(rawHistory) ? rawHistory.filter(entry => entry && [0,1,2].includes(Number(entry.score))) : [];
+        const latest = reviews.length ? Number(reviews[reviews.length - 1].score) : null;
+        const previous = reviews.length > 1 ? Number(reviews[reviews.length - 2].score) : null;
+        const total = Math.max(0, Number(stat.total) || 0);
+        const correct = Math.max(0, Number(stat.correct) || 0);
+        const dueDate = Number(stat.dueDate) || 0;
+        const daysLate = dueDate > 0 && dueDate <= todayStart ? Math.floor((todayStart - dueDate) / 86400000) : -1;
+        const carried = !!(item && item.carriedFrom);
+        let score = 0;
+        if(daysLate >= 0) score += 25 + Math.min(30, daysLate * 3);
+        if(latest === 0) score += 36;
+        else if(latest === 1) score += 20;
+        if(latest === 0 && previous === 0) score += 12;
+        if(total >= 3 && correct / total < .65) score += 16;
+        if(stat.pen) score += 14;
+        if(stat.fav) score += 6;
+        if(carried) score += 9;
+        if(!total && !reviews.length) score += 3;
+        return { card, id, score, daysLate, wrong:latest === 0, hard:latest === 1,
+            flagged:!!(stat.pen || stat.fav), carried, newCard:total === 0 && !reviews.length };
+    }
+
+    function buildTodayPlanPriority(store) {
+        const stats = getStatsStore();
+        const history = getReviewHistory();
+        const today = new Date(); today.setHours(0,0,0,0);
+        const todayStart = today.getTime();
+        const deckCache = new Map();
+        const cardPriorityCache = new Map();
+        const ranked = [];
+        (Array.isArray(store && store.items) ? store.items : []).forEach((rawItem, index) => {
+            const item = normalizeTodayPlanItem(rawItem);
+            const completed = new Set(item.completedIds.map(String));
+            const pendingIds = item.cardIds.filter(id => !completed.has(String(id)));
+            if(!pendingIds.length) return;
+            const deckKey = `${item.deckMode}|${item.deckPath}`;
+            if(!deckCache.has(deckKey)) deckCache.set(deckKey,
+                new Map(getTodayPlanSourceCards(item.deckPath, item.deckMode).map(card => [String(card.id || ''), card])));
+            const deckLookup = deckCache.get(deckKey);
+            const priorityCards = pendingIds.map(id => {
+                const card = deckLookup.get(String(id));
+                if(!card) return null; // Do not turn an unresolved ID into a different card.
+                const cacheKey = `${item.carriedFrom ? 'carry:' : ''}${String(id)}`;
+                if(!cardPriorityCache.has(cacheKey)) cardPriorityCache.set(cacheKey,
+                    getTodayPlanPriorityCard(card, item, stats, history, todayStart));
+                return cardPriorityCache.get(cacheKey);
+            }).filter(Boolean);
+            if(!priorityCards.length) return;
+            // Stable sort retains the plan's original order for equal-priority cards.
+            priorityCards.sort((a,b) => b.score - a.score);
+            const leading = priorityCards.slice(0, Math.min(10, priorityCards.length));
+            const overdueCount = priorityCards.filter(c => c.daysLate >= 0).length;
+            const wrongCount = priorityCards.filter(c => c.wrong).length;
+            const hardCount = priorityCards.filter(c => c.hard).length;
+            const planScore = leading.reduce((sum,c) => sum + c.score, 0) / leading.length
+                + Math.min(12, overdueCount * 1.5) + Math.min(6, wrongCount * 2);
+            const reasons = [];
+            if(overdueCount) reasons.push(`복습일 경과 ${overdueCount}문제`);
+            if(wrongCount) reasons.push(`최근 오답 ${wrongCount}문제`);
+            if(hardCount) reasons.push(`최근 애매 ${hardCount}문제`);
+            if(item.carriedFrom) reasons.push('이월된 계획');
+            if(!reasons.length && priorityCards.some(c => c.flagged)) reasons.push('중요·긴급 표시 포함');
+            if(!reasons.length) reasons.push('남은 문제의 학습 기록 기준');
+            ranked.push({ item, index, score:planScore, cards:priorityCards,
+                remaining:pendingIds.length, reasons:reasons.slice(0,3) });
+        });
+        return ranked.sort((a,b) => (b.score-a.score) || (a.index-b.index));
+    }
+
+    function renderTodayPlanPriority(store) {
+        const list = document.getElementById('today-plan-priority-list');
+        const toggle = document.getElementById('today-plan-priority-toggle');
+        const chevron = document.getElementById('today-plan-priority-chevron');
+        if(!list || !toggle) return;
+        toggle.setAttribute('aria-expanded', String(todayPlanPriorityOpen));
+        if(chevron) chevron.textContent = todayPlanPriorityOpen ? '접기 ▴' : '펼치기 ▾';
+        list.hidden = !todayPlanPriorityOpen;
+        if(!todayPlanPriorityOpen) { list.innerHTML=''; return; }
+        const choices = buildTodayPlanPriority(store).slice(0,5);
+        if(!choices.length) {
+            list.innerHTML = '<div class="today-plan-empty">추천할 미완료 문제가 없습니다.</div>';
+            return;
+        }
+        list.innerHTML = `<div class="today-plan-priority-intro">현재 오늘 계획에서 남은 문제만 추천합니다. 정답률·복습 일정은 변경하지 않으며, 추천 기준은 학습 기록 기반 추정입니다.</div>`
+            + choices.map((choice,i) => {
+                const itemId = escapeTodayPlanHtml(choice.item.id);
+                const label = getTodayPlanGroupName(choice.item) + ' › ' + getTodayPlanRelativeDeckLabel(choice.item, getTodayPlanGroupName(choice.item));
+                const count = Math.min(TODAY_PLAN_PRIORITY_BATCH_SIZE, choice.cards.length);
+                return `<div class="today-plan-priority-card"><div class="today-plan-priority-head"><span class="today-plan-priority-title">${escapeTodayPlanHtml(label)}</span><span class="today-plan-priority-rank">${i+1}순위</span></div>`
+                    + `<div class="today-plan-priority-desc">남은 ${choice.remaining}문제 · ${escapeTodayPlanHtml(choice.reasons.join(' · '))}</div>`
+                    + `<div class="today-plan-priority-actions"><button type="button" class="priority-start" onclick="startTodayPlanItem('${itemId}','priority')">▶ 추천 ${count}문제 풀기</button>`
+                    + `<button type="button" onclick="startTodayPlanItem('${itemId}')">전체 ${choice.remaining}문제 풀기</button></div></div>`;
+            }).join('');
+    }
+
+    function toggleTodayPlanPriority() {
+        todayPlanPriorityOpen = !todayPlanPriorityOpen;
+        renderTodayPlanPriority(readTodayPlanStoreRaw());
+    }
+
     function renderTodayPlan() {
         let store = ensureTodayPlanCurrentDay();
         store = repairTodayPlanStore(store, { persist:true }).store;
@@ -3718,6 +3847,7 @@
         if(!list || !summary) return;
         const totals = getTodayPlanOverallProgress(store);
         const remain = totals.remain;
+        renderTodayPlanPriority(store);
         const totalPercent = totals.total ? Math.round(totals.done / totals.total * 100) : 0;
         summary.innerHTML = `<div class="today-plan-summary-header">
                 <div><span class="today-plan-summary-title">오늘 전체 진행률 · ${totalPercent}%</span>
@@ -4023,7 +4153,7 @@
         return true;
     }
 
-    function startTodayPlanItem(itemId) {
+    function startTodayPlanItem(itemId, selectionMode = 'all') {
         let store = ensureTodayPlanCurrentDay();
         const repair = repairTodayPlanStore(store, { persist:true });
         store = repair.store;
@@ -4036,13 +4166,25 @@
         const completed = new Set(item.completedIds.map(String));
         const remainingIds = item.cardIds.filter(id => !completed.has(String(id)));
         if(!remainingIds.length) { renderTodayPlan(); showToast('이 계획은 모두 완료했습니다.', 'success'); return; }
-        const cards = remainingIds.map(id => findCardById(id)).filter(Boolean);
+        const sourceCards = getTodayPlanSourceCards(item.deckPath, item.deckMode);
+        const sourceById = new Map(sourceCards.map(card => [String(card && card.id || ''),card]));
+        // Preserve the original full-plan fallback for migrated/stale deck paths.
+        // Recommendation mode only ranks cards confirmed in this plan's source scope.
+        let cards = remainingIds.map(id => sourceById.get(String(id)) || (selectionMode === 'priority' ? null : findCardById(id))).filter(Boolean);
+        if(selectionMode === 'priority' && cards.length) {
+            const stats = getStatsStore();
+            const history = getReviewHistory();
+            const today = new Date(); today.setHours(0,0,0,0);
+            cards = cards.map(card => getTodayPlanPriorityCard(card, item, stats, history, today.getTime()))
+                .sort((a,b) => (b.score-a.score) || remainingIds.indexOf(a.id)-remainingIds.indexOf(b.id))
+                .slice(0,TODAY_PLAN_PRIORITY_BATCH_SIZE).map(meta => meta.card);
+        }
         if(!cards.length) {
             renderTodayPlan();
             showToast('남은 문제 ID를 현재 덱에서 찾지 못했습니다. 덱 새로고침 후 다시 시도해주세요.', 'error');
             return;
         }
-        if(cards.length < remainingIds.length) showToast(`현재 덱에서 찾은 ${cards.length}문제부터 시작합니다. 누락 문제는 자동 정리됩니다.`);
+        if(selectionMode !== 'priority' && cards.length < remainingIds.length) showToast(`현재 덱에서 찾은 ${cards.length}문제부터 시작합니다. 나머지 문제는 덱을 확인해주세요.`);
         markUserUiInteraction();
         todayEssentialState.active = false;
         todayNewState.active = false;
@@ -4051,7 +4193,7 @@
         // Today Plan limits only the cards that can be reviewed. Keep the full selected
         // source deck as originalDeck so :-> / CS sibling context and Original Order
         // Context render exactly like ordinary deck study.
-        const fullSourceCards = getTodayPlanSourceCards(item.deckPath, item.deckMode);
+        const fullSourceCards = sourceCards;
         originalDeck = fullSourceCards.length ? fullSourceCards.slice() : cards.slice();
         setCurrentFilterModeWithTrace('default', 'startTodayPlanItem');
         currentSortMode = 'original';
@@ -4068,6 +4210,7 @@
         closeTodayPlanModal();
         showCard();
         persistCurrentViewState(true);
+        if(selectionMode === 'priority') showToast(`우선 추천 ${cards.length}문제로 시작합니다. 기존 오늘 계획에 완료가 반영됩니다.`, 'success');
     }
 
     function openTRModal() {
@@ -18390,6 +18533,18 @@ function getIOImageGroups() {
         return null;
     }
 
+    // Source-format agnostic #card tag detection. Logseq can export #card
+    // as a zero-text anchor <a data-ref="card">, so checking textContent
+    // alone drops a real answer on :-> / CS focused pages. Only inspect the
+    // OWN bullet content: a tag in a descendant answer must not turn a parent
+    // outline heading into a separate card.
+    function mkHasOrdinaryCardTag(li, ownContent = null) {
+        if(!li) return false;
+        const own = ownContent || cloneMkHierarchyOwnContent(li);
+        return /(?:^|\s)#card\b/i.test(String(own.textContent || '')) ||
+            !!own.querySelector('a[data-ref="card"], a.tag[href*="page=card"], [data-mk-card="1"]');
+    }
+
     function getMkOwnCardQuestionLabel(li) {
         if(!li) return '';
         const copy = cloneMkHierarchyOwnContent(li);
@@ -18633,7 +18788,7 @@ function getIOImageGroups() {
             const source=found.get(label);
             const raw = li.cloneNode(true);
             raw.querySelectorAll('ul,ol').forEach(el=>el.remove());
-            const originalHasCardTag=/(?:^|\s)#card\b/i.test(raw.textContent||'');
+            const originalHasCardTag=mkHasOrdinaryCardTag(li, raw);
             // A uniform #card group can lose its #card tokens during mk-sync.
             const uniformGroup=presentLabels.every(x=>x && (x.endsWith(' mem') || x===currentLabel || found.has(x)));
             if(!source && !originalHasCardTag && !uniformGroup) return;
@@ -18858,7 +19013,8 @@ function getIOImageGroups() {
             // No title-only guessing is allowed for CS / :-> / ordinary clozes.
             const own = cloneMkHierarchyOwnContent(li);
             const title = String(own.textContent || '').trim();
-            if(!li.parentElement || !title || /(?:^|\s)#card\b|:\s*->|\{\{cs(?:\d+)?\b|\{\{c\d+::/i.test(title) ||
+            if(!li.parentElement || !title || mkHasOrdinaryCardTag(li, own) ||
+               /(?:^|\s)#card\b|:\s*->|\{\{cs(?:\d+)?\b|\{\{c\d+::/i.test(title) ||
                own.querySelector('.cloze-wrapper, .mk-cs-wrapper, .mk-card-answer-mask, .mk-arrow-blank, .mk-io-wrapper')) return;
             const label = normalizeMkSiblingCardLabel(title);
             if(label) rows.push(li);
@@ -19019,7 +19175,7 @@ function getIOImageGroups() {
         // Never substitute an answer merely because its title is similar.
         const ownTitle = active.cloneNode(true);
         ownTitle.querySelectorAll('ul,ol').forEach(list => list.remove());
-        const tagged = /(?:^|\s)#card\b/i.test(String(ownTitle.textContent || ''));
+        const tagged = mkHasOrdinaryCardTag(active, ownTitle);
         if(!tagged) return false;
         const source = getMkOrdinaryCardSiblingSource(card);
         if(!source || !source.realList) return false;
@@ -19072,9 +19228,8 @@ function getIOImageGroups() {
         root.querySelectorAll('li').forEach(li => {
             if(li.closest('.mk-extra-node, .mk-extra-content')) return;
             if(li.dataset.mkCardAnswerAttached === '1') return;
-            const own = li.cloneNode(true);
-            own.querySelectorAll('ul, ol').forEach(list => list.remove());
-            if(!/(?:^|\s)#card\b/i.test(String(own.textContent || ''))) return;
+            const own = cloneMkHierarchyOwnContent(li);
+            if(!mkHasOrdinaryCardTag(li, own)) return;
             const existing = getMkOrdinaryCardOwnList(li);
             const source = existing && mkCardAnswerListHasContent(existing)
                 ? {realList:existing.cloneNode(true)}
@@ -19176,8 +19331,7 @@ function getIOImageGroups() {
         // actively exported nested answer list, which contains cloze-a even
         // when the tag itself was stripped. Never infer a #card merely from
         // an unmarked *inactive* sibling or an ordinary outline heading.
-        const tag = /(?:^|\s)#card\b/i.test(text) ||
-            !!own.querySelector('a[data-ref="card"], a.tag[href*="page=card"]');
+        const tag = mkHasOrdinaryCardTag(li, own);
         const list = getMkOrdinaryCardOwnList(li);
         const activeCardAnswer = isActive && !!list &&
             !!list.querySelector('.cloze-wrapper .cloze-a');
@@ -19288,21 +19442,19 @@ function getIOImageGroups() {
                 li.dataset.mkCardAnswerAttached==='1') return;
             const own = cloneMkHierarchyOwnContent(li);
             const ownText=String(own.textContent||'');
-            const hasCardTag=/(?:^|\s)#card\b/i.test(ownText) ||
-                !!own.querySelector('a[data-ref="card"], a.tag[href*="page=card"]');
+            const hasCardTag=mkHasOrdinaryCardTag(li, own);
             if(!ownText.trim() || (hasCardTag && !!getMkOrdinaryCardOwnList(li))) return;
             if(own.querySelector('.cloze-wrapper,.mk-cs-wrapper,.mk-card-answer-mask,.mk-io-wrapper')) return;
             // A parent with nested bullets is normally an outline heading; an
             // explicit #card without an answer is the only exception.
-            if(getMkOrdinaryCardOwnList(li) && !/(?:^|\s)#card\b/i.test(ownText)) return;
+            if(getMkOrdinaryCardOwnList(li) && !hasCardTag) return;
             const label=mkHierarchyOwnTitle(li);
             const scope=mkHierarchyRecoveryScope(card,root,li);
             if(!label || !scope) return;
             const outline=mkHierarchySiblingOutline(li);
             if(outline.index<0) return;
             result.push({li,label,scope,nodeId:mkHierarchyStableNodeId(li),position:outline.index,outline:outline.labels,
-                explicitCard:/(?:^|\s)#card\b/i.test(ownText) ||
-                    !!own.querySelector('a[data-ref="card"], a.tag[href*="page=card"]'),
+                explicitCard:hasCardTag,
                 explicitArrow:ownText.includes(':->'),
                 explicitCs:/\{\{cs\d*\s/i.test(ownText)});
         });
