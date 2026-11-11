@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.362 TODAY PLAN PRIORITY -->
+<!-- preview: v18.5.363 PC IO MAGNIFIER -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.362 TODAY PLAN PRIORITY)</title>
+<title>MK (v18.5.363 PC IO MAGNIFIER)</title>
 
 <script>
     (() => {
@@ -547,7 +547,7 @@
         display: none !important;
     }
 
-    .mk-io-other-masks-toggle {
+    .mk-io-other-masks-toggle, .mk-io-magnifier-toggle {
         position: fixed;
         right: 11px;
         bottom: calc(var(--mk-footer-height, 0px) + 8px);
@@ -570,7 +570,7 @@
         z-index: 20;
     }
 
-    .mk-io-other-masks-toggle::before {
+    .mk-io-other-masks-toggle::before, .mk-io-magnifier-toggle::before {
         content: '';
         position: absolute;
         width: 22px;
@@ -580,23 +580,96 @@
         background: rgba(31,41,55,0.16);
     }
 
-    .mk-io-other-masks-toggle.active {
+    .mk-io-other-masks-toggle.active, .mk-io-magnifier-toggle.active {
         color: var(--primary);
         background: transparent;
         box-shadow: none;
     }
 
-    .mk-io-other-masks-toggle.active::before {
+    .mk-io-other-masks-toggle.active::before, .mk-io-magnifier-toggle.active::before {
         border-color: var(--primary);
         background: rgba(51,154,240,0.12);
     }
 
-    .mk-io-other-masks-toggle svg {
+    .mk-io-other-masks-toggle svg, .mk-io-magnifier-toggle svg {
         position: relative;
         width: 16px;
         height: 16px;
         pointer-events: none;
         z-index: 1;
+    }
+
+    /* v18.5.363: The PC-only IO lens shares the existing eye button's 32px/opacity styling. */
+    .mk-io-magnifier-toggle {
+        bottom: calc(var(--mk-footer-height, 0px) + 44px);
+        z-index: 22;
+        display: none;
+    }
+    .mk-io-magnifier-toggle.visible { display: flex; }
+    .mk-io-magnifier-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+    .mk-io-magnifier-lens {
+        position: fixed;
+        display: block;
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 9000;
+        border: 2px solid rgba(160, 191, 221, .85);
+        border-radius: 50%;
+        background: #1f2937;
+        box-shadow: 0 5px 28px rgba(0,0,0,.65);
+        box-sizing: border-box;
+        contain: layout paint style;
+    }
+    .mk-io-magnifier-lens[hidden], .mk-io-magnifier-settings[hidden] { display: none !important; }
+    .mk-io-magnifier-scene {
+        position: absolute !important;
+        display: block !important;
+        left: 0;
+        top: 0;
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: none !important;
+        overflow: visible !important;
+        transform-origin: 0 0;
+        pointer-events: none;
+    }
+    .mk-io-magnifier-scene > .mk-io-image {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: none !important;
+        object-fit: fill !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        margin: 0 !important;
+    }
+    .mk-io-magnifier-scene > .mk-io-layer {
+        display: block !important;
+        visibility: visible !important;
+        width: 100% !important;
+        height: 100% !important;
+        pointer-events: none !important;
+    }
+    .mk-io-magnifier-settings {
+        position: fixed;
+        right: 12px;
+        bottom: calc(var(--mk-footer-height, 0px) + 84px);
+        z-index: 9001;
+        width: min(320px, calc(100vw - 24px));
+        padding: 15px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        color: var(--text);
+        box-shadow: 0 7px 28px rgba(0,0,0,.7);
+    }
+    .mk-io-magnifier-settings-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:13px; }
+    .mk-io-magnifier-settings-close { background: transparent; border:0; color:var(--text-sub); cursor:pointer; font-size:21px; line-height:1; padding:2px 6px; }
+    .mk-io-magnifier-settings-row { display:flex; justify-content:space-between; align-items:center; font-size:.88rem; margin:12px 0 7px; }
+    .mk-io-magnifier-settings input[type="range"] { display:block; width:100%; accent-color:var(--primary); cursor:pointer; }
+    .mk-io-magnifier-extents { display:flex; justify-content:space-between; color:var(--text-sub); font-size:.72rem; margin-top:3px; }
+    .mk-io-magnifier-tip { margin-top:12px; font-size:.75rem; color:var(--text-sub); }
+    @media (hover: none), (pointer: coarse) {
+        .mk-io-magnifier-toggle, .mk-io-magnifier-lens, .mk-io-magnifier-settings { display: none !important; }
     }
 
     .mk-io-image-nav {
@@ -1324,7 +1397,7 @@
                 <div class="mk-font-setting-minmax"><span>8px</span><span>18px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.362 TODAY PLAN PRIORITY)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.363 PC IO MAGNIFIER)</div>
     </div>
 
 
@@ -1593,6 +1666,20 @@
 
     <button type="button" id="mk-io-image-prev" class="mk-io-image-nav previous" onclick="jumpToAdjacentIOImage(-1)" aria-label="이전 이미지" title="이전 이미지">‹▧</button>
     <button type="button" id="mk-io-image-next" class="mk-io-image-nav next" onclick="jumpToAdjacentIOImage(1)" aria-label="다음 이미지" title="다음 이미지">▧›</button>
+    <button type="button" id="mk-io-magnifier-toggle" class="mk-io-magnifier-toggle" aria-pressed="false" aria-label="IO 돋보기 켜기" title="IO 돋보기: 클릭 켜기/끄기 · 우클릭 설정">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <div id="mk-io-magnifier-lens" class="mk-io-magnifier-lens" aria-hidden="true" hidden></div>
+    <div id="mk-io-magnifier-settings" class="mk-io-magnifier-settings" role="dialog" aria-label="IO 돋보기 설정" hidden>
+        <div class="mk-io-magnifier-settings-head"><strong>🔎 IO 돋보기 설정</strong><button type="button" id="mk-io-magnifier-settings-close" class="mk-io-magnifier-settings-close" aria-label="설정 닫기">×</button></div>
+        <label class="mk-io-magnifier-settings-row" for="mk-io-magnifier-zoom"><span>확대 배율</span><output id="mk-io-magnifier-zoom-value" for="mk-io-magnifier-zoom">3.0배</output></label>
+        <input type="range" id="mk-io-magnifier-zoom" min="1.5" max="6" step="0.5" value="3" aria-label="IO 돋보기 확대 배율">
+        <div class="mk-io-magnifier-extents"><span>1.5배</span><span>최대 6배</span></div>
+        <label class="mk-io-magnifier-settings-row" for="mk-io-magnifier-size"><span>돋보기 크기</span><output id="mk-io-magnifier-size-value" for="mk-io-magnifier-size">240px</output></label>
+        <input type="range" id="mk-io-magnifier-size" min="120" max="400" step="20" value="240" aria-label="IO 돋보기 크기">
+        <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
+        <div class="mk-io-magnifier-tip">좌클릭: 돋보기 켜기/끄기 · 우클릭: 설정</div>
+    </div>
 
     <div class="main-container">
         <!-- Stays outside #scroll-area: the sticky deck title is NOT duplicated. -->
@@ -1777,7 +1864,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.362 TODAY PLAN PRIORITY';
+    const APP_VERSION = 'v18.5.363 PC IO MAGNIFIER';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -18382,6 +18469,258 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         return /data-annotation-uuid|data-source-uuid|block-ref|[📌🟡🔵🟢🟣🔴🟠]\s*<b[^>]*>P\d+/i.test(text);
     }
 
+    // v18.5.363: PC-only magnifier, built from the CURRENT image and its CURRENT
+    // occlusion SVG together. Never render unmasked pixels when SVG is unavailable.
+    const mkIOMagnifierState = {
+        initialized: false, enabled: false, wrapper: null, sourceLayer: null,
+        lens: null, scene: null, button: null, panel: null, pointer: null,
+        zoom: 3, size: 240
+    };
+
+    function mkIOIsDesktopPointer() {
+        if(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '')) return false;
+        if(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) return false;
+        return !window.matchMedia || (matchMedia('(hover: hover)').matches && matchMedia('(pointer: fine)').matches);
+    }
+
+    function mkIOReadMagnifierSetting(key, fallback, min, max, step) {
+        let value = fallback;
+        try { value = Number(localStorage.getItem(key)); } catch(error) {}
+        if(!Number.isFinite(value) || value < min || value > max) return fallback;
+        return min + Math.round((value - min) / step) * step;
+    }
+
+    function mkIOHideMagnifierLens(clearScene = false) {
+        const state = mkIOMagnifierState;
+        if(state.lens) state.lens.hidden = true;
+        if(clearScene) {
+            if(state.lens) state.lens.replaceChildren();
+            state.scene = null;
+            state.wrapper = null;
+            state.sourceLayer = null;
+            state.pointer = null;
+        }
+    }
+
+    function mkIORefreshMagnifierControls() {
+        const state = mkIOMagnifierState;
+        if(!state.initialized) return;
+        const isIO = isMkImageOcclusionCardFast(activeDeck && activeDeck[currentIndex]);
+        const visible = isIO && mkIOIsDesktopPointer();
+        state.button.classList.toggle('visible', visible);
+        state.button.classList.toggle('active', visible && state.enabled);
+        state.button.setAttribute('aria-pressed', String(visible && state.enabled));
+        state.button.setAttribute('aria-label', state.enabled ? 'IO 돋보기 끄기' : 'IO 돋보기 켜기');
+        if(!visible) {
+            state.panel.hidden = true;
+            mkIOHideMagnifierLens(true);
+        }
+    }
+
+    function mkIOUpdateMagnifierSettings() {
+        const state = mkIOMagnifierState;
+        const zoom = document.getElementById('mk-io-magnifier-zoom');
+        const size = document.getElementById('mk-io-magnifier-size');
+        if(zoom) zoom.value = String(state.zoom);
+        if(size) size.value = String(state.size);
+        const zoomValue = document.getElementById('mk-io-magnifier-zoom-value');
+        const sizeValue = document.getElementById('mk-io-magnifier-size-value');
+        if(zoomValue) zoomValue.textContent = state.zoom.toFixed(1) + '배';
+        if(sizeValue) sizeValue.textContent = state.size + 'px';
+        if(state.lens) {
+            state.lens.style.width = state.size + 'px';
+            state.lens.style.height = state.size + 'px';
+        }
+        if(state.pointer && !state.lens.hidden) mkIOPositionMagnifier(state.pointer.x, state.pointer.y);
+    }
+
+    function mkIOPositionMagnifier(clientX, clientY) {
+        const state = mkIOMagnifierState;
+        if(!state.scene || !state.wrapper || !state.lens) return;
+        const img = state.wrapper.querySelector('img.mk-io-image');
+        if(!img || !img.isConnected) { mkIOHideMagnifierLens(true); return; }
+        const r = img.getBoundingClientRect();
+        if(r.width <= 0 || r.height <= 0 || !Number.isFinite(r.left)) { mkIOHideMagnifierLens(); return; }
+        const x = clientX - r.left;
+        const y = clientY - r.top;
+        if(x < 0 || y < 0 || x > r.width || y > r.height) { mkIOHideMagnifierLens(); return; }
+        const lensSize = state.size;
+        const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+        const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
+        const offset = 22;
+        const targetLeft = clientX + lensSize + offset > viewportWidth - 8
+            ? clientX - lensSize - offset : clientX + offset;
+        const targetTop = clientY - lensSize / 2;
+        const clamp = (n, lo, hi) => Math.max(lo, Math.min(n, hi));
+        state.lens.style.left = Math.round(clamp(targetLeft, 6, Math.max(6, viewportWidth - lensSize - 6))) + 'px';
+        state.lens.style.top = Math.round(clamp(targetTop, 6, Math.max(6, viewportHeight - lensSize - 6))) + 'px';
+        state.scene.style.width = r.width + 'px';
+        state.scene.style.height = r.height + 'px';
+        // Important: image and SVG MUST be scaled together, not as separate layers.
+        const center = lensSize / 2;
+        state.scene.style.transform = `translate3d(${center - x * state.zoom}px, ${center - y * state.zoom}px, 0) scale(${state.zoom})`;
+        state.pointer = {x:clientX, y:clientY};
+    }
+
+    function mkIORebuildMagnifierScene(wrapper, sourceLayer, img) {
+        const state = mkIOMagnifierState;
+        mkIOHideMagnifierLens(true); // no unmasked frame during rebuild
+        if(!sourceLayer || !img || !img.complete || !img.naturalWidth || !img.naturalHeight ||
+           !sourceLayer.querySelector('.mk-io-mask')) return false;
+        const svgClone = sourceLayer.cloneNode(true);
+        if(svgClone.querySelectorAll('.mk-io-mask').length !== sourceLayer.querySelectorAll('.mk-io-mask').length) return false;
+        svgClone.removeAttribute('id');
+        svgClone.classList.remove('mk-io-zoom-mask-overlay');
+        svgClone.style.removeProperty('visibility');
+        const imgClone = img.cloneNode(false);
+        imgClone.removeAttribute('id');
+        imgClone.removeAttribute('srcset');
+        imgClone.removeAttribute('sizes');
+        imgClone.removeAttribute('loading');
+        imgClone.style.removeProperty('opacity');
+        imgClone.style.removeProperty('visibility');
+        const actualSrc = img.currentSrc || img.src;
+        if(!actualSrc) return false;
+        imgClone.src = actualSrc;
+        imgClone.setAttribute('aria-hidden', 'true');
+        imgClone.addEventListener('error', () => mkIOHideMagnifierLens(true), {once:true});
+        const scene = document.createElement('div');
+        scene.className = 'mk-io-wrapper mk-io-magnifier-scene';
+        scene.appendChild(imgClone);
+        scene.appendChild(svgClone);
+        state.lens.replaceChildren(scene);
+        state.scene = scene;
+        state.wrapper = wrapper;
+        state.sourceLayer = sourceLayer;
+        return true;
+    }
+
+    function mkIOMagnifierPointerMove(event) {
+        const state = mkIOMagnifierState;
+        if(!state.enabled || !mkIOIsDesktopPointer() || (event.pointerType && event.pointerType !== 'mouse') ||
+           !state.button || !state.button.classList.contains('visible') ||
+           !state.panel.hidden) {
+            mkIOHideMagnifierLens();
+            return;
+        }
+        const target = event.target instanceof Element ? event.target : null;
+        const wrapper = target && target.closest('#question-section .mk-io-wrapper[data-mk-io="1"]');
+        if(!wrapper || wrapper.classList.contains('is-media-zoomed') ||
+           (wrapper._mediaZoomState && wrapper._mediaZoomState.scale > 1)) {
+            // Full-image zoom uses a separate hi-res canvas/mask overlay. Suspend
+            // the lens while zoomed rather than risk mixing two different geometry systems.
+            mkIOHideMagnifierLens();
+            return;
+        }
+        const img = wrapper.querySelector('img.mk-io-image');
+        const sourceLayer = wrapper.querySelector('.mk-io-layer:not(.mk-io-zoom-mask-overlay)');
+        if(!img || !img.complete || !img.naturalWidth || !img.naturalHeight ||
+           !sourceLayer || getComputedStyle(sourceLayer).visibility !== 'visible' ||
+           !sourceLayer.querySelector('.mk-io-mask')) {
+            mkIOHideMagnifierLens();
+            return;
+        }
+        const r = img.getBoundingClientRect();
+        const viewport = scrollContainer.getBoundingClientRect();
+        if(event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom ||
+           event.clientX < viewport.left || event.clientX > viewport.right ||
+           event.clientY < viewport.top || event.clientY > viewport.bottom) {
+            mkIOHideMagnifierLens();
+            return;
+        }
+        if(state.wrapper !== wrapper || state.sourceLayer !== sourceLayer || !state.scene || !state.scene.isConnected ||
+           state.scene.querySelectorAll('.mk-io-mask').length !== sourceLayer.querySelectorAll('.mk-io-mask').length) {
+            if(!mkIORebuildMagnifierScene(wrapper, sourceLayer, img)) return;
+        }
+        const section = wrapper.closest('.mode-question, .mode-answer');
+        state.lens.classList.toggle('mode-question', !!section && section.classList.contains('mode-question'));
+        state.lens.classList.toggle('mode-answer', !!section && section.classList.contains('mode-answer'));
+        state.scene.classList.toggle('mk-io-show-other-content', wrapper.classList.contains('mk-io-show-other-content'));
+        // The source SVG mask remains the authoritative mask. On each move mirror any
+        // per-mask class/style mutations (some card formats update masks in place).
+        const sourceMasks = sourceLayer.querySelectorAll('.mk-io-mask');
+        const clonedMasks = state.scene.querySelectorAll('.mk-io-mask');
+        if(sourceMasks.length !== clonedMasks.length) { mkIOHideMagnifierLens(true); return; }
+        for(let i = 0; i < sourceMasks.length; i++) {
+            const sourceMask = sourceMasks[i];
+            const clonedMask = clonedMasks[i];
+            const cls = sourceMask.getAttribute('class') || 'mk-io-mask';
+            if(clonedMask.getAttribute('class') !== cls) clonedMask.setAttribute('class', cls);
+            const style = sourceMask.getAttribute('style');
+            if(style !== clonedMask.getAttribute('style')) {
+                if(style === null) clonedMask.removeAttribute('style');
+                else clonedMask.setAttribute('style', style);
+            }
+        }
+        mkIOPositionMagnifier(event.clientX, event.clientY);
+        // A cloned image is not allowed to flash the answer before its masks load.
+        const lensImg = state.scene.querySelector('img.mk-io-image');
+        state.lens.hidden = !(lensImg && lensImg.complete && lensImg.naturalWidth > 0 &&
+            state.scene.querySelectorAll('.mk-io-mask').length === sourceMasks.length);
+    }
+
+    function mkIOInitializeMagnifier() {
+        const state = mkIOMagnifierState;
+        if(state.initialized) return;
+        const button = document.getElementById('mk-io-magnifier-toggle');
+        const panel = document.getElementById('mk-io-magnifier-settings');
+        const lens = document.getElementById('mk-io-magnifier-lens');
+        if(!button || !panel || !lens) return;
+        state.button = button; state.panel = panel; state.lens = lens;
+        state.initialized = true;
+        state.zoom = mkIOReadMagnifierSetting('mk_io_magnifier_zoom_v1', 3, 1.5, 6, 0.5);
+        state.size = mkIOReadMagnifierSetting('mk_io_magnifier_size_v1', 240, 120, 400, 20);
+        mkIOUpdateMagnifierSettings();
+        button.addEventListener('click', event => {
+            event.preventDefault(); event.stopPropagation();
+            if(!mkIOIsDesktopPointer()) return;
+            state.enabled = !state.enabled;
+            state.panel.hidden = true;
+            mkIOHideMagnifierLens(!state.enabled);
+            mkIORefreshMagnifierControls();
+        });
+        button.addEventListener('contextmenu', event => {
+            event.preventDefault(); event.stopPropagation();
+            if(!mkIOIsDesktopPointer()) return;
+            state.panel.hidden = !state.panel.hidden;
+            mkIOHideMagnifierLens();
+            if(!state.panel.hidden) document.getElementById('mk-io-magnifier-zoom').focus();
+        });
+        document.getElementById('mk-io-magnifier-settings-close').addEventListener('click', () => {state.panel.hidden = true; button.focus();});
+        const zoomInput = document.getElementById('mk-io-magnifier-zoom');
+        const sizeInput = document.getElementById('mk-io-magnifier-size');
+        zoomInput.addEventListener('input', () => {
+            state.zoom = Math.min(6, Math.max(1.5, Number(zoomInput.value) || 3));
+            try {localStorage.setItem('mk_io_magnifier_zoom_v1', String(state.zoom));} catch(error) {}
+            mkIOUpdateMagnifierSettings();
+        });
+        sizeInput.addEventListener('input', () => {
+            state.size = Math.min(400, Math.max(120, Number(sizeInput.value) || 240));
+            try {localStorage.setItem('mk_io_magnifier_size_v1', String(state.size));} catch(error) {}
+            mkIOUpdateMagnifierSettings();
+        });
+        document.addEventListener('pointermove', mkIOMagnifierPointerMove, {passive:true});
+        document.addEventListener('pointerleave', () => mkIOHideMagnifierLens());
+        scrollContainer.addEventListener('scroll', () => mkIOHideMagnifierLens(), {passive:true});
+        window.addEventListener('blur', () => mkIOHideMagnifierLens());
+        window.addEventListener('resize', () => {mkIOHideMagnifierLens(); mkIORefreshMagnifierControls();}, {passive:true});
+        document.addEventListener('keydown', event => {
+            if(event.key !== 'Escape') return;
+            if(!state.panel.hidden) {state.panel.hidden = true; button.focus();}
+            else mkIOHideMagnifierLens();
+        });
+        document.addEventListener('pointerdown', event => {
+            if(!state.panel.hidden && !state.panel.contains(event.target) && !button.contains(event.target)) state.panel.hidden = true;
+        });
+    }
+
+    function mkIOUpdateMagnifierCard(card) {
+        mkIOInitializeMagnifier();
+        mkIOHideMagnifierLens(true);
+        if(mkIOMagnifierState.panel) mkIOMagnifierState.panel.hidden = true;
+        mkIORefreshMagnifierControls();
+    }
+
 function getIOImageGroups() {
         if(ioImageGroupCache.cards === activeDeck && ioImageGroupCache.length === activeDeck.length) return ioImageGroupCache;
         const groups = [];
@@ -19894,6 +20233,8 @@ function getIOImageGroups() {
 
     let mkOrdinaryCardContextRenderToken = 0;
     function showCard() {
+        // Hide the old lens before replacing the IO image/masks on navigation.
+        mkIOHideMagnifierLens(true);
         if (window.mkResetFoldStudyHeader) window.mkResetFoldStudyHeader();
         const mkCardRenderStartedAt = performance.now();
         const mkCardRenderPhases = {};
@@ -19920,7 +20261,7 @@ function getIOImageGroups() {
         disposeCardMediaResources(document.getElementById('question-section'));
         disposeCardMediaResources(document.getElementById('answer-section'));
         document.querySelectorAll('.mk-io-other-masks-toggle').forEach(button => button.remove());
-        if (!activeDeck || activeDeck.length === 0) updateIOImageNavigation(null);
+        if (!activeDeck || activeDeck.length === 0) { updateIOImageNavigation(null); mkIOUpdateMagnifierCard(null); }
         if (!activeDeck || activeDeck.length === 0) { reviewTimingState = null; updateDeckPathTitle(null); document.getElementById('question-section').innerHTML = "<h3 style='color:var(--text-sub); text-align:center;'>카드가 없습니다.</h3>"; document.getElementById('card-info').style.display='none'; return; }
         if(currentIndex >= activeDeck.length) currentIndex = 0;
         const card = activeDeck[currentIndex];
@@ -20038,6 +20379,7 @@ function getIOImageGroups() {
         bindImageZoomHandlers(qSection);
         if(isIOCard) activateCurrentIOImage(qSection);
         updateIOImageNavigation(card);
+        mkIOUpdateMagnifierCard(card);
 
         if(!isIOCard) {
             decoratePdfAnnotations(qSection, card, currentCardPdfTrace);
@@ -20163,6 +20505,7 @@ function getIOImageGroups() {
             return;
         }
 
+        mkIOHideMagnifierLens();
         qDiv.classList.remove('mode-question');
         qDiv.classList.add('mode-answer');
         ensureMkExtraContentForReveal(qDiv, card);
