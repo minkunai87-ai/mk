@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.363 PC IO MAGNIFIER -->
+<!-- preview: v18.5.365 IO SIDEBAR SETTINGS -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.363 PC IO MAGNIFIER)</title>
+<title>MK (v18.5.365 IO SIDEBAR SETTINGS)</title>
 
 <script>
     (() => {
@@ -599,14 +599,28 @@
         z-index: 1;
     }
 
-    /* v18.5.363: The PC-only IO lens shares the existing eye button's 32px/opacity styling. */
-    .mk-io-magnifier-toggle {
+    /* v18.5.365: PC-only IO lens: one 32px button above the existing eye button. */
+    .mk-io-magnifier-controls {
+        position: fixed;
+        right: 11px;
         bottom: calc(var(--mk-footer-height, 0px) + 44px);
+        width: 32px;
+        height: 32px;
         z-index: 22;
         display: none;
     }
-    .mk-io-magnifier-toggle.visible { display: flex; }
-    .mk-io-magnifier-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+    .mk-io-magnifier-controls.visible { display: block; }
+    .mk-io-magnifier-toggle {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: auto;
+        display: flex;
+    }
+    .mk-io-magnifier-toggle:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 3px;
+    }
     .mk-io-magnifier-lens {
         position: fixed;
         display: block;
@@ -620,7 +634,7 @@
         box-sizing: border-box;
         contain: layout paint style;
     }
-    .mk-io-magnifier-lens[hidden], .mk-io-magnifier-settings[hidden] { display: none !important; }
+    .mk-io-magnifier-lens[hidden] { display: none !important; }
     .mk-io-magnifier-scene {
         position: absolute !important;
         display: block !important;
@@ -649,27 +663,20 @@
         height: 100% !important;
         pointer-events: none !important;
     }
-    .mk-io-magnifier-settings {
-        position: fixed;
-        right: 12px;
-        bottom: calc(var(--mk-footer-height, 0px) + 84px);
-        z-index: 9001;
-        width: min(320px, calc(100vw - 24px));
-        padding: 15px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: var(--surface);
+    /* Desktop-only magnifier settings live inside the existing left display menu. */
+    .mk-io-magnifier-sidebar { margin-top: 12px; }
+    .mk-io-magnifier-sidebar-title {
+        display: block;
+        margin-bottom: 9px;
         color: var(--text);
-        box-shadow: 0 7px 28px rgba(0,0,0,.7);
+        font-weight: 700;
+        font-size: .85rem;
     }
-    .mk-io-magnifier-settings-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:13px; }
-    .mk-io-magnifier-settings-close { background: transparent; border:0; color:var(--text-sub); cursor:pointer; font-size:21px; line-height:1; padding:2px 6px; }
-    .mk-io-magnifier-settings-row { display:flex; justify-content:space-between; align-items:center; font-size:.88rem; margin:12px 0 7px; }
-    .mk-io-magnifier-settings input[type="range"] { display:block; width:100%; accent-color:var(--primary); cursor:pointer; }
-    .mk-io-magnifier-extents { display:flex; justify-content:space-between; color:var(--text-sub); font-size:.72rem; margin-top:3px; }
-    .mk-io-magnifier-tip { margin-top:12px; font-size:.75rem; color:var(--text-sub); }
+    .mk-io-magnifier-settings-row { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:.82rem; margin:12px 0 7px; }
+    .mk-io-magnifier-sidebar input[type="range"] { display:block; width:100%; margin:0; accent-color:var(--primary); cursor:pointer; }
+    .mk-io-magnifier-extents { display:flex; justify-content:space-between; color:var(--text-sub); font-size:.72rem; margin-top:5px; }
     @media (hover: none), (pointer: coarse) {
-        .mk-io-magnifier-toggle, .mk-io-magnifier-lens, .mk-io-magnifier-settings { display: none !important; }
+        .mk-io-magnifier-controls, .mk-io-magnifier-toggle, .mk-io-magnifier-lens, .mk-io-magnifier-sidebar { display: none !important; }
     }
 
     .mk-io-image-nav {
@@ -1396,8 +1403,17 @@
                 </div>
                 <div class="mk-font-setting-minmax"><span>8px</span><span>18px</span></div>
             </div>
+            <div id="mk-io-magnifier-settings" class="mk-font-setting-card mk-io-magnifier-sidebar" role="group" aria-labelledby="mk-io-magnifier-sidebar-title">
+                <span id="mk-io-magnifier-sidebar-title" class="mk-io-magnifier-sidebar-title">🔎 IO 돋보기 설정 (PC)</span>
+                <label class="mk-io-magnifier-settings-row" for="mk-io-magnifier-zoom"><span>확대 배율</span><output id="mk-io-magnifier-zoom-value" for="mk-io-magnifier-zoom">3.0배</output></label>
+                <input type="range" id="mk-io-magnifier-zoom" min="1.5" max="6" step="0.5" value="3" aria-label="IO 돋보기 확대 배율">
+                <div class="mk-io-magnifier-extents"><span>1.5배</span><span>최대 6배</span></div>
+                <label class="mk-io-magnifier-settings-row" for="mk-io-magnifier-size"><span>돋보기 크기</span><output id="mk-io-magnifier-size-value" for="mk-io-magnifier-size">240px</output></label>
+                <input type="range" id="mk-io-magnifier-size" min="120" max="400" step="20" value="240" aria-label="IO 돋보기 크기">
+                <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
+            </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.363 PC IO MAGNIFIER)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.365 IO SIDEBAR SETTINGS)</div>
     </div>
 
 
@@ -1666,20 +1682,12 @@
 
     <button type="button" id="mk-io-image-prev" class="mk-io-image-nav previous" onclick="jumpToAdjacentIOImage(-1)" aria-label="이전 이미지" title="이전 이미지">‹▧</button>
     <button type="button" id="mk-io-image-next" class="mk-io-image-nav next" onclick="jumpToAdjacentIOImage(1)" aria-label="다음 이미지" title="다음 이미지">▧›</button>
-    <button type="button" id="mk-io-magnifier-toggle" class="mk-io-magnifier-toggle" aria-pressed="false" aria-label="IO 돋보기 켜기" title="IO 돋보기: 클릭 켜기/끄기 · 우클릭 설정">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-    </button>
-    <div id="mk-io-magnifier-lens" class="mk-io-magnifier-lens" aria-hidden="true" hidden></div>
-    <div id="mk-io-magnifier-settings" class="mk-io-magnifier-settings" role="dialog" aria-label="IO 돋보기 설정" hidden>
-        <div class="mk-io-magnifier-settings-head"><strong>🔎 IO 돋보기 설정</strong><button type="button" id="mk-io-magnifier-settings-close" class="mk-io-magnifier-settings-close" aria-label="설정 닫기">×</button></div>
-        <label class="mk-io-magnifier-settings-row" for="mk-io-magnifier-zoom"><span>확대 배율</span><output id="mk-io-magnifier-zoom-value" for="mk-io-magnifier-zoom">3.0배</output></label>
-        <input type="range" id="mk-io-magnifier-zoom" min="1.5" max="6" step="0.5" value="3" aria-label="IO 돋보기 확대 배율">
-        <div class="mk-io-magnifier-extents"><span>1.5배</span><span>최대 6배</span></div>
-        <label class="mk-io-magnifier-settings-row" for="mk-io-magnifier-size"><span>돋보기 크기</span><output id="mk-io-magnifier-size-value" for="mk-io-magnifier-size">240px</output></label>
-        <input type="range" id="mk-io-magnifier-size" min="120" max="400" step="20" value="240" aria-label="IO 돋보기 크기">
-        <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
-        <div class="mk-io-magnifier-tip">좌클릭: 돋보기 켜기/끄기 · 우클릭: 설정</div>
+    <div id="mk-io-magnifier-controls" class="mk-io-magnifier-controls">
+        <button type="button" id="mk-io-magnifier-toggle" class="mk-io-magnifier-toggle" aria-pressed="false" aria-label="IO 돋보기 켜기" title="IO 돋보기 켜기/끄기 · 확대 설정은 왼쪽 메뉴">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
     </div>
+    <div id="mk-io-magnifier-lens" class="mk-io-magnifier-lens" aria-hidden="true" hidden></div>
 
     <div class="main-container">
         <!-- Stays outside #scroll-area: the sticky deck title is NOT duplicated. -->
@@ -1864,7 +1872,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.363 PC IO MAGNIFIER';
+    const APP_VERSION = 'v18.5.365 IO SIDEBAR SETTINGS';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -18469,11 +18477,11 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         return /data-annotation-uuid|data-source-uuid|block-ref|[📌🟡🔵🟢🟣🔴🟠]\s*<b[^>]*>P\d+/i.test(text);
     }
 
-    // v18.5.363: PC-only magnifier, built from the CURRENT image and its CURRENT
+    // v18.5.365: PC-only magnifier, built from the CURRENT image and its CURRENT
     // occlusion SVG together. Never render unmasked pixels when SVG is unavailable.
     const mkIOMagnifierState = {
         initialized: false, enabled: false, wrapper: null, sourceLayer: null,
-        lens: null, scene: null, button: null, panel: null, pointer: null,
+        lens: null, scene: null, button: null, controls: null, pointer: null,
         zoom: 3, size: 240
     };
 
@@ -18507,14 +18515,11 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         if(!state.initialized) return;
         const isIO = isMkImageOcclusionCardFast(activeDeck && activeDeck[currentIndex]);
         const visible = isIO && mkIOIsDesktopPointer();
-        state.button.classList.toggle('visible', visible);
+        state.controls.classList.toggle('visible', visible);
         state.button.classList.toggle('active', visible && state.enabled);
         state.button.setAttribute('aria-pressed', String(visible && state.enabled));
         state.button.setAttribute('aria-label', state.enabled ? 'IO 돋보기 끄기' : 'IO 돋보기 켜기');
-        if(!visible) {
-            state.panel.hidden = true;
-            mkIOHideMagnifierLens(true);
-        }
+        if(!visible) mkIOHideMagnifierLens(true);
     }
 
     function mkIOUpdateMagnifierSettings() {
@@ -18598,8 +18603,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
     function mkIOMagnifierPointerMove(event) {
         const state = mkIOMagnifierState;
         if(!state.enabled || !mkIOIsDesktopPointer() || (event.pointerType && event.pointerType !== 'mouse') ||
-           !state.button || !state.button.classList.contains('visible') ||
-           !state.panel.hidden) {
+           !state.button || !state.controls.classList.contains('visible')) {
             mkIOHideMagnifierLens();
             return;
         }
@@ -18663,10 +18667,12 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         const state = mkIOMagnifierState;
         if(state.initialized) return;
         const button = document.getElementById('mk-io-magnifier-toggle');
-        const panel = document.getElementById('mk-io-magnifier-settings');
+        const controls = document.getElementById('mk-io-magnifier-controls');
         const lens = document.getElementById('mk-io-magnifier-lens');
-        if(!button || !panel || !lens) return;
-        state.button = button; state.panel = panel; state.lens = lens;
+        const zoomInput = document.getElementById('mk-io-magnifier-zoom');
+        const sizeInput = document.getElementById('mk-io-magnifier-size');
+        if(!button || !controls || !lens || !zoomInput || !sizeInput) return;
+        state.button = button; state.controls = controls; state.lens = lens;
         state.initialized = true;
         state.zoom = mkIOReadMagnifierSetting('mk_io_magnifier_zoom_v1', 3, 1.5, 6, 0.5);
         state.size = mkIOReadMagnifierSetting('mk_io_magnifier_size_v1', 240, 120, 400, 20);
@@ -18675,20 +18681,9 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
             event.preventDefault(); event.stopPropagation();
             if(!mkIOIsDesktopPointer()) return;
             state.enabled = !state.enabled;
-            state.panel.hidden = true;
             mkIOHideMagnifierLens(!state.enabled);
             mkIORefreshMagnifierControls();
         });
-        button.addEventListener('contextmenu', event => {
-            event.preventDefault(); event.stopPropagation();
-            if(!mkIOIsDesktopPointer()) return;
-            state.panel.hidden = !state.panel.hidden;
-            mkIOHideMagnifierLens();
-            if(!state.panel.hidden) document.getElementById('mk-io-magnifier-zoom').focus();
-        });
-        document.getElementById('mk-io-magnifier-settings-close').addEventListener('click', () => {state.panel.hidden = true; button.focus();});
-        const zoomInput = document.getElementById('mk-io-magnifier-zoom');
-        const sizeInput = document.getElementById('mk-io-magnifier-size');
         zoomInput.addEventListener('input', () => {
             state.zoom = Math.min(6, Math.max(1.5, Number(zoomInput.value) || 3));
             try {localStorage.setItem('mk_io_magnifier_zoom_v1', String(state.zoom));} catch(error) {}
@@ -18705,19 +18700,13 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         window.addEventListener('blur', () => mkIOHideMagnifierLens());
         window.addEventListener('resize', () => {mkIOHideMagnifierLens(); mkIORefreshMagnifierControls();}, {passive:true});
         document.addEventListener('keydown', event => {
-            if(event.key !== 'Escape') return;
-            if(!state.panel.hidden) {state.panel.hidden = true; button.focus();}
-            else mkIOHideMagnifierLens();
-        });
-        document.addEventListener('pointerdown', event => {
-            if(!state.panel.hidden && !state.panel.contains(event.target) && !button.contains(event.target)) state.panel.hidden = true;
+            if(event.key === 'Escape') mkIOHideMagnifierLens();
         });
     }
 
     function mkIOUpdateMagnifierCard(card) {
         mkIOInitializeMagnifier();
         mkIOHideMagnifierLens(true);
-        if(mkIOMagnifierState.panel) mkIOMagnifierState.panel.hidden = true;
         mkIORefreshMagnifierControls();
     }
 
