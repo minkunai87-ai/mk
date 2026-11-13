@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.365 IO SIDEBAR SETTINGS -->
+<!-- preview: v18.5.366 IO ROUNDED LENS -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.365 IO SIDEBAR SETTINGS)</title>
+<title>MK (v18.5.366 IO ROUNDED LENS)</title>
 
 <script>
     (() => {
@@ -599,7 +599,7 @@
         z-index: 1;
     }
 
-    /* v18.5.365: PC-only IO lens: one 32px button above the existing eye button. */
+    /* v18.5.366: PC-only IO lens: one 32px button above the existing eye button. */
     .mk-io-magnifier-controls {
         position: fixed;
         right: 11px;
@@ -628,7 +628,7 @@
         pointer-events: none;
         z-index: 9000;
         border: 2px solid rgba(160, 191, 221, .85);
-        border-radius: 50%;
+        border-radius: 12px;
         background: #1f2937;
         box-shadow: 0 5px 28px rgba(0,0,0,.65);
         box-sizing: border-box;
@@ -1413,7 +1413,7 @@
                 <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.365 IO SIDEBAR SETTINGS)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.366 IO ROUNDED LENS)</div>
     </div>
 
 
@@ -1872,7 +1872,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.365 IO SIDEBAR SETTINGS';
+    const APP_VERSION = 'v18.5.366 IO ROUNDED LENS';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -18477,7 +18477,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         return /data-annotation-uuid|data-source-uuid|block-ref|[📌🟡🔵🟢🟣🔴🟠]\s*<b[^>]*>P\d+/i.test(text);
     }
 
-    // v18.5.365: PC-only magnifier, built from the CURRENT image and its CURRENT
+    // v18.5.366: PC-only magnifier, built from the CURRENT image and its CURRENT
     // occlusion SVG together. Never render unmasked pixels when SVG is unavailable.
     const mkIOMagnifierState = {
         initialized: false, enabled: false, wrapper: null, sourceLayer: null,
