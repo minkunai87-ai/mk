@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.366 IO ROUNDED LENS -->
+<!-- preview: v18.5.367 SMART PRIORITY -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.366 IO ROUNDED LENS)</title>
+<title>MK (v18.5.367 SMART PRIORITY)</title>
 
 <script>
     (() => {
@@ -599,7 +599,7 @@
         z-index: 1;
     }
 
-    /* v18.5.366: PC-only IO lens: one 32px button above the existing eye button. */
+    /* v18.5.367: PC-only IO lens: one 32px button above the existing eye button. */
     .mk-io-magnifier-controls {
         position: fixed;
         right: 11px;
@@ -1413,7 +1413,7 @@
                 <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.366 IO ROUNDED LENS)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.367 SMART PRIORITY)</div>
     </div>
 
 
@@ -1482,7 +1482,7 @@
                 <button class="modal-btn btn-cancel" style="padding:7px 11px;" onclick="closeTodayPlanModal()">닫기</button>
             </div>
             <div class="today-plan-summary" id="today-plan-summary"></div>
-            <button type="button" class="today-plan-priority-toggle" id="today-plan-priority-toggle" aria-expanded="false" aria-controls="today-plan-priority-list" onclick="toggleTodayPlanPriority()"><span>🎯 오늘의 우선 추천</span><span id="today-plan-priority-chevron">펼치기 ▾</span></button>
+            <button type="button" class="today-plan-priority-toggle" id="today-plan-priority-toggle" aria-expanded="false" aria-controls="today-plan-priority-list" onclick="toggleTodayPlanPriority()"><span>🎯 스마트 통합 추천</span><span id="today-plan-priority-chevron">펼치기 ▾</span></button>
             <div class="today-plan-priority-list" id="today-plan-priority-list" hidden></div>
             <div class="today-plan-list" id="today-plan-list"></div>
             <button class="modal-btn btn-save" style="width:100%;" onclick="openTodayPlanEditor()">+ 오늘 계획 추가</button>
@@ -1872,7 +1872,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.366 IO ROUNDED LENS';
+    const APP_VERSION = 'v18.5.367 SMART PRIORITY';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -3824,34 +3824,117 @@
     const TODAY_PLAN_PRIORITY_BATCH_SIZE = 20;
     let todayPlanPriorityOpen = false;
 
+    // Smart recommendation uses the actual recorded study time (including "확인")
+    // WITHOUT treating "확인" as a correct answer or advancing the FSRS schedule.
+    // History is newest-first; the former implementation mistakenly read its last
+    // element as the most recent grade. Aggregate Stats survive missing history.
     function getTodayPlanPriorityCard(card, item, stats, history, todayStart) {
         const id = String(card && card.id || '');
         const direct = stats && stats[id];
         const found = direct ? { key:id, stat:direct } : findStatsForCard(card, stats || {}, id);
         const stat = found && found.stat ? found.stat : {};
-        const key = String(found && found.key || id);
-        const rawHistory = (history && (history[key] || history[id])) || [];
-        // Score 3 ("확인") is not a review grade and should not affect priority.
-        const reviews = Array.isArray(rawHistory) ? rawHistory.filter(entry => entry && [0,1,2].includes(Number(entry.score))) : [];
-        const latest = reviews.length ? Number(reviews[reviews.length - 1].score) : null;
-        const previous = reviews.length > 1 ? Number(reviews[reviews.length - 2].score) : null;
-        const total = Math.max(0, Number(stat.total) || 0);
-        const correct = Math.max(0, Number(stat.correct) || 0);
-        const dueDate = Number(stat.dueDate) || 0;
-        const daysLate = dueDate > 0 && dueDate <= todayStart ? Math.floor((todayStart - dueDate) / 86400000) : -1;
+        // Newly written reviews are already merged under the stable card ID.
+        // Read the stable/Stats keys first to avoid hashing thousands of card HTML
+        // blobs on every Today Plan popup. Fall back to the legacy alias resolver
+        // only if neither key has review history.
+        const statsKey = String(found && found.key || id);
+        const stableEvents = Array.isArray(history && history[id]) ? history[id] : [];
+        const aliasEvents = statsKey !== id && Array.isArray(history && history[statsKey]) ? history[statsKey] : [];
+        let events = stableEvents.length ? stableEvents : aliasEvents;
+        if(stableEvents.length && aliasEvents.length) {
+            const seen = new Set();
+            events = stableEvents.concat(aliasEvents).filter(entry => {
+                if(!entry) return false;
+                const identity = entry.id ? `id:${entry.id}`
+                    : `legacy:${Number(entry.time) || 0}:${Number(entry.score)}:${String(entry.result || '')}:${String(entry.type || '')}`;
+                if(seen.has(identity)) return false;
+                seen.add(identity);
+                return true;
+            });
+        }
+        if(!events.length) events = getMergedReviewHistoryForCardFromSnapshot(card, id, history || {}).items;
+        // History is normally newest-first, but legacy imports may not be.
+        if(events.length > 1) events = events.slice().sort((a,b) => (Number(b && b.time)||0) - (Number(a && a.time)||0));
+        const graded = events.filter(entry => entry && !isConfirmHistoryItem(entry) && [0,1,2].includes(Number(entry.score)));
+        const latest = graded.length ? Number(graded[0].score) : null;
+        const previous = graded.length > 1 ? Number(graded[1].score) : null;
+        const accuracy = getAccuracyStatsFromItems(graded, stat);
+        const total = Math.max(0, Number(accuracy.total) || 0);
+        const correct = Math.max(0, Number(accuracy.correct) || 0);
+        const now = Date.now();
+        const validTime = value => {
+            const timestamp = Number(value);
+            return Number.isFinite(timestamp) && timestamp > 100000000000 && timestamp <= now + 86400000 ? timestamp : 0;
+        };
+        const statStudyTime = validTime(stat.lastDate || stat.lastViewedAt || stat.lastReviewed || stat.reviewedAt);
+        const historyStudyTime = events.reduce((latestTime, event) => Math.max(latestTime, validTime(event && event.time)), 0);
+        const lastSeen = Math.max(statStudyTime, historyStudyTime);
+        // The MK study-day boundary is 04:00, matching its existing date badges.
+        const ageDays = lastSeen ? Math.max(0, Math.floor((todayStart - getVirtualDate(lastSeen).getTime()) / 86400000)) : null;
+        const neverStudied = total === 0 && !lastSeen;
+        const confirmOnly = total === 0 && !!lastSeen;
+        const noAccuracy = total === 0;
+        const dueDate = validTime(stat.dueDate);
+        const daysLate = total > 0 && dueDate > 0 && dueDate <= todayStart
+            ? Math.max(0, Math.floor((todayStart - dueDate) / 86400000)) : -1;
         const carried = !!(item && item.carriedFrom);
-        let score = 0;
-        if(daysLate >= 0) score += 25 + Math.min(30, daysLate * 3);
-        if(latest === 0) score += 36;
-        else if(latest === 1) score += 20;
-        if(latest === 0 && previous === 0) score += 12;
-        if(total >= 3 && correct / total < .65) score += 16;
-        if(stat.pen) score += 14;
-        if(stat.fav) score += 6;
-        if(carried) score += 9;
-        if(!total && !reviews.length) score += 3;
-        return { card, id, score, daysLate, wrong:latest === 0, hard:latest === 1,
-            flagged:!!(stat.pen || stat.fav), carried, newCard:total === 0 && !reviews.length };
+        // 35 recency + 30 answer difficulty + 25 schedule delay + 10 coverage.
+        // A never-studied card receives a recency baseline, not an invented error rate.
+        const recencyScore = ageDays === null ? 30 : Math.min(35, 35 * Math.log1p(ageDays) / Math.log(31));
+        let errorScore = latest === 0 ? 18 : (latest === 1 ? 11 : 0);
+        if(latest === 0 && previous === 0) errorScore += 8;
+        if(total >= 3 && correct / total < 0.65) errorScore += 10;
+        else if(total >= 3 && correct / total < 0.8) errorScore += 5;
+        errorScore = Math.min(30, errorScore);
+        const overdueScore = daysLate >= 0 ? Math.min(25, 9 + daysLate * 2) : 0;
+        const coverageScore = neverStudied ? 10 : (confirmOnly ? 5 : (total > 0 && total <= 2 ? 3 : 0));
+        const flagged = !!(stat.pen || stat.fav);
+        const score = recencyScore + errorScore + overdueScore + coverageScore
+            + (stat.pen ? 5 : 0) + (stat.fav ? 2 : 0) + (carried ? 4 : 0);
+        return { card, id, score, ageDays, lastSeen, daysLate, latest, total,
+            wrong:latest === 0, hard:latest === 1, flagged, carried,
+            newCard:neverStudied, neverStudied, confirmOnly, noAccuracy };
+    }
+
+    // Reserve a small adaptive share for cards without graded accuracy.
+    // This is intentional: otherwise a large backlog of wrong/overdue reviews
+    // can exclude daily "확인"-only cards and entirely new cards indefinitely.
+    // The remaining slots still follow the unified risk score.
+    function selectTodayPlanPriorityBatch(priorityCards, limit = TODAY_PLAN_PRIORITY_BATCH_SIZE) {
+        const sorted = priorityCards.slice().sort((a,b) => b.score - a.score);
+        const count = Math.min(Math.max(0,limit), sorted.length);
+        if(count < 2) return sorted.slice(0,count);
+        const ungraded = sorted.filter(c => c.noAccuracy);
+        const unseen = ungraded.filter(c => c.neverStudied);
+        const confirmationOnly = ungraded.filter(c => c.confirmOnly);
+        const reservedCount = Math.min(ungraded.length, Math.ceil(count * 0.2));
+        const reserved = [];
+        if(unseen.length && reservedCount > 0) reserved.push(unseen[0]);
+        if(confirmationOnly.length && reserved.length < reservedCount) reserved.push(confirmationOnly[0]);
+        for(const candidate of ungraded) {
+            if(reserved.length >= reservedCount) break;
+            if(!reserved.includes(candidate)) reserved.push(candidate);
+        }
+        const reservedIds = new Set(reserved.map(c => c.id));
+        const selected = reserved.concat(sorted.filter(c => !reservedIds.has(c.id)).slice(0,count-reserved.length));
+        return selected.sort((a,b) => b.score - a.score);
+    }
+
+    // Top five plans also need a place for "확인"-only and new-card plans,
+    // even when other plans contain thousands of overdue graded questions.
+    function selectTodayPlanPriorityPlans(ranked, limit = 5) {
+        const count = Math.min(Math.max(0,limit), ranked.length);
+        const withoutGrade = ranked.filter(plan => plan.noAccuracyCount > 0);
+        const neverStudied = ranked.filter(plan => plan.neverCount > 0);
+        const reserved = [];
+        if(neverStudied.length && count > 0) reserved.push(neverStudied[0]);
+        if(withoutGrade.length && count > reserved.length && !reserved.some(plan => plan.noAccuracyCount > 0)) reserved.push(withoutGrade[0]);
+        // Prefer a confirm-only plan as well when it is different from the new-card plan.
+        const confirmation = ranked.find(plan => plan.confirmCount > 0 && !reserved.includes(plan));
+        if(confirmation && count >= 3) reserved.push(confirmation);
+        const reservedIds = new Set(reserved.map(plan => plan.item.id));
+        const selected = reserved.concat(ranked.filter(plan => !reservedIds.has(plan.item.id)).slice(0,count-reserved.length));
+        return selected.sort((a,b) => b.score - a.score);
     }
 
     function buildTodayPlanPriority(store) {
@@ -3880,23 +3963,31 @@
                 return cardPriorityCache.get(cacheKey);
             }).filter(Boolean);
             if(!priorityCards.length) return;
-            // Stable sort retains the plan's original order for equal-priority cards.
             priorityCards.sort((a,b) => b.score - a.score);
-            const leading = priorityCards.slice(0, Math.min(10, priorityCards.length));
+            const leading = selectTodayPlanPriorityBatch(priorityCards, Math.min(10, priorityCards.length));
             const overdueCount = priorityCards.filter(c => c.daysLate >= 0).length;
             const wrongCount = priorityCards.filter(c => c.wrong).length;
             const hardCount = priorityCards.filter(c => c.hard).length;
+            const noAccuracyCount = priorityCards.filter(c => c.noAccuracy).length;
+            const confirmCount = priorityCards.filter(c => c.confirmOnly).length;
+            const neverCount = priorityCards.filter(c => c.neverStudied).length;
+            const staleCount = priorityCards.filter(c => c.ageDays !== null && c.ageDays >= 7).length;
             const planScore = leading.reduce((sum,c) => sum + c.score, 0) / leading.length
-                + Math.min(12, overdueCount * 1.5) + Math.min(6, wrongCount * 2);
+                + Math.min(8, overdueCount) + Math.min(5, wrongCount)
+                + Math.min(6, staleCount) + Math.min(5, noAccuracyCount);
             const reasons = [];
-            if(overdueCount) reasons.push(`복습일 경과 ${overdueCount}문제`);
+            if(overdueCount) reasons.push(`복습 지연 ${overdueCount}문제`);
             if(wrongCount) reasons.push(`최근 오답 ${wrongCount}문제`);
+            if(staleCount) reasons.push(`7일 이상 미확인 ${staleCount}문제`);
+            if(confirmCount) reasons.push(`확인만 기록 ${confirmCount}문제`);
+            if(neverCount) reasons.push(`미학습 ${neverCount}문제`);
             if(hardCount) reasons.push(`최근 애매 ${hardCount}문제`);
             if(item.carriedFrom) reasons.push('이월된 계획');
             if(!reasons.length && priorityCards.some(c => c.flagged)) reasons.push('중요·긴급 표시 포함');
-            if(!reasons.length) reasons.push('남은 문제의 학습 기록 기준');
+            if(!reasons.length) reasons.push('미완료 문제의 최근 학습 기록 반영');
             ranked.push({ item, index, score:planScore, cards:priorityCards,
-                remaining:pendingIds.length, reasons:reasons.slice(0,3) });
+                remaining:pendingIds.length, noAccuracyCount, confirmCount, neverCount,
+                reasons:reasons.slice(0,4) });
         });
         return ranked.sort((a,b) => (b.score-a.score) || (a.index-b.index));
     }
@@ -3910,16 +4001,16 @@
         if(chevron) chevron.textContent = todayPlanPriorityOpen ? '접기 ▴' : '펼치기 ▾';
         list.hidden = !todayPlanPriorityOpen;
         if(!todayPlanPriorityOpen) { list.innerHTML=''; return; }
-        const choices = buildTodayPlanPriority(store).slice(0,5);
+        const choices = selectTodayPlanPriorityPlans(buildTodayPlanPriority(store),5);
         if(!choices.length) {
             list.innerHTML = '<div class="today-plan-empty">추천할 미완료 문제가 없습니다.</div>';
             return;
         }
-        list.innerHTML = `<div class="today-plan-priority-intro">현재 오늘 계획에서 남은 문제만 추천합니다. 정답률·복습 일정은 변경하지 않으며, 추천 기준은 학습 기록 기반 추정입니다.</div>`
+        list.innerHTML = `<div class="today-plan-priority-intro">오답·망각 위험, 마지막 확인/채점일, 복습 지연, 미학습을 함께 분석합니다. 정답률과 복습 일정은 변경하지 않습니다.</div>`
             + choices.map((choice,i) => {
                 const itemId = escapeTodayPlanHtml(choice.item.id);
                 const label = getTodayPlanGroupName(choice.item) + ' › ' + getTodayPlanRelativeDeckLabel(choice.item, getTodayPlanGroupName(choice.item));
-                const count = Math.min(TODAY_PLAN_PRIORITY_BATCH_SIZE, choice.cards.length);
+                const count = selectTodayPlanPriorityBatch(choice.cards).length;
                 return `<div class="today-plan-priority-card"><div class="today-plan-priority-head"><span class="today-plan-priority-title">${escapeTodayPlanHtml(label)}</span><span class="today-plan-priority-rank">${i+1}순위</span></div>`
                     + `<div class="today-plan-priority-desc">남은 ${choice.remaining}문제 · ${escapeTodayPlanHtml(choice.reasons.join(' · '))}</div>`
                     + `<div class="today-plan-priority-actions"><button type="button" class="priority-start" onclick="startTodayPlanItem('${itemId}','priority')">▶ 추천 ${count}문제 풀기</button>`
@@ -4270,9 +4361,8 @@
             const stats = getStatsStore();
             const history = getReviewHistory();
             const today = new Date(); today.setHours(0,0,0,0);
-            cards = cards.map(card => getTodayPlanPriorityCard(card, item, stats, history, today.getTime()))
-                .sort((a,b) => (b.score-a.score) || remainingIds.indexOf(a.id)-remainingIds.indexOf(b.id))
-                .slice(0,TODAY_PLAN_PRIORITY_BATCH_SIZE).map(meta => meta.card);
+            cards = selectTodayPlanPriorityBatch(cards.map(card => getTodayPlanPriorityCard(card, item, stats, history, today.getTime())))
+                .map(meta => meta.card);
         }
         if(!cards.length) {
             renderTodayPlan();
@@ -18477,7 +18567,7 @@ originalDeck = merged; localStorage.setItem(STORAGE_KEY_LAST_DECK, currentDeckNa
         return /data-annotation-uuid|data-source-uuid|block-ref|[📌🟡🔵🟢🟣🔴🟠]\s*<b[^>]*>P\d+/i.test(text);
     }
 
-    // v18.5.366: PC-only magnifier, built from the CURRENT image and its CURRENT
+    // v18.5.367: PC-only magnifier, built from the CURRENT image and its CURRENT
     // occlusion SVG together. Never render unmasked pixels when SVG is unavailable.
     const mkIOMagnifierState = {
         initialized: false, enabled: false, wrapper: null, sourceLayer: null,
