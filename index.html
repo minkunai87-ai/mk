@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.369 ROTATION HEADER HINT -->
+<!-- preview: v18.5.370 ADAPTIVE ROTATION -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.369 ROTATION HEADER HINT)</title>
+<title>MK (v18.5.370 ADAPTIVE ROTATION)</title>
 
 <script>
     (() => {
@@ -1293,6 +1293,13 @@
     #mk-rotation-modal .mk-rotation-stat b { display:block;font-size:1.07rem;color:var(--text);margin-bottom:3px; }
     #mk-rotation-modal .mk-rotation-track {height:8px;background:var(--surface);border-radius:8px;overflow:hidden; }
     #mk-rotation-modal .mk-rotation-fill {height:100%;background:var(--primary); }
+    #mk-rotation-modal .mk-rotation-mode-grid { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:end; }
+    #mk-rotation-modal .mk-rotation-block-range { width:100%;accent-color:var(--primary); }
+    #mk-rotation-modal .mk-rotation-plan-settings { display:flex;align-items:center;gap:7px;flex-wrap:wrap; }
+    #mk-rotation-modal .mk-rotation-plan-settings label {font-size:.79rem;color:var(--text-sub);}
+    #mk-rotation-modal .mk-rotation-plan-settings select {min-width:0;max-width:100%;width:auto;flex:1 1 150px;}
+    #mk-rotation-modal .mk-rotation-plan-settings .mk-rotation-block-edit {width:72px;flex:0 0 72px;}
+    @media(max-width:400px){#mk-rotation-modal .mk-rotation-mode-grid{grid-template-columns:1fr;}}
     #mk-rotation-modal .mk-rotation-actions {display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
     #mk-rotation-modal .mk-rotation-actions button {border:1px solid var(--border);border-radius:8px;padding:9px 11px;background:var(--surface);color:var(--text);cursor:pointer;font-size:.79rem;}
     #mk-rotation-modal .mk-rotation-actions .mk-rotation-start {background:var(--primary);color:#fff;border-color:var(--primary);font-weight:800;}
@@ -1450,7 +1457,7 @@
                 <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.369 ROTATION HEADER HINT)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.370 ADAPTIVE ROTATION)</div>
     </div>
 
 
@@ -1519,7 +1526,7 @@
                 <h3 id="mk-rotation-title">📚 회독 관리</h3>
                 <button type="button" class="modal-btn btn-cancel" onclick="closeMkRotationManager()">닫기</button>
             </div>
-            <div class="mk-rotation-note">회독 완료는 <strong>확인·맞음·틀림·애매</strong> 모두 인정합니다. 정답률·FSRS는 실제 채점에서만 변경됩니다. 다른 학습 화면에서 완료한 카드도 반영됩니다. 오늘 문제 중 약 15%는 직접 풀기를 권장하며, 추천은 강제가 아닙니다.</div>
+            <div class="mk-rotation-note">회독 완료는 <strong>확인·맞음·틀림·애매</strong> 모두 인정합니다. 정답률·FSRS는 실제 채점에서만 변경됩니다. 다른 학습 화면에서 완료한 카드도 반영됩니다. 오늘 문제는 망각 위험과 회독 기한을 함께 고려해 배정합니다. 직접 풀기 권장은 강제가 아니며, 회독 진행 중에는 그날 선정한 순서를 유지합니다.</div>
             <div class="mk-rotation-form">
                 <strong>+ 새 회독 계획</strong>
                 <label for="mk-rotation-deck">대상 덱 (상위 전체·하위덱·모든 덱 선택 가능)</label>
@@ -1537,6 +1544,21 @@
                     <button type="button" onclick="mkRotationSetPeriodInput(21)">21일</button>
                     <button type="button" onclick="mkRotationSetPeriodInput(30)">30일</button>
                 </div>
+                <div class="mk-rotation-mode-grid">
+                    <div>
+                        <label for="mk-rotation-strategy">회독 방식</label>
+                        <select class="mk-rotation-input" id="mk-rotation-strategy" onchange="mkRotationUpdateNewPlanMode()">
+                            <option value="adaptive">🧠 스마트 교차 회독 (추천)</option>
+                            <option value="risk">🎯 덱별 망각 위험순</option>
+                            <option value="original">📖 원본 순서</option>
+                        </select>
+                    </div>
+                    <div id="mk-rotation-block-setting">
+                        <label for="mk-rotation-block-size">단원 교차 간격 <b id="mk-rotation-block-value">25</b>문제</label>
+                        <input class="mk-rotation-block-range" type="range" id="mk-rotation-block-size" min="10" max="50" step="5" value="25" oninput="mkRotationUpdateNewPlanBlockLabel()">
+                    </div>
+                </div>
+                <div class="mk-rotation-note">교차 회독은 덱 안의 하위 단원을 짧은 묶음으로 번갈아 표시합니다. 해당 하위 단원이 하나라면 그 안에서 위험도순으로 학습합니다.</div>
                 <button type="button" class="modal-btn btn-save" onclick="mkRotationCreatePlan()">이 범위로 회독 계획 추가</button>
             </div>
             <div class="mk-rotation-list" id="mk-rotation-list"></div>
@@ -1943,7 +1965,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.369 ROTATION HEADER HINT';
+    const APP_VERSION = 'v18.5.370 ADAPTIVE ROTATION';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -3615,7 +3637,34 @@
 
 
     /* v18.5.368 · independent, source-ID based complete-coverage rotations. */
-    const MK_ROTATION_VERSION = 1;
+    const MK_ROTATION_VERSION = 1; // Backward compatible: rotationPlan backup schema unchanged.
+    const MK_ROTATION_STRATEGIES = ['adaptive','risk','original'];
+    function mkRotationStrategy(value){return MK_ROTATION_STRATEGIES.includes(value)?value:'adaptive';}
+    function mkRotationBlockSize(value){const n=Number(value);return Number.isFinite(n)?Math.max(10,Math.min(50,Math.round(n/5)*5)):25;}
+    function mkRotationNormalizeDailyBatch(raw, roundId){
+        if(!raw || typeof raw!=='object' || raw.roundId!==roundId || !/^\d{4}-\d{2}-\d{2}$/.test(String(raw.date||'')) || !Array.isArray(raw.ids))return null;
+        const seen=new Set(), ids=[];
+        for(const value of raw.ids){const id=String(value||'');if(id&&!seen.has(id)){seen.add(id);ids.push(id);}}
+        return {date:raw.date,roundId,ids,createdAt:Number(raw.createdAt)||0,
+            strategy:mkRotationStrategy(raw.strategy),blockSize:mkRotationBlockSize(raw.blockSize)};
+    }
+    function mkRotationPickDailyBatch(a,b,roundId){
+        const valid=[a,b].filter(x=>x&&x.roundId===roundId);
+        if(!valid.length)return null;
+        valid.sort((x,y)=> y.date.localeCompare(x.date) ||
+            (Number(x.createdAt)||0)-(Number(y.createdAt)||0) ||
+            String(x.ids.join('|')).localeCompare(String(y.ids.join('|'))));
+        const first=valid[0];
+        // If either device appended cards after the first snapshot, keep the
+        // frozen prefix and merge those new IDs without losing a day's work.
+        const seen=new Set(first.ids);
+        const ids=first.ids.slice();
+        valid.filter(x=>x.date===first.date).forEach(batch=>batch.ids.forEach(id=>{
+            if(!seen.has(id)){seen.add(id);ids.push(id);}
+        }));
+        return {...first,ids};
+    }
+
     let mkRotationNavigationDeck = null;
     let mkRotationSessionCompleted = new Set();
     let mkRotationSessionTotal = 0;
@@ -3641,7 +3690,9 @@
             periodDays:mkRotationPeriod(raw.periodDays),
             startDate:/^\d{4}-\d{2}-\d{2}$/.test(raw.startDate||'') ? raw.startDate : mkRotationDateKey(),
             roundStartedAt:Number(raw.roundStartedAt)||Number(raw.createdAt)||Date.now(),
-            completed, archive, createdAt:Number(raw.createdAt)||Date.now(), updatedAt:Number(raw.updatedAt)||0
+            completed, archive, strategy:mkRotationStrategy(raw.strategy),blockSize:mkRotationBlockSize(raw.blockSize),
+            dailyBatch:mkRotationNormalizeDailyBatch(raw.dailyBatch,String(raw.roundId || raw.id)),
+            createdAt:Number(raw.createdAt)||Date.now(), updatedAt:Number(raw.updatedAt)||0
         };
     }
     function mkRotationNormalizeStore(input) {
@@ -3671,7 +3722,8 @@
                 const completed={...current.completed};
                 Object.entries(other.completed).forEach(([id,at])=>{completed[id]=Math.max(Number(completed[id])||0,at);});
                 const archives=new Map([...current.archive,...other.archive].map(r=>[String(r.roundId||r.finishedAt||''),r]));
-                merged.set(other.id,{...newer,completed,archive:Array.from(archives.values()).slice(-20)});
+                merged.set(other.id,{...newer,completed,archive:Array.from(archives.values()).slice(-20),
+                    dailyBatch:mkRotationPickDailyBatch(current.dailyBatch,other.dailyBatch,current.roundId)});
             } else {
                 // Never bring an old round's card completions into a new round.
                 const winner=Number(other.roundStartedAt)>Number(current.roundStartedAt)?other:
@@ -3763,6 +3815,19 @@
         const slider=document.getElementById('mk-rotation-period-slider');
         if(input&&slider)slider.value=Math.min(60,Math.max(1,Number(input.value)||14));
     }
+    function mkRotationUpdateNewPlanMode(){
+        const strategy=document.getElementById('mk-rotation-strategy')?.value;
+        const block=document.getElementById('mk-rotation-block-setting');
+        if(block)block.hidden=strategy!=='adaptive';
+    }
+    function mkRotationUpdateNewPlanBlockLabel(){
+        const value=document.getElementById('mk-rotation-block-value');
+        const range=document.getElementById('mk-rotation-block-size');
+        if(value)value.textContent=String(mkRotationBlockSize(range?.value));
+    }
+    function mkRotationStrategyLabel(value){
+        return value==='risk'?'덱별 망각 위험순':value==='original'?'원본 순서':'스마트 교차 회독';
+    }
     function openMkRotationManager() {
         const modal=document.getElementById('mk-rotation-modal');
         if(!modal)return;
@@ -3770,6 +3835,7 @@
         const selected=select.value;
         select.innerHTML=mkRotationDeckChoices();
         if([...select.options].some(opt=>opt.value===selected))select.value=selected;
+        mkRotationUpdateNewPlanMode();mkRotationUpdateNewPlanBlockLabel();
         mkRotationRender();modal.style.display='flex';toggleMenu(false);
     }
     function closeMkRotationManager() {const modal=document.getElementById('mk-rotation-modal');if(modal)modal.style.display='none';}
@@ -3793,7 +3859,12 @@
                 `<input class="mk-rotation-input mk-rotation-period-edit" id="mk-rotation-days-${escapeTodayPlanHtml(plan.id)}" type="number" min="1" max="365" step="1" value="${period}" onchange="mkRotationChangePeriod('${escapeTodayPlanHtml(plan.id)}',this.value)" aria-label="회독 기간 변경">`+
                 `<button onclick="mkRotationStartNewRound('${escapeTodayPlanHtml(plan.id)}')">새 회독</button>`+
                 `<button onclick="mkRotationRemovePlan('${escapeTodayPlanHtml(plan.id)}')">삭제</button></div>`+
-                `<div class="mk-rotation-note">${percent}% 완료 · 확인하거나 실제 채점하면 1회 완료 · 신규/삭제 카드 수 자동 반영</div></section>`;
+                `<div class="mk-rotation-plan-settings"><label for="mk-rotation-mode-${escapeTodayPlanHtml(plan.id)}">회독 방식</label>`+
+                `<select class="mk-rotation-input" id="mk-rotation-mode-${escapeTodayPlanHtml(plan.id)}" onchange="mkRotationChangeStrategy('${escapeTodayPlanHtml(plan.id)}',this.value)">`+
+                MK_ROTATION_STRATEGIES.map(mode=>`<option value="${mode}" ${mode===plan.strategy?'selected':''}>${escapeTodayPlanHtml(mkRotationStrategyLabel(mode))}</option>`).join('')+`</select>`+
+                (plan.strategy==='adaptive'?`<label for="mk-rotation-size-${escapeTodayPlanHtml(plan.id)}">교차 문제</label>`+
+                `<input class="mk-rotation-input mk-rotation-block-edit" type="number" id="mk-rotation-size-${escapeTodayPlanHtml(plan.id)}" min="10" max="50" step="5" value="${plan.blockSize}" onchange="mkRotationChangeBlockSize('${escapeTodayPlanHtml(plan.id)}',this.value)">`: '')+`</div>`+
+                `<div class="mk-rotation-note">${percent}% 완료 · ${escapeTodayPlanHtml(mkRotationStrategyLabel(plan.strategy))} · 확인/채점 모두 완료 · 설정 변경은 다음 날 선정분부터 적용</div></section>`;
         }).join('');
     }
     function mkRotationCreatePlan() {
@@ -3806,6 +3877,8 @@
         const plan={id:`rot_${Date.now()}_${Math.random().toString(36).slice(2,9)}`,
             roundId:`round_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
             deckMode,deckPath:deckMode==='all'?'':normalizeDeckPath(path),periodDays:mkRotationPeriod(input&&input.value),
+            strategy:mkRotationStrategy(document.getElementById('mk-rotation-strategy')?.value),
+            blockSize:mkRotationBlockSize(document.getElementById('mk-rotation-block-size')?.value),dailyBatch:null,
             startDate:mkRotationDateKey(),roundStartedAt:Date.now(),completed:{},archive:[],createdAt:Date.now(),updatedAt:Date.now()};
         const cards=mkRotationSourceCards(plan);
         if(!cards.length){showToast('선택한 범위에 문제가 없습니다.','error');return;}
@@ -3823,6 +3896,20 @@
         try{mkRotationWrite(store);mkRotationRender();showToast(`기존 완료 기록 유지 · ${plan.periodDays}일로 재계산`,'success');}
         catch(e){showToast('회독 기간 변경 저장 실패','error');mkRotationRender();}
     }
+    function mkRotationChangeStrategy(planId,strategy){
+        const store=mkRotationRead(),plan=store.plans.find(p=>p.id===planId);
+        if(!plan)return;
+        plan.strategy=mkRotationStrategy(strategy);plan.updatedAt=Date.now();
+        try{mkRotationWrite(store);mkRotationRender();showToast('회독 방식 저장 · 오늘 선정된 문제는 그대로 유지','success');}
+        catch(e){showToast('회독 방식 저장 실패','error');mkRotationRender();}
+    }
+    function mkRotationChangeBlockSize(planId,size){
+        const store=mkRotationRead(),plan=store.plans.find(p=>p.id===planId);
+        if(!plan)return;
+        plan.blockSize=mkRotationBlockSize(size);plan.updatedAt=Date.now();
+        try{mkRotationWrite(store);mkRotationRender();showToast('교차 묶음 크기 저장 · 오늘 순서 유지','success');}
+        catch(e){showToast('교차 묶음 크기 저장 실패','error');mkRotationRender();}
+    }
     function mkRotationStartNewRound(planId) {
         const store=mkRotationRead(),plan=store.plans.find(p=>p.id===planId);
         if(!plan)return;
@@ -3832,7 +3919,7 @@
         plan.archive.push({roundId:plan.roundId,startDate:plan.startDate,finishedAt:now,done:progress.done,total:progress.total});
         plan.archive=plan.archive.slice(-20);
         plan.roundId=`round_${now}_${Math.random().toString(36).slice(2,7)}`;
-        plan.roundStartedAt=now;plan.startDate=mkRotationDateKey(now);plan.completed={};plan.updatedAt=now;
+        plan.roundStartedAt=now;plan.startDate=mkRotationDateKey(now);plan.completed={};plan.dailyBatch=null;plan.updatedAt=now;
         try{mkRotationWrite(store);mkRotationRender();showToast('새 회독 시작 · 이전 학습 기록 및 FSRS 유지','success');}
         catch(e){showToast('새 회독 저장 실패','error');mkRotationRender();}
     }
@@ -3870,6 +3957,111 @@
         if(!changed)return false;
         try {mkRotationWrite(store);const modal=document.getElementById('mk-rotation-modal');if(modal&&modal.style.display==='flex')mkRotationRender();return true;}
         catch(error){console.warn('[MK_ROTATION_PROGRESS_WRITE_FAILED]',error);showToast('회독 진행 저장 실패','error');return false;}
+    }
+    // Select by risk, then arrange in small coherent deck blocks. This does NOT
+    // change grades, FSRS or the cycle's completion set. Tie breaking is seeded
+    // by plan/date so the same day's order is repeatable across devices.
+    function mkRotationRankPending(cards,plan,today=mkRotationDateKey()) {
+        const stats=getStatsStore(),history=getReviewHistory(),now=Date.now();
+        const dayMs=86400000;
+        const valid=t=>{const n=Number(t);return Number.isFinite(n)&&n>100000000000&&n<=now+dayMs?n:0;};
+        const candidates=cards.map((card,index)=>{
+            const id=String(card&&card.id||'');
+            const stat=stats[id]||{};
+            const total=Math.max(0,Number(stat.total)||0);
+            const accuracy=total?Math.max(0,Math.min(1,(Number(stat.correct)||0)/total)):null;
+            const lastSeen=valid(stat.lastDate||stat.lastViewedAt||stat.lastReviewed);
+            const ageDays=lastSeen?Math.max(0,(now-lastSeen)/dayMs):null;
+            const due=valid(stat.dueDate);
+            const dueLate=due?Math.max(0,(now-due)/dayMs):0;
+            const raw=Array.isArray(history[id])?history[id]:[];
+            let lastGrade=0,latest=null,secondGrade=0,previous=null;
+            let latestConfirm=0;
+            for(const event of raw){
+                const time=valid(event&&event.time),score=Number(event&&event.score);
+                if(!time)continue;
+                if(isConfirmHistoryItem(event)||score===3) {latestConfirm=Math.max(latestConfirm,time);continue;}
+                if(![0,1,2].includes(score))continue;
+                if(time>lastGrade){secondGrade=lastGrade;previous=latest;lastGrade=time;latest=score;}
+                else if(time>secondGrade){secondGrade=time;previous=score;}
+            }
+            const confirmOnly=total===0&&!!(lastSeen||latestConfirm);
+            const unseen=total===0&&!lastSeen&&!latestConfirm;
+            const scoreHistory=latest===0?30:latest===1?18:latest===2?1:0;
+            const errorScore=accuracy===null?0:accuracy<.5?24:accuracy<.8?12:0;
+            const oldScore=ageDays===null?17:Math.min(25,Math.log1p(ageDays)*7.5);
+            const lateScore=dueLate>0?Math.min(22,8+dueLate*2):due&&due<=now?7:0;
+            const s=Number(stat.fsrs&&stat.fsrs.S)||0;
+            const inferredGrade=due&&Number(stat.interval)>0?due-Number(stat.interval)*dayMs:0;
+            const gradedAt=lastGrade||valid(inferredGrade);
+            const recallRisk=s>0&&gradedAt>0?Math.min(30,Math.max(0,(1-Math.pow(.9,Math.max(0,(now-gradedAt)/dayMs)/s))*100)):0;
+            // Ungraded cards have unknown recall probability, not 100% success.
+            const unknownScore=unseen?24:confirmOnly?20:0;
+            const ageSinceGrade=gradedAt?Math.max(0,(now-gradedAt)/dayMs):0;
+            const confirmUnverified=confirmOnly?8:latestConfirm>gradedAt&&ageSinceGrade>10?6:0;
+            const score=scoreHistory+(latest===0&&previous===0?9:0)+errorScore+oldScore+lateScore+
+                recallRisk+unknownScore+confirmUnverified+(stat.pen?6:0)+(stat.fav?3:0);
+            const path=normalizeDeckPath(card&&card.deckPath||'')||mkRotationCardPathForId(id)||plan.deckPath||'';
+            return {card,id,index,path,score,unseen,confirmOnly,
+                tie:cyrb53(`${plan.roundId}:${today}:${id}`)};
+        });
+        candidates.sort((a,b)=>b.score-a.score||a.tie-b.tie||a.index-b.index);
+        return candidates;
+    }
+    function mkRotationArrangeBatch(selected,plan){
+        if(plan.strategy==='original')return selected.slice().sort((a,b)=>a.index-b.index);
+        // Keep a deck together in risk mode; never randomize the source tree's
+        // external navigation while the user is actively reviewing a batch.
+        const buckets=new Map();
+        selected.forEach(row=>{if(!buckets.has(row.path))buckets.set(row.path,[]);buckets.get(row.path).push(row);});
+        if(plan.strategy==='risk'){
+            return [...buckets.keys()].sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}))
+                .flatMap(path=>buckets.get(path));
+        }
+        // Adaptive: choose the highest-risk remaining unit, alternate different
+        // units in bounded blocks, and avoid abrupt per-card subject switching.
+        const result=[];let previous='';
+        const chunk=mkRotationBlockSize(plan.blockSize);
+        while(result.length<selected.length){
+            const available=[...buckets.entries()].filter(([,rows])=>rows.length);
+            if(!available.length)break;
+            available.sort((a,b)=>b[1][0].score-a[1][0].score||a[0].localeCompare(b[0],'ko',{numeric:true}));
+            const choice=available.find(([path])=>path!==previous)||available[0];
+            const [path,rows]=choice;
+            result.push(...rows.splice(0,chunk));
+            previous=path;
+        }
+        return result;
+    }
+    function mkRotationSelectDailyCards(pending,plan,count,today=mkRotationDateKey()){
+        if(count<=0)return [];
+        if(plan.strategy==='original')return pending.slice(0,count);
+        const ranked=mkRotationRankPending(pending,plan,today);
+        // Daily target remains unique-card coverage. Protect a portion of
+        // adaptive batches for different sub-decks so a huge overdue cluster
+        // cannot monopolize all 14 days. Risk still determines the majority.
+        let selected=ranked.slice(0,count);
+        if(plan.strategy==='adaptive' && count>=4){
+            const buckets=new Map();
+            ranked.forEach(row=>{if(!buckets.has(row.path))buckets.set(row.path,[]);buckets.get(row.path).push(row);});
+            if(buckets.size>1){
+                const fairCount=Math.min(count,Math.floor(count*.25));
+                const reserved=[],groups=[...buckets.keys()].sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}));
+                for(let depth=0;reserved.length<fairCount;depth++){
+                    let added=false;
+                    for(const path of groups){
+                        const candidate=buckets.get(path)[depth];
+                        if(!candidate)continue;
+                        reserved.push(candidate);added=true;
+                        if(reserved.length>=fairCount)break;
+                    }
+                    if(!added)break;
+                }
+                const seen=new Set(reserved.map(row=>row.id));
+                selected=reserved.concat(ranked.filter(row=>!seen.has(row.id)).slice(0,count-reserved.length));
+            }
+        }
+        return mkRotationArrangeBatch(selected,plan).map(row=>row.card);
     }
     function mkRotationSelectRecallSuggestions(cards) {
         // Recommendations only: user can always choose 확인 or actual grading.
@@ -3915,14 +4107,39 @@
         badge.hidden=false;
     }
     function mkRotationStart(planId) {
-        const plan=mkRotationRead().plans.find(p=>p.id===planId);
+        const store=mkRotationRead(),plan=store.plans.find(p=>p.id===planId);
         if(!plan)return;
         const source=mkRotationSourceCards(plan),progress=mkRotationMetrics(plan,source);
         if(!progress.remaining){showToast('이 회독은 모두 완료했습니다.','success');return;}
+        const today=mkRotationDateKey();
+        const byId=new Map(source.map(card=>[String(card.id||''),card]));
         const pending=source.filter(c=>!plan.completed[String(c.id)]);
         const count=Math.min(pending.length,progress.todayRemaining);
         if(!count){showToast('오늘의 회독 목표를 이미 달성했습니다.','success');return;}
-        const cards=pending.slice(0,count); // Deck/source order, never interleave randomly.
+        // A persisted snapshot freezes today's assignment/order across restarts
+        // and devices. New cards or a shortened deadline only append to its tail.
+        let batch=plan.dailyBatch;
+        const valid=batch&&batch.date===today&&batch.roundId===plan.roundId;
+        if(!valid){
+            const selected=mkRotationSelectDailyCards(pending,plan,count,today);
+            batch={date:today,roundId:plan.roundId,ids:selected.map(c=>String(c.id)),createdAt:Date.now(),
+                strategy:plan.strategy,blockSize:plan.blockSize};
+        }
+        let chosen=batch.ids.filter(id=>byId.has(id)&&!plan.completed[id]);
+        if(chosen.length<count){
+            const reserved=new Set(batch.ids);
+            const candidates=pending.filter(c=>!reserved.has(String(c.id)));
+            const extra=mkRotationSelectDailyCards(candidates,plan,count-chosen.length,today);
+            batch={...batch,ids:batch.ids.concat(extra.map(c=>String(c.id)))};
+            chosen=chosen.concat(extra.map(c=>String(c.id)));
+        }
+        const cards=chosen.slice(0,count).map(id=>byId.get(id)).filter(Boolean);
+        if(!cards.length){showToast('오늘 배정할 문제가 없습니다.','error');return;}
+        if(!valid || JSON.stringify(batch.ids)!==JSON.stringify(plan.dailyBatch&&plan.dailyBatch.ids||[])){
+            plan.dailyBatch=batch;plan.updatedAt=Date.now();
+            try{mkRotationWrite(store);}
+            catch(error){console.warn('[MK_ROTATION_BATCH_SAVE_FAILED]',error);showToast('오늘 문제 배정 저장 실패 · 학습 시작을 중단했습니다.','error');return;}
+        }
         markUserUiInteraction();
         todayEssentialState.active=false;todayNewState.active=false;todayPlanActiveItemId='';
         currentDeckName=plan.deckMode==='all'?(mkRotationCardPathForId(String(cards[0].id))||Object.keys(library||{})[0]||''):plan.deckPath;
@@ -3936,11 +4153,9 @@
         mkRotationSessionCompleted=new Set();mkRotationSessionTotal=cards.length;
         mkRotationSuggestedRecallIds=mkRotationSelectRecallSuggestions(cards);
         currentIndex=0;previousCardIndex=null;
-        // Save a normal deck path, not the synthetic "all" label, to avoid
-        // breaking the next launch's deck restoration.
         if(plan.deckMode!=='all')localStorage.setItem(STORAGE_KEY_LAST_DECK,plan.deckPath);
         highlightFilter();updateFilterStatusUI();closeMkRotationManager();showCard();persistCurrentViewState(true);
-        showToast(`오늘 회독 ${cards.length}문제 시작 · 확인/채점 모두 완료 처리`,'success');
+        showToast(`오늘 회독 ${cards.length}문제 · ${mkRotationStrategyLabel(batch.strategy)} · 확인/채점 모두 완료 처리`,'success');
     }
     function mkRotationAdvanceAfterGrade(card) {
         if(!mkRotationNavigationDeck || activeDeck!==mkRotationNavigationDeck)return false;
