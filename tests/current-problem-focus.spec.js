@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const start = source.indexOf('    function mkProblemOwnVisibleAnchor(');
+const start = source.indexOf('    function mkIsRenderedProblemAnchor(');
 const end = source.indexOf('    function scrollToCurrentProblem(e) {', start);
 assert(start > 0 && end > start, 'focus functions must exist');
 const focusCode = source.slice(start, end);
@@ -173,6 +173,58 @@ for(const count of [25,120]) {
     assert.equal(scrolls.length,2,'late off-screen focus must be restored');
     checked++;
 }
+// Multiple formats and long contextual lists can contain earlier blanks
+// that look exactly like valid targets; the exported active LI must win.
+{
+    const item=fixture('arrow',18,true);
+    const context=item.q.querySelector('li.sibling-block .cloze-wrapper');
+    context.classes.add('mk-arrow-card');
+    context.classes.add('mk-arrow-target');
+    question=item.q;card={id:'arrow-context-rogue',type:'arrow',isLogseq:true};state.activeDeck=[card];
+    assert.equal(api.get(),item.target,'active arrow outranks earlier contextual arrow marker');
+    checked++;
+}
+{
+    const item=fixture('cs',18,true);
+    const context=item.q.querySelector('li.sibling-block .cloze-wrapper');
+    context.classes.add('mk-cs-wrapper');
+    context.classes.add('mk-cs-target');
+    question=item.q;card={id:'cs-context-rogue',type:'cs',isLogseq:true};state.activeDeck=[card];
+    assert.equal(api.get(),item.target,'active CS outranks earlier contextual CS marker');
+    checked++;
+}
+{
+    const item=fixture('ordinary',60,true);
+    question=item.q;card={id:'mixed-long-context',type:'ordinary',isLogseq:true};state.activeDeck=[card];
+    assert.equal(api.get(),item.target,'nested active cloze wins over 60 earlier blank rows');
+    checked++;
+}
+{
+    const item=fixture('arrow',3);
+    const wrapper=item.target.parentElement;
+    const hiddenAnswer=new FakeElement('span','cloze-a',{top:368,width:100,height:18});
+    hiddenAnswer.parentElement=wrapper;
+    wrapper.children.unshift(hiddenAnswer);
+    question=item.q;card={id:'answer-before-mask',type:'arrow',isLogseq:true};state.activeDeck=[card];
+    assert.equal(api.get(),item.target,'prefer question mask over answer even when answer precedes it');
+    checked++;
+}
+{
+    const item=fixture('cs',5);
+    item.owner.classes.delete('active-block');
+    question=item.q;card={id:'cs-no-active-marker',type:'cs',isLogseq:true};state.activeDeck=[card];
+    assert.equal(api.get(),item.target,'fallback to typed CS target when active marker is missing');
+    checked++;
+}
+{
+    const item=fixture('arrow',5);
+    item.owner.classes.delete('active-block');
+    question=item.q;card={id:'arrow-no-active-marker',type:'arrow',isLogseq:true};state.activeDeck=[card];
+    assert.equal(api.get(),item.target,'fallback to typed arrow target when active marker is missing');
+    checked++;
+}
+// Entire flattened source is audited below. The tests above exercise the
+// semantic selection that raw source markup inspection alone cannot verify.
 // Full repository-source structural inventory. This checks the original focus
 // markers; it is not a replacement for opening every card in a real browser.
 let rows=0;
