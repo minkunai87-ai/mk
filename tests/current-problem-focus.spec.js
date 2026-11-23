@@ -60,7 +60,7 @@ class FakeElement {
         return result;
     }
     querySelector(selector) { return this.querySelectorAll(selector)[0]||null; }
-    getBoundingClientRect() { return this.rect; }
+    getBoundingClientRect() { return {...this.rect,bottom:this.rect.bottom ?? this.rect.top+this.rect.height}; }
     getAttribute(name) { return this.attrs[name]||null; }
 }
 function blank(top, cls='cloze-q', visible=true) {
