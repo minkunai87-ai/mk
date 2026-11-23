@@ -4099,10 +4099,7 @@
     function openMkRotationManager() {
         const modal=document.getElementById('mk-rotation-modal');
         if(!modal)return;
-        const select=document.getElementById('mk-rotation-deck');
-        const selected=select.value;
-        select.innerHTML=mkRotationDeckChoices();
-        if([...select.options].some(opt=>opt.value===selected))select.value=selected;
+        mkRotationUpdateNewDeckSummary();
         mkRotationUpdateNewPlanMode();mkRotationUpdateNewPlanBlockLabel();
         mkRotationRender();modal.style.display='flex';toggleMenu(false);
     }
@@ -4125,6 +4122,7 @@
                 `<div class="mk-rotation-actions"><button class="mk-rotation-start" ${canStart?'':'disabled'} onclick="mkRotationStart('${escapeTodayPlanHtml(plan.id)}')">▶ 오늘 회독 시작</button>`+
                 `<label class="mk-rotation-note" for="mk-rotation-days-${escapeTodayPlanHtml(plan.id)}">회독 기간</label>`+
                 `<input class="mk-rotation-input mk-rotation-period-edit" id="mk-rotation-days-${escapeTodayPlanHtml(plan.id)}" type="number" min="1" max="365" step="1" value="${period}" onchange="mkRotationChangePeriod('${escapeTodayPlanHtml(plan.id)}',this.value)" aria-label="회독 기간 변경">`+
+                `<button onclick="mkRotationOpenDeckPicker('${escapeTodayPlanHtml(plan.id)}')">📂 덱 수정</button>`+
                 `<button onclick="mkRotationStartNewRound('${escapeTodayPlanHtml(plan.id)}')">새 회독</button>`+
                 `<button onclick="mkRotationRemovePlan('${escapeTodayPlanHtml(plan.id)}')">삭제</button></div>`+
                 `<div class="mk-rotation-plan-settings"><label for="mk-rotation-mode-${escapeTodayPlanHtml(plan.id)}">회독 방식</label>`+
@@ -4136,26 +4134,32 @@
         }).join('');
     }
     function mkRotationCreatePlan() {
-        const sel=document.getElementById('mk-rotation-deck');
+        const paths=mkRotationNewDeckPaths.slice().sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}));
+        if(!paths.length){showToast('회독할 덱을 하나 이상 선택해 주세요.','error');return;}
         const input=document.getElementById('mk-rotation-period');
-        const choice=String(sel&&sel.value||'');
-        if(!choice.includes('|')) {showToast('회독할 덱을 선택해 주세요.','error');return;}
-        const mode=choice.split('|')[0],path=choice.slice(choice.indexOf('|')+1);
-        const deckMode=mode==='all'?'all':mode==='group'?'group':'deck';
-        const plan={id:`rot_${Date.now()}_${Math.random().toString(36).slice(2,9)}`,
-            roundId:`round_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
-            deckMode,deckPath:deckMode==='all'?'':normalizeDeckPath(path),periodDays:mkRotationPeriod(input&&input.value),
+        const now=Date.now();
+        const plan={id:'rot_'+now+'_'+Math.random().toString(36).slice(2,9),
+            roundId:'round_'+now+'_'+Math.random().toString(36).slice(2,7),
+            deckMode:'selection',deckPath:'',deckPaths:paths,scopeUpdatedAt:now,
+            periodDays:mkRotationPeriod(input&&input.value),
             strategy:mkRotationStrategy(document.getElementById('mk-rotation-strategy')?.value),
             blockSize:mkRotationBlockSize(document.getElementById('mk-rotation-block-size')?.value),dailyBatch:null,
-            startDate:mkRotationDateKey(),roundStartedAt:Date.now(),completed:{},archive:[],createdAt:Date.now(),updatedAt:Date.now()};
+            startDate:mkRotationDateKey(),roundStartedAt:now,completed:{},archive:[],createdAt:now,updatedAt:now};
         const cards=mkRotationSourceCards(plan);
-        if(!cards.length){showToast('선택한 범위에 문제가 없습니다.','error');return;}
+        if(!cards.length){showToast('선택한 덱의 문제가 아직 로드되지 않았습니다.','error');return;}
         const store=mkRotationRead();
-        if(store.plans.some(p=>p.deckMode===plan.deckMode&&p.deckPath===plan.deckPath)) {
-            showToast('이 덱 범위는 이미 회독 계획에 있습니다. 기존 계획의 기간을 수정하세요.','error');return;
+        const available=mkRotationAvailableDeckPaths(),scope=paths.join('\u001f');
+        if(store.plans.some(existing=>mkRotationSelectionPathsForPlan(existing,available).join('\u001f')===scope)){
+            showToast('동일한 덱 조합의 회독 계획이 있습니다. 기존 계획의 덱·기간을 수정하세요.','error');return;
         }
-        try {store.plans.push(plan);mkRotationWrite(store);mkRotationRender();showToast(`${cards.length}문제 · ${plan.periodDays}일 회독 계획 생성`,'success');}
-        catch(err){console.error('[MK_ROTATION_CREATE_FAILED]',err);showToast('회독 계획 저장에 실패했습니다.','error');}
+        try{
+            store.plans.push(plan);mkRotationWrite(store);
+            mkRotationNewDeckPaths=[];mkRotationUpdateNewDeckSummary();mkRotationRender();
+            showToast(cards.length+'문제 · '+plan.periodDays+'일 · '+paths.length+'개 덱 회독 계획 생성','success');
+        }catch(error){
+            console.warn('[MK_ROTATION_CREATE_FAILED]',error);
+            showToast('회독 계획 저장에 실패했습니다.','error');
+        }
     }
     function mkRotationChangePeriod(planId,days) {
         const store=mkRotationRead(),plan=store.plans.find(p=>p.id===planId);
