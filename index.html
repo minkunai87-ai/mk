@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.372 FOLD SCROLL PERSIST -->
+<!-- preview: v18.5.373 하이어라키 역순 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.372 FOLD SCROLL PERSIST)</title>
+<title>MK (v18.5.373 하이어라키 역순)</title>
 
 <script>
     (() => {
@@ -288,6 +288,14 @@
     .mk-fold-sector-mirror.ancestor-wrapper .ancestor-text {
         display:inline; white-space:nowrap; font-size:inherit;
     }
+    /* v18.5.373: Only the compact mirror runs current -> parent -> root. */
+    .mk-fold-sector-mirror.ancestor-wrapper,
+    .mk-fold-sector-mirror.ancestor-wrapper ul.ancestor-list,
+    .mk-fold-sector-mirror.ancestor-wrapper ul.ancestor-list li {
+        flex-direction:row-reverse;
+    }
+    .mk-fold-sector-mirror.ancestor-wrapper ul.ancestor-list li::before { content:'‹'; }
+    .mk-fold-sector-mirror.ancestor-wrapper ul.ancestor-list.root-ancestor > li:first-child::before { content:none; }
     .mk-fold-sector-mirror img, .mk-fold-sector-mirror table { max-width:100%; }
     .mk-fold-sector-mirror img { height:auto; }
     .mk-fold-sector-mirror :is(button, a, input, select, textarea, .cloze-q, .cloze-a, .mk-cs-mask, .mk-cs-answer, .mk-io-wrapper) {
@@ -1531,7 +1539,7 @@
                 <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.372 FOLD SCROLL PERSIST)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.373 하이어라키 역순)</div>
     </div>
 
 
@@ -2039,7 +2047,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.372 FOLD SCROLL PERSIST';
+    const APP_VERSION = 'v18.5.373 하이어라키 역순';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -2262,7 +2270,9 @@
             const fragment = document.createDocumentFragment();
             const heading = question && question.querySelector('.ls-header');
             const ancestry = question && question.querySelector('.ancestor-wrapper');
-            const sources = [heading, ancestry].filter(Boolean);
+            // Reverse just the compact display order; leave the source card untouched.
+            // Its Logseq/PDF navigation controls remain at the end of the trail.
+            const sources = [ancestry, heading].filter(Boolean);
             for (const source of sources) {
                 const copy = source.cloneNode(true);
                 // Walk source and copy in their original DOM order before sanitizing; cloneNode
@@ -2428,6 +2438,7 @@
             manualReveal = false;
             stopSourceObserver();
             sectorContent.replaceChildren();
+            sectorViewport.scrollLeft = 0; // Always begin at the current (leftmost) item on a new card.
             sectorDirty = true;
             scheduleVisibility();
         };
