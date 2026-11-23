@@ -6559,8 +6559,25 @@
     // Read only the current LI's OWN problem text; never a child answer list or
     // an earlier contextual sibling's blank. Prefer a visible mask to a hidden
     // answer even if the export places the answer span first in the DOM.
-    function mkProblemOwnVisibleAnchor(owner) {
+    function mkProblemOwnVisibleAnchor(owner,card) {
         if(!owner)return null;
+        // A single LI may contain many CS or ordinary cloze groups. Prefer
+        // the one explicitly marked CURRENT, even when earlier masks are also
+        // visible and belong to the same source bullet.
+        const specific=isMkCSCardFast(card)
+            ? ['.mk-cs-wrapper.mk-cs-target .mk-cs-mask',
+               '.mk-cs-wrapper.mk-cs-target .mk-cs-answer',
+               '.mk-cs-wrapper.mk-cs-target']
+            : isMkArrowCard(card)
+                ? ['.mk-arrow-target .cloze-q','.mk-arrow-target .cloze-a',
+                   '.mk-arrow-card .cloze-q','.mk-arrow-card .cloze-a']
+                : ['.cloze-wrapper.mk-current-target .cloze-q',
+                   '.cloze-wrapper.mk-current-target .cloze-a'];
+        for(const selector of specific) {
+            const current=Array.from(owner.querySelectorAll(selector)).find(node=>
+                node.closest('li')===owner && mkIsRenderedProblemAnchor(node));
+            if(current)return current;
+        }
         const own=Array.from(owner.children || []).filter(node =>
             node.tagName!=='UL' && node.tagName!=='OL' &&
             !node.classList.contains('mk-card-answer-real') &&
@@ -6640,7 +6657,7 @@
             '.mk-io-target-mask','.mk-io-image'
         ]) || firstVisible(answer,['.mk-io-target-mask','.mk-io-image']);
         const owner=mkCurrentLogseqProblemOwner(question,card);
-        const ownAnchor=mkProblemOwnVisibleAnchor(owner);
+        const ownAnchor=mkProblemOwnVisibleAnchor(owner,card);
         if(ownAnchor)return ownAnchor;
         if(isMkCSCardFast(card))return firstVisible(question,[
             '.mk-cs-wrapper.mk-cs-target .mk-cs-mask',
