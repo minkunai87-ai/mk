@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.375 선택 덱 회독 -->
+<!-- preview: v18.5.376 문제 포커스 보강 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.375 선택 덱 회독)</title>
+<title>MK (v18.5.376 문제 포커스 보강)</title>
 
 <script>
     (() => {
@@ -1556,7 +1556,7 @@
                 <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.375 선택 덱 회독)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.376 문제 포커스 보강)</div>
     </div>
 
 
@@ -2084,7 +2084,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.375 선택 덱 회독';
+    const APP_VERSION = 'v18.5.376 문제 포커스 보강';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -6541,86 +6541,120 @@
         });
     }
 
-    // Always use the *visible* representation of the focused problem.  For
-    // :-> and {{cs}}, the answer is revealed inline in #question-section,
-    // not in #answer-section.  A static selector for only .cloze-q/.mk-cs-mask
-    // stops working as soon as the answer is opened.
+    // The active Logseq card may be an ordinary cloze/#card, with several
+    // contextual blanks above it. Target only the current LI's OWN content,
+    // never a cloze in a descendant/sibling list that happens to appear first.
+    function mkProblemOwnVisibleAnchor(owner) {
+        if(!owner) return null;
+        const own=Array.from(owner.children || []).filter(node =>
+            node.tagName!=='UL' && node.tagName!=='OL' &&
+            !node.classList.contains('mk-card-answer-real') &&
+            !node.classList.contains('mk-card-answer-mask') &&
+            !node.classList.contains('mk-card-original-answer'));
+        for(const node of own) {
+            const targets=Array.from(node.querySelectorAll('.cloze-q, .cloze-a, .mk-cs-mask, .mk-cs-answer, .mk-card-mask-label'));
+            const focused=targets.find(target=>target.closest('li')===owner &&
+                isVisibleRect(target.getBoundingClientRect()));
+            if(focused)return focused;
+        }
+        return own.find(node=>isVisibleRect(node.getBoundingClientRect())) ||
+            (isVisibleRect(owner.getBoundingClientRect())?owner:null);
+    }
+    function mkCurrentLogseqProblemOwner(question, card) {
+        if(!question)return null;
+        const current=question.querySelector('li.mk-card-current');
+        if(current)return current;
+        const active=Array.from(question.querySelectorAll('li.active-block, li.ls-active')).reverse();
+        // Some exports mark the whole ancestry active and the actual card is
+        // deeper. The deepest active LI owning a blank outranks that ancestor.
+        const withOwnBlank=active.find(li=>Array.from(li.querySelectorAll('.cloze-wrapper, .mk-cs-wrapper'))
+            .some(wrapper=>wrapper.closest('li')===li && !wrapper.closest('.mk-extra-node, .mk-extra-content')));
+        if(withOwnBlank)return withOwnBlank;
+        const uuid=String(card && (card.blockId || card.id) || '');
+        if(uuid) {
+            const source=Array.from(question.querySelectorAll('[data-source-uuid]'))
+                .find(node=>node.getAttribute('data-source-uuid')===uuid);
+            if(source) {
+                const owner=source.closest('li');
+                if(owner)return owner;
+            }
+        }
+        return active[0] || null;
+    }
+    // Find a visible target belonging to the CURRENT problem. Never choose a
+    // contextual sibling merely because its blank is first in document order.
     function getMkCurrentProblemScrollTarget() {
-        const question = document.getElementById('question-section');
-        const answer = document.getElementById('answer-section');
-        if(!question) return null;
-        const card = activeDeck && activeDeck[currentIndex];
-        const firstVisible = (root, selectors) => {
-            if(!root) return null;
+        const question=document.getElementById('question-section');
+        const answer=document.getElementById('answer-section');
+        if(!question)return null;
+        const card=activeDeck && activeDeck[currentIndex];
+        const firstVisible=(root,selectors)=>{
+            if(!root)return null;
             for(const selector of selectors) {
-                const candidate = Array.from(root.querySelectorAll(selector))
-                    .find(el => isVisibleRect(el.getBoundingClientRect()));
-                if(candidate) return candidate;
+                const el=Array.from(root.querySelectorAll(selector)).find(node=>
+                    isVisibleRect(node.getBoundingClientRect()));
+                if(el)return el;
             }
             return null;
         };
-        const visibleInQuestion = selectors => firstVisible(question, selectors);
-
-        if(isMkCSCardFast(card)) {
-            return visibleInQuestion([
-                '.mk-cs-wrapper.mk-cs-target .mk-cs-answer',
-                '.mk-cs-wrapper.mk-cs-target .mk-cs-mask',
-                '.mk-cs-wrapper.mk-cs-target'
-            ]) || firstVisible(answer, [
-                '.mk-cs-wrapper.mk-cs-target .mk-cs-answer',
-                '.mk-cs-wrapper.mk-cs-target .mk-cs-mask'
-            ]);
+        const owner=mkCurrentLogseqProblemOwner(question,card);
+        const ownerAnchor=()=>mkProblemOwnVisibleAnchor(owner);
+        if(isMkCSCardFast(card))return firstVisible(question,[
+            '.mk-cs-wrapper.mk-cs-target .mk-cs-answer',
+            '.mk-cs-wrapper.mk-cs-target .mk-cs-mask',
+            '.mk-cs-wrapper.mk-cs-target'
+        ]) || ownerAnchor() || firstVisible(answer,['.mk-cs-wrapper.mk-cs-target']);
+        if(isMkArrowCard(card))return firstVisible(question,[
+            '.mk-arrow-target .cloze-a',
+            '.mk-arrow-target .cloze-q',
+            '.mk-arrow-target',
+            '.mk-arrow-card .cloze-a',
+            '.mk-arrow-card .cloze-q'
+        ]) || ownerAnchor() || firstVisible(answer,['.mk-arrow-target, .mk-arrow-card']);
+        if(isMkImageOcclusionCardFast(card))return firstVisible(question,[
+            '.mk-io-target-mask','.mk-io-image'
+        ]) || firstVisible(answer,['.mk-io-target-mask','.mk-io-image']);
+        // #card: the title is the question. A nested answer list may be
+        // hundreds of lines high (and hidden before reveal); don't center it.
+        if(owner) {
+            const anchor=ownerAnchor();
+            if(anchor)return anchor;
         }
-        if(isMkArrowCard(card)) {
-            return visibleInQuestion([
-                '.mk-arrow-target .cloze-a',
-                '.mk-arrow-target .cloze-q',
-                '.mk-arrow-target',
-                '.mk-arrow-card .cloze-a',
-                '.mk-arrow-card .cloze-q'
-            ]) || firstVisible(answer, [
-                '.mk-arrow-target .cloze-a',
-                '.mk-arrow-target .cloze-q'
-            ]);
-        }
-        if(isMkImageOcclusionCardFast(card)) {
-            return visibleInQuestion(['.mk-io-target-mask', '.mk-io-image']) ||
-                firstVisible(answer, ['.mk-io-target-mask', '.mk-io-image']);
-        }
-
-        // #card: anchor to the beginning of the current answer, never to the
-        // center of li.mk-card-current (which can contain hundreds of bullets).
-        const focused = question.querySelector('li.mk-card-current');
-        if(focused) {
-            const target = firstVisible(focused, [
-                ':scope > .mk-card-original-answer .cloze-a',
-                ':scope > .mk-card-answer-real .cloze-a',
-                ':scope > .mk-card-answer-real > li > span',
-                ':scope > .mk-card-answer-real > li',
-                ':scope > .mk-card-original-answer > li > span',
-                ':scope > .mk-card-original-answer > li',
-                ':scope > .mk-card-answer-mask .mk-card-mask-label',
-                ':scope > .mk-card-answer-mask > li',
-                ':scope > .mk-card-question'
-            ]);
-            if(target) return target;
-            return focused;
-        }
-
-        // Other Logseq / ordinary cloze cards. Prefer the active block, not an
-        // unrelated sibling blank which happens to be first in document order.
-        return visibleInQuestion([
-            'li.active-block .cloze-a',
-            'li.active-block .cloze-q',
-            '.active-block .cloze-a',
-            '.active-block .cloze-q',
+        return firstVisible(question,[
             '.cloze-wrapper.mk-current-target .cloze-a',
             '.cloze-wrapper.mk-current-target .cloze-q',
-            '.cloze-a',
+            'li.mk-card-current > .mk-card-question',
             '.cloze-q',
-            'li.active-block',
-            '.active-block'
-        ]) || firstVisible(answer, ['.cloze-a', '.cloze-q']);
+            '.cloze-a'
+        ]) || firstVisible(answer,['.cloze-a','.cloze-q']) ||
+            (isVisibleRect(question.getBoundingClientRect())?question:null);
+    }
+
+    // Cancel an in-flight auto-focus if the user starts interacting with the
+    // newly displayed card. Navigation events happen before showCard() and are
+    // included in the captured serial, so keyboard/touch NEXT still focuses.
+    let mkProblemFocusUserActionSerial=0;
+    ['pointerdown','touchstart','wheel','keydown'].forEach(type=>
+        document.addEventListener(type,()=>{mkProblemFocusUserActionSerial++;},
+            {capture:true,passive:true}));
+    function mkScheduleInitialProblemFocus(card, qSection, renderToken) {
+        if(isMkImageOcclusionCardFast(card))return; // IO retains its mask-position logic.
+        const actionSerial=mkProblemFocusUserActionSerial;
+        const stillCurrent=()=>qSection.isConnected && activeDeck[currentIndex]===card &&
+            renderToken===mkOrdinaryCardContextRenderToken &&
+            actionSerial===mkProblemFocusUserActionSerial;
+        const attempt=retry=>{
+            if(!stillCurrent())return;
+            const target=getMkCurrentProblemScrollTarget();
+            if(scrollElementToProblemPosition(target,{alignRatio:0.38,behavior:'auto'}))return;
+            // Deferred answer/source enrichment may attach the current mask
+            // slightly later; retry only while this same card is untouched.
+            if(retry<3)setTimeout(()=>attempt(retry+1),90);
+            else console.warn('[MK_INITIAL_PROBLEM_FOCUS_MISSING]',{
+                cardId:String(card && card.id||''),type:isMkCSCardFast(card)?'cs':isMkArrowCard(card)?'arrow':'ordinary'
+            });
+        };
+        requestAnimationFrame(()=>requestAnimationFrame(()=>attempt(0)));
     }
 
     function scrollToCurrentProblem(e) {
@@ -21303,25 +21337,12 @@ function getIOImageGroups() {
             normalizeMkCSQuestionState(qSection, card);
             // A single unified eye button is installed after all formats are prepared.
             applyMkCSHierarchyFocus(qSection);
-            // Focus the current CS problem after layout settles. For cs1/cs2 groups,
-            // every member is highlighted and the first member is brought into view.
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-                if(!qSection.isConnected || activeDeck[currentIndex] !== card) return;
-                normalizeMkCSQuestionState(qSection, card);
-                applyMkCSHierarchyFocus(qSection);
-                const target = qSection.querySelector('.mk-cs-wrapper.mk-cs-target .mk-cs-mask');
-                if(target) scrollElementToProblemPosition(target, { alignRatio:0.38, behavior:'auto' });
-            }));
+            // Shared initial-focus scheduler runs after ALL card transforms below.
         } else if(isArrowCard) {
             normalizeMkArrowQuestionState(qSection, card);
             // The same eye also controls CS and #card answers in this hierarchy.
             applyMkArrowHierarchyFocus(qSection);
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-                if(!qSection.isConnected || activeDeck[currentIndex] !== card) return;
-                applyMkArrowHierarchyFocus(qSection);
-                const target = qSection.querySelector('.mk-arrow-target .cloze-q, .mk-arrow-card .cloze-q');
-                if(target) scrollElementToProblemPosition(target, { alignRatio:0.38, behavior:'auto' });
-            }));
+            // Shared initial-focus scheduler runs after ALL card transforms below.
         }
         if(!isIOCard) {
             prepareMkUnifiedHierarchy(qSection, card);
@@ -21378,6 +21399,10 @@ function getIOImageGroups() {
             bindImageZoomHandlers(aSection);
             if(window.__MK_CARD_VERBOSE_DEBUG__ === true) scheduleDateDomMutationLog('after-final-dom-update');
         }
+
+        // Includes ordinary cloze / #card, not just :-> and {{cs}}.
+        // Wait until masking, PDF decoration and hierarchy preparation finish.
+        mkScheduleInitialProblemFocus(card, qSection, mkOrdinaryCardContextRenderToken);
 
         // Commit the displayed card ID only after synchronous rendering completed.
         localStorage.setItem(STORAGE_KEY_CURRENT_CARD_ID, String(card.id));
