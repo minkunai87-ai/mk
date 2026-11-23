@@ -6643,10 +6643,28 @@
         const stillCurrent=()=>qSection.isConnected && activeDeck[currentIndex]===card &&
             renderToken===mkOrdinaryCardContextRenderToken &&
             actionSerial===mkProblemFocusUserActionSerial;
+        const verifyAfterLayout=()=>{
+            if(!stillCurrent())return;
+            const target=getMkCurrentProblemScrollTarget();
+            const scroller=document.getElementById('scroll-area');
+            if(!target || !scroller)return;
+            const targetRect=target.getBoundingClientRect();
+            const scrollRect=scroller.getBoundingClientRect();
+            if(!isVisibleRect(targetRect) || !isVisibleRect(scrollRect))return;
+            // Async PDF/font/table/sibling rendering can move the focused row.
+            // Recenter only if its START is no longer inside the viewport,
+            // never after the user touches/scrolls the card.
+            if(targetRect.top<scrollRect.top+8 || targetRect.top>scrollRect.bottom-24)
+                scrollElementToProblemPosition(target,{alignRatio:0.38,behavior:'auto'});
+        };
         const attempt=retry=>{
             if(!stillCurrent())return;
             const target=getMkCurrentProblemScrollTarget();
-            if(scrollElementToProblemPosition(target,{alignRatio:0.38,behavior:'auto'}))return;
+            if(scrollElementToProblemPosition(target,{alignRatio:0.38,behavior:'auto'})){
+                setTimeout(verifyAfterLayout,180);
+                setTimeout(verifyAfterLayout,520);
+                return;
+            }
             // Deferred answer/source enrichment may attach the current mask
             // slightly later; retry only while this same card is untouched.
             if(retry<3)setTimeout(()=>attempt(retry+1),90);
