@@ -3948,25 +3948,130 @@
         }
         return plan.deckMode==='all'?'모든 덱':(plan.deckPath||'').replace(/__/g,' › ')+(plan.deckMode==='group'?' › 전체':'');
     }
-    function mkRotationDeckChoices() {
-        const paths=new Set();
-        const hasDirect=new Set();
-        Object.keys(library||{}).forEach(key=>{
-            if(!Array.isArray(library[key])||!library[key].length) return;
-            const normalized=normalizeDeckPath(key);hasDirect.add(normalized);
-            const bits=normalized.split('__');for(let i=1;i<=bits.length;i++)paths.add(bits.slice(0,i).join('__'));
+    // A plan may cover arbitrary exact deck paths; legacy all/group/deck scopes stay readable.
+    let mkRotationNewDeckPaths=[];
+    let mkRotationPickerPlanId='';
+    let mkRotationPickerDeckPaths=new Set();
+    function mkRotationAvailableDeckPaths() {
+        return [...new Set(Object.entries(library||{})
+            .filter(([path,cards])=>Array.isArray(cards)&&cards.length)
+            .map(([path])=>normalizeDeckPath(path)).filter(Boolean))]
+            .sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}));
+    }
+    function mkRotationSelectionPathsForPlan(plan,available=mkRotationAvailableDeckPaths()) {
+        if(!plan)return [];
+        if(plan.deckMode==='selection')return (plan.deckPaths||[]).slice();
+        if(plan.deckMode==='all')return available.slice();
+        const path=normalizeDeckPath(plan.deckPath||'');
+        if(plan.deckMode==='group')return available.filter(p=>p===path||p.startsWith(path+'__'));
+        return path?[path]:[];
+    }
+    function mkRotationUpdateNewDeckSummary() {
+        const label=document.getElementById('mk-rotation-deck-open');
+        const summary=document.getElementById('mk-rotation-selected-summary');
+        const paths=mkRotationNewDeckPaths;
+        if(label)label.textContent=paths.length?'📂 '+paths.length+'개 덱 선택됨 · 변경':'📂 원하는 덱 선택';
+        if(summary)summary.textContent=paths.length
+            ? paths.slice(0,3).map(p=>p.replace(/__/g,' › ')).join(' / ')+(paths.length>3?' 외 '+(paths.length-3)+'개':'')
+            : '선택된 덱이 없습니다. 원하는 덱을 여러 개 고를 수 있습니다.';
+    }
+    function mkRotationPickerUpdateCount() {
+        const count=document.getElementById('mk-rotation-deck-count');
+        if(count)count.textContent=mkRotationPickerDeckPaths.size+'개 선택';
+    }
+    function mkRotationOpenDeckPicker(planId='') {
+        const modal=document.getElementById('mk-rotation-deck-modal');
+        const tree=document.getElementById('mk-rotation-deck-tree');
+        if(!modal||!tree)return;
+        const plan=planId?mkRotationRead().plans.find(p=>p.id===planId):null;
+        if(planId&&!plan){showToast('기존 회독 계획을 찾을 수 없습니다.','error');return;}
+        mkRotationPickerPlanId=planId||'';
+        mkRotationPickerDeckPaths=new Set(plan?mkRotationSelectionPathsForPlan(plan):mkRotationNewDeckPaths);
+        const loaded=new Set(mkRotationAvailableDeckPaths());
+        const paths=[...new Set([...loaded,...mkRotationPickerDeckPaths])]
+            .sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}));
+        const fragment=document.createDocumentFragment();
+        paths.forEach(path=>{
+            const label=document.createElement('label');
+            label.className='mk-rotation-deck-row';
+            label.dataset.search=path.replace(/__/g,' ').toLocaleLowerCase('ko');
+            const check=document.createElement('input');
+            check.type='checkbox';
+            check.dataset.path=path;
+            check.checked=mkRotationPickerDeckPaths.has(path);
+            check.addEventListener('change',()=>{
+                if(check.checked)mkRotationPickerDeckPaths.add(path);
+                else mkRotationPickerDeckPaths.delete(path);
+                mkRotationPickerUpdateCount();
+            });
+            const title=document.createElement('span');
+            title.textContent=path.replace(/__/g,' › ');
+            const count=document.createElement('small');
+            const countValue=Array.isArray(library[path])?library[path].length:0;
+            count.textContent=loaded.has(path)?countValue.toLocaleString('ko-KR')+'문제':'미로드 · 선택 유지';
+            label.append(check,title,count);
+            fragment.appendChild(label);
         });
-        const all=[...paths].sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}));
-        const hasChild=new Set();
-        all.forEach(path=>{const pos=path.lastIndexOf('__');if(pos>0)hasChild.add(path.slice(0,pos));});
-        const options=['<option value="all|*">🌐 모든 덱 (전체 회독)</option>'];
-        all.forEach(path=>{
-            const depth=path.split('__').length-1;
-            const label='　'.repeat(Math.min(depth,7))+path.split('__').at(-1);
-            if(hasChild.has(path))options.push(`<option value="group|${escapeTodayPlanHtml(path)}">📂 ${escapeTodayPlanHtml(label)} 전체</option>`);
-            if(hasDirect.has(path))options.push(`<option value="deck|${escapeTodayPlanHtml(path)}">📄 ${escapeTodayPlanHtml(label)}</option>`);
+        if(!paths.length){
+            const empty=document.createElement('div');
+            empty.className='mk-rotation-note';
+            empty.textContent='불러온 덱이 없습니다. 덱 동기화 후 다시 선택해 주세요.';
+            fragment.appendChild(empty);
+        }
+        tree.replaceChildren(fragment);
+        const search=document.getElementById('mk-rotation-deck-search');
+        if(search)search.value='';
+        const title=document.getElementById('mk-rotation-deck-picker-title');
+        if(title)title.textContent=plan?'📝 기존 계획 · 덱 추가·제외':'📂 새 계획 · 회독할 덱 선택';
+        mkRotationPickerUpdateCount();
+        modal.style.display='flex';
+    }
+    function mkRotationCloseDeckPicker() {
+        const modal=document.getElementById('mk-rotation-deck-modal');
+        if(modal)modal.style.display='none';
+    }
+    function mkRotationFilterDeckPicker() {
+        const search=document.getElementById('mk-rotation-deck-search');
+        const query=String(search&&search.value||'').trim().toLocaleLowerCase('ko');
+        document.querySelectorAll('#mk-rotation-deck-tree .mk-rotation-deck-row').forEach(row=>{
+            row.hidden=!!query&&!String(row.dataset.search||'').includes(query);
         });
-        return options.join('');
+    }
+    function mkRotationSelectVisibleDecks(checked) {
+        document.querySelectorAll('#mk-rotation-deck-tree .mk-rotation-deck-row:not([hidden]) input[data-path]').forEach(input=>{
+            input.checked=!!checked;
+            if(checked)mkRotationPickerDeckPaths.add(input.dataset.path);
+            else mkRotationPickerDeckPaths.delete(input.dataset.path);
+        });
+        mkRotationPickerUpdateCount();
+    }
+    function mkRotationApplyDeckPicker() {
+        const paths=[...mkRotationPickerDeckPaths].sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}));
+        if(!paths.length){showToast('회독할 덱을 하나 이상 선택해 주세요.','error');return;}
+        if(!mkRotationSourceCards({deckMode:'selection',deckPaths:paths}).length){
+            showToast('선택한 덱의 문제가 아직 로드되지 않았습니다.','error');return;
+        }
+        if(mkRotationPickerPlanId){
+            const store=mkRotationRead(),plan=store.plans.find(p=>p.id===mkRotationPickerPlanId);
+            if(!plan){showToast('수정할 계획을 찾지 못했습니다.','error');return;}
+            const prior=mkRotationSelectionPathsForPlan(plan);
+            if(prior.length!==paths.length||prior.some((path,i)=>path!==paths[i])||plan.deckMode!=='selection'){
+                const now=Date.now();
+                plan.deckMode='selection';plan.deckPath='';plan.deckPaths=paths;
+                plan.scopeUpdatedAt=now;plan.updatedAt=now;
+                // Keep completed card IDs, round ID and daily batch. Removed cards are
+                // filtered from today's queue; newly included cards fill any shortfall.
+                try{mkRotationWrite(store);}
+                catch(error){console.warn('[MK_ROTATION_SCOPE_SAVE_FAILED]',error);showToast('회독 대상 덱 저장 실패','error');return;}
+            }
+            mkRotationRender();
+            showToast('덱 '+paths.length+'개 · 기존 완료 기록 유지 · 오늘 목표 자동 재계산','success');
+        }else{
+            mkRotationNewDeckPaths=paths;
+            mkRotationUpdateNewDeckSummary();
+            showToast('덱 '+paths.length+'개 선택 완료','success');
+        }
+        mkRotationCloseDeckPicker();
     }
     function mkRotationSetPeriodInput(days) {
         const input=document.getElementById('mk-rotation-period');
