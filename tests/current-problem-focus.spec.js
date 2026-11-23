@@ -223,6 +223,29 @@ for(const count of [25,120]) {
     assert.equal(api.get(),item.target,'fallback to typed arrow target when active marker is missing');
     checked++;
 }
+{
+    const item=fixture('cs',2);
+    const line=item.owner.children[0];
+    const early=line.append(new FakeElement('span','mk-cs-wrapper mk-cs-context'));
+    const earlyMask=early.append(blank(350,'mk-cs-mask'));
+    // Put the unrelated CS mask BEFORE the current target on this same LI.
+    line.children.unshift(line.children.pop());
+    question=item.q;card={id:'same-li-multiple-cs',type:'cs',isLogseq:true};state.activeDeck=[card];
+    assert.equal(api.get(),item.target,'same-LI CS target outranks earlier context CS');
+    checked++;
+}
+{
+    const item=fixture('ordinary',2);
+    const wrapper=item.target.parentElement;
+    wrapper.classes.add('mk-current-target');
+    const line=item.owner.children[0];
+    const early=line.append(new FakeElement('span','cloze-wrapper mk-context-target'));
+    early.append(blank(350,'cloze-q'));
+    line.children.unshift(line.children.pop());
+    question=item.q;card={id:'same-li-multiple-cloze',type:'ordinary',isLogseq:true};state.activeDeck=[card];
+    assert.equal(api.get(),item.target,'same-LI current cloze outranks earlier other blank');
+    checked++;
+}
 // Entire flattened source is audited below. The tests above exercise the
 // semantic selection that raw source markup inspection alone cannot verify.
 // Full repository-source structural inventory. This checks the original focus
