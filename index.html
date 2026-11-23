@@ -3818,7 +3818,10 @@
     function mkRotationPeriod(value) { return Math.max(1,Math.min(365,Math.floor(Number(value)||14))); }
     function mkRotationNormalizePlan(raw) {
         if(!raw || typeof raw !== 'object' || !raw.id || !raw.deckMode) return null;
-        const deckMode = ['all','group','deck'].includes(raw.deckMode) ? raw.deckMode : 'deck';
+        const deckMode = ['all','group','deck','selection'].includes(raw.deckMode) ? raw.deckMode : 'deck';
+        const deckPaths = deckMode==='selection' && Array.isArray(raw.deckPaths)
+            ? [...new Set(raw.deckPaths.map(path=>normalizeDeckPath(path)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}))
+            : [];
         const completed = {};
         if(raw.completed && typeof raw.completed === 'object' && !Array.isArray(raw.completed)) {
             for(const [id,at] of Object.entries(raw.completed)) if(id && Number(at)>0) completed[id]=Number(at);
@@ -3826,7 +3829,8 @@
         const archive = Array.isArray(raw.archive) ? raw.archive.slice(-20).filter(r=>r&&typeof r==='object') : [];
         return {
             id:String(raw.id), roundId:String(raw.roundId || raw.id),
-            deckPath:deckMode==='all' ? '' : normalizeDeckPath(raw.deckPath||''),deckMode,
+            deckPath:['all','selection'].includes(deckMode) ? '' : normalizeDeckPath(raw.deckPath||''),deckMode,deckPaths,
+            scopeUpdatedAt:Number(raw.scopeUpdatedAt)||Number(raw.createdAt)||0,
             periodDays:mkRotationPeriod(raw.periodDays),
             startDate:/^\d{4}-\d{2}-\d{2}$/.test(raw.startDate||'') ? raw.startDate : mkRotationDateKey(),
             roundStartedAt:Number(raw.roundStartedAt)||Number(raw.createdAt)||Date.now(),
@@ -3862,7 +3866,14 @@
                 const completed={...current.completed};
                 Object.entries(other.completed).forEach(([id,at])=>{completed[id]=Math.max(Number(completed[id])||0,at);});
                 const archives=new Map([...current.archive,...other.archive].map(r=>[String(r.roundId||r.finishedAt||''),r]));
-                merged.set(other.id,{...newer,completed,archive:Array.from(archives.values()).slice(-20),
+                // Scope edits are last-writer-wins independently of completion events.
+                // An offline device that marks an old card complete must NOT restore removed decks.
+                const scopeOwner=other.scopeUpdatedAt>current.scopeUpdatedAt?other:
+                    current.scopeUpdatedAt>other.scopeUpdatedAt?current:newer;
+                merged.set(other.id,{...newer,
+                    deckMode:scopeOwner.deckMode,deckPath:scopeOwner.deckPath,deckPaths:scopeOwner.deckPaths,
+                    scopeUpdatedAt:scopeOwner.scopeUpdatedAt,
+                    completed,archive:Array.from(archives.values()).slice(-20),
                     dailyBatch:mkRotationPickDailyBatch(current.dailyBatch,other.dailyBatch,current.roundId)});
             } else {
                 // Never bring an old round's card completions into a new round.
@@ -3901,6 +3912,14 @@
         } catch(error) {console.warn('[MK_ROTATION_RESTORE_FAILED]',source,error);return {ok:false,reason:'rotation_storage_failed'};}
     }
     function mkRotationSourceCards(plan) {
+        if(plan.deckMode==='selection') {
+            const seen=new Set(),cards=[];
+            (plan.deckPaths||[]).forEach(path=>getTodayPlanSourceCards(path,'deck').forEach(card=>{
+                const id=String(card&&card.id||'');
+                if(id&&!seen.has(id)){seen.add(id);cards.push(card);}
+            }));
+            return cards;
+        }
         if(plan.deckMode!=='all') return getTodayPlanSourceCards(plan.deckPath,plan.deckMode);
         const seen=new Set(),cards=[];
         Object.keys(library||{}).sort((a,b)=>a.localeCompare(b,'ko',{numeric:true})).forEach(deck=>{
@@ -3923,6 +3942,10 @@
         return {total:ids.size,done:done.length,remaining,todayDone,todayTarget,todayRemaining:Math.max(0,todayTarget-todayDone),daysLeft:left,elapsed,expired:left===0&&remaining>0};
     }
     function mkRotationScopeName(plan) {
+        if(plan.deckMode==='selection') {
+            const paths=plan.deckPaths||[];
+            return '선택 덱 '+paths.length+'개 · '+paths.slice(0,2).map(path=>path.replace(/__/g,' › ')).join(' / ')+(paths.length>2?' 외 '+(paths.length-2)+'개':'');
+        }
         return plan.deckMode==='all'?'모든 덱':(plan.deckPath||'').replace(/__/g,' › ')+(plan.deckMode==='group'?' › 전체':'');
     }
     function mkRotationDeckChoices() {
@@ -4091,7 +4114,8 @@
         if(!deck && mkRotationCardPathIndex) {mkRotationCardPathIndex=null;deck=mkRotationCardPathForId(id);}
         if(!deck)return false;
         const matching=store.plans.filter(plan=>plan.deckMode==='all' ||
-            (plan.deckMode==='group' ? (deck===plan.deckPath || deck.startsWith(plan.deckPath+'__')) : deck===plan.deckPath));
+            (plan.deckMode==='selection' ? plan.deckPaths.includes(deck) :
+             plan.deckMode==='group' ? (deck===plan.deckPath || deck.startsWith(plan.deckPath+'__')) : deck===plan.deckPath));
         let changed=false,now=Date.now();
         matching.forEach(plan=>{if(!plan.completed[id]){plan.completed[id]=now;plan.updatedAt=now;changed=true;}});
         if(!changed)return false;
@@ -4282,7 +4306,9 @@
         }
         markUserUiInteraction();
         todayEssentialState.active=false;todayNewState.active=false;todayPlanActiveItemId='';
-        currentDeckName=plan.deckMode==='all'?(mkRotationCardPathForId(String(cards[0].id))||Object.keys(library||{})[0]||''):plan.deckPath;
+        currentDeckName=['all','selection'].includes(plan.deckMode)
+            ? (mkRotationCardPathForId(String(cards[0].id))||Object.keys(library||{})[0]||'')
+            : plan.deckPath;
         originalDeck=source;
         setCurrentFilterModeWithTrace('default','mkRotationStart');
         currentSortMode='original';currentSecondarySortMode='none';
@@ -4293,7 +4319,7 @@
         mkRotationSessionCompleted=new Set();mkRotationSessionTotal=cards.length;
         mkRotationSuggestedRecallIds=mkRotationSelectRecallSuggestions(cards);
         currentIndex=0;previousCardIndex=null;
-        if(plan.deckMode!=='all')localStorage.setItem(STORAGE_KEY_LAST_DECK,plan.deckPath);
+        if(plan.deckMode==='deck'||plan.deckMode==='group')localStorage.setItem(STORAGE_KEY_LAST_DECK,plan.deckPath);
         highlightFilter();updateFilterStatusUI();closeMkRotationManager();showCard();persistCurrentViewState(true);
         showToast(`오늘 회독 ${cards.length}문제 · ${mkRotationStrategyLabel(batch.strategy)} · 확인/채점 모두 완료 처리`,'success');
     }
