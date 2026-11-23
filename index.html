@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.373 하이어라키 역순 -->
+<!-- preview: v18.5.374 화살표 왼쪽 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.373 하이어라키 역순)</title>
+<title>MK (v18.5.374 화살표 왼쪽)</title>
 
 <script>
     (() => {
@@ -1539,7 +1539,7 @@
                 <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.373 하이어라키 역순)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.374 화살표 왼쪽)</div>
     </div>
 
 
@@ -2047,7 +2047,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.373 하이어라키 역순';
+    const APP_VERSION = 'v18.5.374 화살표 왼쪽';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -2270,9 +2270,9 @@
             const fragment = document.createDocumentFragment();
             const heading = question && question.querySelector('.ls-header');
             const ancestry = question && question.querySelector('.ancestor-wrapper');
-            // Reverse just the compact display order; leave the source card untouched.
-            // Its Logseq/PDF navigation controls remain at the end of the trail.
-            const sources = [ancestry, heading].filter(Boolean);
+            // Show original Logseq arrows on the left and the reversed ancestry after them.
+            // Only the compact mirror is reordered; original card content is unchanged.
+            const sources = [heading, ancestry].filter(Boolean);
             for (const source of sources) {
                 const copy = source.cloneNode(true);
                 // Walk source and copy in their original DOM order before sanitizing; cloneNode
