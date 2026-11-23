@@ -94,9 +94,10 @@ function fixture(type, contextCount=2, nested=false) {
 const frames=[],events={},scrolls=[];
 let question=null, card=null;
 const answer=new FakeElement('section','',{top:0,width:400,height:0});
+const scroller=new FakeElement('div','',{top:0,width:380,height:700});
 const state={
     document:{
-        getElementById:id=>id==='question-section'?question:id==='answer-section'?answer:null,
+        getElementById:id=>id==='question-section'?question:id==='answer-section'?answer:id==='scroll-area'?scroller:null,
         addEventListener:(type,listener)=>{events[type]=listener;}
     },
     activeDeck:[],currentIndex:0,mkOrdinaryCardContextRenderToken:1,
@@ -155,6 +156,21 @@ for(const count of [25,120]) {
     events.wheel();
     while(frames.length) frames.shift()();
     assert.equal(scrolls.length,0,'manual wheel must cancel automatic focus');
+    checked++;
+}
+{
+    // A delayed sibling source or table layout can push the current question
+    // beyond the viewport after the initial successful auto-focus.
+    const item=fixture('ordinary');
+    question=item.q;card={id:'late-layout',type:'ordinary'};state.activeDeck=[card];
+    scrolls.length=0;frames.length=0;
+    item.target.rect={top:360,width:80,height:18};
+    api.schedule(card,item.q,1);
+    frames.shift()();frames.shift()(); // 2 RAF: first successful scroll
+    assert.equal(scrolls.length,1);
+    item.target.rect={top:900,width:80,height:18};
+    frames.shift()(); // 180ms verification
+    assert.equal(scrolls.length,2,'late off-screen focus must be restored');
     checked++;
 }
 // Full repository-source structural inventory. This checks the original focus
