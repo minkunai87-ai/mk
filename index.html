@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.374 화살표 왼쪽 -->
+<!-- preview: v18.5.375 선택 덱 회독 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.374 화살표 왼쪽)</title>
+<title>MK (v18.5.375 선택 덱 회독)</title>
 
 <script>
     (() => {
@@ -1387,6 +1387,23 @@
     #mk-rotation-modal .mk-rotation-actions .mk-rotation-start {background:var(--primary);color:#fff;border-color:var(--primary);font-weight:800;}
     #mk-rotation-modal .mk-rotation-actions button:disabled {opacity:.5;cursor:not-allowed;}
     #mk-rotation-modal .mk-rotation-period-edit {width:74px!important;padding:6px 9px!important;font-size:.82rem!important;}
+    .mk-rotation-deck-picker-trigger {cursor:pointer;text-align:left;font-weight:700;}
+    .mk-rotation-selected-summary {font-size:.78rem;color:var(--text-sub);line-height:1.45;overflow-wrap:anywhere;}
+    #mk-rotation-deck-modal {z-index:10070;align-items:center;justify-content:center;}
+    #mk-rotation-deck-modal .mk-rotation-deck-panel {width:min(95vw,700px);max-height:90dvh;display:flex;flex-direction:column;gap:10px;}
+    #mk-rotation-deck-modal .mk-rotation-deck-tree {min-height:80px;max-height:48dvh;overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--border);border-radius:8px;background:var(--surface);}
+    #mk-rotation-deck-modal .mk-rotation-deck-row {display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid var(--border);font-size:.79rem;cursor:pointer;word-break:keep-all;overflow-wrap:anywhere;}
+    #mk-rotation-deck-modal .mk-rotation-deck-row:last-child {border-bottom:0;}
+    #mk-rotation-deck-modal .mk-rotation-deck-row input {accent-color:var(--primary);flex:0 0 auto;width:16px;height:16px;}
+    #mk-rotation-deck-modal .mk-rotation-deck-row span {min-width:0;flex:1;}
+    #mk-rotation-deck-modal .mk-rotation-deck-row small {color:var(--text-sub);flex:0 0 auto;font-size:.7rem;}
+    #mk-rotation-deck-modal .mk-rotation-deck-row[hidden] {display:none;}
+    #mk-rotation-deck-modal .mk-rotation-deck-actions {display:flex;align-items:center;flex-wrap:wrap;gap:7px;}
+    #mk-rotation-deck-modal .mk-rotation-deck-actions button {font-size:.78rem;color:var(--text);border:1px solid var(--border);border-radius:7px;background:var(--input-bg);padding:7px 9px;cursor:pointer;}
+    #mk-rotation-deck-modal .mk-rotation-deck-actions b {font-size:.79rem;color:var(--primary);margin-left:auto;}
+    #mk-rotation-deck-modal .mk-rotation-deck-footer {display:flex;gap:8px;justify-content:flex-end;}
+    #mk-rotation-deck-modal .mk-rotation-deck-footer button {padding:10px 13px;border-radius:8px;border:1px solid var(--border);color:var(--text);background:var(--input-bg);cursor:pointer;}
+    #mk-rotation-deck-modal .mk-rotation-deck-footer .mk-rotation-apply {background:var(--primary);border-color:var(--primary);color:#fff;font-weight:800;}
     @media (max-width:500px) {#mk-rotation-modal .mk-rotation-panel {width:96vw;max-height:94dvh;padding:15px;}#mk-rotation-modal .mk-rotation-actions button {padding:9px 8px;} }
 </style>
 
@@ -1539,7 +1556,7 @@
                 <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.374 화살표 왼쪽)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.375 선택 덱 회독)</div>
     </div>
 
 
@@ -1611,8 +1628,9 @@
             <div class="mk-rotation-note">회독 완료는 <strong>확인·맞음·틀림·애매</strong> 모두 인정합니다. 정답률·FSRS는 실제 채점에서만 변경됩니다. 다른 학습 화면에서 완료한 카드도 반영됩니다. 오늘 문제는 망각 위험과 회독 기한을 함께 고려해 배정합니다. 직접 풀기 권장은 강제가 아니며, 회독 진행 중에는 그날 선정한 순서를 유지합니다.</div>
             <div class="mk-rotation-form">
                 <strong>+ 새 회독 계획</strong>
-                <label for="mk-rotation-deck">대상 덱 (상위 전체·하위덱·모든 덱 선택 가능)</label>
-                <select class="mk-rotation-input" id="mk-rotation-deck"></select>
+                <label for="mk-rotation-deck-open">대상 덱 (여러 덱 선택 가능)</label>
+                <button type="button" class="mk-rotation-input mk-rotation-deck-picker-trigger" id="mk-rotation-deck-open" onclick="mkRotationOpenDeckPicker()">📂 원하는 덱 선택</button>
+                <div id="mk-rotation-selected-summary" class="mk-rotation-selected-summary" aria-live="polite">선택된 덱이 없습니다.</div>
                 <label for="mk-rotation-period">1회독 기간 · 1일 단위</label>
                 <div class="mk-rotation-duration-row">
                     <input class="mk-rotation-input" type="number" id="mk-rotation-period" min="1" max="365" step="1" value="14" oninput="mkRotationSyncPeriodSlider()">
@@ -1641,9 +1659,28 @@
                     </div>
                 </div>
                 <div class="mk-rotation-note">교차 회독은 덱 안의 하위 단원을 짧은 묶음으로 번갈아 표시합니다. 해당 하위 단원이 하나라면 그 안에서 위험도순으로 학습합니다.</div>
-                <button type="button" class="modal-btn btn-save" onclick="mkRotationCreatePlan()">이 범위로 회독 계획 추가</button>
+                <button type="button" class="modal-btn btn-save" onclick="mkRotationCreatePlan()">선택한 덱으로 회독 계획 추가</button>
             </div>
             <div class="mk-rotation-list" id="mk-rotation-list"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="mk-rotation-deck-modal" onclick="if(event.target===this)mkRotationCloseDeckPicker()">
+        <div class="modal-content mk-rotation-deck-panel" role="dialog" aria-modal="true" aria-labelledby="mk-rotation-deck-picker-title">
+            <div class="mk-rotation-head"><h3 id="mk-rotation-deck-picker-title">📂 회독할 덱 선택</h3>
+                <button class="modal-btn btn-cancel" type="button" onclick="mkRotationCloseDeckPicker()">닫기</button></div>
+            <input type="search" class="mk-rotation-input" id="mk-rotation-deck-search" placeholder="과목, 폴더, 덱 이름 검색" oninput="mkRotationFilterDeckPicker()">
+            <div class="mk-rotation-deck-actions">
+                <button type="button" onclick="mkRotationSelectVisibleDecks(true)">검색 결과 전체 선택</button>
+                <button type="button" onclick="mkRotationSelectVisibleDecks(false)">검색 결과 전체 해제</button>
+                <b id="mk-rotation-deck-count">0개 선택</b>
+            </div>
+            <div class="mk-rotation-deck-tree" id="mk-rotation-deck-tree" role="group" aria-label="회독 덱 복수 선택"></div>
+            <div class="mk-rotation-note">기존 계획 수정 시 완료 기록과 종료 기준일은 유지하고, 오늘 목표와 남은 문제를 자동 재계산합니다.</div>
+            <div class="mk-rotation-deck-footer">
+                <button type="button" onclick="mkRotationCloseDeckPicker()">취소</button>
+                <button type="button" class="mk-rotation-apply" onclick="mkRotationApplyDeckPicker()">선택 적용</button>
+            </div>
         </div>
     </div>
 
@@ -2047,7 +2084,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.374 화살표 왼쪽';
+    const APP_VERSION = 'v18.5.375 선택 덱 회독';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
