@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.376 문제 포커스 보강 -->
+<!-- preview: v18.5.377 현재 문제 포커스 정밀화 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.376 문제 포커스 보강)</title>
+<title>MK (v18.5.377 현재 문제 포커스 정밀화)</title>
 
 <script>
     (() => {
@@ -1556,7 +1556,7 @@
                 <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.376 문제 포커스 보강)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.377 현재 문제 포커스 정밀화)</div>
     </div>
 
 
@@ -2084,7 +2084,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.376 문제 포커스 보강';
+    const APP_VERSION = 'v18.5.377 현재 문제 포커스 정밀화';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -6544,45 +6544,102 @@
     // The active Logseq card may be an ordinary cloze/#card, with several
     // contextual blanks above it. Target only the current LI's OWN content,
     // never a cloze in a descendant/sibling list that happens to appear first.
-    function mkProblemOwnVisibleAnchor(owner) {
-        if(!owner) return null;
+    // A rendered blank can have a nonzero rect while hidden with visibility
+    // or opacity. Do not center an invisible answer or a context-only heading.
+    function mkIsRenderedProblemAnchor(node) {
+        if(!node || !isVisibleRect(node.getBoundingClientRect()))return false;
+        if(node.closest('.ancestor-wrapper, .ls-header, .mk-extra-node, .mk-extra-content'))return false;
+        if(node.closest('[hidden], [aria-hidden="true"]'))return false;
+        if(typeof getComputedStyle === 'function') {
+            const style=getComputedStyle(node);
+            if(style && (style.display==='none'||style.visibility==='hidden'||style.visibility==='collapse'||Number(style.opacity)===0))return false;
+        }
+        return true;
+    }
+    // Read only the current LI's OWN problem text; never a child answer list or
+    // an earlier contextual sibling's blank. Prefer a visible mask to a hidden
+    // answer even if the export places the answer span first in the DOM.
+    function mkProblemOwnVisibleAnchor(owner,card) {
+        if(!owner)return null;
+        // A single LI may contain many CS or ordinary cloze groups. Prefer
+        // the one explicitly marked CURRENT, even when earlier masks are also
+        // visible and belong to the same source bullet.
+        const specific=isMkCSCardFast(card)
+            ? ['.mk-cs-wrapper.mk-cs-target .mk-cs-mask',
+               '.mk-cs-wrapper.mk-cs-target .mk-cs-answer',
+               '.mk-cs-wrapper.mk-cs-target']
+            : isMkArrowCard(card)
+                ? ['.mk-arrow-target .cloze-q','.mk-arrow-target .cloze-a',
+                   '.mk-arrow-card .cloze-q','.mk-arrow-card .cloze-a']
+                : ['.cloze-wrapper.mk-current-target .cloze-q',
+                   '.cloze-wrapper.mk-current-target .cloze-a'];
+        for(const selector of specific) {
+            const current=Array.from(owner.querySelectorAll(selector)).find(node=>
+                node.closest('li')===owner && mkIsRenderedProblemAnchor(node));
+            if(current)return current;
+        }
         const own=Array.from(owner.children || []).filter(node =>
             node.tagName!=='UL' && node.tagName!=='OL' &&
             !node.classList.contains('mk-card-answer-real') &&
             !node.classList.contains('mk-card-answer-mask') &&
             !node.classList.contains('mk-card-original-answer'));
         for(const node of own) {
-            const targets=Array.from(node.querySelectorAll('.cloze-q, .cloze-a, .mk-cs-mask, .mk-cs-answer, .mk-card-mask-label'));
-            const focused=targets.find(target=>target.closest('li')===owner &&
-                isVisibleRect(target.getBoundingClientRect()));
-            if(focused)return focused;
+            for(const selector of ['.cloze-q, .mk-cs-mask, .mk-card-mask-label',
+                                   '.cloze-a, .mk-cs-answer']) {
+                const target=Array.from(node.querySelectorAll(selector)).find(candidate=>
+                    candidate.closest('li')===owner && mkIsRenderedProblemAnchor(candidate));
+                if(target)return target;
+            }
         }
-        return own.find(node=>isVisibleRect(node.getBoundingClientRect())) ||
-            (isVisibleRect(owner.getBoundingClientRect())?owner:null);
+        // #card or a non-cloze question: align to its OWN title line, not the
+        // potentially very tall parent LI with hundreds of nested children.
+        return own.find(node=>mkIsRenderedProblemAnchor(node)) ||
+            (mkIsRenderedProblemAnchor(owner)?owner:null);
     }
     function mkCurrentLogseqProblemOwner(question, card) {
         if(!question)return null;
+        const active=Array.from(question.querySelectorAll('li.active-block, li.ls-active'))
+            .filter(li=>!li.closest('.ancestor-wrapper, .mk-extra-node, .mk-extra-content'));
+        // A typed active block outranks a target marker on an earlier sibling.
+        // Old global querySelector('.mk-arrow-target/.mk-cs-target') could focus
+        // the first contextual blank, not the card currently being studied.
+        if(isMkArrowCard(card)) {
+            const arrowOwner=active.slice().reverse().find(li=>
+                Array.from(li.querySelectorAll('.mk-arrow-target, .mk-arrow-card, .cloze-wrapper[data-mk-arrow]'))
+                    .some(node=>node.closest('li')===li));
+            if(arrowOwner)return arrowOwner;
+        }
+        if(isMkCSCardFast(card)) {
+            const csOwner=active.slice().reverse().find(li=>
+                Array.from(li.querySelectorAll('.mk-cs-wrapper.mk-cs-target, .mk-cs-wrapper'))
+                    .some(node=>node.closest('li')===li));
+            if(csOwner)return csOwner;
+        }
         const current=question.querySelector('li.mk-card-current');
-        if(current)return current;
-        const active=Array.from(question.querySelectorAll('li.active-block, li.ls-active')).reverse();
-        // Some exports mark the whole ancestry active and the actual card is
-        // deeper. The deepest active LI owning a blank outranks that ancestor.
-        const withOwnBlank=active.find(li=>Array.from(li.querySelectorAll('.cloze-wrapper, .mk-cs-wrapper'))
-            .some(wrapper=>wrapper.closest('li')===li && !wrapper.closest('.mk-extra-node, .mk-extra-content')));
-        if(withOwnBlank)return withOwnBlank;
+        if(current && !current.closest('.ancestor-wrapper'))return current;
+        if(active.length) {
+            // Every currently published Logseq card has exactly one active LI;
+            // when some other export uses several, prefer the deepest actual
+            // question with an OWN placeholder, not an ancestor heading.
+            const withOwnBlank=active.slice().reverse().find(li=>
+                Array.from(li.querySelectorAll('.cloze-wrapper, .mk-cs-wrapper, .mk-card-question'))
+                    .some(wrapper=>wrapper.closest('li')===li));
+            return withOwnBlank||active[active.length-1];
+        }
         const uuid=String(card && (card.blockId || card.id) || '');
         if(uuid) {
             const source=Array.from(question.querySelectorAll('[data-source-uuid]'))
                 .find(node=>node.getAttribute('data-source-uuid')===uuid);
-            if(source) {
+            if(source && !source.closest('.ancestor-wrapper')) {
                 const owner=source.closest('li');
                 if(owner)return owner;
             }
         }
-        return active[0] || null;
+        return null;
     }
-    // Find a visible target belonging to the CURRENT problem. Never choose a
-    // contextual sibling merely because its blank is first in document order.
+    // A question page can contain hundreds of context blanks of every format.
+    // Resolve the ACTIVE source LI first for all card kinds. Format-specific
+    // target classes remain fallbacks only when the active owner is unavailable.
     function getMkCurrentProblemScrollTarget() {
         const question=document.getElementById('question-section');
         const answer=document.getElementById('answer-section');
@@ -6591,45 +6648,37 @@
         const firstVisible=(root,selectors)=>{
             if(!root)return null;
             for(const selector of selectors) {
-                const el=Array.from(root.querySelectorAll(selector)).find(node=>
-                    isVisibleRect(node.getBoundingClientRect()));
+                const el=Array.from(root.querySelectorAll(selector)).find(mkIsRenderedProblemAnchor);
                 if(el)return el;
             }
             return null;
         };
-        const owner=mkCurrentLogseqProblemOwner(question,card);
-        const ownerAnchor=()=>mkProblemOwnVisibleAnchor(owner);
-        if(isMkCSCardFast(card))return firstVisible(question,[
-            '.mk-cs-wrapper.mk-cs-target .mk-cs-answer',
-            '.mk-cs-wrapper.mk-cs-target .mk-cs-mask',
-            '.mk-cs-wrapper.mk-cs-target'
-        ]) || ownerAnchor() || firstVisible(answer,['.mk-cs-wrapper.mk-cs-target']);
-        if(isMkArrowCard(card))return firstVisible(question,[
-            '.mk-arrow-target .cloze-a',
-            '.mk-arrow-target .cloze-q',
-            '.mk-arrow-target',
-            '.mk-arrow-card .cloze-a',
-            '.mk-arrow-card .cloze-q'
-        ]) || ownerAnchor() || firstVisible(answer,['.mk-arrow-target, .mk-arrow-card']);
         if(isMkImageOcclusionCardFast(card))return firstVisible(question,[
             '.mk-io-target-mask','.mk-io-image'
         ]) || firstVisible(answer,['.mk-io-target-mask','.mk-io-image']);
-        // #card: the title is the question. A nested answer list may be
-        // hundreds of lines high (and hidden before reveal); don't center it.
-        if(owner) {
-            const anchor=ownerAnchor();
-            if(anchor)return anchor;
-        }
+        const owner=mkCurrentLogseqProblemOwner(question,card);
+        const ownAnchor=mkProblemOwnVisibleAnchor(owner,card);
+        if(ownAnchor)return ownAnchor;
+        if(isMkCSCardFast(card))return firstVisible(question,[
+            '.mk-cs-wrapper.mk-cs-target .mk-cs-mask',
+            '.mk-cs-wrapper.mk-cs-target .mk-cs-answer',
+            '.mk-cs-wrapper.mk-cs-target'
+        ]) || firstVisible(answer,['.mk-cs-wrapper.mk-cs-target']);
+        if(isMkArrowCard(card))return firstVisible(question,[
+            '.mk-arrow-target .cloze-q',
+            '.mk-arrow-target .cloze-a',
+            '.mk-arrow-target',
+            '.mk-arrow-card .cloze-q',
+            '.mk-arrow-card .cloze-a'
+        ]) || firstVisible(answer,['.mk-arrow-target, .mk-arrow-card']);
         return firstVisible(question,[
-            '.cloze-wrapper.mk-current-target .cloze-a',
             '.cloze-wrapper.mk-current-target .cloze-q',
+            '.cloze-wrapper.mk-current-target .cloze-a',
             'li.mk-card-current > .mk-card-question',
-            '.cloze-q',
-            '.cloze-a'
-        ]) || firstVisible(answer,['.cloze-a','.cloze-q']) ||
-            (isVisibleRect(question.getBoundingClientRect())?question:null);
+            '.cloze-q','.cloze-a'
+        ]) || firstVisible(answer,['.cloze-q','.cloze-a']) ||
+            (mkIsRenderedProblemAnchor(question)?question:null);
     }
-
     // Cancel an in-flight auto-focus if the user starts interacting with the
     // newly displayed card. Navigation events happen before showCard() and are
     // included in the captured serial, so keyboard/touch NEXT still focuses.
