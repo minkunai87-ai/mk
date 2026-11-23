@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.371 COMPACT STUDY HEADER -->
+<!-- preview: v18.5.372 FOLD SCROLL PERSIST -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.371 COMPACT STUDY HEADER)</title>
+<title>MK (v18.5.372 FOLD SCROLL PERSIST)</title>
 
 <script>
     (() => {
@@ -201,7 +201,7 @@
     
     .card-scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
 
-    /* v18.5.371 · Compact inline study-header drawer: no floating overlay on questions.
+    /* v18.5.372 · Compact inline study-header drawer: persist open and hide on original header visibility.
        The 20px toggle lives under the card counter, while all header content stays accessible. */
     .header { padding-top: calc(env(safe-area-inset-top) + 8px); padding-bottom: 8px; }
     .header-controls { flex-direction:column; align-items:center; justify-content:center; gap:2px; }
@@ -268,7 +268,7 @@
         flex:0 0 auto; margin:0; padding:0;
     }
     .mk-fold-sector-mirror.ls-header .ls-breadcrumb {
-        display:inline-flex; max-width:none; padding:2px 5px;
+        display:none !important; /* The sticky title already shows [[deck]]. Preserve PDF/arrow controls. */ max-width:none; padding:2px 5px;
         font-size:inherit; white-space:nowrap;
     }
     .mk-fold-sector-mirror.ls-header .ls-arrows { flex:0 0 auto; gap:3px; }
@@ -1531,7 +1531,7 @@
                 <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.371 COMPACT STUDY HEADER)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.372 FOLD SCROLL PERSIST)</div>
     </div>
 
 
@@ -2039,7 +2039,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.371 COMPACT STUDY HEADER';
+    const APP_VERSION = 'v18.5.372 FOLD SCROLL PERSIST';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -2216,6 +2216,7 @@
                sectorLabel, sectorViewport, sectorContent, meta, icons].every(Boolean)) return;
 
         let open = false;
+        let manualReveal = false; // Explicit opening stays visible until the next scroll.
         let scrollFrame = 0;
         let iconFrame = 0;
         let sectorTimer = 0;
@@ -2326,17 +2327,18 @@
             if (question) sourceObserver.observe(question, options);
         }
         function setOpen(value) {
-            open = !!value && !root.hidden;
-            panel.hidden = !open;
+            open = !!value; // User preference persists across card navigation.
+            manualReveal = open;
+            panel.hidden = !open || root.hidden;
             toggle.textContent = open ? '⌃' : '⌄';
             toggle.setAttribute('aria-label', open ? '헤더 접기' : '헤더 펼치기');
             toggle.title = open ? '헤더 접기' : '헤더 펼치기';
             toggle.setAttribute('aria-expanded', String(open));
-            if (open) {
+            if (open && !root.hidden) {
                 refreshTools();
                 if (sectorDirty) refreshSector();
                 watchSource();
-            } else {
+            } else if (!open) {
                 stopSourceObserver();
                 // Clear copied HTML/IO images when collapsed to avoid holding large cloned trees.
                 sectorContent.replaceChildren();
@@ -2383,13 +2385,27 @@
         }
         function updateVisibility() {
             scrollFrame = 0;
-            // The compact icon stays beneath the counter while a study card exists.
-            // The expanded details are in normal header flow; no overlay over questions.
             const question = document.getElementById('question-section');
             const visible = cardInfo.style.display !== 'none' && !!question?.firstElementChild;
             root.hidden = !visible;
             toggle.hidden = !visible;
-            if (!visible && open) setOpen(false);
+            // Hide only duplicate details while the original header is visible;
+            // keep the user-selected expanded preference for the next scroll.
+            const infoRect = cardInfo.getBoundingClientRect();
+            const scrollRect = scroller.getBoundingClientRect();
+            const originalInView = infoRect.bottom > scrollRect.top + 6 && infoRect.top < scrollRect.bottom - 6;
+            const shouldShow = visible && open && (manualReveal || !originalInView);
+            if (panel.hidden !== !shouldShow) {
+                panel.hidden = !shouldShow;
+                if (shouldShow) {
+                    refreshTools();
+                    if (sectorDirty) refreshSector();
+                    watchSource();
+                } else {
+                    stopSourceObserver();
+                    sectorDirty = true;
+                }
+            }
         }
         function scheduleVisibility() {
             if (!scrollFrame) scrollFrame = requestAnimationFrame(updateVisibility);
@@ -2399,7 +2415,7 @@
             iconFrame = requestAnimationFrame(() => { iconFrame = 0; refreshTools(); });
         }
         toggle.addEventListener('click', () => setOpen(!open));
-        scroller.addEventListener('scroll', scheduleVisibility, { passive:true });
+        scroller.addEventListener('scroll', () => { manualReveal = false; scheduleVisibility(); }, { passive:true });
         window.addEventListener('resize', scheduleVisibility, { passive:true });
         // Reuse original live controls; do not create a second source of learning state.
         new MutationObserver(scheduleTools).observe(cardInfo, {
@@ -2408,7 +2424,11 @@
         });
         window.mkResetFoldStudyHeader = () => {
             root.hidden = true;
-            setOpen(false);
+            panel.hidden = true;
+            manualReveal = false;
+            stopSourceObserver();
+            sectorContent.replaceChildren();
+            sectorDirty = true;
             scheduleVisibility();
         };
         window.mkRefreshFoldStudyHeader = () => { scheduleVisibility(); scheduleTools(); scheduleSectorRefresh(); };
