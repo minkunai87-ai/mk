@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.377 현재 문제 포커스 정밀화 -->
+<!-- preview: v18.5.378 복습 버튼 일수 표시 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.377 현재 문제 포커스 정밀화)</title>
+<title>MK (v18.5.378 복습 버튼 일수 표시)</title>
 
 <script>
     (() => {
@@ -894,6 +894,9 @@
     .nav-btn { flex: 1; background: var(--input-bg); border: 1px solid var(--border); padding: 14px 0; border-radius: 12px; cursor: pointer; font-weight: bold; color: var(--text); font-size: 1rem; text-align: center; transition: 0.2s; }
     .nav-btn:active { background: var(--btn-hover); }
     .g-btn { flex: 1; padding: 16px 0; border: none; border-radius: 12px; font-weight: bold; color: white; cursor: pointer; font-size: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin: 0; text-align: center; }
+    .g-btn.has-grade-interval { position: relative; }
+    .g-btn.has-grade-interval .grade-interval { position: absolute; top: 5px; left: 0; right: 0; font-size: 11px; line-height: 13px; font-weight: normal; pointer-events: none; }
+    .g-btn.has-grade-interval .grade-label { position: relative; top: 6px; }
     .g-btn:active { transform: scale(0.98); opacity: 0.9; }
     .bg-x { background: #fa5252; } .bg-tri { background: #fab005; } .bg-o { background: #40c057; } .bg-chk { background: #339af0; }
 
@@ -1556,7 +1559,7 @@
                 <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.377 현재 문제 포커스 정밀화)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.378 복습 버튼 일수 표시)</div>
     </div>
 
 
@@ -1960,9 +1963,9 @@
         <div class="footer-content">
             <div id="click-guide" class="click-guide" onclick="revealAnswer()">👇 터치하여 정답 확인</div>
             <div class="grade-btns" id="grade-area" style="display:none;">
-                <button class="g-btn bg-x" onclick="grade(0)">모름</button>
-                <button class="g-btn bg-tri" onclick="grade(1)">애매</button>
-                <button class="g-btn bg-o" onclick="grade(2)">맞음</button>
+                <button class="g-btn bg-x" onclick="grade(0)"><span class="grade-interval" id="grade-interval-0"></span><span class="grade-label">모름</span></button>
+                <button class="g-btn bg-tri" onclick="grade(1)"><span class="grade-interval" id="grade-interval-1"></span><span class="grade-label">애매</span></button>
+                <button class="g-btn bg-o" onclick="grade(2)"><span class="grade-interval" id="grade-interval-2"></span><span class="grade-label">맞음</span></button>
                 <button class="g-btn bg-chk" onclick="grade(3)">확인</button>
             </div>
             <div class="nav-btns" id="nav-area">
@@ -2084,7 +2087,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.377 현재 문제 포커스 정밀화';
+    const APP_VERSION = 'v18.5.378 복습 버튼 일수 표시';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -2827,6 +2830,7 @@
     let firebaseMigrationStatusPromise = null;
 
     let targetRetention = parseFloat(localStorage.getItem('anki_target_retention')) || 0.90;
+    let gradeIntervalPreview = null;
 
     const cyrb53 = (str, seed = 0) => { let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed; for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); return 4294967296 * (2097151 & h2) + (h1 >>> 0); };
     let randomSortSeed = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -5309,6 +5313,7 @@
     
     function updateTRButton() {
         document.getElementById('current-tr-display').innerText = Math.round(targetRetention * 100);
+        if (document.getElementById('grade-area')?.style.display === 'flex') refreshGradeIntervalPreview();
     }
 
     function applyTargetRetentionFromBackup(value, source = 'backup') {
@@ -21325,6 +21330,7 @@ function getIOImageGroups() {
 
     let mkOrdinaryCardContextRenderToken = 0;
     function showCard() {
+        gradeIntervalPreview = null;
         // Hide the old lens before replacing the IO image/masks on navigation.
         mkIOHideMagnifierLens(true);
         if (window.mkResetFoldStudyHeader) window.mkResetFoldStudyHeader();
@@ -21533,6 +21539,7 @@ function getIOImageGroups() {
         const qDiv = document.getElementById('question-section');
         const card = activeDeck && activeDeck[currentIndex] ? activeDeck[currentIndex] : {};
         const isCSCard = isMkCSCardFast(card);
+        refreshGradeIntervalPreview();
 
         // CS cards must reveal ONLY the current CS target/group.
         // Do not switch the whole question area to mode-answer because that would
@@ -22704,6 +22711,50 @@ function getIOImageGroups() {
         return merged;
     }
 
+    // Use the existing grade formula for both the read-only preview and the actual review.
+    // Keep one fuzz sample per grade while this card is displayed so preview and save agree.
+    function calculateGradeInterval(fsrs, score, retention, random = Math.random) {
+            fsrs.reps++;
+            if (fsrs.reps === 1) { if (score === 0) { fsrs.D = 7.0; fsrs.S = 1.0; } else if (score === 1) { fsrs.D = 6.0; fsrs.S = 2.0; } else if (score === 2) { fsrs.D = 5.0; fsrs.S = 3.0; }
+            } else {
+                if (score === 0) fsrs.D = Math.min(10, fsrs.D + 1.5); else if (score === 1) fsrs.D = Math.min(10, fsrs.D + 0.5); else if (score === 2) fsrs.D = Math.max(1, fsrs.D - 0.5);
+                if (score === 0) { fsrs.S = Math.max(1, fsrs.S * 0.2); } else { let factor = score === 1 ? 1.2 : (1 + 0.5 * (11 - fsrs.D)); fsrs.S = fsrs.S * factor; }
+            }
+            let intervalFactor = Math.log(retention) / Math.log(0.90); let interval = Math.max(1, Math.round(fsrs.S * intervalFactor));
+            if (interval > 3) { let fuzz = 0; if (interval >= 4 && interval <= 7) fuzz = 1; else if (interval >= 8 && interval <= 15) fuzz = 2; else if (interval >= 16) fuzz = 3; const randomFuzz = Math.floor(random() * (2 * fuzz + 1)) - fuzz; interval = Math.max(1, interval + randomFuzz); }
+        return interval;
+    }
+
+    function getGradeIntervalRandom(card, score) {
+        if (!gradeIntervalPreview || gradeIntervalPreview.card !== card) {
+            gradeIntervalPreview = { card, samples: [] };
+        }
+        if (gradeIntervalPreview.samples[score] === undefined) {
+            gradeIntervalPreview.samples[score] = Math.random();
+        }
+        return gradeIntervalPreview.samples[score];
+    }
+
+    function refreshGradeIntervalPreview() {
+        const card = activeDeck && activeDeck[currentIndex];
+        const found = card ? findStatsForCard(card, getStatsStore(), card.id) : null;
+        const stat = found && found.stat || { correct: 0, total: 0, lastDate: 0 };
+        for (let score = 0; score <= 2; score++) {
+            const node = document.getElementById('grade-interval-' + score);
+            if (!node) continue;
+            let interval = NaN;
+            if (card) {
+                // ensureReviewSchedulingState can populate legacy state; only allow that on a copy.
+                const copy = { ...stat, fsrs: stat.fsrs && typeof stat.fsrs === 'object' ? { ...stat.fsrs } : stat.fsrs };
+                const fsrs = ensureReviewSchedulingState(copy, 'grade-preview');
+                interval = calculateGradeInterval(fsrs, score, targetRetention, () => getGradeIntervalRandom(card, score));
+            }
+            const valid = Number.isFinite(interval) && interval >= 1;
+            node.textContent = valid ? interval + '일 후' : '';
+            node.parentElement.classList.toggle('has-grade-interval', valid);
+        }
+    }
+
     async function grade(score) {
         console.log('REVIEW_BUTTON_CLICK', { score, currentCardUuid: getCurrentCardId() });
         if(filterResetGradeInProgress) {
@@ -22741,14 +22792,7 @@ function getIOImageGroups() {
         }
 
         if (score !== 3) {
-            fsrs.reps++;
-            if (fsrs.reps === 1) { if (score === 0) { fsrs.D = 7.0; fsrs.S = 1.0; } else if (score === 1) { fsrs.D = 6.0; fsrs.S = 2.0; } else if (score === 2) { fsrs.D = 5.0; fsrs.S = 3.0; }
-            } else {
-                if (score === 0) fsrs.D = Math.min(10, fsrs.D + 1.5); else if (score === 1) fsrs.D = Math.min(10, fsrs.D + 0.5); else if (score === 2) fsrs.D = Math.max(1, fsrs.D - 0.5);
-                if (score === 0) { fsrs.S = Math.max(1, fsrs.S * 0.2); } else { let factor = score === 1 ? 1.2 : (1 + 0.5 * (11 - fsrs.D)); fsrs.S = fsrs.S * factor; }
-            }
-            let intervalFactor = Math.log(targetRetention) / Math.log(0.90); let interval = Math.max(1, Math.round(fsrs.S * intervalFactor));
-            if (interval > 3) { let fuzz = 0; if (interval >= 4 && interval <= 7) fuzz = 1; else if (interval >= 8 && interval <= 15) fuzz = 2; else if (interval >= 16) fuzz = 3; const randomFuzz = Math.floor(Math.random() * (2 * fuzz + 1)) - fuzz; interval = Math.max(1, interval + randomFuzz); }
+            const interval = calculateGradeInterval(fsrs, score, targetRetention, () => getGradeIntervalRandom(card, score));
             data[id].interval = interval; const now = new Date(); now.setHours(0,0,0,0); data[id].dueDate = now.getTime() + (interval * 86400000);
         }
         data[id].lastDate = Date.now(); data[id].updatedAt = data[id].lastDate;
@@ -22832,6 +22876,7 @@ function getIOImageGroups() {
     // computed-style/layout reads and multiple console traces for *every* card change.
     // Detailed troubleshooting remains available through explicit debug helpers.
     function updateStatsUI(s) {
+        if (!filterResetGradeInProgress && document.getElementById('grade-area')?.style.display === 'flex') refreshGradeIntervalPreview();
         s = normalizeReviewStatForDisplay(s || {}, s && s._statsKey);
         const rateBadge = document.getElementById('rate-badge');
         const seenBadge = document.getElementById('date-badge');
