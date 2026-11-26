@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.378 복습 버튼 일수 표시 -->
+<!-- preview: v18.5.379 문제 전환 후 응답성 개선 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.378 복습 버튼 일수 표시)</title>
+<title>MK (v18.5.379 문제 전환 후 응답성 개선)</title>
 
 <script>
     (() => {
@@ -1559,7 +1559,7 @@
                 <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.378 복습 버튼 일수 표시)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.379 문제 전환 후 응답성 개선)</div>
     </div>
 
 
@@ -2087,7 +2087,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.378 복습 버튼 일수 표시';
+    const APP_VERSION = 'v18.5.379 문제 전환 후 응답성 개선';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -2822,6 +2822,28 @@
     let backupTimer = null;
     let isBackupInFlight = false;
     const BACKUP_DEBOUNCE_MS = 3000;
+    // Avoid starting full snapshots during the first moments of a new card or
+    // while the user scrolls/selects text. Bounded: persistence is never starved.
+    let mkStudyLastInteractionAt = 0;
+    let mkStudyPointerHeld = false;
+    function mkNoteStudyInteraction() { mkStudyLastInteractionAt = Date.now(); }
+    function mkDeferStudyMaintenance(deadline, now = Date.now()) {
+        return !document.hidden && now < deadline &&
+            (mkStudyPointerHeld || now - mkStudyLastInteractionAt < 350);
+    }
+    document.addEventListener('pointerdown', () => { mkStudyPointerHeld = true; mkNoteStudyInteraction(); }, {capture:true, passive:true});
+    ['pointerup','pointercancel'].forEach(type => document.addEventListener(type, () => {
+        mkStudyPointerHeld = false; mkNoteStudyInteraction();
+    }, {capture:true, passive:true}));
+    ['wheel','scroll','touchmove','keydown'].forEach(type => document.addEventListener(type, mkNoteStudyInteraction, {capture:true, passive:true}));
+    window.addEventListener('blur', () => { mkStudyPointerHeld = false; });
+    function mkYieldStudyMaintenance(maxExtraMs = 1500) {
+        const deadline = Date.now() + maxExtraMs;
+        return new Promise(resolve => {
+            const check = () => mkDeferStudyMaintenance(deadline) ? setTimeout(check, 100) : resolve();
+            setTimeout(check, 0);
+        });
+    }
     let isDataChanged = localStorage.getItem(STORAGE_KEY_LOCAL_DATA_DIRTY) === 'true';
     let localDataChangeRevision = 0;
     let startupSyncStarted = false;
@@ -7164,10 +7186,13 @@
         if(reason) setLocalDataDirty(true);
         if (reason !== 'review' && !reason.startsWith('today-plan')) return;
         if (backupTimer) clearTimeout(backupTimer);
-        backupTimer = setTimeout(() => {
+        const deadline = Date.now() + BACKUP_DEBOUNCE_MS + 5000;
+        const run = () => {
+            if (mkDeferStudyMaintenance(deadline)) { backupTimer = setTimeout(run, 150); return; }
             backupTimer = null;
             flushBackupToFirebase(true);
-        }, BACKUP_DEBOUNCE_MS);
+        };
+        backupTimer = setTimeout(run, BACKUP_DEBOUNCE_MS);
     }
 
     async function flushBackupToFirebase(isAuto = true, options = {}) {
@@ -7274,6 +7299,7 @@
         const ledgerSync = null; // Snapshot upload does not receive or apply remote events.
         await refreshLearningStatsMemoryFromIndexedDB('firebase-backup-read');
         const learningStatsEvents = learningStatsEventLedgerActive ? await readAllLearningStatsEvents() : [];
+        if (isAuto && !options.keepalive) await mkYieldStudyMaintenance();
         const statsRaw = JSON.stringify(getStatsStore());
         const statsKeyCount = getStatsKeyCount(statsRaw);
         const lastGoodCount = Number(localStorage.getItem(STORAGE_KEY_LAST_GOOD_STATS_COUNT)) || 0;
@@ -8088,7 +8114,9 @@
     function queueReviewHistorySnapshotPersistence(source = 'review-update') {
         if(reviewHistorySnapshotMemory === null || window.__MK_FRESH_DIAG__) return;
         if(reviewHistorySnapshotPersistenceTimer) clearTimeout(reviewHistorySnapshotPersistenceTimer);
-        reviewHistorySnapshotPersistenceTimer = setTimeout(() => {
+        const deadline = Date.now() + 1200 + 1500;
+        const run = () => {
+            if (mkDeferStudyMaintenance(deadline)) { reviewHistorySnapshotPersistenceTimer = setTimeout(run, 100); return; }
             reviewHistorySnapshotPersistenceTimer = null;
             const snapshot = JSON.stringify(reviewHistorySnapshotMemory);
             reviewHistorySnapshotPersistQueue = reviewHistorySnapshotPersistQueue
@@ -8103,7 +8131,8 @@
                     console.error('[MK_REVIEW_HISTORY_BACKGROUND_PERSIST_FAILED]', source, error);
                     return {ok:false, error};
                 });
-        }, 1200);
+        };
+        reviewHistorySnapshotPersistenceTimer = setTimeout(run, 1200);
     }
 
     async function flushReviewHistorySnapshotPersistence() {
@@ -8316,9 +8345,56 @@
         return { pending, duplicates, conflicts, merged:[...existingById.values()] };
     }
 
+    async function appendSingleLiveLearningStatsEvent(event) {
+        const db = await openStatsDatabase();
+        try {
+            return await new Promise((resolve, reject) => {
+                const tx = db.transaction(LEARNING_STATS_EVENTS_DB_STORE, 'readwrite');
+                const store = tx.objectStore(LEARNING_STATS_EVENTS_DB_STORE);
+                const key = LEARNING_STATS_EVENTS_DB_KEY_PREFIX + event.eventId;
+                const range = IDBKeyRange.bound(LEARNING_STATS_EVENTS_DB_KEY_PREFIX, LEARNING_STATS_EVENTS_DB_KEY_PREFIX + '\uffff');
+                let result = null, error = null;
+                const fail = err => { error = err; try { tx.abort(); } catch(e) { reject(err); } };
+                const finish = inserted => {
+                    const count = store.count(range);
+                    count.onsuccess = () => { result = {ok:true, inserted, duplicates:1-inserted, conflicts:0, correctionEventIds:[], eventCount:count.result}; };
+                };
+                const lookup = store.get(key);
+                lookup.onsuccess = () => {
+                    try {
+                        if(lookup.result !== undefined) {
+                            const old = normalizeLearningStatsEvent(lookup.result);
+                            if(old && stableBackupJson(old) === stableBackupJson(event)) finish(0);
+                            // Preserve the full existing collision handling for nonidentical records.
+                            return;
+                        }
+                        const add = store.add(event, key);
+                        add.onsuccess = () => {
+                            const verify = store.get(key);
+                            verify.onsuccess = () => {
+                                try {
+                                    const saved = normalizeLearningStatsEvent(verify.result);
+                                    if(!saved || stableBackupJson(saved) !== stableBackupJson(event)) throw new Error('learning_stats_event_id_collision:' + event.eventId);
+                                    finish(1);
+                                } catch(e) { fail(e); }
+                            };
+                        };
+                    } catch(e) { fail(e); }
+                };
+                tx.oncomplete = () => resolve(result);
+                tx.onerror = () => reject(error || tx.error || new Error('LearningStatsEventLedgerAppendFailed'));
+                tx.onabort = () => reject(error || tx.error || new Error('LearningStatsEventLedgerAppendAborted'));
+            });
+        } finally { db.close(); }
+    }
+
     async function appendLearningStatsEvents(events, source = 'ledger-append') {
         const normalized = (Array.isArray(events) ? events : [events]).map(normalizeLearningStatsEvent).filter(event => event && !isLearningStatsRecoveryArtifact(event));
         if(!normalized.length) return { ok:true, inserted:0, duplicates:0, conflicts:0, correctionEventIds:[], eventCount:(await readAllLearningStatsEvents()).length };
+        if(normalized.length === 1 && normalized[0].source === 'review' && source.startsWith('review-event-')) {
+            const fast = await appendSingleLiveLearningStatsEvent(normalized[0]);
+            if(fast) return fast;
+        }
         const existingEvents = await readAllLearningStatsEvents();
         const resolution = resolveLearningStatsEventIdCollisions(existingEvents, normalized);
         const pending = resolution.pending;
@@ -8454,13 +8530,17 @@
     function scheduleCanonicalStatsSnapshotFlush(source = 'stats-fast-flush', delay = 900) {
         statsFastFlushSource = source || statsFastFlushSource;
         if(statsFastFlushTimer) clearTimeout(statsFastFlushTimer);
-        statsFastFlushTimer = setTimeout(() => {
+        const deadline = Date.now() + delay + 1500;
+        const run = () => {
+            if (mkDeferStudyMaintenance(deadline)) { statsFastFlushTimer = setTimeout(run, 100); return; }
             statsFastFlushTimer = null;
             const snapshot = getCanonicalStatsStore();
+            const coveredIds = new Set(getPendingReviewEvents().map(event => event.id).filter(Boolean));
             queueStatsPersistence(snapshot, statsFastFlushSource).then(result => {
-                if(result && result.ok) savePendingReviewEvents([]);
+                if(result && result.ok) savePendingReviewEvents(getPendingReviewEvents().filter(event => !coveredIds.has(event.id)));
             }).catch(error => console.error('[MK_STATS_FAST_FLUSH_FAILED]', error));
-        }, delay);
+        };
+        statsFastFlushTimer = setTimeout(run, delay);
     }
 
     function applyCanonicalStatsCardPatch(cardId, stat, source = 'grade') {
@@ -9586,7 +9666,7 @@
                 safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
             }
             markLocalDataUpdated(viewState.updatedAt);
-            logStudyStateSnapshot('save', { viewState });
+            if(reason !== 'review' || window.__MK_CARD_VERBOSE_DEBUG__ === true) logStudyStateSnapshot('save', { viewState });
             console.log('SAVE_SUCCESS', { reason, currentCardUuid: viewState.currentCardUuid || viewState.cardId });
             if(options.backup) {
                 setLocalDataDirty(true);
@@ -11891,6 +11971,7 @@
                 .catch(() => null)
                 .then(async () => {
                     const append = await appendLearningStatsEvents([delta], writeSource);
+                    await mkYieldStudyMaintenance(1000);
                     const cache = await commitLearningStatsCacheFromLedger(`${writeSource}-cache`);
                     if(!cache.ok && cache.store) {
                         setLearningStatsMemoryStore(cache.store, { source:`${writeSource}-ledger-memory`, updatedAt:delta.updatedAt });
@@ -12523,6 +12604,7 @@
 
     function buildLearningStatsStoreFromEvents(events) {
         const store = { version:1, days:{} };
+        const dayMembership = new Map();
         const normalizedEvents = (Array.isArray(events) ? events : []).map(normalizeLearningStatsEvent).filter(Boolean);
         const migrationBestByPair = new Map();
         const reviewEvents = [];
@@ -12559,7 +12641,16 @@
             .sort((a, b) => a.timestamp - b.timestamp || a.eventId.localeCompare(b.eventId))
             .forEach(event => {
                 if(isLearningStatsRecoveryArtifact(event)) return;
-                const day = normalizeLearningStatsDay(store.days[event.studyDate]);
+                // Construct one day once and maintain membership incrementally.
+                // Preserve insertion order and the exact legacy category rules.
+                const day = store.days[event.studyDate] || (store.days[event.studyDate] = getEmptyLearningStatsDay());
+                if(!dayMembership.has(event.studyDate)) dayMembership.set(event.studyDate, new Map());
+                const setsByKey = dayMembership.get(event.studyDate);
+                const add = key => {
+                    if(!setsByKey.has(key)) setsByKey.set(key, new Set());
+                    const members = setsByKey.get(key);
+                    if(!members.has(event.uuid)) { members.add(event.uuid); day[key].push(event.uuid); }
+                };
                 const pair = getLearningStatsEventPairKey(event);
                 const authoritativeMigration = migrationBestByPair.get(pair);
 
@@ -12569,22 +12660,22 @@
                     if(authoritativeMigration !== event) return;
                     const sets = event.completionSets.length ? event.completionSets : ['allDone'];
                     sets.forEach(key => {
-                        if(LEARNING_STATS_BACKUP_DAY_KEYS.includes(key) && !day[key].includes(event.uuid)) day[key].push(event.uuid);
+                        if(LEARNING_STATS_BACKUP_DAY_KEYS.includes(key)) add(key);
                     });
                     (event.categories || []).forEach(category => {
                         const key = `${category}Done`;
-                        if(LEARNING_STATS_BACKUP_DAY_KEYS.includes(key) && !day[key].includes(event.uuid)) day[key].push(event.uuid);
+                        if(LEARNING_STATS_BACKUP_DAY_KEYS.includes(key)) add(key);
                     });
                 } else {
                     // Runtime reviews are append-only, but category is first-confirmed-per-day.
                     // A later "오늘 필수" review cannot reclassify an already counted UUID.
                     ['allDone', 'trackedDone'].forEach(key => {
-                        if(!day[key].includes(event.uuid)) day[key].push(event.uuid);
+                        add(key);
                     });
                     const fixedCategories = fixedCategoriesByPair.get(pair) || new Set([event.category]);
                     fixedCategories.forEach(category => {
                         const key = `${category}Done`;
-                        if(LEARNING_STATS_BACKUP_DAY_KEYS.includes(key) && !day[key].includes(event.uuid)) day[key].push(event.uuid);
+                        if(LEARNING_STATS_BACKUP_DAY_KEYS.includes(key)) add(key);
                     });
                 }
 
@@ -21330,6 +21421,7 @@ function getIOImageGroups() {
 
     let mkOrdinaryCardContextRenderToken = 0;
     function showCard() {
+        mkNoteStudyInteraction();
         gradeIntervalPreview = null;
         // Hide the old lens before replacing the IO image/masks on navigation.
         mkIOHideMagnifierLens(true);
