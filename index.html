@@ -1494,7 +1494,7 @@
 .mk-shortcut-row input{width:86px;min-width:0;text-align:center;color:var(--text);background:transparent;border:1px solid var(--border);border-radius:5px;padding:5px;cursor:pointer}
 .mk-shortcut-row input:focus{outline:2px solid #4dabf7}
 .mk-shortcut-options{display:grid;gap:6px;margin:8px 0}
-[data-mk-shortcut-hint]::after{content:attr(data-mk-shortcut-hint);font-size:9px;font-weight:400;opacity:.75;margin-inline-start:4px;white-space:nowrap}
+body.mk-shortcuts-hints-on [data-mk-shortcut-hint]::after{content:attr(data-mk-shortcut-hint);font-size:9px;font-weight:400;opacity:.75;margin-inline-start:4px;white-space:nowrap}
 .g-btn[data-mk-shortcut-hint]::after{position:absolute;right:4px;bottom:2px;margin:0}
 .g-btn[data-mk-shortcut-hint]{position:relative}
 @media (hover:none),(pointer:coarse){[data-mk-shortcut-hint]::after{display:none!important}}
@@ -3946,7 +3946,6 @@
         return normalized;
     }
     function mkRotationRestoreFromBackup(raw,source='cloud-restore') {
-        mkShortcutRestore(raw);
         if(!hasBackupField(raw,'rotationPlan')) return {ok:true,skipped:true};
         const incoming=parseJSONSafe(raw.rotationPlan,null);
         if(!incoming || incoming.version!==1 || !Array.isArray(incoming.plans)) return {ok:false,reason:'invalid_rotation_backup'};
@@ -7418,7 +7417,7 @@
             notesByCardUuid: localStorage.getItem(STORAGE_KEY_NOTES) || '{}',
             todayPlan: JSON.stringify(readTodayPlanStoreRaw()),
             rotationPlan: JSON.stringify(mkRotationRead()),
-            keyboardShortcuts: JSON.stringify(mkShortcutRead()),
+            keyboardShortcuts: typeof mkShortcutRead==='function' ? JSON.stringify(mkShortcutRead()) : undefined,
             [LEARNING_STATS_STORAGE_KEY]: learningStatsBackup,
             [LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: learningStatsFavoriteDecksBackup,
             learningStatsPresent: true,
@@ -9088,6 +9087,7 @@
         const todayPlanRestore = restoreTodayPlanFromBackup(raw, normalized.todayPlan, source);
         if(!todayPlanRestore.ok) return { ok:false, reason:todayPlanRestore.reason, statsKeyCount };
         const rotationRestore = mkRotationRestoreFromBackup(raw,source);
+        if(typeof mkShortcutRestore==='function') mkShortcutRestore(raw);
         if(!rotationRestore.ok) return {ok:false,reason:rotationRestore.reason,statsKeyCount};
         if (hasBackupField(raw, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, raw.progress);
         if (hasBackupField(raw, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, raw.filter);
@@ -9850,6 +9850,7 @@
         const todayPlanRestore = restoreTodayPlanFromBackup(raw, payload.todayPlan || raw.todayPlan, source);
         if(!todayPlanRestore.ok) throw new Error(todayPlanRestore.reason);
         const rotationRestore = mkRotationRestoreFromBackup(raw,source);
+        if(typeof mkShortcutRestore==='function') mkShortcutRestore(raw);
         if(!rotationRestore.ok) throw new Error(rotationRestore.reason);
         if(nextStats && Object.keys(nextStats).length) {
             const statsResult = await restoreStatsWithFallback(JSON.stringify(nextStats), {
@@ -10415,6 +10416,7 @@
             const todayPlanRestore = restoreTodayPlanFromBackup(payload, normalized.todayPlan, 'startup-bootstrap-fallback');
             if(!todayPlanRestore.ok) return {ok:false, reasonCode:todayPlanRestore.reason};
             const rotationRestore=mkRotationRestoreFromBackup(payload,'startup-bootstrap-fallback');
+        if(typeof mkShortcutRestore==='function') mkShortcutRestore(payload);
             if(!rotationRestore.ok) return {ok:false,reasonCode:rotationRestore.reason};
             if (hasBackupField(payload, 'progress')) safeRestoreLocalStorage(STORAGE_KEY_PROGRESS, payload.progress);
             if (hasBackupField(payload, 'filter')) safeRestoreLocalStorage(STORAGE_KEY_FILTER_STATE, payload.filter);
@@ -21653,7 +21655,7 @@ function getIOImageGroups() {
 
         // Commit the displayed card ID only after synchronous rendering completed.
         localStorage.setItem(STORAGE_KEY_CURRENT_CARD_ID, String(card.id));
-        mkShortcutRefreshHints();
+        if(typeof mkShortcutRefreshHints==='function') mkShortcutRefreshHints();
         const mkCardRenderElapsedMs = Math.round(performance.now() - mkCardRenderStartedAt);
         if(mkCardRenderElapsedMs >= 150 || window.__MK_CARD_PERF_TRACE__ === true) {
             const detail = {
@@ -23629,6 +23631,8 @@ function mkShortcutResolve(v,c){return v.enabled?Object.keys(v.keys).find(a=>v.k
     }
     function mkShortcutRefreshHints(){
         const v=mkShortcutRead(),show=v.enabled&&v.showHints&&matchMedia('(hover: hover) and (pointer: fine)').matches;
+        if(!show){document.body.classList.remove('mk-shortcuts-hints-on');return;}
+        document.body.classList.add('mk-shortcuts-hints-on');
         const selectors={reveal:'#click-guide',wrong:'.g-btn.bg-x',uncertain:'.g-btn.bg-tri',correct:'.g-btn.bg-o',confirm:'.g-btn.bg-chk',flag:'#pen-btn',header:'#mk-fold-study-toggle',all:'.mk-io-other-masks-toggle',focus:'button[onclick="scrollToCurrentProblem(event)"]',previous:'.nav-btn[onclick="moveCard(-1)"]',next:'.nav-btn[onclick="moveCard(1)"]'};
         for(const [a,q] of Object.entries(selectors))document.querySelectorAll(q).forEach(el=>{if(show)el.dataset.mkShortcutHint=(a==='confirm'?[...v.keys.confirm,...v.keys.quick]:v.keys[a]).map(mkShortcutLabel).join('/');else delete el.dataset.mkShortcutHint});
     }
