@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.381 중첩 문제 포커스 보강 -->
+<!-- preview: v18.5.382 키보드 단축키 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.381 중첩 문제 포커스 보강)</title>
+<title>MK (v18.5.382 키보드 단축키)</title>
 
 <script>
     (() => {
@@ -1487,6 +1487,18 @@
     else refreshMenuControls();
 })();
 </script>
+<style>
+.mk-shortcut-settings summary{cursor:pointer;font-size:.9rem;font-weight:700;padding:5px 0}
+.mk-shortcut-settings label{font-size:.78rem;color:var(--text)}
+.mk-shortcut-row{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:6px 0}
+.mk-shortcut-row input{width:86px;min-width:0;text-align:center;color:var(--text);background:transparent;border:1px solid var(--border);border-radius:5px;padding:5px;cursor:pointer}
+.mk-shortcut-row input:focus{outline:2px solid #4dabf7}
+.mk-shortcut-options{display:grid;gap:6px;margin:8px 0}
+[data-mk-shortcut-hint]::after{content:attr(data-mk-shortcut-hint);font-size:9px;font-weight:400;opacity:.75;margin-inline-start:4px;white-space:nowrap}
+.g-btn[data-mk-shortcut-hint]::after{position:absolute;right:4px;bottom:2px;margin:0}
+.g-btn[data-mk-shortcut-hint]{position:relative}
+@media (hover:none),(pointer:coarse){[data-mk-shortcut-hint]::after{display:none!important}}
+</style>
 </head>
 <body>
     <div id="toast">알림 메시지</div>
@@ -1554,6 +1566,16 @@
                 </div>
                 <div class="mk-font-setting-minmax"><span>8px</span><span>18px</span></div>
             </div>
+            <details class="mk-font-setting-card mk-shortcut-settings">
+                <summary>⌨️ 키보드 단축키</summary>
+                <div class="mk-shortcut-options">
+                    <label><input id="mk-shortcut-enabled" type="checkbox"> 단축키 사용</label>
+                    <label><input id="mk-shortcut-hints" type="checkbox"> 버튼에 키 표시 (PC)</label>
+                </div>
+                <p style="font-size:.72rem;color:var(--text-sub);margin:6px 0;">키 입력칸 선택 후 원하는 키를 누르세요. 모바일 외장 키보드도 지원합니다.</p>
+                <div id="mk-shortcut-list"></div>
+                <button type="button" class="btn-sub" id="mk-shortcut-reset">기본값 복원</button>
+            </details>
             <div id="mk-io-magnifier-settings" class="mk-font-setting-card mk-io-magnifier-sidebar" role="group" aria-labelledby="mk-io-magnifier-sidebar-title">
                 <span id="mk-io-magnifier-sidebar-title" class="mk-io-magnifier-sidebar-title">🔎 IO 돋보기 설정 (PC)</span>
                 <label class="mk-io-magnifier-settings-row" for="mk-io-magnifier-zoom"><span>확대 배율</span><output id="mk-io-magnifier-zoom-value" for="mk-io-magnifier-zoom">3.0배</output></label>
@@ -1564,7 +1586,7 @@
                 <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.381 중첩 문제 포커스 보강)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.382 키보드 단축키)</div>
     </div>
 
 
@@ -2092,7 +2114,7 @@
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.381 중첩 문제 포커스 보강';
+    const APP_VERSION = 'v18.5.382 키보드 단축키';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -3924,6 +3946,7 @@
         return normalized;
     }
     function mkRotationRestoreFromBackup(raw,source='cloud-restore') {
+        mkShortcutRestore(raw);
         if(!hasBackupField(raw,'rotationPlan')) return {ok:true,skipped:true};
         const incoming=parseJSONSafe(raw.rotationPlan,null);
         if(!incoming || incoming.version!==1 || !Array.isArray(incoming.plans)) return {ok:false,reason:'invalid_rotation_backup'};
@@ -7223,7 +7246,7 @@
 
     function scheduleBackup(reason = '') {
         if(reason) setLocalDataDirty(true);
-        if (reason !== 'review' && !reason.startsWith('today-plan')) return;
+        if (reason !== 'review' && reason !== 'mk-shortcuts' && !reason.startsWith('today-plan')) return;
         if (backupTimer) clearTimeout(backupTimer);
         const deadline = Date.now() + BACKUP_DEBOUNCE_MS + 5000;
         const run = () => {
@@ -7395,6 +7418,7 @@
             notesByCardUuid: localStorage.getItem(STORAGE_KEY_NOTES) || '{}',
             todayPlan: JSON.stringify(readTodayPlanStoreRaw()),
             rotationPlan: JSON.stringify(mkRotationRead()),
+            keyboardShortcuts: JSON.stringify(mkShortcutRead()),
             [LEARNING_STATS_STORAGE_KEY]: learningStatsBackup,
             [LEARNING_STATS_FAVORITE_DECKS_STORAGE_KEY]: learningStatsFavoriteDecksBackup,
             learningStatsPresent: true,
@@ -21629,6 +21653,7 @@ function getIOImageGroups() {
 
         // Commit the displayed card ID only after synchronous rendering completed.
         localStorage.setItem(STORAGE_KEY_CURRENT_CARD_ID, String(card.id));
+        mkShortcutRefreshHints();
         const mkCardRenderElapsedMs = Math.round(performance.now() - mkCardRenderStartedAt);
         if(mkCardRenderElapsedMs >= 150 || window.__MK_CARD_PERF_TRACE__ === true) {
             const detail = {
@@ -23577,6 +23602,90 @@ function getIOImageGroups() {
     window.addEventListener('focus', () => {
         if(reviewTimingState && document.hidden) reviewTimingState.invalid = true;
     });
+function mkShortcutDefaults(){return {version:1,updatedAt:0,enabled:true,showHints:true,keys:{reveal:['Space'],wrong:['Digit1'],uncertain:['Digit2'],correct:['Digit3'],confirm:['Digit4'],flag:['KeyQ'],quick:['KeyW'],header:['KeyE'],all:['KeyR'],focus:['KeyF'],previous:['KeyA','ArrowLeft'],next:['KeyD','ArrowRight'],down:['KeyS','ArrowDown'],up:['KeyX','ArrowUp'],escape:['Escape']}};}
+function mkShortcutValidCode(c){return typeof c==='string'&&/^(Key[A-Z]|Digit[0-9]|Arrow(Left|Right|Up|Down)|Space|Escape|Enter|Backspace|Home|End|PageUp|PageDown|Numpad[0-9])$/.test(c);}
+function mkShortcutNormalize(v){if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){return null}}if(!v||v.version!==1||!v.keys||typeof v.enabled!=='boolean'||typeof v.showHints!=='boolean'||!Number.isFinite(v.updatedAt)||v.updatedAt<0)return null;const out=mkShortcutDefaults(),used=new Set();for(const a of Object.keys(out.keys)){const k=v.keys[a];if(!Array.isArray(k)||!k.length||k.length>2)return null;for(const c of k){if(!mkShortcutValidCode(c)||used.has(c))return null;used.add(c)}out.keys[a]=k.slice()}out.enabled=v.enabled;out.showHints=v.showHints;out.updatedAt=v.updatedAt;return out;}
+function mkShortcutAssign(v,a,c){const n=mkShortcutNormalize(v);if(!n||!Object.prototype.hasOwnProperty.call(n.keys,a)||!mkShortcutValidCode(c)||Object.keys(n.keys).some(b=>b!==a&&n.keys[b].includes(c)))return null;n.keys[a]=[c];return n;}
+function mkShortcutResolve(v,c){return v.enabled?Object.keys(v.keys).find(a=>v.keys[a].includes(c))||'':'';}
+
+    function mkShortcutRead(){try{return mkShortcutNormalize(localStorage.getItem('mk_keyboard_shortcuts_v1'))||mkShortcutDefaults()}catch(e){return mkShortcutDefaults()}}
+    function mkShortcutWrite(v,remote=false){
+        const n=mkShortcutNormalize(v);if(!n)return false;
+        if(!remote)n.updatedAt=Math.max(Date.now(),mkShortcutRead().updatedAt+1);
+        try{localStorage.setItem('mk_keyboard_shortcuts_v1',JSON.stringify(n))}catch(e){showToast('단축키 설정 저장 실패','error');return false}
+        if(!remote){markLocalDataUpdated(n.updatedAt);scheduleBackup('mk-shortcuts')}
+        mkShortcutRefreshSettings();mkShortcutRefreshHints();return true;
+    }
+    function mkShortcutRestore(raw){if(!raw||!Object.prototype.hasOwnProperty.call(raw,'keyboardShortcuts'))return;const n=mkShortcutNormalize(raw.keyboardShortcuts);if(n&&n.updatedAt>mkShortcutRead().updatedAt)mkShortcutWrite(n,true);}
+    function mkShortcutLabel(c){return ({Space:'Space',Escape:'Esc',ArrowLeft:'←',ArrowRight:'→',ArrowUp:'↑',ArrowDown:'↓'})[c]||c.replace(/^Key/,'').replace(/^Digit/,'').replace(/^Numpad/,'Num ');}
+    function mkShortcutCode(e){if(mkShortcutValidCode(e.code))return e.code;if(e.key===' ')return 'Space';if(/^[a-z]$/i.test(e.key||''))return 'Key'+e.key.toUpperCase();if(/^[0-9]$/.test(e.key||''))return 'Digit'+e.key;return mkShortcutValidCode(e.key)?e.key:'';}
+    function mkShortcutRefreshSettings(){
+        const list=document.getElementById('mk-shortcut-list');if(!list)return;
+        const v=mkShortcutRead();
+        document.getElementById('mk-shortcut-enabled').checked=v.enabled;
+        document.getElementById('mk-shortcut-hints').checked=v.showHints;
+        document.getElementById('mk-shortcut-hints').disabled=!v.enabled;
+        list.querySelectorAll('[data-mk-shortcut-action]').forEach(el=>{el.value=v.keys[el.dataset.mkShortcutAction].map(mkShortcutLabel).join(' / ');el.disabled=!v.enabled});
+    }
+    function mkShortcutRefreshHints(){
+        const v=mkShortcutRead(),show=v.enabled&&v.showHints&&matchMedia('(hover: hover) and (pointer: fine)').matches;
+        const selectors={reveal:'#click-guide',wrong:'.g-btn.bg-x',uncertain:'.g-btn.bg-tri',correct:'.g-btn.bg-o',confirm:'.g-btn.bg-chk',flag:'#pen-btn',header:'#mk-fold-study-toggle',all:'.mk-io-other-masks-toggle',focus:'button[onclick="scrollToCurrentProblem(event)"]',previous:'.nav-btn[onclick="moveCard(-1)"]',next:'.nav-btn[onclick="moveCard(1)"]'};
+        for(const [a,q] of Object.entries(selectors))document.querySelectorAll(q).forEach(el=>{if(show)el.dataset.mkShortcutHint=(a==='confirm'?[...v.keys.confirm,...v.keys.quick]:v.keys[a]).map(mkShortcutLabel).join('/');else delete el.dataset.mkShortcutHint});
+    }
+    function mkShortcutVisible(el){return !!(el&&!el.hidden&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden');}
+    function mkShortcutModal(){return Array.from(document.querySelectorAll('.modal-overlay,dialog[open],[aria-modal="true"]')).filter(mkShortcutVisible).sort((a,b)=>(Number(getComputedStyle(a).zIndex)||0)-(Number(getComputedStyle(b).zIndex)||0)).pop()||null;}
+    function mkShortcutClosePopup(modal){if(modal){const cancel=Array.from(modal.querySelectorAll('button.btn-cancel,button[aria-label="닫기"]')).find(mkShortcutVisible);if(cancel)cancel.click();return}const sidebar=document.getElementById('sidebar');if(sidebar&&sidebar.classList.contains('open')){toggleMenu(false);return}const panel=document.getElementById('slider-panel');if(panel)panel.classList.remove('open');}
+    const mkShortcutHeld=new Set();let mkShortcutLastGrade=null;
+    function mkShortcutHandleKey(e){
+        if(e.defaultPrevented||e.isComposing||e.keyCode===229||e.ctrlKey||e.altKey||e.metaKey||e.shiftKey)return;
+        const target=e.target;
+        if(target&&target.closest&&target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]'))return;
+        const c=mkShortcutCode(e),a=mkShortcutResolve(mkShortcutRead(),c);if(!a)return;
+        const modal=mkShortcutModal(),sidebar=document.getElementById('sidebar');
+        if((modal||(sidebar&&sidebar.classList.contains('open')))&&a!=='escape')return;
+        if((c==='Space'||c==='Enter')&&target&&target.closest&&target.closest('button,a[href],[role="button"],summary')&&target.matches(':focus-visible'))return;
+        if(a!=='escape'&&(!activeDeck||!activeDeck[currentIndex]))return;
+        e.preventDefault();e.stopPropagation();
+        const scrolling=a==='down'||a==='up';
+        if(!scrolling&&(e.repeat||mkShortcutHeld.has(c)))return;
+        mkShortcutHeld.add(c);
+        if(a==='escape'){mkShortcutClosePopup(modal);return}
+        if(scrolling){const el=document.getElementById('scroll-area');if(el)el.scrollTop+=(a==='down'?1:-1)*Math.max(60,Math.round(el.clientHeight*.16));return}
+        if(filterResetGradeInProgress)return;
+        const revealed=mkShortcutVisible(document.getElementById('grade-area'));
+        if(a==='reveal'){if(revealed){const timing=reviewTimingState;showCard();reviewTimingState=timing}else revealAnswer();return}
+        const scores={wrong:0,uncertain:1,correct:2,confirm:3,quick:3};
+        if(Object.prototype.hasOwnProperty.call(scores,a)){
+            if(!revealed){if(a==='quick')revealAnswer();return}
+            const token=mkOrdinaryCardContextRenderToken;if(mkShortcutLastGrade===token)return;mkShortcutLastGrade=token;
+            Promise.resolve(grade(scores[a])).catch(error=>{console.error('[MK_SHORTCUT_GRADE_FAILED]',error);showToast('채점 처리 실패 · 학습 기록을 확인해주세요.','error')});return;
+        }
+        if(a==='previous'||a==='next'){moveCard(a==='previous'?-1:1);return}
+        if(a==='focus'){const root=document.getElementById('question-section'),card=activeDeck[currentIndex],owner=root&&mkCurrentLogseqProblemOwner(root,card);if(owner)for(let p=owner.parentElement;p&&p!==root;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;mkRefreshCurrentProblemVisual(root,card);scrollToCurrentProblem();return}
+        const el=a==='flag'?document.getElementById('pen-btn'):a==='header'?document.getElementById('mk-fold-study-toggle'):a==='all'?Array.from(document.querySelectorAll('.mk-io-other-masks-toggle')).find(mkShortcutVisible):null;
+        if(el&&!el.disabled&&!el.hidden)el.click();
+    }
+    function mkShortcutInit(){
+        const list=document.getElementById('mk-shortcut-list');if(!list)return;
+        const labels={reveal:'정답 보기 / 숨기기',wrong:'모름',uncertain:'애매',correct:'맞음',confirm:'확인',flag:'🚨 긴급 표시 / 해제',quick:'빠른 확인 (정답 표시 후 확인)',header:'헤더 펼치기 / 접기',all:'전체 정답 보기 / 숨기기',focus:'현재 문제 위치로 이동',previous:'이전 문제',next:'다음 문제',down:'아래 스크롤',up:'위 스크롤',escape:'팝업 닫기'};
+        for(const [a,label] of Object.entries(labels)){
+            const row=document.createElement('label');row.className='mk-shortcut-row';
+            const name=document.createElement('span');name.textContent=label;
+            const input=document.createElement('input');input.type='text';input.readOnly=true;input.dataset.mkShortcutAction=a;input.setAttribute('aria-label',label+' 단축키 변경');input.title='선택 후 원하는 키 누르기';
+            input.addEventListener('keydown',e=>{if(e.key==='Tab')return;e.preventDefault();e.stopPropagation();if(e.repeat||e.isComposing||e.keyCode===229||e.ctrlKey||e.altKey||e.metaKey||e.shiftKey)return;const n=mkShortcutAssign(mkShortcutRead(),a,mkShortcutCode(e));if(!n){showToast('지원하지 않거나 이미 사용 중인 키입니다.','error');return}if(mkShortcutWrite(n))input.blur()});
+            row.append(name,input);list.append(row);
+        }
+        document.getElementById('mk-shortcut-enabled').addEventListener('change',e=>mkShortcutWrite({...mkShortcutRead(),enabled:e.target.checked}));
+        document.getElementById('mk-shortcut-hints').addEventListener('change',e=>mkShortcutWrite({...mkShortcutRead(),showHints:e.target.checked}));
+        document.getElementById('mk-shortcut-reset').addEventListener('click',()=>mkShortcutWrite(mkShortcutDefaults()));
+        document.addEventListener('keydown',mkShortcutHandleKey);document.addEventListener('keyup',e=>mkShortcutHeld.delete(mkShortcutCode(e)));
+        window.addEventListener('blur',()=>mkShortcutHeld.clear());document.addEventListener('visibilitychange',()=>{if(document.hidden)mkShortcutHeld.clear()});
+        window.addEventListener('storage',e=>{if(e.key==='mk_keyboard_shortcuts_v1'){mkShortcutRefreshSettings();mkShortcutRefreshHints()}});
+        const pointer=matchMedia('(hover: hover) and (pointer: fine)');if(pointer.addEventListener)pointer.addEventListener('change',mkShortcutRefreshHints);
+        mkShortcutRefreshSettings();mkShortcutRefreshHints();
+    }
+    mkShortcutInit();
+
     </script>
 </body>
 </html>
