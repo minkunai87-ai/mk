@@ -1,4 +1,4 @@
-const MK_SW_VERSION = 'v18.5.303 TODAY PLAN REVIEW FLOW FIX';
+const MK_SW_VERSION = 'v18.5.382 키보드 단축키';
 const MK_SHELL_CACHE = 'mk-pages-shell-v3';
 const MK_SHELL_URL = new URL('./index.html', self.registration.scope).href;
 
