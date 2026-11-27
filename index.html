@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- preview: v18.5.382 키보드 단축키 -->
+<!-- preview: v18.5.383 채점 전환 속도 개선 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MK (v18.5.382 키보드 단축키)</title>
+<title>MK (v18.5.383 채점 전환 속도 개선)</title>
 
 <script>
     (() => {
@@ -1586,7 +1586,7 @@ body.mk-shortcuts-hints-on [data-mk-shortcut-hint]::after{content:attr(data-mk-s
                 <div class="mk-io-magnifier-extents"><span>120px</span><span>최대 400px</span></div>
             </div>
         </div>
-        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.382 키보드 단축키)</div>
+        <div style="margin-top:auto; font-size:0.8rem; color:var(--text-sub); text-align:center;">MK (v18.5.383 채점 전환 속도 개선)</div>
     </div>
 
 
@@ -2114,7 +2114,7 @@ body.mk-shortcuts-hints-on [data-mk-shortcut-hint]::after{content:attr(data-mk-s
     const repoOwner = 'minkunai87-ai', repoName = 'mk'; 
     const githubRawBase = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/images/`;
     const FIREBASE_DB_URL = "https://mk87-66a88-default-rtdb.firebaseio.com";
-    const APP_VERSION = 'v18.5.382 키보드 단축키';
+    const APP_VERSION = 'v18.5.383 채점 전환 속도 개선';
     const MK_SHELL_SW_URL = './sw.js';
     let mkShellServiceWorkerRegistration = null;
 
@@ -2579,6 +2579,7 @@ body.mk-shortcuts-hints-on [data-mk-shortcut-hint]::after{content:attr(data-mk-s
     const learningStatsPeerSessions = new Map();
     let learningStatsReviewDeltaQueue = [];
     let learningStatsPersistenceQueue = Promise.resolve({ ok:true, skipped:true });
+    let mkLearningStatsReviewCacheGeneration=0;
     let learningStatsStartupSyncInProgress = false;
     let learningStatsEventLedgerActive = false;
     let learningStatsFavoriteDecksMemory = [];
@@ -3512,10 +3513,13 @@ body.mk-shortcuts-hints-on [data-mk-shortcut-hint]::after{content:attr(data-mk-s
     }
 
     function getTodayPlanProgress(item) {
-        const normalized = normalizeTodayPlanItem(item);
-        const completed = new Set(normalized.completedIds);
-        const done = normalized.cardIds.reduce((sum, id) => sum + (completed.has(id) ? 1 : 0), 0);
-        return { done, total:normalized.cardIds.length, remain:Math.max(0, normalized.cardIds.length - done) };
+        // Counting completion does not require rebuilding every card's source
+        // reference, deck metadata, or timestamp. Preserve unique-ID semantics.
+        const cardIds = new Set((Array.isArray(item && item.cardIds)?item.cardIds:[]).map(String).filter(Boolean));
+        const completed = new Set((Array.isArray(item && item.completedIds)?item.completedIds:[]).map(String));
+        let done=0;
+        for(const id of cardIds) if(completed.has(id)) done++;
+        return {done,total:cardIds.size,remain:Math.max(0,cardIds.size-done)};
     }
 
     // Single source of truth for the sidebar, the today-plan modal, and Firebase
@@ -10880,7 +10884,9 @@ body.mk-shortcuts-hints-on [data-mk-shortcut-hint]::after{content:attr(data-mk-s
             secondarySort: currentSecondarySortMode
         };
         const next = [nextItem, ...parseRecentDecks().filter(item => item.deck !== deck)].slice(0, 5);
-        localStorage.setItem(STORAGE_KEY_RECENT_DECKS, JSON.stringify(next));
+        const encoded=JSON.stringify(next);
+        if(localStorage.getItem(STORAGE_KEY_RECENT_DECKS)===encoded) return;
+        localStorage.setItem(STORAGE_KEY_RECENT_DECKS, encoded);
         renderRecentDecks();
     }
 
@@ -12018,6 +12024,7 @@ body.mk-shortcuts-hints-on [data-mk-shortcut-hint]::after{content:attr(data-mk-s
         const expectedRevision = learningStatsMemoryRevision;
         const callStack = new Error(writeSource).stack || '';
         if(learningStatsEventLedgerActive) {
+            const cacheGeneration=++mkLearningStatsReviewCacheGeneration;
             console.log('[MK_LEARNING_STATS_REVIEW_FLOW]', {
                 stage:'append-only-event-queued',
                 WRITE_SOURCE:writeSource,
@@ -12036,7 +12043,13 @@ body.mk-shortcuts-hints-on [data-mk-shortcut-hint]::after{content:attr(data-mk-s
                 .catch(() => null)
                 .then(async () => {
                     const append = await appendLearningStatsEvents([delta], writeSource);
-                    await mkYieldStudyMaintenance(1000);
+                    // Every event is durably appended; only the derived cache
+                    // rebuild may be superseded by a newer queued review.
+                    if(cacheGeneration!==mkLearningStatsReviewCacheGeneration)
+                        return {ok:true,ledgerCommitted:true,append,cacheDeferred:true};
+                    await mkYieldStudyMaintenance(1500);
+                    if(cacheGeneration!==mkLearningStatsReviewCacheGeneration)
+                        return {ok:true,ledgerCommitted:true,append,cacheDeferred:true};
                     const cache = await commitLearningStatsCacheFromLedger(`${writeSource}-cache`);
                     if(!cache.ok && cache.store) {
                         setLearningStatsMemoryStore(cache.store, { source:`${writeSource}-ledger-memory`, updatedAt:delta.updatedAt });
@@ -21655,7 +21668,7 @@ function getIOImageGroups() {
 
         // Commit the displayed card ID only after synchronous rendering completed.
         localStorage.setItem(STORAGE_KEY_CURRENT_CARD_ID, String(card.id));
-        if(typeof mkShortcutRefreshHints==='function') mkShortcutRefreshHints();
+        if(typeof mkShortcutRefreshHints==='function') mkShortcutRefreshHints(true);
         const mkCardRenderElapsedMs = Math.round(performance.now() - mkCardRenderStartedAt);
         if(mkCardRenderElapsedMs >= 150 || window.__MK_CARD_PERF_TRACE__ === true) {
             const detail = {
@@ -22024,6 +22037,28 @@ function getIOImageGroups() {
         return reviewHistoryMergedCache;
     }
 
+    // A single review must not merge every card's entire history after each
+    // ledger append invalidates the full-history cache. Keep the full merge for
+    // exports, restores and other callers that actually require all cards.
+    function getMkReviewHistoryForKeys(keys) {
+        const local = readLocalReviewHistoryCached();
+        const result = {};
+        for(const key of keys) {
+            if(!reviewHistoryLedgerReady) {
+                if(Array.isArray(local[key])) result[key]=local[key];
+                continue;
+            }
+            const ledgerItems=reviewHistoryLedgerMemory[key];
+            const localItems=local[key];
+            const merged=mergeReviewHistoryObjects(
+                Array.isArray(ledgerItems)?{[key]:ledgerItems}:{},
+                Array.isArray(localItems)?{[key]:localItems}:{}
+            );
+            if(Array.isArray(merged[key])) result[key]=merged[key];
+        }
+        return result;
+    }
+
     function writeLocalReviewHistory(history) {
         const next = history && typeof history === 'object' ? history : {};
         if(reviewHistorySnapshotMemory !== null) {
@@ -22320,7 +22355,7 @@ function getIOImageGroups() {
     }
 
     function getAccuracyStats(cardId, fallbackStat = {}) {
-        const history = getReviewHistory();
+        const history = getMkReviewHistoryForKeys([cardId]);
         const items = Array.isArray(history[cardId]) ? history[cardId] : [];
         return getAccuracyStatsFromItems(items, fallbackStat);
     }
@@ -22347,8 +22382,8 @@ function getIOImageGroups() {
     }
 
     function getMergedReviewHistoryForCardFromSnapshot(card, fallbackId = '', historySnapshot = null) {
-        const history = historySnapshot && typeof historySnapshot === 'object' ? historySnapshot : getReviewHistory();
         const keys = getReviewHistoryKeysForCard(card, fallbackId);
+        const history = historySnapshot && typeof historySnapshot === 'object' ? historySnapshot : getMkReviewHistoryForKeys(keys);
         const merged = [];
         const seen = new Set();
         keys.forEach(key => {
@@ -22368,7 +22403,7 @@ function getIOImageGroups() {
     }
 
     function getMergedReviewHistoryForCard(card, fallbackId = '') {
-        return getMergedReviewHistoryForCardFromSnapshot(card, fallbackId, getReviewHistory());
+        return getMergedReviewHistoryForCardFromSnapshot(card, fallbackId);
     }
 
     function recordReviewHistoryForCard(card, canonicalCardId, score) {
@@ -22379,8 +22414,7 @@ function getIOImageGroups() {
         // IMPORTANT: due/today-required cards can resolve to a legacy Stats key.
         // Always merge every known alias BEFORE appending so a new review can never
         // start a fresh one-item array and make the card's prior history disappear.
-        const history = getReviewHistory();
-        const mergedBefore = getMergedReviewHistoryForCardFromSnapshot(card, canonicalId, history).items.slice();
+        const mergedBefore = getMergedReviewHistoryForCardFromSnapshot(card, canonicalId).items.slice();
         const meta = getGradeMeta(score);
         const item = {
             id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -22936,6 +22970,9 @@ function getIOImageGroups() {
     }
 
     async function grade(score) {
+        const mkGradeStart=performance.now(),mkGradePhases={};
+        const mkGradeMark=name=>{mkGradePhases[name]=Math.round(performance.now()-mkGradeStart);};
+        const mkGradeFinish=mode=>{mkGradeMark('totalMs');window.__mkLastGradePerf={mode,...mkGradePhases};if(mkGradePhases.totalMs>=100)console.info('[MK_GRADE_PERF]',window.__mkLastGradePerf);};
         console.log('REVIEW_BUTTON_CLICK', { score, currentCardUuid: getCurrentCardId() });
         if(filterResetGradeInProgress) {
             console.warn('[MK_REVIEW] duplicate grade ignored', { score, currentCardUuid:getCurrentCardId() });
@@ -22957,6 +22994,7 @@ function getIOImageGroups() {
         const id = foundStats.key || String(card.id);
         saveRecentDeck();
         const historyItem = recordReviewHistoryForCard(card, id, score);
+        mkGradeMark('historyMs');
         if(!data[id]) data[id] = { correct: 0, total: 0, lastDate: 0 };
         // If detailed history was lost, continue from the surviving aggregate/FSRS state.
         // Never treat a previously reviewed card as a brand-new FSRS card merely because
@@ -22994,6 +23032,7 @@ function getIOImageGroups() {
             originalDeckCount:Array.isArray(originalDeck) ? originalDeck.length : 0
         });
         markLocalDataUpdated(data[id].updatedAt); saveStudyState('review', { backup: true });
+        mkGradeMark('saveMs');
 
         const learningStatsDelta = recordLearningStatsReview(card, learningStatsSource, { stat:data[id], historyItem });
         console.log('[MK_LEARNING_STATS_REVIEW_FLOW]', {
@@ -23006,6 +23045,7 @@ function getIOImageGroups() {
         updateStatsUI(getStatsForCard(card));
         markTodayPlanCardCompleted(card);
         mkRotationMarkCompleted(card);
+        mkGradeMark('planMs');
         console.log('REVIEW_SAVED', { score, currentCardUuid: String(id), nextReviewDate: data[id].dueDate || null });
         const activeRecommendedMode = todayNewState.active ? 'new' : (todayEssentialState.active ? 'required' : '');
         const activeRecommendedState = activeRecommendedMode ? getRecommendedStudyState(activeRecommendedMode) : null;
@@ -23034,20 +23074,24 @@ function getIOImageGroups() {
             }
             console.log('NEXT_CARD_SUCCESS', { currentCardUuid: getCurrentCardId(), currentCardIndex: currentIndex });
             filterResetGradeInProgress = false;
+            mkGradeFinish('recommended');
             return;
         }
-        if(mkRotationAdvanceAfterGrade(card)) return;
+        if(mkRotationAdvanceAfterGrade(card)) {mkGradeFinish('rotation');return;}
         const filteredRefresh = refreshFilteredDeckAfterReview(id, filteredDeckBeforeReview);
+        mkGradeMark('filterMs');
         if(filteredRefresh.refreshed) {
             persistCurrentViewState(true);
             showCard();
             console.log('NEXT_CARD_SUCCESS', { currentCardUuid:getCurrentCardId(), currentCardIndex:currentIndex, filteredCount:filteredRefresh.count });
             filterResetGradeInProgress = false;
+            mkGradeFinish('filtered');
             return;
         }
         if(currentIndex < activeDeck.length - 1) moveCard(1); else { alert("학습 완료!"); moveCard(0); }
         console.log('NEXT_CARD_SUCCESS', { currentCardUuid: getCurrentCardId(), currentCardIndex: currentIndex });
         filterResetGradeInProgress = false;
+        mkGradeFinish('ordinary');
     }
 
     function getVirtualDate(ts) { const d = new Date(ts); if(d.getHours() < 4) d.setDate(d.getDate()-1); d.setHours(0,0,0,0); return d; }
@@ -23629,12 +23673,18 @@ function mkShortcutResolve(v,c){return v.enabled?Object.keys(v.keys).find(a=>v.k
         document.getElementById('mk-shortcut-hints').disabled=!v.enabled;
         list.querySelectorAll('[data-mk-shortcut-action]').forEach(el=>{el.value=v.keys[el.dataset.mkShortcutAction].map(mkShortcutLabel).join(' / ');el.disabled=!v.enabled});
     }
-    function mkShortcutRefreshHints(){
+    function mkShortcutRefreshHints(dynamicOnly=false){
         const v=mkShortcutRead(),show=v.enabled&&v.showHints&&matchMedia('(hover: hover) and (pointer: fine)').matches;
         if(!show){document.body.classList.remove('mk-shortcuts-hints-on');return;}
         document.body.classList.add('mk-shortcuts-hints-on');
         const selectors={reveal:'#click-guide',wrong:'.g-btn.bg-x',uncertain:'.g-btn.bg-tri',correct:'.g-btn.bg-o',confirm:'.g-btn.bg-chk',flag:'#pen-btn',header:'#mk-fold-study-toggle',all:'.mk-io-other-masks-toggle',focus:'button[onclick="scrollToCurrentProblem(event)"]',previous:'.nav-btn[onclick="moveCard(-1)"]',next:'.nav-btn[onclick="moveCard(1)"]'};
-        for(const [a,q] of Object.entries(selectors))document.querySelectorAll(q).forEach(el=>{if(show)el.dataset.mkShortcutHint=(a==='confirm'?[...v.keys.confirm,...v.keys.quick]:v.keys[a]).map(mkShortcutLabel).join('/');else delete el.dataset.mkShortcutHint});
+        for(const [a,q] of Object.entries(selectors)){
+            if(dynamicOnly&&a!=='all'&&a!=='focus')continue;
+            const scope=a==='focus'&&dynamicOnly?document.getElementById('question-section'):document;
+            if(!scope)continue;
+            const hint=(a==='confirm'?[...v.keys.confirm,...v.keys.quick]:v.keys[a]).map(mkShortcutLabel).join('/');
+            scope.querySelectorAll(q).forEach(el=>{if(el.dataset.mkShortcutHint!==hint)el.dataset.mkShortcutHint=hint;});
+        }
     }
     function mkShortcutVisible(el){return !!(el&&!el.hidden&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden');}
     function mkShortcutModal(){return Array.from(document.querySelectorAll('.modal-overlay,dialog[open],[aria-modal="true"]')).filter(mkShortcutVisible).sort((a,b)=>(Number(getComputedStyle(a).zIndex)||0)-(Number(getComputedStyle(b).zIndex)||0)).pop()||null;}
@@ -23685,7 +23735,7 @@ function mkShortcutResolve(v,c){return v.enabled?Object.keys(v.keys).find(a=>v.k
         document.addEventListener('keydown',mkShortcutHandleKey);document.addEventListener('keyup',e=>mkShortcutHeld.delete(mkShortcutCode(e)));
         window.addEventListener('blur',()=>mkShortcutHeld.clear());document.addEventListener('visibilitychange',()=>{if(document.hidden)mkShortcutHeld.clear()});
         window.addEventListener('storage',e=>{if(e.key==='mk_keyboard_shortcuts_v1'){mkShortcutRefreshSettings();mkShortcutRefreshHints()}});
-        const pointer=matchMedia('(hover: hover) and (pointer: fine)');if(pointer.addEventListener)pointer.addEventListener('change',mkShortcutRefreshHints);
+        const pointer=matchMedia('(hover: hover) and (pointer: fine)');if(pointer.addEventListener)pointer.addEventListener('change',()=>mkShortcutRefreshHints());
         mkShortcutRefreshSettings();mkShortcutRefreshHints();
     }
     mkShortcutInit();
